@@ -621,6 +621,7 @@ def main():
         log_info("**************** Running   testcase: {} ****************".format(k))
         run_a_testcase(k, test_data[k], default_data)
         log_info("**************** Completed testcase: {} ****************".format(k))
+    helpers.publish_deinit()
 
 
 if __name__ == "__main__":

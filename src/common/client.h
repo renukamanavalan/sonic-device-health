@@ -2,30 +2,18 @@
 #define _CLIENT_H_
 
 /*
- * APIs in use by Server
+ * APIs in use by clients
  *
- * We provide C-binding to facilitate direct use by Go & Python.
- * We don't need to use SWIG to provide any Go/Python binding.
+ * We provide C-binding to facilitate direct use by Go, RUST & Python.
+ * We don't need to use SWIG to provide any Go/RUST/Python binding.
  */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/***************************************************
- * Request from client to server                   *
- ***************************************************/
-enum ClientRequestType {
-    CL_REQ_REGISTER_CLIENT = 0,
-    CLIENT_REQ_COUNT
-};
-
 /*
  * Requests used by clients/plugins to reach server.
- *
- * The lib would use APIs from server.h to reach the server.
- * The custom APIs here makes it easier for clients use and
- * as well validate all the API specific args.
  *
  */
 
@@ -48,7 +36,7 @@ int get_last_error();
  * Get the last error encountered as string.
  *
  * Input:
- *  None
+ *  errcode - Error code to be translated to string
  *
  * Output:
  *  None
@@ -56,18 +44,20 @@ int get_last_error();
  * Return:
  *  Human readable string matching error code.
  */
-const char *get_error_str();
+const char *get_error_str(int errcode);
 
 /*
- * Register the process
+ * Register the client
  *
- * A process could register multiple actions.
- * A process restart is guaranteed to use the same ID,
+ * A plugin-mgr process acts as a client to Engine
+ * The plugin-manager manages one or more plugins.
+ * A plugin-mgr could register multiple actions.
+ * A plugin-mgr restart is guaranteed to use the same client ID,
  * which can help engine clean old registrations and start new.
  *
  * Input:
- *  proc_id -- Name of the process Identifier
- *      A process reuses this ID upon restart.
+ *  client_id -- Name of the client Identifier
+ *      A plugin-mgr reuses this ID upon restart.
  *      Engine identifies actions against this ID
  *      to block any duplicate registrations from
  *      different processes.
@@ -79,12 +69,12 @@ const char *get_error_str();
  *  0 for success
  *  !=0 implies error
  */
-int register_client(const char *proc_id);
+int register_client(const char *client_id);
 
 /*
  * Register the actions 
  *
- * Expect this process ID is pre-registered.
+ * Expect/Require register_client preceded this call.
  *
  * Input:
  *  action -- Name of the action.
@@ -100,10 +90,10 @@ int register_action(const char *action);
 
 
 /*
- * Deregister the action
+ * Deregister the client
  *
  * Input:
- *  proc_id - Id used during registration.
+ *  client_id - Id used during registration.
  *
  * Output:
  *  None
@@ -112,7 +102,7 @@ int register_action(const char *action);
  *  None.
  *
  */
-void deregister_client(const char *proc_id);
+void deregister_client(const char *client_id);
 
 
 /*
@@ -136,73 +126,77 @@ void touch_heartbeat(const char *action, const char *instance_id);
 
 
 /*
- * Read Action request
- * Json string
- * {
- *      "request_type": "<action/shutdown/...>"
- *      "action_name": "<Name>",
- *      "instance_id": "<id>",
- *      "context": "<JSON string of context>",
- *      "timeout" : <TImeout for the request>
- *  }
- *  context -- JSON string of
- *  [
- *      { <action name> : <action data per schema> }
- *      ...
- *  ]
- *  Order in list matches order of invocation
+ * Action request from server
  *
+ * A JSON string with message attrs as above for applicable attrs
+ *
+ * Action request is expected to have a set of attrs as AttributesNameStr_t
+ * as key in the JSON object encoded as string.
+ *
+ * Required attrs for action request is defined in request-attr mapping
+ * req_attrs_lst_t
+ *
+ * CONtEXT is collection of action-data from preceding actions
+ * hence, it will be empty for first action in the sequence which
+ * is an anomaly action.
+ * 
+ * CONTEXT
+ * The context is formatted as
+ * {
+ *      <preceding action name> : <JSON string of the action data from that action>
+ *      ...
+ * } 
+ *
+ * ANOMALY_INSTANCE_ID == INSTANCE_ID given to anomaly/first action in the sequence.
+ * ANOMALY_KEY == as returned by Anomaly action in the response.
+ *
+ * ANOMALY_KEY can be used to group all anomalies reported for a specific 
+ * root cause. For e.g. i/f name is the anomaly key for i/f flap.
+ *
+ * ANOMALY_KEY + ANOMALY_INSTANCE_ID == can track all for a single instance
+ *  
  * Input:
- *  timeout - Count of seconds to wait
- *      0 -- No wait
- *     >0 -- Count of seconds to wait
- *     <0 -- No timeout. Block until data
+ *  timeout -
+ *      0 - No wait, return immediately with or w/o request
+ *    > 0 - Max count of seconds to wait for request.
+ *    < 0 - Block until a request is read
  *
  * Output:
+ *  None
  *
- * Return
- *  Empty string on error / timeout.
- *  Use get_last_error() for err code
- *      0 for sucess or timeout
- *      !=0 implies failure
+ * Return:
+ *  Non-NULL - Request read as JSON string
+ *  NULL/empty string - Timeout or internal error. Use get_last_error
+ *                      to get the error code.
+ *
  */
-
-/*
- * request & resp obj element names
- */
-const char *REQ_TYPE "request_type"
-const char *REQ_TYPE_ACTION "action"
-const char *REQ_TYPE_SHUTDOWN "shutdown"
-
-const char *REQ_ACTION_NAME "action_name"
-const char *REQ_INSTANCE_ID "instance_id"
-const char *REQ_CONTEXT "context"
-const char *REQ_TIMEOUT "timeout"
-
-const char *REQ_ACTION_DATA "action_data"
-const char *REQ_RESULT_CODE "result_code"
-const char *REQ_RESULT_STR "result_str"
-
-
 const char *read_action_request(int timeout=-1);
-
 
 /*
  * Write Action response
  *
+ * A JSON string with message attrs as above for applicable attrs
+ *
+ * Action response is expected to have a set of attrs as AttributesNameStr_t
+ * as key in the JSON object encoded as string.
+ *
+ * Required attrs for action response is defined in request-attr mapping
+ * req_attrs_lst_t
+ *
+ *  ACTION_DATA - A JSON string. The encoded JSON object is per schema of this
+ *                action.
+ *  RESULT_CODE - The numerical return code, where 0 implies success and anything
+ *                else implies failure
+ *                action.
+ *  RESULT_STR  - The human readable text translation of result-code.
+ *
+ *  NOTE: RESULT_CODE is expected for anomaly's response too, as that indicates
+ *        if the detection code had any internal failure or not. Only for
+ *        RESULT_CODE == 0, the action-data is taken/considered for a detected
+ *        anomaly.
+ *        
  * Input:
  *  res - response being returned.
- * Json string
- * {
- *      "request_type": "<action/shutdown/...>"
- *      "action_name"   : "<Name>",
- *      "instance_id"   : "<id>",
- *      "action_data"   : "data as spewed by action as result",
- *      "result_code"   : <Result code of peocessing the request>
- *      "result_str"    : <Human readabloe string of result code >
- *  }
- *  "action_data" -- JSON string as per action schema devoid of common
- *          attributes
  *
  * Output:
  *  None
@@ -216,7 +210,7 @@ int write_action_response(const char *res);
 
 
 /*
- *  Poll for request from server/engine anjd as well
+ *  Poll for request from server/engine and as well
  *  listen for data from any of the fds provided
  *
  * Input:

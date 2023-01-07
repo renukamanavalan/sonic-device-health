@@ -185,10 +185,7 @@ def _update_globals():
     gvars.REQ_ACTION_DATA = _get_str_clib_globals("REQ_ACTION_DATA")
     gvars.REQ_RESULT_CODE = _get_str_clib_globals("REQ_RESULT_CODE")
     gvars.REQ_RESULT_STR  = _get_str_clib_globals("REQ_RESULT_STR")
-    gvars.REQ_MITIGATION_STATE = _get_str_clib_globals("REQ_MITIGATION_STATE")
-    gvars.REQ_MITIGATION_STATE_INIT = _get_str_clib_globals("REQ_MITIGATION_STATE_INIT")
-    gvars.REQ_MITIGATION_STATE_PROG = _get_str_clib_globals("REQ_MITIGATION_STATE_PROG")
-    gvars.REQ_MITIGATION_STATE_DONE = _get_str_clib_globals("REQ_MITIGATION_STATE_DONE")
+
 
 class ActionRequest:
     def __init__(self, sdata: str):
