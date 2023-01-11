@@ -267,6 +267,10 @@ class AnomalyHandler:
                 seq_complete = True
 
         if seq_complete:
+            if len(self.action_seq) == 1:
+                return_code = -1
+                return_str = "No mitigation seq available"
+
             # Release if any lock being held
             self._manage_lock(False)
             # Re-publish anomaly with completed state

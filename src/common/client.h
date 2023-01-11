@@ -36,7 +36,7 @@ int get_last_error();
  * Get the last error encountered as string.
  *
  * Input:
- *  errcode - Error code to be translated to string
+ *  None
  *
  * Output:
  *  None
@@ -44,7 +44,7 @@ int get_last_error();
  * Return:
  *  Human readable string matching error code.
  */
-const char *get_error_str(int errcode);
+const char *get_last_error_msg();
 
 /*
  * Register the client

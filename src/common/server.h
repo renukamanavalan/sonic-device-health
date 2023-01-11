@@ -12,6 +12,20 @@ int server_init();
 /* Helps release all resources before exit */
 void server_deinit();
 
+typedef struct RegisterRequest {
+    RequestType_t                       req;
+    std::string                         client_name;
+    /* action_name empty if not REGISTER_ACTION */
+    std::string                         action_name;
+};
+
+typedef struct HeartbeatTouch {
+    std::string                         client_name;
+    std::string                         action_name;
+    std::string                         instance_id;
+    std::string                         anomaly_instance_id;
+};
+
 typedef struct ActionRequest {
     RequestType_t                       req;
     std::string                         client_name;
@@ -49,13 +63,9 @@ class RequestHandler {
         RequestHandler(RequestType_t type): m_req(type) {};
         virtual ~RequestHandler() {};
 
-        virtual int operator()(const std:string cl_name) { printf("Not implemented\n"); return -1; }
-        virtual int operator()(const std:string cl_name, const std:string action_name) {
-            printf("Not implemented\n"); return -1; }
-        virtual int operator()(const std:string cl_name, const std:string action_name,
-                const std::string instance_id) {
-            printf("Not implemented\n"); return -1; }
-        virtual int operator()(const ActionResponse_t *) { printf("Not implemented\n"); return -1; }
+        virtual int operator()(const RegisterRequest_t &) { printf("E_NOTIMPL\n"); return -1; }
+        virtual int operator()(const HeartbeatTouch_t &) { printf("E_NOTIMPL\n"); return -1; }
+        virtual int operator()(const ActionResponse_t &) { printf("E_NOTIMPL\n"); return -1; }
 
 
     protected:

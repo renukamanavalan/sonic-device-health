@@ -1,0 +1,405 @@
+/*
+ * common APIs used by events code.
+ */
+#include <stdio.h>
+#include <chrono>
+#include <fstream>
+#include <errno.h>
+#include <map>
+#include "string.h"
+#include "json.hpp"
+#include "zmq.h"
+#include <unordered_map>
+
+#include "common.h"
+
+using namespace std;
+using namespace chrono;
+  
+/*
+ * Config that can be read from init_cfg
+ */
+#define INIT_CFG_PATH "/etc/LoM/init_cfg.json"
+
+/* configurable entities' keys */
+/* zmq proxy's sub & pub end points */
+#define SUB_END_KEY "sub_path"       
+#define PUB_END_KEY "pub_path"
+
+#define STATS_UPD_SECS "stats_upd_secs"
+
+
+/*
+ * ZMQ socket will not close, if it has messages to send.
+ * Set max time for wait.
+ */
+static const int LINGER_TIMEOUT = 100;  /* Linger timeout in millisec ll config entries */
+
+typedef map<string, string> map_str_str_t;
+#define CFG_VAL map_str_str_t::value_type
+
+static const map_str_str_t s_cfg_default = {
+    CFG_VAL(SUB_END_KEY, "tcp://127.0.0.1:5578"),
+    CFG_VAL(PUB_END_KEY, "tcp://127.0.0.1:5579"),
+    CFG_VAL(STATS_UPD_SECS, "5")
+};
+
+static void
+_read_init_config(const char *init_cfg_file)
+{
+    /* Set default and override from file */
+    cfg_data = s_cfg_default;
+
+    if (init_cfg_file == NULL) {
+        return;
+    }
+
+    ifstream fs (init_cfg_file);
+
+    if (!fs.is_open()) 
+        return;
+
+    stringstream buffer;
+    buffer << fs.rdbuf();
+
+    const auto &data = nlohmann::json::parse(buffer.str());
+
+    const auto it = data.find(CFG_EVENTS_KEY);
+    if (it == data.end())
+        return;
+
+    const auto edata = *it;
+    for (map_str_str_t::iterator itJ = cfg_data.begin();
+            itJ != cfg_data.end(); ++itJ) {
+        auto itE = edata.find(itJ->first);
+        if (itE != edata.end()) {
+            itJ->second = *itE;
+        }
+    }
+
+    return;
+}
+
+static string
+_get_config(const string key)
+{
+    if (cfg_data.empty()) {
+        read_init_config(INIT_CFG_PATH);
+    }   
+    /* Intentionally crash for non-existing key, as this
+     * is internal code bug
+     */
+    return cfg_data[key];
+}
+
+static const string
+_get_timestamp()
+{
+    stringstream ss, sfrac;
+
+    auto timepoint = system_clock::now();
+    time_t tt = system_clock::to_time_t (timepoint);
+    struct tm * ptm = localtime(&tt);
+
+    uint64_t ms = duration_cast<microseconds>(timepoint.time_since_epoch()).count();
+    uint64_t sec = duration_cast<seconds>(timepoint.time_since_epoch()).count();
+    uint64_t mfrac = ms - (sec * 1000 * 1000);
+
+    sfrac << mfrac;
+
+    ss << put_time(ptm, "%FT%H:%M:%S.") << sfrac.str().substr(0, 6) << "Z";
+    return ss.str();
+}
+
+/*
+ * events are published as two part zmq message.
+ * First part only has the event source, so receivers could
+ * filter by source.
+ *
+ * Second part contains JSON String of the data being sent.
+ */
+
+static int 
+_zmq_read_part(void *sock, int flag, int &more, string &data)
+{
+    zmq_msg_t msg;
+
+    more = 0;
+    zmq_msg_init(&msg);
+    int rc = zmq_msg_recv(&msg, sock, flag);
+    if (rc != -1) {
+        size_t more_size = sizeof (more);
+
+        zmq_getsockopt (sock, ZMQ_RCVMORE, &more, &more_size);
+
+        data = string((const char *)zmq_msg_data(&msg), zmq_msg_size(&msg));
+    }
+    else {
+        /* override with zmq err */
+        rc = zmq_errno();
+        RET_ON_ERR(rc == 11, "Failure to read part rc=%d", rc);
+    }
+    rc = 0;
+out:
+    zmq_msg_close(&msg);
+
+    return rc;
+}
+
+   
+static int
+_zmq_send_part(void *sock, int flag, const string &data)
+{
+    zmq_msg_t msg;
+
+    int rc = zmq_msg_init_size(&msg, data.size());
+    RET_ON_ERR(rc == 0, "Failed to init msg size=%d", data.size());
+
+    strncpy((char *)zmq_msg_data(&msg), data.c_str(), data.size());
+
+    rc = zmq_msg_send (&msg, sock, flag);
+    if (rc == -1) {
+        /* override with zmq err */
+        rc = zmq_errno();
+        RET_ON_ERR(false, "Failed to send part %d", rc);
+    }
+    /* zmq_msg_send returns count of bytes sent */
+    rc = 0;
+out:
+    zmq_msg_close(&msg);
+    return rc;
+}
+
+static int
+_zmq_message_send(void *sock, const string &pt1, const string &pt2)
+{
+    int rc = -1;
+    RET_ON_ERR(!pt1.empty() && !pt2.empty(),
+            "Expect non-empty pt1=%d pt2=%d", pt1.size(), pt2.size());
+
+    rc = zmq_send_part(sock, ZMQ_SNDMORE, pt1);
+
+    /* send second part, only if first is sent successfully */
+    if (rc == 0) {
+        rc = zmq_send_part(sock, 0, pt2);
+    }
+out:
+    return rc;
+}
+
+   
+static int
+_zmq_message_read(void *sock, int flag, string &pt1, string &pt2)
+{
+    int more = 0, rc, rc2 = 0, ret=-1;
+
+    rc = zmq_read_part(sock, flag, more, pt1);
+
+    RET_ON_ERR (more, "Expect two part message PT1=%s", pt1.c_str());
+
+    /*
+     * read second part if more is set, irrespective
+     * of any failure. More is set, only if sock is valid.
+     */
+    rc2 = zmq_read_part(sock, 0, more, pt2);
+
+    RET_ON_ERR((rc == 0) || (rc == 11), "Failure to read part1 rc=%d", rc);
+    if (rc2 != 0) {
+        rc = rc2;
+        RET_ON_ERR(false, "Failed to read part2 rc=%d", rc);
+    }
+    if (more) {
+        rc = -1;
+        RET_ON_ERR(false, "Don't expect more than 2 parts, rc=%d", rc);
+    }
+    ret = 0;
+out:
+    return ret == 0 ? 0 : (rc != 0 ? rc : -1);
+}
+
+class running_mode
+{
+    public:
+        running_mode(int rd_timeout_ms = -1):
+            m_zmq_ctx(NULL), m_is_client_mode(false),
+            m_wr_sock(NULL), m_rd_sock(NULL), m_rd_timeout_ms(rd_timeout_ms)
+        {};
+
+        virtual ~running_mode() {
+            zmq_close(m_wr_sock);
+            zmq_close(m_rd_sock);
+            zmq_ctx_term(m_zmq_ctx);
+        }
+
+        bool is_valid() {
+            return (m_wr_sock != NULL);
+        }
+
+        int set_mode(const string client_name = string())
+        {
+            int rc = 0, ret = -1;
+
+            void *zmq_ctx = zmq_ctx_new();
+            void *wr_sock = NULL;
+            void *rd_sock = NULL;
+
+            wr_sock = zmq_socket (zmq_ctx, ZMQ_PUB);
+            RET_ON_ERR(wr_sock != NULL, "Failed to ZMQ_PUB socket");
+
+            rc = zmq_setsockopt (wr_sock, ZMQ_LINGER, &LINGER_TIMEOUT, sizeof (LINGER_TIMEOUT));
+            RET_ON_ERR(rc == 0, "Failed to ZMQ_LINGER to %d", LINGER_TIMEOUT);
+
+            rc = zmq_connect (wr_sock, get_config(SUB_END_KEY).c_str());
+            RET_ON_ERR(rc == 0, "client fails to connect %s",
+                    get_config(SUB_END_KEY).c_str());
+
+            rd_sock = zmq_socket (zmq_ctx, ZMQ_SUB);
+            RET_ON_ERR(rd_sock != NULL, "Failed to ZMQ_PUB socket");
+
+            rc = zmq_connect (rd_sock, get_config(PUB_END_KEY).c_str());
+            RET_ON_ERR(rc == 0, "client fails to connect %s",
+                    get_config(PUB_END_KEY).c_str());
+
+            /* client_name empty in server mode. Hence subscribe to any */
+            rc = zmq_setsockopt(rd_sock, ZMQ_SUBSCRIBE, client_name.c_str(),
+                    client_name.size());
+            RET_ON_ERR(rc == 0, "Fails to set option rc=%d", rc);
+
+            if (m_rd_timeout_ms != -1) {
+                rc = zmq_setsockopt (rd_sock, ZMQ_RCVTIMEO, &m_rd_timeout_ms,
+                        sizeof (m_rd_timeout_ms));
+                RET_ON_ERR(rc == 0, "Failed to ZMQ_RCVTIMEO to %d", m_rd_timeout_ms);
+            }
+
+            m_is_client_mode = !client_name.empty();
+            m_client_name = client_name;
+            m_wr_sock = wr_sock;
+            m_rd_sock = rd_sock;
+            m_zmq_ctx = zmq_ctx;
+            zmq_ctx = NULL;
+
+            {
+                stringstream ss;
+                ss << "is_client: " << m_is_client_mode << " client:" << m_client_name;
+                m_self_str = ss.str();
+            }
+            ret = 0;
+        out:
+            if (zmq_ctx != NULL) {
+                zmq_close(wr_sock);
+                zmq_close(rd_sock);
+            }
+            return ret == 0 ? 0 : (rc != 0 ? rc : -1);
+        }
+
+        int write(const string msg, const string dest = string())
+        {
+            int rc = 0, ret = -1;
+            RET_ON_ERR(m_is_client_mode == dest.empty(),
+                    "Client specifies no dest; server specifies. self(%s) dest:(%s)",
+                    m_self_str.c_str(), dest.c_str());
+
+            /* Set sender name if from client. Server receives any. */
+            rc = _zmq_message_send(m_wr_sock, dest.empty() ? m_client_name : dest, msg);
+            RET_ON_ERR(rc == 0, "Failed to send self(%s) rc=%d", m_self_str.c_str(), rc);
+            ret = 0;
+        out:
+            return ret == 0 ? 0 : (rc != 0 ? rc : -1);
+        }
+
+        int read(string &client_id, string &msg, bool dont_wait = false)
+        {
+            int rc = 0;
+
+            rc = _zmq_message_read(m_rd_sock, dont_wait ? ZMQ_DONTWAIT : 0,
+                    client_id, msg);
+            RET_ON_ERR(rc == 0, "Failed to recv self(%s) rc=%d", m_self_str.c_str(), rc);
+        out:
+            return rc;
+        }
+
+
+    private:
+        void *m_zmq_ctx;
+        bool m_is_client_mode;
+        string m_client_name;
+        void *m_wr_sock;
+        void *m_rd_sock;
+        int m_rd_timeout_ms;
+
+        string m_self_str;
+
+};
+
+typedef shared_ptr<running_mode> running_mode_ptr_t;
+
+static running_mode_ptr_t s_mode;
+
+int
+init_client_transport(const string client_name)
+{
+    int ret = -1;
+
+    RET_ON_ERR(s_mode.empty(), "Duplicate init");
+    RET_ON_ERR(!client_name.empty(), "Require non-empty client name");
+
+    running_mode_ptr_t mode(new running_mode());
+
+    mode->set_mode(client_name);
+    RET_ON_ERR(mode->is_valid(), "Failed to init transport for client (%s)",
+            client_name.c_str());
+    s_mode.reset(mode);
+out:
+    return ret;
+
+}
+
+
+int
+init_server_transport()
+{
+    int ret = -1;
+
+    RET_ON_ERR(s_mode.empty(), "Duplicate init");
+
+    running_mode_ptr_t mode(new running_mode());
+
+    mode->set_mode();
+    RET_ON_ERR(mode->is_valid(), "Failed to init transport for server");
+    s_mode.reset(mode);
+out:
+    return ret;
+
+}
+
+int
+close_transport()
+{
+    s_mode.reset(NULL);
+}
+
+int
+write(const string msg, const string dest = string())
+{
+    int ret = -1;
+
+    RET_ON_ERR(!s_mode.empty(), "No transport available to write.");
+
+    ret = s_mode->write(msg, dest);
+out:
+    return ret;
+}
+
+int read(string &client_id, string &msg, bool dont_wait = false)
+{
+    int ret = -1;
+
+    RET_ON_ERR(!s_mode.empty(), "No transport available to read.");
+
+    ret = s_mode->read(client_id, msg, dont_wait);
+out:
+    return ret;
+
+}
+
+
