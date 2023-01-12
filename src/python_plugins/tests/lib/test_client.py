@@ -342,7 +342,7 @@ def _read_req(timeout:int = -1) -> bool:
         return False
 
     d = req[gvars.REQ_ACTION_REQUEST]
-    if ((d["request_type"] != gvars.REQ_TYPE_SHUTDOWN) and
+    if ((d["request_type"] != gvars.REQ_ACTION_TYPE_SHUTDOWN) and
             (d[gvars.REQ_ACTION_NAME] not in th_local.actions)):
         report_error("unknown req/action {}".format(json.dumps(d)))
         return False
@@ -453,7 +453,7 @@ def server_write_request(data:{}) -> bool:
     #
     if ((len(data) != 1) or (list(data)[0] != gvars.REQ_ACTION_REQUEST)):
         report_error("Expect key {} with JSON object of the req as val: {}".
-                format(gvars.REQ_TYPE_ACTION, json.dumps(data)))
+                format(gvars.REQ_ACTION_TYPE_ACTION, json.dumps(data)))
         return False
 
     for _, svc in wr_fds.items():

@@ -182,6 +182,7 @@ int write_message(const ActionRequest_t &);
 
 /*
  * Reads and process atmost one message from client
+ * The registered handler per request type is invoked.
  *
  * Input:
  *  timeout - 

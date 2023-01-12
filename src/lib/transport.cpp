@@ -353,7 +353,7 @@ init_client_transport(const string client_name)
     tx->set_mode(client_name);
     RET_ON_ERR(tx->is_valid(), "Failed to init transport for client (%s)",
             client_name.c_str());
-    t_transport.reset(tx);
+    t_transport = tx;
     s_tx_initialized = true;
 out:
     return rc;
@@ -372,7 +372,7 @@ init_server_transport(void)
 
     tx->set_mode();
     RET_ON_ERR(tx->is_valid(), "Failed to init transport for server");
-    t_transport.reset(tx);
+    t_transport = tx;
 out:
     return rc;
 

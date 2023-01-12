@@ -46,8 +46,6 @@ int get_last_error();
  */
 const char *get_last_error_msg();
 
-class transport;
-typedef std::shared_ptr<transport> transport_handler_t;
 
 /*
  * Register the client
@@ -129,17 +127,12 @@ void deregister_client(const char *client_id);
 int touch_heartbeat(const char *action, const char *instance_id);
 
 
-
 /*
  * Action request from server
  *
  * A JSON string with message attrs as above for applicable attrs
- *
- * Action request is expected to have a set of attrs as AttributesNameStr_t
- * as key in the JSON object encoded as string.
- *
- * Required attrs for action request is defined in request-attr mapping
- * req_attrs_lst_t
+ * Refer: server.h: ActionRequest:: m_reqd_keys & m_opt_keys 
+ *          for complete list of required & optional attrs.
  *
  * CONtEXT is collection of action-data from preceding actions
  * hence, it will be empty for first action in the sequence which
@@ -177,19 +170,20 @@ int touch_heartbeat(const char *action, const char *instance_id);
  */
 const char *read_action_request(int timeout=-1);
 
+
 /*
  * Write Action response
  *
  * A JSON string with message attrs as above for applicable attrs
+ * Refer server.h: ActionResponse: m_reqd_keys
  *
  * Action response is expected to have a set of attrs as AttributesNameStr_t
  * as key in the JSON object encoded as string.
  *
- * Required attrs for action response is defined in request-attr mapping
  * req_attrs_lst_t
  *
  *  ACTION_DATA - A JSON string. The encoded JSON object is per schema of this
- *                action.
+ *                action as returned by the plugin.
  *  RESULT_CODE - The numerical return code, where 0 implies success and anything
  *                else implies failure
  *                action.

@@ -17,11 +17,11 @@ REQ_ACTION_REQUEST = "action_request"
 
 # Expected attribute names from CDLL for Action req/resp
 # These can be refreshed from loaded DLL
-# e.g. _get_str_globals("REQ_TYPE")
+# e.g. _get_str_globals("REQ_ACTION_TYPE")
 #
-REQ_TYPE = "request_type"
-REQ_TYPE_ACTION = "action"
-REQ_TYPE_SHUTDOWN = "shutdown"
+REQ_ACTION_TYPE = "request_type"
+REQ_ACTION_TYPE_ACTION = "action"
+REQ_ACTION_TYPE_SHUTDOWN = "shutdown"
 
 REQ_CLIENT_NAME = "client_name"
 REQ_ACTION_NAME = "action_name"
