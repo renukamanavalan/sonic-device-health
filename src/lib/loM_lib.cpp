@@ -91,15 +91,14 @@ register_client(const char *client_id)
     rc = msg.set(REQ_CLIENT_NAME, str_id);
     RET_ON_ERR(rc == 0, "Failed to set client name %s", client_id);
 
-
     RET_ON_ERR(s_registered.client_name.empty(),
             "Duplicate registration exist: %s new:%s",
             s_registered.client_name.c_str(), client_id);
 
+    RET_ON_ERR(msg->validate(), "req (%s) failed to validate", msg.to_str().c_str());
+
     rc = init_client_transport(str_id);
     RET_ON_ERR(rc == 0, "Failed to init client");
-
-    RET_ON_ERR(msg->validate(), "req (%s) failed to validate", msg.to_str().c_str());
 
     rc = write_message(msg.to_str());
     RET_ON_ERR(rc == 0, "Failed to write register client");

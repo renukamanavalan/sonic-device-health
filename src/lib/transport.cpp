@@ -220,8 +220,8 @@ class transport
 {
     public:
         running_mode(int rd_timeout_ms = -1):
-            m_zmq_ctx(NULL), m_is_client_mode(false),
-            m_wr_sock(NULL), m_rd_sock(NULL), m_rd_timeout_ms(rd_timeout_ms)
+            m_zmq_ctx(NULL), m_wr_sock(NULL), m_rd_sock(NULL),
+            m_rd_timeout_ms(rd_timeout_ms)
         {};
 
         virtual ~running_mode() {
@@ -234,10 +234,15 @@ class transport
             return (m_wr_sock != NULL);
         }
 
+        bool is_client_mode() {
+            return !m_client_name.empty();
+        }
+
         int set_mode(const string client_name = string())
         {
             int rc = 0;
 
+            pub_p
             void *zmq_ctx = zmq_ctx_new();
             void *wr_sock = NULL;
             void *rd_sock = NULL;
@@ -248,16 +253,14 @@ class transport
             rc = zmq_setsockopt (wr_sock, ZMQ_LINGER, &LINGER_TIMEOUT, sizeof (LINGER_TIMEOUT));
             RET_ON_ERR(rc == 0, "Failed to ZMQ_LINGER to %d", LINGER_TIMEOUT);
 
-            rc = zmq_connect (wr_sock, get_config(SUB_END_KEY).c_str());
-            RET_ON_ERR(rc == 0, "client fails to connect %s",
-                    get_config(SUB_END_KEY).c_str());
-
             rd_sock = zmq_socket (zmq_ctx, ZMQ_SUB);
             RET_ON_ERR(rd_sock != NULL, "Failed to ZMQ_PUB socket");
 
-            rc = zmq_connect (rd_sock, get_config(PUB_END_KEY).c_str());
-            RET_ON_ERR(rc == 0, "client fails to connect %s",
-                    get_config(PUB_END_KEY).c_str());
+            if (client_name.empty()) {
+                bind_server(zmq_ctx, wr_sock, rd_sock);
+            } else {
+                connect_client(zmq_ctx, wr_sock, rd_sock);
+            }
 
             /* client_name empty in server mode. Hence subscribe to any */
             rc = zmq_setsockopt(rd_sock, ZMQ_SUBSCRIBE, client_name.c_str(),
@@ -270,7 +273,6 @@ class transport
                 RET_ON_ERR(rc == 0, "Failed to ZMQ_RCVTIMEO to %d", m_rd_timeout_ms);
             }
 
-            m_is_client_mode = !client_name.empty();
             m_client_name = client_name;
             m_wr_sock = wr_sock;
             m_rd_sock = rd_sock;
@@ -279,7 +281,7 @@ class transport
 
             {
                 stringstream ss;
-                ss << "is_client: " << m_is_client_mode << " client:" << m_client_name;
+                ss << "is_client: " << is_client_mode() << " client:" << m_client_name;
                 m_self_str = ss.str();
             }
         out:
@@ -293,7 +295,7 @@ class transport
         int write(const string msg, const string dest = string())
         {
             int rc = 0;
-            RET_ON_ERR(m_is_client_mode == dest.empty(),
+            RET_ON_ERR(is_client_mode() == dest.empty(),
                     "Client specifies no dest; server specifies. self(%s) dest:(%s)",
                     m_self_str.c_str(), dest.c_str());
 
@@ -319,8 +321,43 @@ class transport
 
 
     private:
+        /*
+         * Engine creates PUB & SUB points
+         * 
+         * Engine creates PUB socket and write out via PUB end point.
+         * Clients creates SUB socket and connect to PUB point for read.
+         *
+         * Engine creates SUB socket and listen via via SUB end point.
+         * Clients creates PUB socket and connect to SUB point for writes.
+         */
+        int connect_client(void *zmq_ctx, void *wr_sock, void *rd_sock)
+        {
+            int rc = zmq_connect (wr_sock, get_config(SUB_END_KEY).c_str());
+            RET_ON_ERR(rc == 0, "client fails to connect %s",
+                    get_config(SUB_END_KEY).c_str());
+
+            rc = zmq_connect (rd_sock, get_config(PUB_END_KEY).c_str());
+            RET_ON_ERR(rc == 0, "client fails to connect %s",
+                    get_config(PUB_END_KEY).c_str());
+        out:
+            return rc;
+        }
+
+        int bind_server(void *zmq_ctx, void *wr_sock, void *rd_sock)
+        {
+            int rc = zmq_bind (wr_sock, get_config(PUB_END_KEY).c_str());
+            RET_ON_ERR(rc == 0, "server fails to bind %s",
+                    get_config(PUB_END_KEY).c_str());
+
+            rc = zmq_bind (rd_sock, get_config(SUB_END_KEY).c_str());
+            RET_ON_ERR(rc == 0, "server fails to bind %s",
+                    get_config(SUB_END_KEY).c_str());
+        out:
+            return rc;
+        }
+
+
         void *m_zmq_ctx;
-        bool m_is_client_mode;
         string m_client_name;
         void *m_wr_sock;
         void *m_rd_sock;
