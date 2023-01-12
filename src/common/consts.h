@@ -56,10 +56,4 @@
 #define REQ_MITIGATION_STATE_TIMEOUT "timeout"
 #define REQ_MITIGATION_STATE_DONE "complete"
 
-/*
- * JSON string of message object, where attrs vary per request as
- * listed above.
- */
-typedef std::string message_t;
-
 #endif // _CONSTS_H_

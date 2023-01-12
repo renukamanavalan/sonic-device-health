@@ -5,8 +5,6 @@ define  _COMMON_H_
 #include <stdarg.h>
 
 extern int errno;
-extern int last_errno;
-extern int last_zmq_errno;
 
 #define LOM_LOG_ERROR(msg, ...) log_write(LOG_ERR, __FUNCTION__, msg, ##__VA_ARGS__)
 #define LOM_LOG_INFO(msg, ...) log_info(LOG_INFO, __FUNCTION__, msg, ##__VA_ARGS__)
