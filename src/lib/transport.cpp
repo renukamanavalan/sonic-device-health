@@ -191,7 +191,7 @@ out:
 static int
 _zmq_message_read(void *sock, int flag, string &pt1, string &pt2)
 {
-    int more = 0, rc, rc2 = 0, ret=-1;
+    int more = 0, rc, rc2 = 0;
 
     rc = zmq_read_part(sock, flag, more, pt1);
 
@@ -212,12 +212,11 @@ _zmq_message_read(void *sock, int flag, string &pt1, string &pt2)
         rc = -1;
         RET_ON_ERR(false, "Don't expect more than 2 parts, rc=%d", rc);
     }
-    ret = 0;
 out:
-    return ret == 0 ? 0 : (rc != 0 ? rc : -1);
+    return rc;
 }
 
-class running_mode
+class transport
 {
     public:
         running_mode(int rd_timeout_ms = -1):
@@ -237,7 +236,7 @@ class running_mode
 
         int set_mode(const string client_name = string())
         {
-            int rc = 0, ret = -1;
+            int rc = 0;
 
             void *zmq_ctx = zmq_ctx_new();
             void *wr_sock = NULL;
@@ -283,18 +282,17 @@ class running_mode
                 ss << "is_client: " << m_is_client_mode << " client:" << m_client_name;
                 m_self_str = ss.str();
             }
-            ret = 0;
         out:
             if (zmq_ctx != NULL) {
                 zmq_close(wr_sock);
                 zmq_close(rd_sock);
             }
-            return ret == 0 ? 0 : (rc != 0 ? rc : -1);
+            return rc;
         }
 
         int write(const string msg, const string dest = string())
         {
-            int rc = 0, ret = -1;
+            int rc = 0;
             RET_ON_ERR(m_is_client_mode == dest.empty(),
                     "Client specifies no dest; server specifies. self(%s) dest:(%s)",
                     m_self_str.c_str(), dest.c_str());
@@ -302,9 +300,8 @@ class running_mode
             /* Set sender name if from client. Server receives any. */
             rc = _zmq_message_send(m_wr_sock, dest.empty() ? m_client_name : dest, msg);
             RET_ON_ERR(rc == 0, "Failed to send self(%s) rc=%d", m_self_str.c_str(), rc);
-            ret = 0;
         out:
-            return ret == 0 ? 0 : (rc != 0 ? rc : -1);
+            return rc;
         }
 
         int read(string &client_id, string &msg, bool dont_wait = false)
@@ -317,6 +314,8 @@ class running_mode
         out:
             return rc;
         }
+
+        int read_sock() { return m_rd_sock; };
 
 
     private:
@@ -331,75 +330,121 @@ class running_mode
 
 };
 
-typedef shared_ptr<running_mode> running_mode_ptr_t;
+typedef shared_ptr<transport> transport_ptr_t;
 
-static running_mode_ptr_t s_mode;
+/* ZMQ sockets are not thread safe. Protect from accidental use across threads */
+thread_local transport_ptr_t t_transport;
 
 int
 init_client_transport(const string client_name)
 {
-    int ret = -1;
+    /*
+     * Only one transport expected per process. This flag to help capture
+     * design/implementation level misuse. Hence not thread protected.
+     */
+    static bool s_tx_initialized = false;
 
-    RET_ON_ERR(s_mode.empty(), "Duplicate init");
+    int rc = 0;
+    RET_ON_ERR(!s_tx_initialized, "Duplicate init/multi-init");
     RET_ON_ERR(!client_name.empty(), "Require non-empty client name");
 
-    running_mode_ptr_t mode(new running_mode());
+    transport_ptr_t tx(new transport());
 
-    mode->set_mode(client_name);
-    RET_ON_ERR(mode->is_valid(), "Failed to init transport for client (%s)",
+    tx->set_mode(client_name);
+    RET_ON_ERR(tx->is_valid(), "Failed to init transport for client (%s)",
             client_name.c_str());
-    s_mode.reset(mode);
+    t_transport.reset(tx);
+    s_tx_initialized = true;
 out:
-    return ret;
+    return rc;
 
 }
 
 
 int
-init_server_transport()
+init_server_transport(void)
 {
-    int ret = -1;
+    /* Called only by engine */
+    int rc = 0;
+    RET_ON_ERR(t_transport.empty(), "Duplicate init");
 
-    RET_ON_ERR(s_mode.empty(), "Duplicate init");
+    transport_ptr_t tx(new transport());
 
-    running_mode_ptr_t mode(new running_mode());
-
-    mode->set_mode();
-    RET_ON_ERR(mode->is_valid(), "Failed to init transport for server");
-    s_mode.reset(mode);
+    tx->set_mode();
+    RET_ON_ERR(tx->is_valid(), "Failed to init transport for server");
+    t_transport.reset(tx);
 out:
-    return ret;
+    return rc;
 
 }
 
 int
 close_transport()
 {
-    s_mode.reset(NULL);
+    t_transport.reset(NULL);
 }
 
 int
-write(const string msg, const string dest = string())
+write_transport(const string msg, const string dest = string())
 {
-    int ret = -1;
+    int rc = 0;
 
-    RET_ON_ERR(!s_mode.empty(), "No transport available to write.");
+    RET_ON_ERR(!t_transport.empty(), "No transport available to write.");
 
-    ret = s_mode->write(msg, dest);
+    rc = t_transport->write(msg, dest);
 out:
-    return ret;
+    return rc;
 }
 
-int read(string &client_id, string &msg, bool dont_wait = false)
+int read_transport(string &client_id, string &msg, bool dont_wait = false)
 {
-    int ret = -1;
+    int rc = 0;
 
-    RET_ON_ERR(!s_mode.empty(), "No transport available to read.");
+    RET_ON_ERR(!t_transport.empty(), "No transport available to read.");
 
-    ret = s_mode->read(client_id, msg, dont_wait);
+    rc = t_transport->read(client_id, msg, dont_wait);
 out:
-    return ret;
+    return rc;
+}
 
+
+int poll_for_data(int *lst_fds, int cnt, int timeout)
+{
+    zmq_pollitem_t items[cnt+1];
+
+    items[0].socket = t_transport->read_sock();
+    items[0].events = ZMQ_POLLIN;
+
+    zmq_pollitem_t *p = items + 1;
+    for(int i=0; i<cnt; ++i, ++p) {
+        p->fd = *lst_fds++;
+        p->events = ZMQ_POLLIN;
+    }
+
+    int rc = zmq_poll (items, cnt+1, timeout);
+    switch (rc) {
+    case -1:
+        return -3;
+    
+    case 0:
+        /* timeout */
+        return -2;
+
+    default:
+        break;
+    }
+
+    if (items[0].revents & ZMQ_POLLIN) {
+        /* Data available from engine */
+        return -1;
+    }
+    for(int i=1; i<= cnt; ++i) {
+        if (items[i] & ZMQ_POLLIN) {
+            return items[i].fd;
+        }
+    }
+    /* Unexpected result */
+    return -3;
 }
 
 

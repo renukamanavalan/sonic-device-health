@@ -46,6 +46,9 @@ int get_last_error();
  */
 const char *get_last_error_msg();
 
+class transport;
+typedef std::shared_ptr<transport> transport_handler_t;
+
 /*
  * Register the client
  *
@@ -119,9 +122,11 @@ void deregister_client(const char *client_id);
  *  None
  *
  * Return:
- *  None
+ *  0 for success
+ *  !=0 implies error
+ *
  */
-void touch_heartbeat(const char *action, const char *instance_id);
+int touch_heartbeat(const char *action, const char *instance_id);
 
 
 
@@ -225,6 +230,7 @@ int write_action_response(const char *res);
  *  None
  *
  * Return:
+ *  -3 - Failure
  *  -2 - Timeout
  *  -1 - Message from server/engine
  *  >= 0 -- Fd that has message

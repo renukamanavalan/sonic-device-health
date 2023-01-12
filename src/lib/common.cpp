@@ -26,61 +26,106 @@ void log_write(int lvl, const char *caller, const char *msg, ...)
     va_end(ap);
 }
 
+class errorMgr {
+    public:
+        errorMgr() : m_code(0) {};
+
+        void set_error(int code, const string msg) {
+            m_code = code;
+            m_msg = msg;
+        }
+        int get_error() { return m_code; }
+        string get_error_msg() { return m_msg; }
+
+    private:
+        int m_code;
+        stirng m_msg;
+};
+
+static errorMgr s_errorMgr;
+
+
+void set_last_error(const char *caller, int e, int ze, int rc,
+        const char *msg, ...)
+{
+    stringstream ss;
+    char buf[1024];
+
+    ss << caller << ":";
+    if (e != 0) {
+        ss << "err:" << e << " ";
+    }
+
+    if (ze != 0) {
+        ss << "zerr:" << ze << " ";
+    }
+    ss << "rc:" << rc << " ";
+    ss << msg;
+  
+    va_list ap;
+    va_start(ap, msg);
+
+    vsnprintf(buf, ss.str().c_str(), ap);
+    va_end(ap);
+
+    syslog(LOG_ERR, buf);
+    s_errorMgr.set_error(rc, buf);
+}
+
 
 void log_close()
 {
     closelog();
 }
 
-#if 0
-static struct errcode_val {
-    int code;
-    const char* msg;
-} s_error_codes[] = {
-    { LOM_LIB_SUCCESS, "ERR_OK" },
-    { LOM_LIB_UNKNOWN, "ERR_UNKNOWN" }
-};
-
-class errorMgr {
-    public:
-        errorMgr() : m_code(0) {
-            const struct errcode_val *p = s_error_codes;
-            for(int i=0; i<ARRAYSIZE(s_error_codes); ++i, ++p) {
-               m_default[p->code] = p->msg;
-            }
-        }
-
-        void set_error(int code, const string msg) {
-            m_code = code;
-            if (!msg.empty()) {
-                m_msg = msg;
-            } else {
-                m_msg = m_default[code];
-            }
-        }
-        int get_error() { return m_code; }
-        string get_error_msg() { return m_msg; }
-        int get_all(string &msg) { msg=m_msg; return m_code; }
-
-    private:
-        int m_code;
-        stirng m_msg;
-        map<int, const string> m_default;
-};
-
-static errorMgr s_errorMgr;
-
-void error_init()
-{
-    for(int i=0; i<
-
-void set_last_error(int err, const string errmsg)
-{
-    s_errorMgr.set_error(err, errmsg);
-}
-
 int get_last_error() { return s_errorMgr.get_error(); }
 
-const char *get_last_error_str() { return s_errorMgr.get_error_msg().c_str(); }
-#endif
+const char *get_last_error_msg() { return s_errorMgr.get_error_msg().c_str(); }
+
+
+/* Map to JSON string and vice versa */
+string
+convert_to_json(const string key, const map_str_str_t &params)
+{
+    nlohmann::json msg = nlohmann::json::object();
+    nlohmann::json params_data = nlohmann::json::object();
+
+    for (map_str_str_t::const_iterator itc = params.begin();
+                itc != params.end(); ++itc) {
+        params_data[itc->first] = itc->second;
+    }
+    msg[key] = params_data;
+    return msg.dump();
+}
+
+template<typename T>
+void
+get_params(T& data, map_str_str_t &params, string slice)
+{
+    for (auto itp = data.cbegin(); itp != data.cend(); ++itp) {
+        RET_ON_ERR((*itp).is_string(), "Invalid json str(%s). Expect params value as string",
+                    slice.c_str());
+        params[itp.key()] = itp.value();
+    }
+}
+
+int
+convert_from_json(const string json_str, string &key, map_str_str_t &params)
+{
+    int rc = 0;
+    const auto &data = nlohmann::json::parse(json_str);
+
+    if (data.size() == 1) {
+        auto it = data.cbegin();
+        key = it.key();
+        RET_ON_ERR((*it).is_object(), "Invalid json str(%s). Expect object as val",
+                    json_str.substr(0, 20).c_str());
+        get_params(*it, params, json_str.substr(0, 20));
+    } else {
+        key = "";
+        get_params(data, params, json_str.substr(0, 20));
+    }
+out:
+    return rc;
+}
 

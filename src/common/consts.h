@@ -10,64 +10,51 @@
  * RequestType_t - Enumerates all request types         *
  * AttributesName_t - Enumerates all attribute types    *
  *                                                      *
- * As JSON object keys are strings, a conversion method *
- * is provided as enum to str and vice versa            *
- *                                                      *
  * The list of attrs indeed vary by request type.       *
  * The map below lists attrs expected per request type. *
  *                                                      *
  ********************************************************/
-typedef enum RequestType {
-    REGISTER_CLIENT = 0,
-    REGISTER_ACTION,
-    DEREGISTER_CLIENT,
-    ACTION_HEARTBEAT,
-    ACTION_REQUEST,
-    ACTION_RESPONSE,
-    ACTION_SHUTDOWN,
-    CLIENT_REQ_COUNT
-} RequestType_t;
+
+/*
+ * requests
+ * These are between clib client & server, hence mocked here.
+ */
+#define REQ_REGISTER_CLIENT "register_client"
+#define REQ_DEREGISTER_CLIENT "deregister_client"
+#define REQ_REGISTER_ACTION "register_action"
+#define REQ_HEARTBEAT "heartbeat"
+#define REQ_ACTION_REQUEST "action_request"
+#define REQ_ACTION_RESPONSE "action_response"
 
 
-typedef enum AttributesName {
-    REQUEST_TYPE = 0,
-    CLIENT_NAME,
-    ACTION_NAME,
-    INSTANCE_ID,
-    ANOMALY_INSTANCE_ID,
-    ANOMALY_KEY,
-    CONTEXT,
-    TIMEOUT,
-    ACTION_DATA,
-    RESULT_CODE,
-    RESULT_STR,
-    ATTR_CNT
-} AttributesName_t;
+/*
+ * Expected attribute names from CDLL for Action req/resp
+ * These can be refreshed from loaded DLL
+ * e.g. _get_str_globals("REQ_TYPE")
+ */
+#define REQ_TYPE "request_type"
+#define REQ_TYPE_ACTION "action"
+#define REQ_TYPE_SHUTDOWN "shutdown"
 
-/* Attr name enum to string and vice versa*/
-typedef const char *AttributesNameStr_t;
-AttributesNameStr_t AttributesNameStr(AttributesName_t);
+#define REQ_CLIENT_NAME "client_name"
+#define REQ_ACTION_NAME "action_name"
+#define REQ_INSTANCE_ID "instance_id"
+#define REQ_ANOMALY_INSTANCE_ID "anomaly_instance_id"
+#define REQ_ANOMALY_KEY "anomaly_key"
+#define REQ_CONTEXT "context"
+#define REQ_TIMEOUT "timeout"
+#define REQ_HEARTBEAT_INTERVAL "heartbeat_interval"
+#define REQ_PAUSE "action_pause"
 
-AttributesName_t AttributesName(AttributesNameStr_t);
+#define REQ_ACTION_DATA "action_data"
+#define REQ_RESULT_CODE "result_code"
+#define REQ_RESULT_STR "result_str"
 
-
-typedef std::vector<AttributesName_t> attr_lst_t;
-typedef std:map<RequestType_t, const attr_lst_t> req_attrs_lst_t;
-
-const req_attrs_lst_t req_attrs_lst = {
-    { REGISTER_CLIENT, attr_lst_t { REQUEST_TYPE, CLIENT_NAME }},
-    { REGISTER_ACTION, attr_lst_t { REQUEST_TYPE, CLIENT_NAME, ACTION_NAME }},
-    { DEREGISTER_CLIENT, attr_lst_t { REQUEST_TYPE, CLIENT_NAME }},
-    { ACTION_HEARTBEAT, attr_lst_t { REQUEST_TYPE, CLIENT_NAME,
-                                       ACTION_NAME, INSTANCE_ID }},
-    { ACTION_REQUEST,
-        attr_lst_t { REQUEST_TYPE, CLIENT_NAME, ACTION_NAME, INSTANCE_ID,
-            ANOMALY_INSTANCE_ID, ANOMALY_KEY, CONTEXT, TIMEOUT }},
-    { ACTION_RESPONSE,
-        attr_lst_t { REQUEST_TYPE, CLIENT_NAME, ACTION_NAME, INSTANCE_ID,
-            ANOMALY_INSTANCE_ID, ANOMALY_KEY, ACTION_DATA, RESULT_CODE, RESULT_STR }},
-    { ACTION_SHUTDOWN, attr_lst_t { REQUEST_TYPE }}
-};
+#define REQ_MITIGATION_STATE "state"
+#define REQ_MITIGATION_STATE_INIT "init"
+#define REQ_MITIGATION_STATE_PROG "in-progress"
+#define REQ_MITIGATION_STATE_TIMEOUT "timeout"
+#define REQ_MITIGATION_STATE_DONE "complete"
 
 /*
  * JSON string of message object, where attrs vary per request as

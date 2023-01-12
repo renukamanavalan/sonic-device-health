@@ -41,7 +41,7 @@ int init_client_transport(const std::string client_name);
  * !0 - Error code
  */
 
-int init_server_transport(const std::string client_name);
+int init_server_transport(void);
 
 
 /*
@@ -57,7 +57,7 @@ int init_server_transport(const std::string client_name);
  *  0 - for success
  * !0 - Error code
  */
-int write_message(const std::string message);
+int write_transport(const std::string message);
 
 
 /*
@@ -73,7 +73,7 @@ int write_message(const std::string message);
  *  0 - for success
  * !0 - Error code
  */
-int read_message(std::string &message);
+int read_transport(std::string &client_id, std::string &message, bool dont_wait=false);
 
 
 /*
@@ -82,5 +82,27 @@ int read_message(std::string &message);
  /
 void deinit_transport();
 
+
+/*
+ * Poll for data in zmq read fd & given fds
+ *
+ * Input:
+ *  lst_fds: list of fds to listen for data
+ *  cnt: Count of fds in list.
+ *  timeout: Count of seconds to wait before calling time out.
+ *      0 - Check and return immediately
+ *     -1 - Block until data arrives on any one/more.
+ *     >0 - Count of seconds to wait.
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  -2 - Timeout
+ *  -1 - Message from server/engine
+ *  >= 0 -- Fd that has message
+ *  <other values> -- undefined.
+ */
+int poll_for_data(int *lst_fds, int cnt, int timeout);
 
 #endif /* !_TRANSPORT_H_ */ 

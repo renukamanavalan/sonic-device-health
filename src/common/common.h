@@ -15,12 +15,10 @@ extern int last_zmq_errno;
 #define RET_ON_ERR(res, msg, ...)\
     if (!(res)) {                                                               \
         int _e = errno;                                                         \
-        int _ze = zmq_errno();                                                  \
-        string _s;                                                              \
-        if ((_e != 0) || (_ze != 0)) {                                          \
-            _s = string(msg) + " err=" + stoi(_e) + " zmq_err=" + stoi(_ze);    \
+        if (rc == 0) {                                                          \
+            rc = -1;                                                            \
         }                                                                       \
-        log_error(__FUNCTION__, _s.empty() ? msg : _s.c_str()), ##__VA_ARGS__); \
+        set_last_error(__FUNCTION__, _e, zmq_errno(), rc, msg, ##__VA_ARGS__);  \
         goto out; }
 
 #define ARRAYSIZE(d) (sizeof(d)/sizeof((d)[0]))
@@ -38,13 +36,17 @@ void log_write(int loglvl, const char *caller, const char *msg);
  * Error set         *
  *********************/
 
-typedef enum errcodes {
-    LOM_LIB_SUCCESS = 0,
-    LOM_LIB_UNKNOWN,
-    LOM_LIB_COUNT
-};
+void set_last_error(const char *caller, int e, int ze, int rc,
+                const char *msg, ...);
+int get_last_error();
+const char *get_last_error_msg();
 
-void set_last_error(int err, const string errmsg);
+
+/* JSON conversion helpers */
+typedef map<string, string> map_str_str_t;
+
+std::string convert_to_json(const std::string key, const map_str_str_t &params);
+int convert_from_json(const std::string json_str, std::string &key, map_str_str_t &params);
 
 #endif // _COMMON_H_
 
