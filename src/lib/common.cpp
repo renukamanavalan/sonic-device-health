@@ -4,13 +4,18 @@
 #define DEFAULT_IDENTITY "LoM"
 #define LOG_FACILITY LOG_LOCAL0
 
+static bool s_log_initialized = false;
 
-void log_init(const char *ident,  int facility)
+void log_init(const char *ident,  int facility = LOG_LOCAL0)
 {
-    int fac = (((facility >= LOG_LOCAL0) && (facility <= LOG_LOCAL7)) ? 
-            facility : LOG_FACILITY);
 
-    openlog(ident == NULL ? DEFAULT_IDENTITY : ident, fac);
+    if (!s_log_initialized) {
+        int fac = (((facility >= LOG_LOCAL0) && (facility <= LOG_LOCAL7)) ? 
+                facility : LOG_FACILITY);
+
+        openlog(ident == NULL ? DEFAULT_IDENTITY : ident, fac);
+        s_log_initialized = true;
+    }
 }
 
 
@@ -76,6 +81,7 @@ void set_last_error(const char *caller, int e, int ze, int rc,
 void log_close()
 {
     closelog();
+    s_log_initialized = false;
 }
 
 int get_last_error() { return s_errorMgr.get_error(); }

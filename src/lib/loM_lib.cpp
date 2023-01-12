@@ -78,6 +78,13 @@ register_client(const char *client_id)
 {
     int rc = -1;
 
+    {
+        stringstream ss;
+
+        ss << "LoM:" << client_id;
+        log_init(ss.str().c_str(), LOG_LOCAL0);
+    }
+
     string str_id(client_id);
     ServerMsg_ptr_t msg(new RegisterClient());
 
@@ -239,6 +246,7 @@ out:
 int
 server_init()
 {
+    log_init("LoM-Engine", LOG_LOCAL0);
     return init_server_transport();
 }
 
