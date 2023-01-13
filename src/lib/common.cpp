@@ -1,10 +1,28 @@
 #include <stdio.h>
 #include <syslog.h>
+#include <fstream>
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
 
 #define DEFAULT_IDENTITY "LoM"
 #define LOG_FACILITY LOG_LOCAL0
 
+static int s_log_level = LOG_ERR;
+
 static bool s_log_initialized = false;
+
+static bool s_test_mode = false;
+
+
+void set_log_level(int lvl)
+{
+    s_log_level = lvl;
+}
+
+int get_log_level() { return s_log_level; }
+
+void set_test_mode() { s_test_mode = true; set_log_level(LOG_DEBUG); }
+bool is_test_mode() { return s_test_mode; }
 
 void log_init(const char *ident,  int facility = LOG_LOCAL0)
 {
@@ -22,13 +40,19 @@ void log_init(const char *ident,  int facility = LOG_LOCAL0)
 
 void log_write(int lvl, const char *caller, const char *msg, ...)
 {
-    stringstream ss;
-    ss << "LOM: " << caller << ": " << msg;
+    if (lvl <= s_log_level) {
+        stringstream ss;
+        ss << "LOM: " << caller << ": " << msg;
 
-    va_list ap;
-    va_start(ap, msg);
-    vsyslog(lvl, ss.str().c_str(), ap);
-    va_end(ap);
+        va_list ap;
+        va_start(ap, msg);
+        vsyslog(lvl, ss.str().c_str(), ap);
+        if (lvl == LOG_DEBUG) {
+            /* Print to stdout, debug messages and all if in test mode */
+            vprintf(ss.str().c_str(), ap);
+        }
+        va_end(ap);
+    }
 }
 
 class errorMgr {
@@ -93,8 +117,8 @@ const char *get_last_error_msg() { return s_errorMgr.get_error_msg().c_str(); }
 string
 convert_to_json(const string key, const map_str_str_t &params)
 {
-    nlohmann::json msg = nlohmann::json::object();
-    nlohmann::json params_data = nlohmann::json::object();
+    json msg = json::object();
+    json params_data = json::object();
 
     for (map_str_str_t::const_iterator itc = params.begin();
                 itc != params.end(); ++itc) {
@@ -119,7 +143,7 @@ int
 convert_from_json(const string json_str, string &key, map_str_str_t &params)
 {
     int rc = 0;
-    const auto &data = nlohmann::json::parse(json_str);
+    const auto &data = json::parse(json_str);
 
     if (data.size() == 1) {
         auto it = data.cbegin();

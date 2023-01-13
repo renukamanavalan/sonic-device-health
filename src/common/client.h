@@ -103,7 +103,7 @@ int register_action(const char *action);
  *  None.
  *
  */
-void deregister_client(const char *client_id);
+void deregister_client(void);
 
 
 /*

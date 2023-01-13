@@ -3,28 +3,25 @@
 
 #include "consts.h"
 
-/* APIs for use by server/engine */
-
-/* Required as the first call before using any other APIs */
-int server_init();
-
-
-/* Helps release all resources before exit */
-void server_deinit();
-
 typedef std::unordered_set<std::string> keys_set_t;
 typedef keys_set_t::const_iterator keys_set_itc;
 
+/*
+ * Abstracted message written & read by server/engine
+ *
+ * Explicit derived classes written per request type.
+ *
+ */
 class ServerMsg {
     public:
         ServerMsg(RequestType_t type) : m_type(type) { init(); }
         virtual ~ServerMsg() {};
 
-        RequestType_t get_type() { return m_type; }
+        RequestType_t get_type() const { return m_type; }
 
-        virtual bool validate();
+        virtual bool validate() const;
 
-        virtual std::string get(const std::string key) {
+        virtual std::string get(const std::string key) const {
             map_str_str_t::const_iterator itc = m_data.find(key);
             return (itc == m_data.end()) ? "" : itc->second;
         }
@@ -44,11 +41,17 @@ class ServerMsg {
             return rc;
         }
 
-        virtual std::string to_str() { return convert_to_json(m_type, m_data); };
+        virtual std::string to_str() const { return convert_to_json(m_type, m_data); };
+
+        bool operator==(const ServerMsg &msg) const
+        {
+            return ((m_type == msg.m_type) && (m_data == msg.m_data)) ? true : false;
+        };
 
     protected:
         virtual void init() = 0;
 
+        RequestType_t m_type;
         map_str_str_t m_data;
 
         keys_set_t m_reqd_keys;
@@ -127,38 +130,14 @@ class ActionResponse : ServerMsg {
 
 ServerMsg_ptr_t create_server_msg(const std::string msg);
 
-/*
- * Base class for request handler.
- *
- * Server instantiates a derived class per request type and register the same.
- * process_msg invokes the right handler with right set of args per request type.
- * 
- * The derived class for a type may only implement operator of expected signature
- * for that request type.
- */
-class RequestHandler {
-    public:
-        RequestHandler(RequestType_t type): m_req(type) {};
-        virtual ~RequestHandler() {};
+/* APIs for use by server/engine */
 
-        virtual int operator()(const ServerMsg_ptr_t) { printf("E_NOTIMPL\n"); return -1; }
+/* Required as the first call before using any other APIs */
+int server_init();
 
 
-    protected:
-        RequestType_t m_req;
-
-};
-
-typedef std::shared_ptr<RequestHandler> RequestHandler_ptr;
-
-/*
- * Regiser handler for each request type.
- *
- * Registered handler operator is called with appropriate args per request type
- */
-int register_handler(RequestType_t type, RequestHandler_ptr);   
-
-
+/* Helps release all resources before exit */
+void server_deinit();
 
 /*
  * Writes a message to client
@@ -177,12 +156,11 @@ int register_handler(RequestType_t type, RequestHandler_ptr);
  *   != 0 - Implies failure
  *
  */
-int write_message(const ActionRequest_t &);
+int write_message(const ActionRequest &);
 
 
 /*
- * Reads and process atmost one message from client
- * The registered handler per request type is invoked.
+ * Reads a message from client.
  *
  * Input:
  *  timeout - 
@@ -197,6 +175,7 @@ int write_message(const ActionRequest_t &);
  *  0 - Success.
  * <0 - Failure
  */
-int process_a_message(int timeout=-1);
+
+ServerMsg_ptr_t read_message(int timeout=-1);
 
 #endif  // _SERVER_H_

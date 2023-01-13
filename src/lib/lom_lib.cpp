@@ -53,7 +53,7 @@ out:
 
 
 bool
-ServerMsg::validate()
+ServerMsg::validate() const
 {
     bool ret = false;
 
@@ -67,6 +67,12 @@ ServerMsg::validate()
 out:
     return ret;
 }
+
+bool
+ServerMsg::operator==(const ServerMsg &msg) const
+{
+    return ((m_type == msg.m_type) && (m_data == msg.m_data)) ? true : false;
+
 
 
 /*
@@ -111,7 +117,7 @@ out:
 
 
 int
-deregister_client()
+deregister_client(void)
 {
     int rc = -1;
     ServerMsg_ptr_t msg(new DeregisterClient());
@@ -255,26 +261,6 @@ server_deinit()
     deinit_transport();
 }
 
-typedef std::map<RequestType_t, RequestHandler_ptr> request_handlers_t;
-static request_handlers_t s_request_handlers;
-
-
-int
-register_handler(RequestType_t type, RequestHandler_ptr handler)
-{
-    RET_ON_ERR(s_request_handlers.find(type) == s_request_handlers.end(),
-            "Duplicate register handler for type %s", type)
-
-    return 0;
-}
-
-static RequestHandler_ptr
-_get_request_handler(RequestType_t type)
-{
-    request_handlers_t::iterator it = s_request_handlers.find(type);
-    return it == s_request_handlers.end() ? NULL : it->second;
-}
-
 int
 write_message(const ActionRequest &req)
 {
@@ -291,17 +277,19 @@ out:
 
 
 
-int
-process_a_message(int timeout=-1)
+ServerMsg_ptr_t
+read_message(int timeout=-1)
 {
     int rc = 0;
     string client_id, str_msg;
-    ServerMsg_ptr_t msg;
+    ServerMsg_ptr_t msg, ret;
 
     if (timeout != -1) {
         rc = poll_for_data(NULL, 0, timeout);
         if (rc != -1) {
             RET_ON_ERR(rc == -2, "Failed to poll for data from clients");
+            rc = LOM_TIMEOUT;
+            RET_ON_ERR(false, "Read message timeout.");
             /*  -2 is timeout. Nothing to read */
             goto out;
         }
@@ -314,12 +302,8 @@ process_a_message(int timeout=-1)
 
     RET_ON_ERR(msg->validate(), "req (%s) failed to validate", str_msg.c_str());
 
-    RequestHandler_ptr p = _get_request_handler(msg->get_type());
-    RET_ON_ERR(p != NULL, "Failed to get handler for (%s)", msg->get_type());
-
-    rc = (*p)(msg);
-    RET_ON_ERR(rc == 0, "Failed to handle message (%s)", str_msg.c_str());
+    ret = msg;
 out:
-    return rc;
-
+    return ret;
 }
+
