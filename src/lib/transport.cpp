@@ -456,7 +456,8 @@ out:
 }
 
 
-int poll_for_data(int *lst_fds, int cnt, int timeout)
+int
+poll_for_data(int *lst_fds, int cnt, int timeout)
 {
     zmq_pollitem_t items[cnt+1];
 

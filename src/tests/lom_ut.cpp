@@ -42,7 +42,7 @@ test_client(const string cmd, const vector<string> args)
         ServerMsg_ptr_t read_msg;
         string str_test;
 
-        rc = poll_for_data(NULL, 0, 2);
+        rc = client_poll_for_data(NULL, 0, 2);
         RET_ON_ERR(rc == -1, "Poll failed rc=%d", rc);
 
         string str_read(read_action_request());
@@ -94,7 +94,7 @@ test_server(bool is_write, const string data)
         RET_ON_ERR(rc == 0, "Failed to write message (%s)", data.c_str());
     }
     else {
-        rc = poll_for_data(NULL, 0, 2);
+        rc = client_poll_for_data(NULL, 0, 2);
         RET_ON_ERR(rc == -1, "Poll failed rc=%d", rc);
 
         ServerMsg_ptr_t read_msg = read_message();

@@ -201,7 +201,7 @@ int write_action_response(const char *res);
  *  >= 0 -- Fd that has message
  *  <other values> -- undefined.
  */
-int poll_for_data(int *lst_fds, int cnt, int timeout);
+int client_poll_for_data(int *lst_fds, int cnt, int timeout);
 
 
 

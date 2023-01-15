@@ -18,7 +18,7 @@ typedef struct registered {
 static registered_t s_registered;
 
 ServerMsg_ptr_t
-create_server_message(const string msg)
+create_server_msg(const string msg)
 {
     map_str_str_t data;
     int rc = 0;
@@ -331,5 +331,11 @@ read_message(int timeout)
     ret = msg;
 out:
     return ret;
+}
+
+int
+client_poll_for_data(int *lst_fds, int cnt, int timeout)
+{
+    return poll_for_data(lst_fds, cnt, timeout);
 }
 
