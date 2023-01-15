@@ -17,35 +17,6 @@ extern "C" {
  *
  */
 
-/*
- * Get the last error encountered.
- *
- * Input:
- *  None
- *
- * Output:
- *  errcode -- Last returned error code.
- *
- * Return:
- *  last encountered error code
- */
-int get_last_error();
-
-
-/*
- * Get the last error encountered as string.
- *
- * Input:
- *  None
- *
- * Output:
- *  None
- *
- * Return:
- *  Human readable string matching error code.
- */
-const char *get_last_error_msg();
-
 
 /*
  * Register the client
@@ -103,7 +74,7 @@ int register_action(const char *action);
  *  None.
  *
  */
-void deregister_client(void);
+int deregister_client(void);
 
 
 /*

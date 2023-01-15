@@ -29,4 +29,14 @@ lom-tests: $(TEST_OBJS)
 	@echo 'Finished running tests'
 	@echo ' '
 
+install:
+	$(MKDIR) -p $(DESTDIR)/usr/bin
+	$(CP) $(LOM_TEST) $(DESTDIR)/usr/bin
+
+deinstall:
+	$(RM) -rf $(DESTDIR)/usr
+
+clean:
+	-@echo ' '
+
 .PHONY: all clean dependents

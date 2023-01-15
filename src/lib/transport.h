@@ -57,7 +57,7 @@ int init_server_transport(void);
  *  0 - for success
  * !0 - Error code
  */
-int write_transport(const std::string message);
+int write_transport(const std::string msg, const std::string dest = std::string());
 
 
 /*
@@ -79,7 +79,7 @@ int read_transport(std::string &client_id, std::string &message, bool dont_wait=
 /*
  * deinit transport
  *
- /
+ */
 void deinit_transport();
 
 

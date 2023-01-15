@@ -7,7 +7,6 @@
  * Transport as JSON string of an encoded JSON object.  *
  * The following provides the key values for the JSON   *
  * object.                                              *
- * RequestType_t - Enumerates all request types         *
  * AttributesName_t - Enumerates all attribute types    *
  *                                                      *
  * The list of attrs indeed vary by request type.       *

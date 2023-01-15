@@ -1,9 +1,14 @@
 #include <stdio.h>
+#include <stdarg.h>
+#include <sstream>
+#include <syslog.h>
 #include "consts.h"
 #include "common.h"
 #include "client.h"
 #include "server.h"
 #include "transport.h"
+
+using namespace std;
 
 typedef struct registered {
     string client_name;
@@ -55,23 +60,42 @@ out:
 bool
 ServerMsg::validate() const
 {
-    bool ret = false;
+    int rc = 0;
 
+    RET_ON_ERR (!m_reqd_keys.empty(), "Expect non empty reqd keys");
     for (keys_set_itc itc = m_reqd_keys.begin(); itc != m_reqd_keys.end(); ++itc) {
         map_str_str_t::const_iterator itc_data = m_data.find(*itc);
 
-        RET_ON_ERR((itc_data != m_data.end()) && (!itc->second.empty()),
+        RET_ON_ERR((itc_data != m_data.end()) && (!itc_data->second.empty()),
                 "Failed to find required key (%s)", (*itc).c_str());
     }
-    ret = true;
 out:
-    return ret;
+    return rc == 0 ? true : false;
+}
+
+int
+ServerMsg::set(const std::string key, const std::string val) 
+{
+    int rc = 0;
+
+    keys_set_itc itc = m_reqd_keys.find(key);
+    if (itc == m_reqd_keys.end()) {
+        itc = m_opt_keys.find(key);
+        RET_ON_ERR(itc != m_opt_keys.end(), "Unexpected key %s", key.c_str());
+    }
+    else {
+        RET_ON_ERR(!val.empty(), "required key %s val is empty", key.c_str());
+    }
+    m_data[key] = val;
+out:
+    return rc;
 }
 
 bool
 ServerMsg::operator==(const ServerMsg &msg) const
 {
     return ((m_type == msg.m_type) && (m_data == msg.m_data)) ? true : false;
+}
 
 
 
@@ -82,35 +106,35 @@ ServerMsg::operator==(const ServerMsg &msg) const
 int
 register_client(const char *client_id)
 {
-    int rc = -1;
+    int rc = 0;
 
     {
         stringstream ss;
 
         ss << "LoM:" << client_id;
-        log_init(ss.str().c_str(), LOG_LOCAL0);
+        log_init(ss.str().c_str());
     }
 
     string str_id(client_id);
     ServerMsg_ptr_t msg(new RegisterClient());
 
-    rc = msg.set(REQ_CLIENT_NAME, str_id);
+    rc = msg->set(REQ_CLIENT_NAME, str_id);
     RET_ON_ERR(rc == 0, "Failed to set client name %s", client_id);
 
     RET_ON_ERR(s_registered.client_name.empty(),
             "Duplicate registration exist: %s new:%s",
             s_registered.client_name.c_str(), client_id);
 
-    RET_ON_ERR(msg->validate(), "req (%s) failed to validate", msg.to_str().c_str());
+    RET_ON_ERR(msg->validate(), "req (%s) failed to validate", msg->to_str().c_str());
 
     rc = init_client_transport(str_id);
     RET_ON_ERR(rc == 0, "Failed to init client");
 
-    rc = write_message(msg.to_str());
+    rc = write_message(msg);
     RET_ON_ERR(rc == 0, "Failed to write register client");
 
     s_registered.client_name = str_id;
-    unordered_set().swap(s_registered.actions);
+    unordered_set<string>().swap(s_registered.actions);
 out:
     return rc;
 }
@@ -119,18 +143,18 @@ out:
 int
 deregister_client(void)
 {
-    int rc = -1;
+    int rc = 0;
     ServerMsg_ptr_t msg(new DeregisterClient());
 
     RET_ON_ERR(!s_registered.client_name.empty(), "No registered client");
 
-    rc = msg.set(REQ_CLIENT_NAME, s_registered.client_name);
+    rc = msg->set(REQ_CLIENT_NAME, s_registered.client_name);
     RET_ON_ERR(rc == 0, "Failed to set client name %s",
             s_registered.client_name.c_str());
 
-    RET_ON_ERR(msg->validate(), "req (%s) failed to validate", msg.to_str().c_str());
+    RET_ON_ERR(msg->validate(), "req (%s) failed to validate", msg->to_str().c_str());
 
-    rc = write_message(msg.to_str());
+    rc = write_message(msg);
     RET_ON_ERR(rc == 0, "Failed to write deregister client");
 
     string().swap(s_registered.client_name);
@@ -144,7 +168,7 @@ out:
 int
 register_action(const char *action)
 {
-    int rc = -1;
+    int rc = 0;
     ServerMsg_ptr_t msg(new RegisterAction());
     string str_action(action);
 
@@ -152,15 +176,15 @@ register_action(const char *action)
             s_registered.actions.end(), "Duplicate action (%s) registration",
             action);
 
-    rc = msg.set(REQ_CLIENT_NAME, s_registered.client_name);
+    rc = msg->set(REQ_CLIENT_NAME, s_registered.client_name);
     RET_ON_ERR(rc == 0, "Failed to set client name %s",
             s_registered.client_name.c_str());
-    rc = msg.set(REQ_ACTION_NAME, str_action);
+    rc = msg->set(REQ_ACTION_NAME, str_action);
     RET_ON_ERR(rc == 0, "Failed to set action name %s", action);
 
-    RET_ON_ERR(msg->validate(), "req (%s) failed to validate", msg.to_str().c_str());
+    RET_ON_ERR(msg->validate(), "req (%s) failed to validate", msg->to_str().c_str());
 
-    rc = write_message(msg.to_str());
+    rc = write_message(msg);
     RET_ON_ERR(rc == 0, "Failed to write register action");
 
     s_registered.actions.insert(str_action);
@@ -168,10 +192,10 @@ out:
     return rc;
 }
 
-void
+int
 touch_heartbeat(const char *action, const char *instance_id)
 {
-    int rc = -1;
+    int rc = 0;
     ServerMsg_ptr_t msg(new HeartbeatClient());
     string str_action(action), str_id(instance_id);
 
@@ -179,65 +203,66 @@ touch_heartbeat(const char *action, const char *instance_id)
             s_registered.actions.end(), "Missing action (%s) registration",
             action);
 
-    rc = msg.set(REQ_CLIENT_NAME, s_registered.client_name);
+    rc = msg->set(REQ_CLIENT_NAME, s_registered.client_name);
     RET_ON_ERR(rc == 0, "Failed to set client name %s",
             s_registered.client_name.c_str());
 
-    rc = msg.set(REQ_ACTION_NAME, str_action);
+    rc = msg->set(REQ_ACTION_NAME, str_action);
     RET_ON_ERR(rc == 0, "Failed to set action name %s", action);
 
-    rc = msg.set(REQ_INSTANCE_ID, str_id);
+    rc = msg->set(REQ_INSTANCE_ID, str_id);
     RET_ON_ERR(rc == 0, "Failed to set instance id %s", instance_id);
 
-    RET_ON_ERR(msg->validate(), "req (%s) failed to validate", msg.to_str().c_str());
+    RET_ON_ERR(msg->validate(), "req (%s) failed to validate", msg->to_str().c_str());
 
-    rc = write_message(msg.to_str());
+    rc = write_message(msg);
     RET_ON_ERR(rc == 0, "Failed to write heartbeat");
 out:
     return rc;
 }
 
 
-const char *read_action_request(int timeout=-1)
+const char *
+read_action_request(int timeout)
 {
-    string id, msg;
+    string id, msg, req_client;
     ServerMsg_ptr_t req;
 
     int rc = read_transport(id, msg);
     RET_ON_ERR(rc == 0, "Failed to read msg from engine");
+    RET_ON_ERR(id == s_registered.client_name, "Read id(%s) != client(%s)",
+           id.c_str(), s_registered.client_name.c_str());
 
 
     req = create_server_msg(msg);
 
     RET_ON_ERR(req->validate(), "req (%s) failed to validate", msg.c_str());
 
-    id = req->get(REQ_CLIENT_NAME);
-    RET_ON_ERR(id == s_registered.client_name, "Read id(%s) != client(%s)",
-           id.c_str(), s_registered.client_name.c_str());
-
-    return msg.c_str(); 
+    req_client = req->get(REQ_CLIENT_NAME);
+    RET_ON_ERR(id == req_client, "Read req_client(%s) != client(%s)",
+           id.c_str(), req_client.c_str());
 out:
-    return "";
+    return (rc == 0) ? msg.c_str() : "";
 }
 
 
 int
 write_action_response(const char *res)
 {
-    int rc = -1;
+    int rc = 0;
     ServerMsg_ptr_t msg;
     string str_res(res);
 
     msg = create_server_msg(str_res);
     RET_ON_ERR(msg->validate(), "req (%s) failed to validate", res);
 
-    rc = msg.set(REQ_CLIENT_NAME, s_registered.client_name);
+    rc = msg->set(REQ_CLIENT_NAME, s_registered.client_name);
     RET_ON_ERR(rc == 0, "Failed to set client name %s",
             s_registered.client_name.c_str());
 
     RET_ON_ERR(msg->validate(), "req (%s) failed to validate", res);
 
-    rc = write_transport(msg.to_str());
+    rc = write_transport(msg->to_str());
     RET_ON_ERR(rc == 0, "Failed to write action response");
 out:
     return rc;
@@ -262,14 +287,15 @@ server_deinit()
 }
 
 int
-write_message(const ActionRequest &req)
+write_message(const ServerMsg_ptr_t req)
 {
-    int rc = -1;
+    int rc = 0;
 
+    RET_ON_ERR(req == NULL, "Expect non null ptr");
     RET_ON_ERR(req->validate(), "req (%s) failed to validate",
-            req.to_str().c_str());
+            req->to_str().c_str());
 
-    rc = write_transport(req.to_str(), req.get(REQ_CLIENT_NAME));
+    rc = write_transport(req->to_str(), req->get(REQ_CLIENT_NAME));
     RET_ON_ERR(rc == 0, "Failed to write to client");
 out:
     return rc;
@@ -278,7 +304,7 @@ out:
 
 
 ServerMsg_ptr_t
-read_message(int timeout=-1)
+read_message(int timeout)
 {
     int rc = 0;
     string client_id, str_msg;

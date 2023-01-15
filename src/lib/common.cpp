@@ -1,7 +1,11 @@
 #include <stdio.h>
+#include <stdarg.h>
 #include <syslog.h>
+#include <sstream>
 #include <fstream>
 #include <nlohmann/json.hpp>
+#include "common.h"
+
 using json = nlohmann::json;
 
 #define DEFAULT_IDENTITY "LoM"
@@ -12,6 +16,8 @@ static int s_log_level = LOG_ERR;
 static bool s_log_initialized = false;
 
 static bool s_test_mode = false;
+
+using namespace std;
 
 
 void set_log_level(int lvl)
@@ -24,21 +30,23 @@ int get_log_level() { return s_log_level; }
 void set_test_mode() { s_test_mode = true; set_log_level(LOG_DEBUG); }
 bool is_test_mode() { return s_test_mode; }
 
-void log_init(const char *ident,  int facility = LOG_LOCAL0)
+void
+log_init(const char *ident,  int facility)
 {
 
     if (!s_log_initialized) {
         int fac = (((facility >= LOG_LOCAL0) && (facility <= LOG_LOCAL7)) ? 
                 facility : LOG_FACILITY);
 
-        openlog(ident == NULL ? DEFAULT_IDENTITY : ident, fac);
+        openlog(ident == NULL ? DEFAULT_IDENTITY : ident, LOG_PID, fac);
         s_log_initialized = true;
     }
 }
 
 
 
-void log_write(int lvl, const char *caller, const char *msg, ...)
+void
+log_write(int lvl, const char *caller, const char *msg, ...)
 {
     if (lvl <= s_log_level) {
         stringstream ss;
@@ -68,7 +76,7 @@ class errorMgr {
 
     private:
         int m_code;
-        stirng m_msg;
+        string m_msg;
 };
 
 static errorMgr s_errorMgr;
@@ -94,7 +102,7 @@ void set_last_error(const char *caller, int e, int ze, int rc,
     va_list ap;
     va_start(ap, msg);
 
-    vsnprintf(buf, ss.str().c_str(), ap);
+    vsnprintf(buf, sizeof(buf), ss.str().c_str(), ap);
     va_end(ap);
 
     syslog(LOG_ERR, buf);
@@ -129,14 +137,18 @@ convert_to_json(const string key, const map_str_str_t &params)
 }
 
 template<typename T>
-void
+int
 get_params(T& data, map_str_str_t &params, string slice)
 {
+    int rc = 0;
+
     for (auto itp = data.cbegin(); itp != data.cend(); ++itp) {
         RET_ON_ERR((*itp).is_string(), "Invalid json str(%s). Expect params value as string",
                     slice.c_str());
         params[itp.key()] = itp.value();
     }
+out:
+    return rc;
 }
 
 int
@@ -150,11 +162,12 @@ convert_from_json(const string json_str, string &key, map_str_str_t &params)
         key = it.key();
         RET_ON_ERR((*it).is_object(), "Invalid json str(%s). Expect object as val",
                     json_str.substr(0, 20).c_str());
-        get_params(*it, params, json_str.substr(0, 20));
+        rc = get_params(*it, params, json_str.substr(0, 20));
     } else {
         key = "";
-        get_params(data, params, json_str.substr(0, 20));
+        rc = get_params(data, params, json_str.substr(0, 20));
     }
+    RET_ON_ERR(rc == 0, "Failed to get params key=%s", key.c_str());
 out:
     return rc;
 }

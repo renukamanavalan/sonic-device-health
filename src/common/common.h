@@ -1,8 +1,12 @@
 #ifndef _COMMON_H_
-define  _COMMON_H_
+#define  _COMMON_H_
 
+#include <string>
 #include <errno.h>
 #include <stdarg.h>
+#include <syslog.h>
+#include <map>
+#include "zmq.h"
 
 void set_test_mode();
 bool is_test_mode();
@@ -10,8 +14,8 @@ bool is_test_mode();
 extern int errno;
 
 #define LOM_LOG_ERROR(msg, ...) log_write(LOG_ERR, __FUNCTION__, msg, ##__VA_ARGS__)
-#define LOM_LOG_INFO(msg, ...) log_info(LOG_INFO, __FUNCTION__, msg, ##__VA_ARGS__)
-#define LOM_LOG_DEBUG(msg, ...) log_debug(LOG_DEBUG, __FUNCTION__, msg, ##__VA_ARGS__)
+#define LOM_LOG_INFO(msg, ...) log_write(LOG_INFO, __FUNCTION__, msg, ##__VA_ARGS__)
+#define LOM_LOG_DEBUG(msg, ...) log_write(LOG_DEBUG, __FUNCTION__, msg, ##__VA_ARGS__)
 
 #define RET_ON_ERR(res, msg, ...)\
     if (!(res)) {                                                               \
@@ -34,7 +38,7 @@ int get_log_level();
 void log_init(const char *identifier=NULL, int facility=0);
 void log_close();
 
-void log_write(int loglvl, const char *caller, const char *msg);
+void log_write(int loglvl, const char *caller, const char *msg, ...);
 
 /*********************
  * Error set         *
@@ -54,7 +58,7 @@ const char *get_last_error_msg();
 
 
 /* JSON conversion helpers */
-typedef map<string, string> map_str_str_t;
+typedef std::map<std::string, std::string> map_str_str_t;
 
 std::string convert_to_json(const std::string key, const map_str_str_t &params);
 int convert_from_json(const std::string json_str, std::string &key, map_str_str_t &params);
