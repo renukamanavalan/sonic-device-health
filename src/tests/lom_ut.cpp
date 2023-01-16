@@ -14,7 +14,7 @@ using json = nlohmann::json;
 
 #define TEST_ERR_PREFIX "TEST_ERROR:"
 
-#define TEST_CASE_FILE "test_data_ut.json"
+#define TEST_CASE_FILE "/usr/share/tests/test_data_ut.json"
 
 static bool
 _is_commented(const string key)
@@ -133,8 +133,7 @@ run_a_test_case(const string tcid, const json &tcdata)
 
         LOM_LOG_INFO("Running test entry %s:%s", tcid.c_str(), key.c_str());
 
-        bool is_client = tc_entry.value("is_client", false);
-        if (is_client) {
+        if (tc_entry.value("is_client", false)) {
             string cmd = tc_entry.value("cmd", "");
             vector<string> args = tc_entry.value("args", vector<string>());
 
@@ -184,13 +183,13 @@ int main(int argc, const char **argv)
 
     set_test_mode();
 
-    string tcfile(argc > 1 ? argv[0] : TEST_CASE_FILE);
+    string tcfile(argc > 1 ? argv[1] : TEST_CASE_FILE);
 
     ifstream f(tcfile.c_str());
-
     json data = json::parse(f, nullptr, false);
 
     RET_ON_ERR(!data.is_discarded(), "Failed to parse file");
+    LOM_LOG_DEBUG("%s: data.is_discarded = %d\n", tcfile.c_str(), data.is_discarded());
 
     rc = run_testcases(data.value("test_cases", json()));
     RET_ON_ERR(rc == 0, "run_testcases failed rc=%d", rc);

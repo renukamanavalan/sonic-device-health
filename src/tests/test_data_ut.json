@@ -4,38 +4,40 @@
         "Any key with _ as prefix is ignored",
         "Use '_' as way of commenting out"
     ],
-    "test_case_0": {
-        "_description": [
-            "is_client - true implies action simulated from client",
-            "            Absence is implied to be false",
-            "client_cmd - Command to write with args",
-            "   cmd -   cmd to execute. REQ_ACTION_REQUEST does read, whereas the",
-            "           rest does write to server.",
-            "   args -  Args to use for cmds that sends. In case of read",
-            "           if non-empty, it is the expected request to read",
-            "server: ",
-            "   is_write -  true - Construct ActionRequest from data to write.",
-            "               false - Expect to read match message per data",
-            "   s_data -  Used for write / read verfication. Empty string implies",
-            "           no verification"
-        ],
-        "0": {
-            "is_client": true,
-            "cmd": "register_client",
-            "args": [ "test-0" ]
-        },
-        "1": {
-            "is_write": false,
-            "data": ""
-        },
-        "2": {
-            "is_client": true,
-            "cmd": "register_action",
-            "args": [ "test-act-0" ]
-        },
-        "3": {
-            "is_write": false,
-            "data": ""
+    "test_cases": {
+        "test_case_0": {
+            "_description": [
+                "is_client - true implies action simulated from client",
+                "            Absence is implied to be false",
+                "client_cmd - Command to write with args",
+                "   cmd -   cmd to execute. REQ_ACTION_REQUEST does read, whereas the",
+                "           rest does write to server.",
+                "   args -  Args to use for cmds that sends. In case of read",
+                "           if non-empty, it is the expected request to read",
+                "server: ",
+                "   is_write -  true - Construct ActionRequest from data to write.",
+                "               false - Expect to read match message per data",
+                "   s_data -  Used for write / read verfication. Empty string implies",
+                "           no verification"
+            ],
+            "0": {
+                "is_client": true,
+                "cmd": "register_client",
+                "args": [ "test-0" ]
+            },
+            "1": {
+                "is_write": false,
+                "data": ""
+            },
+            "2": {
+                "is_client": true,
+                "cmd": "register_action",
+                "args": [ "test-act-0" ]
+            },
+            "3": {
+                "is_write": false,
+                "data": ""
+            }
         }
     }
 }

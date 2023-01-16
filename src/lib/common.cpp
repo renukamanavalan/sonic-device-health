@@ -49,17 +49,24 @@ void
 log_write(int lvl, const char *caller, const char *msg, ...)
 {
     if (lvl <= s_log_level) {
+        char buf[1024];
         stringstream ss;
+
         ss << "LOM: " << caller << ": " << msg;
 
+        {
         va_list ap;
         va_start(ap, msg);
-        vsyslog(lvl, ss.str().c_str(), ap);
-        if (lvl == LOG_DEBUG) {
-            /* Print to stdout, debug messages and all if in test mode */
-            vprintf(ss.str().c_str(), ap);
-        }
+        vsnprintf(buf, sizeof(buf), ss.str().c_str(), ap);
         va_end(ap);
+        }
+
+        buf[sizeof(buf) - 1] = 0;
+
+        syslog(lvl, buf);
+        if (is_test_mode()) {
+            printf("%s\n", buf);
+        }
     }
 }
 
@@ -105,7 +112,9 @@ void set_last_error(const char *caller, int e, int ze, int rc,
     vsnprintf(buf, sizeof(buf), ss.str().c_str(), ap);
     va_end(ap);
 
-    syslog(LOG_ERR, buf);
+    buf[sizeof(buf) - 1] = 0;
+
+    LOM_LOG_ERROR(buf);
     s_errorMgr.set_error(rc, buf);
 }
 

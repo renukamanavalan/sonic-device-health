@@ -136,6 +136,7 @@ register_client(const char *client_id)
     s_registered.client_name = str_id;
     unordered_set<string>().swap(s_registered.actions);
 out:
+    LOM_LOG_DEBUG("register_client returned rc=%d", rc);
     return rc;
 }
 
