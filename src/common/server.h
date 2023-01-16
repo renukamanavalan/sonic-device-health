@@ -129,7 +129,7 @@ void server_deinit();
  *   != 0 - Implies failure
  *
  */
-int write_message(const ServerMsg_ptr_t msg);
+int write_server_message(const ServerMsg_ptr_t msg);
 
 
 /*
@@ -149,7 +149,7 @@ int write_message(const ServerMsg_ptr_t msg);
  * <0 - Failure
  */
 
-ServerMsg_ptr_t read_message(int timeout=-1);
+ServerMsg_ptr_t read_server_message(int timeout=-1);
 
 /* Get formatted time stamp as needed for publishing */
 const std::string get_timestamp();

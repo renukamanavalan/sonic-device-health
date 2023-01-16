@@ -12,13 +12,18 @@
 #include <ctime>        // std::time_t, struct std::tm, std::localtime
 #include <chrono>       // std::chrono::system_clock
 #include <nlohmann/json.hpp>
+#include <unistd.h>
 #include <unordered_map>
 #include "zmq.h"
 
 #include "common.h"
+#include "consts.h"
+#include "transport.h"
 
 using namespace std;
 using namespace chrono;
+
+#define TO_MS(n) ((n) * 1000)
   
 /*
  * Config that can be read from init_cfg
@@ -27,10 +32,10 @@ using namespace chrono;
 
 /* configurable entities' keys */
 /* zmq proxy's sub & pub end points */
-#define SUB_END_KEY "sub_path"       
-#define PUB_END_KEY "pub_path"
+#define CFG_SUB_END_KEY "sub_path"       
+#define CFG_PUB_END_KEY "pub_path"
 
-#define STATS_UPD_SECS "stats_upd_secs"
+#define CFG_STATS_UPD_SECS "stats_upd_secs"
 
 #define CFG_TRANSPORT_KEY  "LOM_TRANSPORT"
 
@@ -45,9 +50,9 @@ typedef map<string, string> map_str_str_t;
 #define CFG_VAL map_str_str_t::value_type
 
 static const map_str_str_t s_cfg_default = {
-    CFG_VAL(SUB_END_KEY, "tcp://127.0.0.1:5578"),
-    CFG_VAL(PUB_END_KEY, "tcp://127.0.0.1:5579"),
-    CFG_VAL(STATS_UPD_SECS, "5")
+    CFG_VAL(CFG_SUB_END_KEY, SUB_END_PATH),
+    CFG_VAL(CFG_PUB_END_KEY, PUB_END_PATH),
+    CFG_VAL(CFG_STATS_UPD_SECS, "5")
 };
 
 static map_str_str_t s_cfg_data;
@@ -224,33 +229,51 @@ out:
     return rc;
 }
 
-class transport
-{
+class zmq_shared {
     public:
-        transport(int rd_timeout_ms = -1):
-            m_zmq_ctx(NULL), m_wr_sock(NULL), m_rd_sock(NULL),
-            m_rd_timeout_ms(rd_timeout_ms)
-        {};
+        zmq_shared() : m_zmq_ctx(NULL) {};
 
-        virtual ~transport() {
-            zmq_close(m_wr_sock);
-            zmq_close(m_rd_sock);
-            zmq_ctx_term(m_zmq_ctx);
+        ~zmq_shared() { zmq_ctx_term(m_zmq_ctx); }
+
+        void *ctx() {
+            if (m_zmq_ctx == NULL) {
+                m_zmq_ctx = zmq_ctx_new();
+            }
+            return m_zmq_ctx;
         }
 
-        bool is_valid() {
+    protected:
+        void *m_zmq_ctx;
+};
+
+typedef shared_ptr<zmq_shared> zmq_shared_ptr_t;
+static zmq_shared_ptr_t s_shared_ctx;
+
+
+class transportImpl : public transport {
+    public:
+        transportImpl(int rd_timeout = -1):
+            m_wr_sock(NULL), m_rd_sock(NULL),
+            m_rd_timeout(rd_timeout)
+        {};
+
+        virtual ~transportImpl() {
+            zmq_close(m_wr_sock);
+            zmq_close(m_rd_sock);
+        }
+
+        virtual bool is_valid() {
             return (m_wr_sock != NULL);
         }
 
-        bool is_client_mode() {
-            return !m_client_name.empty();
-        }
-
-        int set_mode(const string client_name = string())
+        virtual int set_mode(const string client_name)
         {
             int rc = 0;
 
-            void *z_ctx = zmq_ctx_new();
+            if (s_shared_ctx == NULL) {
+                s_shared_ctx = zmq_shared_ptr_t(new zmq_shared());
+            }
+            void *z_ctx = s_shared_ctx->ctx();
             void *wr_sock = NULL;
             void *rd_sock = NULL;
 
@@ -268,42 +291,53 @@ class transport
             } else {
                 connect_client(z_ctx, wr_sock, rd_sock);
             }
+            /*
+             * Connect/bind is async and takes time.
+             * Any write before connection setup will be dropped on floor.
+             * Either sleep for a second 
+             * Or let server set a REP end and let client connect and
+             * send/receive a message to shadow the async set up.
+             * This might save some milliseconds, but this being called
+             * at the initial process setup, sleeping a second is simpler
+             * than adding extra code to save one time init cost.
+             */
+            sleep(1);
+            printf("DROP SLept ......... client(%s) wr_sock=0x%p rd_sock=0x%p\n",
+                    client_name.c_str(), wr_sock, rd_sock);
 
             /* client_name empty in server mode. Hence subscribe to any */
             rc = zmq_setsockopt(rd_sock, ZMQ_SUBSCRIBE, client_name.c_str(),
                     client_name.size());
             RET_ON_ERR(rc == 0, "Fails to set option rc=%d", rc);
 
-            if (m_rd_timeout_ms != -1) {
-                rc = zmq_setsockopt (rd_sock, ZMQ_RCVTIMEO, &m_rd_timeout_ms,
-                        sizeof (m_rd_timeout_ms));
-                RET_ON_ERR(rc == 0, "Failed to ZMQ_RCVTIMEO to %d", m_rd_timeout_ms);
+            if (m_rd_timeout != -1) {
+                int ms = TO_MS(m_rd_timeout);
+                rc = zmq_setsockopt (rd_sock, ZMQ_RCVTIMEO, &ms, sizeof(ms));
+                RET_ON_ERR(rc == 0, "Failed to ZMQ_RCVTIMEO to %d", m_rd_timeout);
             }
 
             m_client_name = client_name;
             m_wr_sock = wr_sock;
             m_rd_sock = rd_sock;
-            m_zmq_ctx = z_ctx;
-            z_ctx = NULL;
+            wr_sock = NULL;
+            rd_sock = NULL;
 
             {
                 stringstream ss;
-                ss << "is_client: " << is_client_mode() << " client:" << m_client_name;
+                ss << " client:" << m_client_name;
                 m_self_str = ss.str();
             }
         out:
-            if (z_ctx != NULL) {
-                zmq_close(wr_sock);
-                zmq_close(rd_sock);
-                zmq_ctx_term(z_ctx);
-            }
+            zmq_close(wr_sock);
+            zmq_close(rd_sock);
+            LOM_LOG_DEBUG("transport: rc=%d client:%s", rc, m_client_name.c_str());
             return rc;
         }
 
-        int write(const string msg, const string dest = string())
+        virtual int write(const string msg, const string dest)
         {
             int rc = 0;
-            RET_ON_ERR(is_client_mode() == dest.empty(),
+            RET_ON_ERR(m_client_name.empty() != dest.empty(),
                     "Client specifies no dest; server specifies. self(%s) dest:(%s)",
                     m_self_str.c_str(), dest.c_str());
 
@@ -311,10 +345,11 @@ class transport
             rc = _zmq_message_send(m_wr_sock, dest.empty() ? m_client_name : dest, msg);
             RET_ON_ERR(rc == 0, "Failed to send self(%s) rc=%d", m_self_str.c_str(), rc);
         out:
+            LOM_LOG_DEBUG("write: rc=%d self(%s)", rc, m_self_str.c_str());
             return rc;
         }
 
-        int read(string &client_id, string &msg, bool dont_wait = false)
+        virtual int read(string &client_id, string &msg, bool dont_wait)
         {
             int rc = 0;
 
@@ -325,8 +360,54 @@ class transport
             return rc;
         }
 
-        void *read_sock() const { return m_rd_sock; };
+        virtual int poll_for_data(int *lst_fds, int cnt, int timeout)
+        {
+            int rc = -3, ret;
+            zmq_pollitem_t items[cnt+1];
+            zmq_pollitem_t *p;
 
+            items[0].socket = m_rd_sock;
+            items[0].events = ZMQ_POLLIN;
+
+            p = items + 1;
+            for(int i=0; i<cnt; ++i, ++p) {
+                p->fd = *lst_fds++;
+                p->events = ZMQ_POLLIN;
+            }
+
+
+            printf("DROP: items[0].socket=0x%p cnt=%d timeout=%d\n",
+                    items[0].socket, cnt, timeout);
+            printf("DROP: time=%d\n", (int)time(0));
+            ret = zmq_poll (items, cnt+1, TO_MS(timeout));
+            printf("DROP: rc=%d time=%d z=%d\n", rc, (int)time(0), zmq_errno());
+            switch (ret) {
+            case -1:
+                rc = -3;
+                RET_ON_ERR(false, "zmq_poll failed");
+                break;
+            
+            case 0:
+                /* timeout */
+                rc = -2;
+
+            default:
+                if (items[0].revents & ZMQ_POLLIN) {
+                    /* Data available from engine */
+                    rc = -1;
+                }
+                rc = -3;
+                for(int i=1; i<= cnt; ++i) {
+                    if (items[i].revents & ZMQ_POLLIN) {
+                        rc = items[i].fd;
+                        break;
+                    }
+                }
+                break;
+            }
+        out:
+            return rc;
+        }
 
     private:
         /*
@@ -340,36 +421,41 @@ class transport
          */
         int connect_client(void *zmq_ctx, void *wr_sock, void *rd_sock)
         {
-            int rc = zmq_connect (wr_sock, _get_config(SUB_END_KEY).c_str());
+            int rc = zmq_connect (wr_sock, _get_config(CFG_SUB_END_KEY).c_str());
             RET_ON_ERR(rc == 0, "client fails to connect %s",
-                    _get_config(SUB_END_KEY).c_str());
+                    _get_config(CFG_SUB_END_KEY).c_str());
 
-            rc = zmq_connect (rd_sock, _get_config(PUB_END_KEY).c_str());
+            rc = zmq_connect (rd_sock, _get_config(CFG_PUB_END_KEY).c_str());
             RET_ON_ERR(rc == 0, "client fails to connect %s",
-                    _get_config(PUB_END_KEY).c_str());
+                    _get_config(CFG_PUB_END_KEY).c_str());
         out:
+            LOM_LOG_DEBUG("DROP: rc=%d write(%s) read(%s)", rc,
+                    _get_config(CFG_SUB_END_KEY).c_str(),
+                    _get_config(CFG_PUB_END_KEY).c_str());
             return rc;
         }
 
         int bind_server(void *zmq_ctx, void *wr_sock, void *rd_sock)
         {
-            int rc = zmq_bind (wr_sock, _get_config(PUB_END_KEY).c_str());
+            int rc = zmq_bind (wr_sock, _get_config(CFG_PUB_END_KEY).c_str());
             RET_ON_ERR(rc == 0, "server fails to bind %s",
-                    _get_config(PUB_END_KEY).c_str());
+                    _get_config(CFG_PUB_END_KEY).c_str());
 
-            rc = zmq_bind (rd_sock, _get_config(SUB_END_KEY).c_str());
+            rc = zmq_bind (rd_sock, _get_config(CFG_SUB_END_KEY).c_str());
             RET_ON_ERR(rc == 0, "server fails to bind %s",
-                    _get_config(SUB_END_KEY).c_str());
+                    _get_config(CFG_SUB_END_KEY).c_str());
         out:
+            LOM_LOG_DEBUG("DROP: rc=%d read(%s) write(%s)", rc,
+                    _get_config(CFG_SUB_END_KEY).c_str(),
+                    _get_config(CFG_PUB_END_KEY).c_str());
             return rc;
         }
 
 
-        void *m_zmq_ctx;
         string m_client_name;
         void *m_wr_sock;
         void *m_rd_sock;
-        int m_rd_timeout_ms;
+        int m_rd_timeout;
 
         string m_self_str;
 
@@ -377,123 +463,28 @@ class transport
 
 typedef shared_ptr<transport> transport_ptr_t;
 
-/* ZMQ sockets are not thread safe. Protect from accidental use across threads */
-thread_local transport_ptr_t t_transport;
-
-int
-init_client_transport(const string client_name)
+transport_ptr_t
+init_transport(const string client_name, int timeout)
 {
     /*
      * Only one transport expected per process. This flag to help capture
      * design/implementation level misuse. Hence not thread protected.
      */
-    static bool s_tx_initialized = false;
     transport_ptr_t tx;
 
     int rc = 0;
-    RET_ON_ERR(!s_tx_initialized, "Duplicate init/multi-init");
-    RET_ON_ERR(!client_name.empty(), "Require non-empty client name");
-
-    tx = transport_ptr_t(new transport());
+    tx = transport_ptr_t(new transportImpl(timeout));
 
     tx->set_mode(client_name);
     RET_ON_ERR(tx->is_valid(), "Failed to init transport for client (%s)",
             client_name.c_str());
-    t_transport = tx;
-    s_tx_initialized = true;
 out:
-    return rc;
-
-}
-
-
-int
-init_server_transport(void)
-{
-    /* Called only by engine */
-    int rc = 0;
-    transport_ptr_t tx;
-
-    RET_ON_ERR(t_transport == NULL, "Duplicate init");
-
-    tx = transport_ptr_t(new transport());
-
-    tx->set_mode();
-    RET_ON_ERR(tx->is_valid(), "Failed to init transport for server");
-    t_transport = tx;
-out:
-    return rc;
-
-}
-
-void
-deinit_transport()
-{
-    t_transport.reset();
-}
-
-int
-write_transport(const string msg, const string dest)
-{
-    int rc = 0;
-
-    RET_ON_ERR(t_transport != NULL, "No transport available to write.");
-
-    rc = t_transport->write(msg, dest);
-out:
-    return rc;
-}
-
-int read_transport(string &client_id, string &msg, bool dont_wait)
-{
-    int rc = 0;
-
-    RET_ON_ERR(t_transport != NULL, "No transport available to read.");
-
-    rc = t_transport->read(client_id, msg, dont_wait);
-out:
-    return rc;
-}
-
-
-int
-poll_for_data(int *lst_fds, int cnt, int timeout)
-{
-    zmq_pollitem_t items[cnt+1];
-
-    items[0].socket = t_transport->read_sock();
-    items[0].events = ZMQ_POLLIN;
-
-    zmq_pollitem_t *p = items + 1;
-    for(int i=0; i<cnt; ++i, ++p) {
-        p->fd = *lst_fds++;
-        p->events = ZMQ_POLLIN;
+    if (rc != 0) {
+        tx.reset();
     }
+    return tx;
 
-    int rc = zmq_poll (items, cnt+1, timeout);
-    switch (rc) {
-    case -1:
-        return -3;
-    
-    case 0:
-        /* timeout */
-        return -2;
-
-    default:
-        break;
-    }
-
-    if (items[0].revents & ZMQ_POLLIN) {
-        /* Data available from engine */
-        return -1;
-    }
-    for(int i=1; i<= cnt; ++i) {
-        if (items[i].revents & ZMQ_POLLIN) {
-            return items[i].fd;
-        }
-    }
-    /* Unexpected result */
-    return -3;
 }
+
 
 

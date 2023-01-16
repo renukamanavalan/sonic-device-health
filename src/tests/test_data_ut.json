@@ -4,7 +4,7 @@
         "Any key with _ as prefix is ignored",
         "Use '_' as way of commenting out"
     ],
-    "test_cases": {
+    "client_test_cases": {
         "test_case_0": {
             "_description": [
                 "is_client - true implies action simulated from client",
@@ -21,22 +21,14 @@
                 "           no verification"
             ],
             "0": {
-                "is_client": true,
                 "cmd": "register_client",
-                "args": [ "test-0" ]
-            },
-            "1": {
-                "is_write": false,
-                "data": ""
+                "args": [ "test-0" ],
+                "read": ["x", "y"]
             },
             "2": {
-                "is_client": true,
                 "cmd": "register_action",
-                "args": [ "test-act-0" ]
-            },
-            "3": {
-                "is_write": false,
-                "data": ""
+                "args": [ "test-act-0" ],
+                "read": ["x", "y"]
             }
         }
     }
