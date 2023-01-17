@@ -279,6 +279,7 @@ class transportImpl : public transport {
 
             wr_sock = zmq_socket (z_ctx, ZMQ_PUB);
             RET_ON_ERR(wr_sock != NULL, "Failed to ZMQ_PUB socket");
+            printf("DROP: wr/PUB sock (%p) ctx(%p)\n", wr_sock, z_ctx);
 
             rc = zmq_setsockopt (wr_sock, ZMQ_LINGER, &LINGER_TIMEOUT, sizeof (LINGER_TIMEOUT));
             RET_ON_ERR(rc == 0, "Failed to ZMQ_LINGER to %d", LINGER_TIMEOUT);
@@ -309,6 +310,8 @@ class transportImpl : public transport {
             rc = zmq_setsockopt(rd_sock, ZMQ_SUBSCRIBE, client_name.c_str(),
                     client_name.size());
             RET_ON_ERR(rc == 0, "Fails to set option rc=%d", rc);
+            printf("DROP: sock(%p) subscribe(%s)/(%d)\n", rd_sock, client_name.c_str(),
+                    (int)client_name.size());
 
             if (m_rd_timeout != -1) {
                 int ms = TO_MS(m_rd_timeout);
@@ -330,7 +333,7 @@ class transportImpl : public transport {
         out:
             zmq_close(wr_sock);
             zmq_close(rd_sock);
-            LOM_LOG_DEBUG("transport: rc=%d client:%s", rc, m_client_name.c_str());
+            LOM_LOG_DEBUG("transport: rc=%d client:%s wr_sock=%p", rc, m_client_name.c_str(), wr_sock);
             return rc;
         }
 
@@ -345,7 +348,7 @@ class transportImpl : public transport {
             rc = _zmq_message_send(m_wr_sock, dest.empty() ? m_client_name : dest, msg);
             RET_ON_ERR(rc == 0, "Failed to send self(%s) rc=%d", m_self_str.c_str(), rc);
         out:
-            LOM_LOG_DEBUG("write: rc=%d self(%s)", rc, m_self_str.c_str());
+            LOM_LOG_DEBUG("write: sock(%p) rc=%d self(%s)", m_wr_sock, rc, m_self_str.c_str());
             return rc;
         }
 
@@ -357,6 +360,7 @@ class transportImpl : public transport {
                     client_id, msg);
             RET_ON_ERR(rc == 0, "Failed to recv self(%s) rc=%d", m_self_str.c_str(), rc);
         out:
+            LOM_LOG_DEBUG("DROP: read: sock(%p) rc=%d self(%s)", m_rd_sock, rc, m_self_str.c_str());
             return rc;
         }
 
@@ -376,11 +380,12 @@ class transportImpl : public transport {
             }
 
 
+            cnt += 1;
             printf("DROP: items[0].socket=0x%p cnt=%d timeout=%d\n",
-                    items[0].socket, cnt, timeout);
-            printf("DROP: time=%d\n", (int)time(0));
-            ret = zmq_poll (items, cnt+1, TO_MS(timeout));
-            printf("DROP: rc=%d time=%d z=%d\n", rc, (int)time(0), zmq_errno());
+                    items[0].socket, cnt, TO_MS(timeout));
+            printf("DROP: time=%d\n", (int)std::time(NULL));
+            ret = zmq_poll (items, cnt, TO_MS(timeout));
+            printf("DROP: ret=%d time=%d z=%d\n", ret, (int)std::time(NULL), zmq_errno());
             switch (ret) {
             case -1:
                 rc = -3;
@@ -390,11 +395,13 @@ class transportImpl : public transport {
             case 0:
                 /* timeout */
                 rc = -2;
+                break;
 
             default:
                 if (items[0].revents & ZMQ_POLLIN) {
                     /* Data available from engine */
                     rc = -1;
+                    break;
                 }
                 rc = -3;
                 for(int i=1; i<= cnt; ++i) {
