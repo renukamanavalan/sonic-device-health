@@ -1,0 +1,65 @@
+LoM Transport between processes & engine.
+
+1.  Use named FIFO pipes
+    <Procname>_Engine -- Name for process to Engine FIFO
+    Engine_<procname> -- vice versa
+
+2.  procs.conf.json has all proc details.
+    Use a common lib API to get the conf
+    Keys from the conf has all the proc names.
+
+3.  init_transport by server
+    Opens ReadEnd of all pipes for all processes.
+    NOTE: Client processes can't create write pipe unless the read end is open
+    return success/failure code.
+
+4.  Write by server
+    Open the engine to Proc pipe with write permission.
+    Any write occurs only upon some registration action by proc, which would have
+    opened the read end already
+
+5.  Any write:
+    Message is written as 4 byte header that carries the size of the message
+    that follows.
+    Any data written is in string form with terminating null character, included.
+    Put message size as 4 bytes data
+    Reader will first read 4 bytes.
+    Then read that many bytes from the pipe.
+    A single null char at the end of the buf can be additional verification that
+    message boundary is correct.
+
+6.  poll_data by server
+    All read end Fds are polled. "man 2 poll"
+    All fds that have data are read in round-robin fashion
+    Only upon reading all fds, the next Poll call is made.
+    Only one message is read from each pipe at a time,
+    so as to provide fair distribution across all.
+    The selected fds are cached for use by subsequent read call by
+    engine.
+
+7.  Read message by server
+    Upon call from engine only, the message is read from pipe.
+    Use one of cached fds from previous call
+    Upon completing all, go for poll with caller's timeout.
+    No internal caching is done
+   
+
+8.  init_transport by client
+    Creates both pipes from & to server.
+    On success returns read-end fd. The process may use for poll, as it likely
+    has other fds to listen for data.
+    The write end fd is maintained internally by lib.
+
+9.  write by client
+    All register, de-register, heartbeat & action-response are written into write end
+    as JSON string.
+
+10. The action-response & action-request are sent across as JSON strings.
+
+
+11. read by client with timeout
+    Does poll if timeout.
+    read a message from server
+
+
+
