@@ -135,8 +135,6 @@ register_client(const char *client_id)
     tx = init_client_transport(str_id);
     RET_ON_ERR(tx != NULL, "Failed to init client");
 
-    sleep(5);
-
     rc = tx->write(msg->to_str());
     RET_ON_ERR(rc == 0, "Failed to write register client");
 

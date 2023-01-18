@@ -1,6 +1,8 @@
 /*
  * common APIs used by events code.
  */
+#include <iostream>
+#include <limits.h>
 #include <stdio.h>
 #include <chrono>
 #include <fstream>
@@ -26,6 +28,9 @@
 using namespace std;
 using namespace chrono;
 
+#define FIFO_E2C_PATH "/tmp/lom_fifo_engine_to_%s"
+#define FIFO_C2E_PATH "/tmp/lom_fifo_%s_to_engine"
+    
 #define TO_MS(n) ((n) * 1000)
   
 #if 0
@@ -162,9 +167,16 @@ out:
 class reader_writer
 {
     public:
+        reader_writer(int fd) {
+            m_lst.push_back(fd);
+            _reset();
+        };
+
         reader_writer(const vector<fd_t> &fds) : m_lst(fds) {
             _reset();
         };
+
+        ~reader_writer() {};
 
         int read_data(int timeout, string &data, int &fd) {
             int rc = 0, tcnt;
@@ -176,14 +188,19 @@ class reader_writer
 
                 rc = poll_for_data(&m_lst[0], m_lst.size(), &m_ready[0], &m_ready_cnt,
                         &m_err[0], &tcnt);
-                RET_ON_ERR(rc == -1, "Poll failed in reader");
+                RET_ON_ERR(rc != -1, "Poll failed in reader");
+                m_ready_index = 0;
             }
-            fd = m_ready[m_ready_index++];
-            m_ready_cnt--;
+            if (rc == 0) {
+                LOM_LOG_DEBUG("Read timed out list sz=%d", m_lst.size());
+            } else {
+                fd = m_ready[m_ready_index++];
+                m_ready_cnt--;
 
-            RET_ON_ERR(fd >= 0, "Internal error. ready fd is not valid index(%d) cnt(%d)",
-                    m_ready_index, m_ready_cnt);
-            RET_ON_ERR((rc = _read(fd, data)) == 0, "Failed to read fd(%d)", fd);
+                RET_ON_ERR(fd >= 0, "Internal error. ready fd is not valid index(%d) cnt(%d)",
+                        m_ready_index, m_ready_cnt);
+                RET_ON_ERR((rc = _read(fd, data)) == 0, "Failed to read fd(%d)", fd);
+            }
         out:
             return rc;
         }
@@ -197,6 +214,7 @@ class reader_writer
 
             rc = write(fd, data.c_str(), sz);
             RET_ON_ERR(rc >= 0, "Failed to write rc=%d sz=%d fd=%d", rc, sz, fd);
+            rc = 0;
         out:
             return rc;
         }
@@ -250,17 +268,21 @@ class transportImpl : public server_transport, public client_transport
 
         virtual bool is_client() { return !m_client.empty(); }
 
-        virtual int set_client_mode(const string client_name)
+        virtual int set_client_mode(const string client)
         {
             int rc = 0;
-            vector<string> lst{ client_name };
 
-            RET_ON_ERR(!client_name.empty(), "Expect non empty client name");
+            RET_ON_ERR(!client.empty(), "Expect non empty client name");
 
-            m_client = client_name;
+            RET_ON_ERR(m_rfds.empty(), "Duplicate set mode");
 
-            rc = set_server_mode(lst);
+            m_client = client;
 
+            /* create read end only; write end is created on first demand */
+            RET_ON_ERR((rc = create_a_fd(false, client)) == 0,
+                    "Failed to create client read fd (%s)", client.c_str());
+            RET_ON_ERR(m_rfds.size() == 1, "Expect only one fd");
+            m_reader_writer.reset(new reader_writer(m_rfds.begin()->second));
         out:
             m_valid = (rc == 0) ? true : false;
             return rc;
@@ -275,10 +297,11 @@ class transportImpl : public server_transport, public client_transport
 
             RET_ON_ERR(m_rfds.empty(), "Duplicate set mode");
 
+            /* create read end only; write end is created on first demand */
             for(vector<string>::const_iterator itc = clients.begin();
                     itc != clients.end(); ++itc) {
-                RET_ON_ERR((rc = create_a_fd(*itc)) == 0,
-                        "Failed to create fd for (%s) client-mode", (*itc).c_str());
+                RET_ON_ERR((rc = create_a_fd(true, *itc)) == 0,
+                        "Failed to create server read fd for (%s)", (*itc).c_str());
             }
             for (map<fd_t, client_t>::const_iterator itc = m_rclients.begin();
                     itc != m_rclients.end(); ++itc) {
@@ -294,9 +317,21 @@ class transportImpl : public server_transport, public client_transport
         {
             int rc = 0;
             map<client_t, fd_t>::const_iterator itc = m_wfds.find(client);
+            
+            if (itc == m_wfds.end()) {
+                /*
+                 * Create on first demand, as wr can only be created after peer
+                 * created the read end.
+                 * c2e == is_client
+                 */
+                RET_ON_ERR((rc = create_a_fd(is_client(), client)) == 0,
+                        "Failed to create write fd for client (%s) is_client(%d)",
+                        client.c_str(), is_client());
+            }
 
+            itc = m_wfds.find(client);
             RET_ON_ERR(itc != m_wfds.end(), "Missing entry for (%s) is_client(%d)", 
-                    get_client_name(client).c_str(), is_client());
+                    client.c_str(), is_client());
 
             rc = m_reader_writer->write_data(itc->second, msg);
             RET_ON_ERR(rc == 0, "Failed to write size(%d)", msg.size());
@@ -307,7 +342,7 @@ class transportImpl : public server_transport, public client_transport
         virtual int write(const string msg)
         {
             /* Write from client */
-            return write(string(), msg);
+            return write(m_client, msg);
         }
 
         virtual int read(string &client_id, string &msg, int timeout)
@@ -315,7 +350,13 @@ class transportImpl : public server_transport, public client_transport
             int fd;
             int rc = m_reader_writer->read_data(timeout, msg, fd);
             RET_ON_ERR(rc == 0, "read_data failed fd=%d", fd);
-            client_id = m_rclients[fd];
+            if (fd >= 0) {
+                client_id = m_rclients[fd];
+            } else {
+                /* timeout occurred */
+                client_id = string();
+                msg = string();
+            }
         out:
             return rc;
         }
@@ -326,19 +367,10 @@ class transportImpl : public server_transport, public client_transport
             return read(s, msg, timeout);
         }
 
-        virtual fd_t get_read_fd() { return m_rfds.empty() ? -1 : m_rfds[0]; };
+        virtual fd_t get_read_fd() { return m_rfds.empty() ? -1 : m_rfds.begin()->second; };
 
     private:
-        int create_a_fd(const string client_name);
-
-        bool validate_client(const string client)
-        {
-            return ((m_rfds.find(client) != m_rfds.end()) && 
-                    (m_wfds.find(client) != m_wfds.end())) ? true : false;  
-        }
-
-        const string get_client_key(const string client) { return is_client() ? "" : client; };
-        const string get_client_name(const string client) { return is_client() ? m_client : client; };
+        int create_a_fd(bool c2e, const string client);
 
         bool m_valid;
         string m_client;
@@ -349,57 +381,73 @@ class transportImpl : public server_transport, public client_transport
         reader_writer_ptr_t m_reader_writer;
 };
 
-void
-get_fifo_names(const string client_name, string &s_c_2_e, string &s_e_2_c)
+static string
+_get_path(bool c2e, const string client)
 {
-    stringstream ss_c_2_e, ss_e_2_c;
-    ss_c_2_e << "/tmp/lom_fifo_" << client_name << "_engine";
-    ss_e_2_c << "/tmp/lom_fifo_engine_" << client_name ;
+    int rc = 0;
+    string ret;
+    char buf[100];
 
-    s_c_2_e = ss_c_2_e.str();
-    s_e_2_c = ss_e_2_c.str();
-
-    /* Ensure removed */
-    unlink(s_c_2_e.c_str());
-    unlink(s_e_2_c.c_str());
+    rc = snprintf(buf, sizeof(buf), c2e ? FIFO_C2E_PATH : FIFO_E2C_PATH, client.c_str());
+    RET_ON_ERR(rc < (int)sizeof(buf), "Internal error. path(%s) name(%s) too long %d > %d",
+            c2e ? FIFO_C2E_PATH : FIFO_E2C_PATH, client.c_str(),
+            rc, (int)sizeof(buf));
+    buf[rc] = 0;
+    ret = string(buf);
+out:
+    return ret; 
 }
 
 int
-transportImpl::create_a_fd(const string client_name)
+transportImpl::create_a_fd(bool c2e, const string client)
 {
     int rc = 0;
-    string s_c_2_e, s_e_2_c;
-    bool is_cl = is_client();
-    string key_client = get_client_key(client_name);
-    int wr_fd, rd_fd;
+    string path(_get_path(c2e, client));
+    /*
+     * Truth table
+     *
+     * c2e | is_client |  mode
+     *-------------------------
+     *  T  |    T      |   WR
+     *  T  |    F      |   RD
+     *  F  |    T      |   RD
+     *  F  |    F      |   WR
+     *-------------------------
+     * so c2e == is_client ? WR : RD
+     */
+    int is_read_end = (c2e != is_client()) ? true : false;
+    int fd;
 
-    get_fifo_names(client_name, s_c_2_e, s_e_2_c);
+    if (is_read_end) {
+        /* Creating this path for first time */
+        unlink(path.c_str());
 
-    const char *wr_end = is_cl ? s_c_2_e.c_str() : s_e_2_c.c_str();
-    const char *rd_end = is_cl ? s_e_2_c.c_str() : s_c_2_e.c_str(); 
+        rc = mknod(path.c_str(), S_IFIFO | 0666, 0);
+        RET_ON_ERR(rc == 0, "Failed to create node for (%s)", path.c_str());
 
-    RET_ON_ERR(!validate_client(key_client), "Duplicate ? for (%s) is_client=%d", 
-            client_name.c_str(), is_client());
+        /* Note: O_NONBLOCK is required as wr end is not open yet. */
+        fd = open(path.c_str(), O_RDONLY | O_NONBLOCK);
+        RET_ON_ERR(fd >= 0, "Failed to create read fd(%s)", path.c_str());
 
-    wr_fd = open(wr_end, O_WRONLY);
-    RET_ON_ERR(wr_fd >=0, "Failed to create wr(%s)", wr_end);
+        m_rfds[client] = fd;
+        m_rclients[fd] = client;
+    } else {
+        /*
+         * Pause wr_fd creation until first write request.
+         * This is because write creation will fail until read end is opened.
+         */
+        fd = open(path.c_str(), O_WRONLY | O_NONBLOCK);
+        RET_ON_ERR(fd >= 0, "Failed to create write fd (%s)", path.c_str());
 
-    rd_fd = open(rd_end, O_RDONLY);
-    RET_ON_ERR(rd_fd >= 0, "Failed to create rd(%s)", rd_end);
-
-
-    m_rfds[key_client] = rd_fd;
-    m_wfds[key_client] = wr_fd;
-
-    m_rclients[rd_fd] = key_client;
-    m_wclients[wr_fd] = key_client;
-
+        m_wfds[client] = fd;
+        m_wclients[fd] = client;
+    }
 out:
     return rc;
 }
 
 client_transport_ptr_t
-init_client_transport(const string client_name)
+init_client_transport(const string client)
 {
     /*
      * Only one transport expected per process. This flag to help capture
@@ -411,9 +459,9 @@ init_client_transport(const string client_name)
     transportImpl *p = new transportImpl();
     tx = client_transport_ptr_t(dynamic_cast<client_transport *>(p));
 
-    p->set_client_mode(client_name);
+    p->set_client_mode(client);
     RET_ON_ERR(p->is_valid(), "Failed to init transport for client (%s)",
-            client_name.c_str());
+            client.c_str());
 out:
     if (rc != 0) {
         tx.reset();

@@ -90,14 +90,15 @@ static errorMgr s_errorMgr;
 
 
 void
-set_last_error(const char *caller, int e, int rc, const char *msg, ...)
+set_last_error(const char *fl, int ln, const char *caller,
+        int e, int rc, const char *msg, ...)
 {
     stringstream ss;
     char buf[1024];
 
-    ss << caller << ":";
+    ss << fl << ":" << ln << " " << caller << ":";
     if (e != 0) {
-        ss << "err:" << e << " ";
+        ss << "err:" << e << " (" << strerror(e) << ") ";
     }
 
     ss << "rc:" << rc << " ";

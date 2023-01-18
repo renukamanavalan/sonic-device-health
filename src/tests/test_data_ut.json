@@ -22,17 +22,17 @@
             ],
             "0": {
                 "cmd": "mock_server",
-                "args": [ "test-0" ],
+                "args": [ "test-0" ]
             },
             "1": {
                 "cmd": "register_client",
                 "args": [ "test-0" ],
-                "read": ["x", "y"]
+                "read": ["test-0", "{\"register_client\":{\"client_name\":\"test-0\"}}"]
             },
             "2": {
                 "cmd": "register_action",
                 "args": [ "test-act-0" ],
-                "read": ["x", "y"]
+                "read": ["test-0", "{\"register_action\":{\"action_name\":\"test-act-0\",\"client_name\":\"test-0\"}}"]
             }
         }
     }

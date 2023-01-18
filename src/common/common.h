@@ -19,11 +19,16 @@ extern int errno;
 #define RET_ON_ERR(res, msg, ...)\
     if (!(res)) {                                                               \
         int _e = errno;                                                         \
-        set_last_error(__FUNCTION__, _e, rc, msg, ##__VA_ARGS__);               \
+        set_last_error(__FILE__, __LINE__, __FUNCTION__, _e, rc, msg, ##__VA_ARGS__);               \
         if (rc == 0) {                                                          \
             rc = -1;                                                            \
         }                                                                       \
         goto out; }
+
+#define DROP_TEST(msg, ...) {       \
+    printf("%s::%d------------- DROP: ", __FILE__, __LINE__);   \
+    printf( msg, ##__VA_ARGS__);    \
+    printf("\n"); }
 
 #define ARRAYSIZE(d) (sizeof(d)/sizeof((d)[0]))
 
@@ -50,7 +55,8 @@ typedef enum {
 } error_codes_t;
 
 
-void set_last_error(const char *caller, int e, int rc, const char *msg, ...);
+void set_last_error(const char *fl, int ln, const char *caller,
+        int e, int rc, const char *msg, ...);
 int get_last_error();
 const char *get_last_error_msg();
 

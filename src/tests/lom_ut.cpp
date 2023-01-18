@@ -215,14 +215,12 @@ run_a_client_test_case(const string tcid, const json &tcdata)
     LOM_LOG_INFO("Running test case %s", tcid.c_str());
 
     /* Create mock server end */
-    mock_peer_ptr_t peer(new mock_peer(""));
-    RET_ON_ERR(peer->is_valid(), "mock peer is not valid");
+    mock_peer_ptr_t peer;
     
     for (auto itc = tcdata.cbegin(); itc != tcdata.cend(); ++itc) {
         string key = itc.key();
 
         if (_is_commented(key)) {
-            LOM_LOG_INFO("Skip commented entry %s", key.c_str());
             continue;
         }
 
@@ -233,6 +231,7 @@ run_a_client_test_case(const string tcid, const json &tcdata)
 
         LOM_LOG_INFO("Running test entry %s:%s", tcid.c_str(), key.c_str());
         if (write_data.size() == 2) {
+            RET_ON_ERR(peer != NULL, "Missing peer to write");
             RET_ON_ERR((rc = peer->write(write_data)) == 0, "Failed to write via mock server");
         } else {
             RET_ON_ERR(write_data.empty(), "TEST ERROR: check write data %s", 
@@ -254,6 +253,7 @@ run_a_client_test_case(const string tcid, const json &tcdata)
         if (read_data.size() == 2) {
             vector<string> peer_data;
 
+            RET_ON_ERR(peer != NULL, "Missing peer to read");
             RET_ON_ERR((rc = peer->read(peer_data)) == 0, "Failed to read via mock server");
 
             RET_ON_ERR(peer_data == read_data, "Test compare fail read(%s, %s) != exp(%s, %s)",
@@ -276,7 +276,7 @@ run_client_testcases(const json &tccases)
 {
     int rc = 0;
 
-    LOM_LOG_INFO("Running all client test_cases\n");
+    LOM_LOG_INFO("Running all client test_cases");
 
     for (auto itc = tccases.cbegin(); itc != tccases.cend(); ++itc) {
 
@@ -323,7 +323,6 @@ int main(int argc, const char **argv)
     json data = json::parse(f, nullptr, false);
 
     RET_ON_ERR(!data.is_discarded(), "Failed to parse file %s", tcfile.c_str());
-    LOM_LOG_DEBUG("%s: data.is_discarded = %d\n", tcfile.c_str(), data.is_discarded());
 
     rc = run_client_testcases(data.value("client_test_cases", json()));
     RET_ON_ERR(rc == 0, "run_testcases failed rc=%d", rc);
