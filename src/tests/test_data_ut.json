@@ -33,6 +33,26 @@
                 "cmd": "register_action",
                 "args": [ "test-act-0" ],
                 "read": ["test-0", "{\"register_action\":{\"action_name\":\"test-act-0\",\"client_name\":\"test-0\"}}"]
+            },
+            "3": {
+                "cmd": "heartbeat",
+                "args": [ "test-act-0", "0ff3a468-977d-11ed-a8fc-0242ac120002" ],
+                "read": ["test-0", "{\"heartbeat\":{\"action_name\":\"test-act-0\",\"client_name\":\"test-0\",\"instance_id\":\"0ff3a468-977d-11ed-a8fc-0242ac120002\"}}" ]
+            },
+            "4": {
+                "cmd": "action_request",
+                "args": [ "{\"action_request\": {\"client_name\": \"test-0\", \"action_name\": \"test-act-0\", \"instance_id\": \"0ff3a468-977d-11ed-a8fc-0242ac120002\", \"anomaly_instance_id\": \"0ff3a468-977d-11ed-a8fc-0242ac120002\"}}" ],
+                "write": ["test-0", "{\"action_request\": {\"client_name\": \"test-0\", \"action_name\": \"test-act-0\", \"instance_id\": \"0ff3a468-977d-11ed-a8fc-0242ac120002\", \"anomaly_instance_id\": \"0ff3a468-977d-11ed-a8fc-0242ac120002\"}}" ]
+            },
+            "5": {
+                "cmd": "action_response",
+                "args": [ "{\"action_response\": {\"client_name\": \"test-0\", \"action_name\": \"test-act-0\", \"instance_id\": \"0ff3a468-977d-11ed-a8fc-0242ac120002\", \"anomaly_instance_id\": \"0ff3a468-977d-11ed-a8fc-0242ac120002\", \"anomaly_key\": \"test_key\", \"action_data\": \"{\\\"val\\\": \\\"hello\\\", \\\"id\\\": 1, \\\"flag\\\": true}\", \"result_code\": \"0\", \"result_str\": \"All Good!\"}}" ],
+                "read": [ "test-0", "{\"action_response\": {\"client_name\": \"test-0\", \"action_name\": \"test-act-0\", \"instance_id\": \"0ff3a468-977d-11ed-a8fc-0242ac120002\", \"anomaly_instance_id\": \"0ff3a468-977d-11ed-a8fc-0242ac120002\", \"anomaly_key\": \"test_key\", \"action_data\": \"{\\\"val\\\": \\\"hello\\\", \\\"id\\\": 1, \\\"flag\\\": true}\", \"result_code\": \"0\", \"result_str\": \"All Good!\"}}" ]
+            },
+            "6": {
+                "cmd": "deregister_client",
+                "args": [ "test-act-0" ],
+                "read": ["test-0", "{\"deregister_client\":{\"client_name\":\"test-0\"}}"]
             }
         }
     }

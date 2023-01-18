@@ -45,6 +45,8 @@ create_server_msg(const string msg)
         req.reset(new ActionResponse());
     } else if (type == REQ_ACTION_REQUEST) {
         req.reset(new ActionRequest());
+    } else {
+        RET_ON_ERR(false, "Create message failed unknown type=(%s)", type.c_str());
     }
 
     for(map_str_str_t::const_iterator itc = data.begin();
@@ -237,27 +239,28 @@ out:
 const char *
 read_action_request(int timeout)
 {
-    string id, msg, req_client;
+    static string s_msg;
+    string msg, req_client;
     ServerMsg_ptr_t req;
     int rc = 0;
 
+    s_msg.clear();
     RET_ON_ERR(s_client_tx != NULL, "No transport to server");
 
     rc = s_client_tx->read(msg);
     RET_ON_ERR(rc == 0, "Failed to read msg from engine");
-    RET_ON_ERR(id == s_registered.client_name, "Read id(%s) != client(%s)",
-           id.c_str(), s_registered.client_name.c_str());
-
 
     req = create_server_msg(msg);
+    RET_ON_ERR(req != NULL, "failed to create req from (%s)", msg.c_str());
 
     RET_ON_ERR(req->validate(), "req (%s) failed to validate", msg.c_str());
 
     req_client = req->get(REQ_CLIENT_NAME);
-    RET_ON_ERR(id == req_client, "Read req_client(%s) != client(%s)",
-           id.c_str(), req_client.c_str());
+    RET_ON_ERR(s_registered.client_name == req_client, "Read req_client(%s) != client(%s)",
+           s_registered.client_name.c_str(), req_client.c_str());
+    s_msg = msg;
 out:
-    return (rc == 0) ? msg.c_str() : "";
+    return s_msg.c_str();
 }
 
 

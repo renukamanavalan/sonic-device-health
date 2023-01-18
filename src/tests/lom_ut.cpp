@@ -120,6 +120,7 @@ test_client(const string cmd, const vector<string> args)
         RET_ON_ERR(!str_read.empty(), "Empty request string received");
 
         read_msg = create_server_msg(str_read);
+        RET_ON_ERR(read_msg != NULL, "Failed to create msg from (%s)", str_read.c_str());
         RET_ON_ERR(read_msg->validate(), "Failed to validate (%s)", str_read.c_str());
 
         str_test = string(args.empty() ? "" : args[0]);
@@ -128,7 +129,7 @@ test_client(const string cmd, const vector<string> args)
             RET_ON_ERR(test_msg->validate(), "%s Invalid msg (%s)",
                     TEST_ERR_PREFIX, str_test.c_str());
 
-            RET_ON_ERR(read_msg == test_msg, "Failed to match exp(%s) != read(%s)",
+            RET_ON_ERR((*read_msg) == (*test_msg), "Failed to match exp(%s) != read(%s)",
                     test_msg->to_str().c_str(), str_read.c_str());
         } else {
             LOM_LOG_INFO("**** Received msg: (%s)", str_read.c_str());
@@ -255,10 +256,14 @@ run_a_client_test_case(const string tcid, const json &tcdata)
 
             RET_ON_ERR(peer != NULL, "Missing peer to read");
             RET_ON_ERR((rc = peer->read(peer_data)) == 0, "Failed to read via mock server");
+            ServerMsg_ptr_t msg_read = create_server_msg(peer_data[1]);
+            ServerMsg_ptr_t msg_exp = create_server_msg(read_data[1]);
 
-            RET_ON_ERR(peer_data == read_data, "Test compare fail read(%s, %s) != exp(%s, %s)",
-                    peer_data[0].c_str(), peer_data[1].c_str(),
-                    read_data[0].c_str(), read_data[1].c_str());
+            RET_ON_ERR(peer_data[0] == read_data[0], "Test compare fail on client read(%s) != exp(%s)",
+                    peer_data[0].c_str(), read_data[0].c_str());
+
+            RET_ON_ERR((*msg_read) == (*msg_exp), "Test compare fail on msg read(%s) != exp(%s)",
+                    msg_read->to_str().c_str(), msg_exp->to_str().c_str());
         } else {
             RET_ON_ERR(read_data.empty(), "TEST ERROR: check read data %s", 
                     tcid.c_str());
@@ -295,29 +300,9 @@ out:
 int main(int argc, const char **argv)
 {
     int rc = 0;
-    set_test_mode();
-
-#if 0
-    thread thr(test_svr);
-    printf("started test_svr thread\n");
-    sleep(4);
-
-    transport_ptr_t tx = init_transport("hello");
-    sleep(2);
-
-    rc = tx->write("hello world");
-
-    printf("*******************Write rc=%d z=%d valid=%d\n", rc, zmq_errno(),
-            tx->is_valid());
-    printf("Waiting for thread to join\n");
-
-    thr.join();
-
-    printf("DONE\n");
-#endif
-
-
     string tcfile(argc > 1 ? argv[1] : TEST_CASE_FILE);
+
+    set_test_mode();
 
     ifstream f(tcfile.c_str());
     json data = json::parse(f, nullptr, false);
