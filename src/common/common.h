@@ -6,7 +6,6 @@
 #include <stdarg.h>
 #include <syslog.h>
 #include <map>
-#include "zmq.h"
 
 void set_test_mode();
 bool is_test_mode();
@@ -20,10 +19,10 @@ extern int errno;
 #define RET_ON_ERR(res, msg, ...)\
     if (!(res)) {                                                               \
         int _e = errno;                                                         \
+        set_last_error(__FUNCTION__, _e, rc, msg, ##__VA_ARGS__);               \
         if (rc == 0) {                                                          \
             rc = -1;                                                            \
         }                                                                       \
-        set_last_error(__FUNCTION__, _e, zmq_errno(), rc, msg, ##__VA_ARGS__);  \
         goto out; }
 
 #define ARRAYSIZE(d) (sizeof(d)/sizeof((d)[0]))
@@ -51,8 +50,7 @@ typedef enum {
 } error_codes_t;
 
 
-void set_last_error(const char *caller, int e, int ze, int rc,
-                const char *msg, ...);
+void set_last_error(const char *caller, int e, int rc, const char *msg, ...);
 int get_last_error();
 const char *get_last_error_msg();
 

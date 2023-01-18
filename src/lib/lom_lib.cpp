@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <sstream>
 #include <syslog.h>
+#include <unistd.h>
 #include "consts.h"
 #include "common.h"
 #include "client.h"
@@ -16,6 +17,10 @@ typedef struct registered {
 } registered_t;
 
 static registered_t s_registered;
+
+/* Expect only either transport, except for test code */
+static client_transport_ptr_t s_client_tx;
+static server_transport_ptr_t s_server_tx;
 
 ServerMsg_ptr_t
 create_server_msg(const string msg)
@@ -98,10 +103,6 @@ ServerMsg::operator==(const ServerMsg &msg) const
 }
 
 
-/* ZMQ sockets are not thread safe. Protect from accidental use across threads */
-/* Expect client & server to be separate processes. Hence only transport exists */
-thread_local transport_ptr_t t_transport;
-
 /*
  * client side access APIs as per client.h
  */
@@ -110,7 +111,7 @@ int
 register_client(const char *client_id)
 {
     int rc = 0;
-    transport_ptr_t tx;
+    client_transport_ptr_t tx;
 
     {
         stringstream ss;
@@ -125,21 +126,23 @@ register_client(const char *client_id)
     rc = msg->set(REQ_CLIENT_NAME, str_id);
     RET_ON_ERR(rc == 0, "Failed to set client name %s", client_id);
 
-    RET_ON_ERR(s_registered.client_name.empty() || (t_transport == NULL),
+    RET_ON_ERR(s_registered.client_name.empty() || (s_client_tx == NULL),
             "Duplicate registration exist: %s new:%s",
             s_registered.client_name.c_str(), client_id);
 
     RET_ON_ERR(msg->validate(), "req (%s) failed to validate", msg->to_str().c_str());
 
-    tx = init_transport(str_id);
+    tx = init_client_transport(str_id);
     RET_ON_ERR(tx != NULL, "Failed to init client");
+
+    sleep(5);
 
     rc = tx->write(msg->to_str());
     RET_ON_ERR(rc == 0, "Failed to write register client");
 
     s_registered.client_name = str_id;
     unordered_set<string>().swap(s_registered.actions);
-    t_transport = tx;
+    s_client_tx = tx;
 out:
     LOM_LOG_DEBUG("register_client returned rc=%d", rc);
     return rc;
@@ -152,7 +155,7 @@ deregister_client(void)
     int rc = 0;
     ServerMsg_ptr_t msg(new DeregisterClient());
 
-    RET_ON_ERR(t_transport != NULL, "No transport to server");
+    RET_ON_ERR(s_client_tx != NULL, "No transport to server");
 
     rc = msg->set(REQ_CLIENT_NAME, s_registered.client_name);
     RET_ON_ERR(rc == 0, "Failed to set client name %s",
@@ -160,14 +163,14 @@ deregister_client(void)
 
     RET_ON_ERR(msg->validate(), "req (%s) failed to validate", msg->to_str().c_str());
 
-    rc = t_transport->write(msg->to_str());
+    rc = s_client_tx->write(msg->to_str());
     RET_ON_ERR(rc == 0, "Failed to write deregister client");
 
 out:
     string().swap(s_registered.client_name);
     unordered_set<string>().swap(s_registered.actions);
 
-    t_transport.reset();
+    s_client_tx.reset();
     return rc;
 }
 
@@ -179,7 +182,7 @@ register_action(const char *action)
     ServerMsg_ptr_t msg(new RegisterAction());
     string str_action(action);
 
-    RET_ON_ERR(t_transport != NULL, "No transport to server");
+    RET_ON_ERR(s_client_tx != NULL, "No transport to server");
 
     RET_ON_ERR(s_registered.actions.find(str_action) == 
             s_registered.actions.end(), "Duplicate action (%s) registration",
@@ -193,7 +196,7 @@ register_action(const char *action)
 
     RET_ON_ERR(msg->validate(), "req (%s) failed to validate", msg->to_str().c_str());
 
-    rc = t_transport->write(msg->to_str());
+    rc = s_client_tx->write(msg->to_str());
     RET_ON_ERR(rc == 0, "Failed to write register action");
 
     s_registered.actions.insert(str_action);
@@ -208,7 +211,7 @@ touch_heartbeat(const char *action, const char *instance_id)
     ServerMsg_ptr_t msg(new HeartbeatClient());
     string str_action(action), str_id(instance_id);
 
-    RET_ON_ERR(t_transport != NULL, "No transport to server");
+    RET_ON_ERR(s_client_tx != NULL, "No transport to server");
 
     RET_ON_ERR(s_registered.actions.find(str_action) != 
             s_registered.actions.end(), "Missing action (%s) registration",
@@ -226,7 +229,7 @@ touch_heartbeat(const char *action, const char *instance_id)
 
     RET_ON_ERR(msg->validate(), "req (%s) failed to validate", msg->to_str().c_str());
 
-    rc = t_transport->write(msg->to_str());
+    rc = s_client_tx->write(msg->to_str());
     RET_ON_ERR(rc == 0, "Failed to write heartbeat");
 out:
     return rc;
@@ -240,9 +243,9 @@ read_action_request(int timeout)
     ServerMsg_ptr_t req;
     int rc = 0;
 
-    RET_ON_ERR(t_transport != NULL, "No transport to server");
+    RET_ON_ERR(s_client_tx != NULL, "No transport to server");
 
-    rc = t_transport->read(id, msg);
+    rc = s_client_tx->read(msg);
     RET_ON_ERR(rc == 0, "Failed to read msg from engine");
     RET_ON_ERR(id == s_registered.client_name, "Read id(%s) != client(%s)",
            id.c_str(), s_registered.client_name.c_str());
@@ -267,7 +270,7 @@ write_action_response(const char *res)
     ServerMsg_ptr_t msg;
     string str_res(res);
 
-    RET_ON_ERR(t_transport != NULL, "No transport to server");
+    RET_ON_ERR(s_client_tx != NULL, "No transport to server");
 
     msg = create_server_msg(str_res);
     RET_ON_ERR(msg->validate(), "req (%s) failed to validate", res);
@@ -278,40 +281,28 @@ write_action_response(const char *res)
 
     RET_ON_ERR(msg->validate(), "req (%s) failed to validate", res);
 
-    rc = t_transport->write(msg->to_str());
+    rc = s_client_tx->write(msg->to_str());
     RET_ON_ERR(rc == 0, "Failed to write action response");
 out:
     return rc;
 }
  
-int
-client_poll_for_data(int *lst_fds, int cnt, int timeout)
-{
-    int rc = -3;
-
-    RET_ON_ERR(t_transport != NULL, "No transport to server");
-
-out:
-    return t_transport->poll_for_data(lst_fds, cnt, timeout);
-}
-
-
 /*
  * Server side access APIs as per server.h
  */
 
 int
-server_init()
+server_init(const vector<string> clients)
 {
     int rc = 0;
-    transport_ptr_t tx;
+    server_transport_ptr_t tx;
 
     log_init("LoM-Engine", LOG_LOCAL0);
 
-    RET_ON_ERR(t_transport == NULL, "Transport exists");
-    tx =  init_transport();
+    RET_ON_ERR(s_server_tx == NULL, "Transport exists");
+    tx = init_server_transport(clients);
     RET_ON_ERR(tx != NULL, "Failed to init server");
-    t_transport = tx;
+    s_server_tx = tx;
 out:
     return rc;
 }
@@ -319,7 +310,7 @@ out:
 void
 server_deinit()
 {
-    t_transport.reset();
+    s_server_tx.reset();
 }
 
 int
@@ -327,13 +318,13 @@ write_server_message(const ServerMsg_ptr_t req)
 {
     int rc = 0;
 
-    RET_ON_ERR(t_transport != NULL, "No transport for server");
+    RET_ON_ERR(s_server_tx != NULL, "No transport for server");
 
     RET_ON_ERR(req != NULL, "Expect non null ptr");
     RET_ON_ERR(req->validate(), "req (%s) failed to validate",
             req->to_str().c_str());
 
-    rc = t_transport->write(req->to_str(), req->get(REQ_CLIENT_NAME));
+    rc = s_server_tx->write(req->get(REQ_CLIENT_NAME), req->to_str());
     RET_ON_ERR(rc == 0, "Failed to write to client");
 out:
     return rc;
@@ -348,20 +339,9 @@ read_server_message(int timeout)
     string client_id, str_msg;
     ServerMsg_ptr_t msg, ret;
 
-    RET_ON_ERR(t_transport != NULL, "No transport for server");
+    RET_ON_ERR(s_server_tx != NULL, "No transport for server");
 
-    if (timeout != -1) {
-        rc = t_transport->poll_for_data(NULL, 0, timeout);
-        if (rc != -1) {
-            RET_ON_ERR(rc == -2, "Failed to poll for data from clients");
-            rc = LOM_TIMEOUT;
-            RET_ON_ERR(false, "Read message timeout.");
-            /*  -2 is timeout. Nothing to read */
-            goto out;
-        }
-    }
-
-    rc = t_transport->read(client_id, str_msg);
+    rc = s_server_tx->read(client_id, str_msg, timeout);
     RET_ON_ERR(rc == 0, "Failed to read from transport");
 
     msg = create_server_msg(str_msg);

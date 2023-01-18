@@ -4,7 +4,7 @@ LOM_TEST := tests/tests
 CP := cp
 MKDIR := mkdir
 CC := g++
-LIBS := -lpthread -lzmq -luuid
+LIBS := -lpthread -luuid
 
 PWD := $(shell pwd)
 CFLAGS += -Wall -std=c++17 -fPIE -I$(PWD)/common

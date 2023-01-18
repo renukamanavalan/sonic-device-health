@@ -5,25 +5,36 @@
 #include <string>
 #include <memory>
 #include <string.h>
+#include <vector>
 
-class transport
+class server_transport
 {
     public:
-        virtual ~transport() {};
+        virtual ~server_transport() {};
 
-        virtual bool is_valid() = 0;
+        virtual int write(const std::string client, const std::string msg) = 0;
 
-        virtual int set_mode(const std::string client_name = std::string()) = 0;
-
-        virtual int write(const std::string msg, const std::string dest = std::string()) = 0;
-
-        virtual int read(std::string &client_id, std::string &msg, bool dont_wait = false) = 0;
-
-        virtual int poll_for_data(int *lst_fds=NULL, int cnt=0, int timeout=-1) = 0;
+        virtual int read(std::string &client_id, std::string &msg, int timeout = -1) = 0;
 };
 
-typedef std::shared_ptr<transport> transport_ptr_t;
+class client_transport {
+    public:
+        virtual ~client_transport() {};
 
-transport_ptr_t init_transport(const std::string client_name = std::string(),
-        int timeout = -1);
+        virtual int write(const std::string msg) = 0;
 
+        virtual int read(std::string &msg, int timeout = -1) = 0;
+
+        virtual int get_read_fd() = 0;
+};
+
+
+typedef std::shared_ptr<client_transport> client_transport_ptr_t;
+typedef std::shared_ptr<server_transport> server_transport_ptr_t;
+
+client_transport_ptr_t init_client_transport(const std::string client_name);
+server_transport_ptr_t init_server_transport(const std::vector<std::string> &clients);
+
+int poll_for_data(const int *lst_fds, int cnt,
+        int *ready_fds, int *ready_fds_cnt, 
+        int *err_fds, int *err_fds_cnt, int timeout=-1);

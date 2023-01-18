@@ -21,6 +21,10 @@
                 "           no verification"
             ],
             "0": {
+                "cmd": "mock_server",
+                "args": [ "test-0" ],
+            },
+            "1": {
                 "cmd": "register_client",
                 "args": [ "test-0" ],
                 "read": ["x", "y"]

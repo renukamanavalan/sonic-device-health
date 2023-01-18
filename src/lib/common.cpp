@@ -89,8 +89,8 @@ class errorMgr {
 static errorMgr s_errorMgr;
 
 
-void set_last_error(const char *caller, int e, int ze, int rc,
-        const char *msg, ...)
+void
+set_last_error(const char *caller, int e, int rc, const char *msg, ...)
 {
     stringstream ss;
     char buf[1024];
@@ -100,9 +100,6 @@ void set_last_error(const char *caller, int e, int ze, int rc,
         ss << "err:" << e << " ";
     }
 
-    if (ze != 0) {
-        ss << "zerr:" << ze << " ";
-    }
     ss << "rc:" << rc << " ";
     ss << msg;
   

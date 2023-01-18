@@ -55,7 +55,7 @@
 #define REQ_MITIGATION_STATE_TIMEOUT "timeout"
 #define REQ_MITIGATION_STATE_DONE "complete"
 
-#define SUB_END_PATH "tcp://127.0.0.1:5578"
-#define PUB_END_PATH "tcp://127.0.0.1:5579"
+#define SUB_END_PATH "tcp://127.0.0.1:5572"
+#define PUB_END_PATH "tcp://127.0.0.1:5570"
 
 #endif // _CONSTS_H_

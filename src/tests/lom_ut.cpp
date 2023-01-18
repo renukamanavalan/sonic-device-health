@@ -40,6 +40,63 @@ args_to_str(const string cmd, const vector<string> args)
     return ss.str();
 }
 
+class mock_peer
+{
+    public:
+        mock_peer(const vector<string> &clients) : m_clients(clients) {
+            m_se_tx = init_server_transport(m_clients);
+        }
+        mock_peer(string client) : m_client(client)
+        {
+            m_cl_tx = init_client_transport(m_client);
+        }
+
+        bool is_valid() { return (m_cl_tx != NULL) || (m_se_tx != NULL) ? true : false; };
+        bool is_client() { return !m_client.empty(); };
+
+        int write(const vector<string> &args)
+        {
+            int rc = 0;
+
+            if (is_client()) {
+                rc = m_cl_tx->write(args[0]);
+            } else {
+                rc = m_se_tx->write(args[0], args[1]);
+            }
+            RET_ON_ERR(rc == 0, "mock_peer: Failed to write");
+        out:
+            return rc;
+        }
+
+        int read(vector<string> &args, int timeout=-1)
+        {
+            int rc = 0;
+
+            vector<string>().swap(args);
+            string s1, s2;
+
+            if (is_client()) {
+                rc = m_cl_tx->read(s1, timeout);
+            } else {
+                rc = m_se_tx->read(s1, s2, timeout);
+            }
+            RET_ON_ERR(rc == 0, "mock_peer: Failed to read");
+            args.push_back(s1);
+            args.push_back(s2);
+        out:
+            return rc;
+        }
+
+
+    private:
+        string m_client;
+        vector<string> m_clients;
+        client_transport_ptr_t m_cl_tx;
+        server_transport_ptr_t m_se_tx;
+};
+
+typedef shared_ptr<mock_peer> mock_peer_ptr_t;
+
 static int
 test_client(const string cmd, const vector<string> args)
 {
@@ -59,10 +116,7 @@ test_client(const string cmd, const vector<string> args)
         ServerMsg_ptr_t read_msg;
         string str_test;
 
-        rc = client_poll_for_data(NULL, 0, 2);
-        RET_ON_ERR(rc == -1, "Poll failed rc=%d", rc);
-
-        string str_read(read_action_request());
+        string str_read(read_action_request(2));
         RET_ON_ERR(!str_read.empty(), "Empty request string received");
 
         read_msg = create_server_msg(str_read);
@@ -152,109 +206,18 @@ typedef enum {
     CMD_QUIT
 } mock_cmd_t;
 
-class mock_peer {
-    public:
-        mock_peer(string client) : m_client(client),
-                m_cmd(CMD_NONE), m_rc(0), m_timeout(-1)
-        {
-            sem_init(&m_signalMockReq, 0, 0);
-            sem_init(&m_signalMockRes, 0, 0);
-        };
-
-
-        /* Called from main thread */
-        int next_cmd(mock_cmd_t cmd, string &data1, string &data2, int timeout=-1) {
-            m_cmd = cmd;
-            m_data1 = data1;
-            m_data2 = data2;
-            m_timeout = timeout;
-
-            sem_post(&m_signalMockReq);
-            printf("DROP -- signalled for thread for req\n");
-            sem_wait(&m_signalMockRes);
-            printf("DROP -- received signal from thread for res\n");
-
-            data1 = m_data1;
-            data2 = m_data2;
-            return m_rc;
-        }
-
-        void run() {
-            while (m_cmd != CMD_QUIT) {
-                sem_wait(&m_signalMockReq);
-                printf("DROP -- received signal from main thread for req\n");
-
-                m_rc = 0;
-
-                switch(m_cmd) {
-                case CMD_INIT:
-                    m_tx = init_transport(m_client); 
-                    m_rc = m_tx != NULL ? 0 : -1;
-                    break;
-                case CMD_WRITE:
-                    m_rc = m_tx->write(m_data1, m_data2);
-                    break;
-                case CMD_READ:
-                    {
-                    int ret = -1;
-                    if (m_timeout != -1) {
-                        ret = m_tx->poll_for_data(NULL, 0, m_timeout);
-                        if (ret != -1) {
-                            LOM_LOG_ERROR("Failed to poll ret=%d", ret);
-                        }
-                    }
-                    if (ret == -1) {
-                        m_rc = m_tx->read(m_data1, m_data2);
-                    } else {
-                        m_rc = -1;
-                    }
-                    break;
-                    }
-                case CMD_QUIT:
-                    LOM_LOG_INFO("Ending mock thread");
-                    break;
-                default:
-                    LOM_LOG_ERROR("TEST ERROR: Unknown cmd (%d)", m_cmd);
-                    break;
-                }
-                sem_post(&m_signalMockRes);
-                printf("DROP -- signalled main thread for res\n");
-            }
-        }
-
-
-    private:
-        string m_client;
-        transport_ptr_t m_tx;
-        sem_t m_signalMockReq, m_signalMockRes;
-        mock_cmd_t m_cmd;
-        string m_data1, m_data2;
-        int m_rc;
-        int m_timeout;
-};
-
-typedef shared_ptr<mock_peer> mock_peer_ptr_t;
-
 
 int
 run_a_client_test_case(const string tcid, const json &tcdata)
 {
     int rc = 0;
-    string data1, data2;
 
     LOM_LOG_INFO("Running test case %s", tcid.c_str());
 
     /* Create mock server end */
     mock_peer_ptr_t peer(new mock_peer(""));
-    thread thr(&mock_peer::run, peer.get());
+    RET_ON_ERR(peer->is_valid(), "mock peer is not valid");
     
-    /* Init the peer first, as subscribe need to precede PUBLISH */
-    rc = peer->next_cmd(CMD_INIT, data1, data2);
-    RET_ON_ERR(rc == 0, "mock peer failed to run init");
-
-    /* Just let async bind & subscribe complete */
-    sleep(1);
-
     for (auto itc = tcdata.cbegin(); itc != tcdata.cend(); ++itc) {
         string key = itc.key();
 
@@ -270,11 +233,7 @@ run_a_client_test_case(const string tcid, const json &tcdata)
 
         LOM_LOG_INFO("Running test entry %s:%s", tcid.c_str(), key.c_str());
         if (write_data.size() == 2) {
-            data1 = write_data[0];
-            data2 = write_data[1];
-            rc = peer->next_cmd(CMD_WRITE, data1, data2);
-            RET_ON_ERR(rc == 0, "mock peer failed to write (%s) (%s)",
-                    data1.c_str(), data2.c_str());
+            RET_ON_ERR((rc = peer->write(write_data)) == 0, "Failed to write via mock server");
         } else {
             RET_ON_ERR(write_data.empty(), "TEST ERROR: check write data %s", 
                     tcid.c_str());
@@ -283,17 +242,23 @@ run_a_client_test_case(const string tcid, const json &tcdata)
             string cmd = tc_entry.value("cmd", "");
             vector<string> args = tc_entry.value("args", vector<string>());
 
-            rc = test_client(cmd, args);
-            RET_ON_ERR(rc == 0, "Failed to run client cmd(%s)", cmd.c_str());
+            if (cmd == "mock_server") {
+                mock_peer_ptr_t p(new mock_peer(args));
+                RET_ON_ERR(p->is_valid(), "Mock peer fails to create");
+                peer = p;
+            } else {
+                rc = test_client(cmd, args);
+                RET_ON_ERR(rc == 0, "Failed to run client cmd(%s)", cmd.c_str());
+            }
         }
         if (read_data.size() == 2) {
-            rc = peer->next_cmd(CMD_READ, data1, data2, 2);
-            RET_ON_ERR(rc == 0, "mock peer failed to read");
+            vector<string> peer_data;
 
-            RET_ON_ERR(data1 == read_data[0], "Test compare fail read(%s) != exp(%s)",
-                    data1.c_str(), read_data[0].c_str());
-            RET_ON_ERR(data2 == read_data[1], "Test compare fail read(%s) != exp(%s)",
-                    data2.c_str(), read_data[1].c_str());
+            RET_ON_ERR((rc = peer->read(peer_data)) == 0, "Failed to read via mock server");
+
+            RET_ON_ERR(peer_data == read_data, "Test compare fail read(%s, %s) != exp(%s, %s)",
+                    peer_data[0].c_str(), peer_data[1].c_str(),
+                    read_data[0].c_str(), read_data[1].c_str());
         } else {
             RET_ON_ERR(read_data.empty(), "TEST ERROR: check read data %s", 
                     tcid.c_str());
@@ -302,8 +267,6 @@ run_a_client_test_case(const string tcid, const json &tcdata)
 out:
     LOM_LOG_INFO("%s test case %s rc=%d", (rc == 0 ? "completed" : "aborted"),
             tcid.c_str(), rc);
-    peer->next_cmd(CMD_QUIT, data1, data2);
-    thr.join();
     return rc;
 }
 
@@ -328,27 +291,44 @@ run_client_testcases(const json &tccases)
 out:
     return rc;
 }
-             
 
 int main(int argc, const char **argv)
 {
     int rc = 0;
-
     set_test_mode();
+
+#if 0
+    thread thr(test_svr);
+    printf("started test_svr thread\n");
+    sleep(4);
+
+    transport_ptr_t tx = init_transport("hello");
+    sleep(2);
+
+    rc = tx->write("hello world");
+
+    printf("*******************Write rc=%d z=%d valid=%d\n", rc, zmq_errno(),
+            tx->is_valid());
+    printf("Waiting for thread to join\n");
+
+    thr.join();
+
+    printf("DONE\n");
+#endif
+
 
     string tcfile(argc > 1 ? argv[1] : TEST_CASE_FILE);
 
     ifstream f(tcfile.c_str());
     json data = json::parse(f, nullptr, false);
 
-    RET_ON_ERR(!data.is_discarded(), "Failed to parse file");
+    RET_ON_ERR(!data.is_discarded(), "Failed to parse file %s", tcfile.c_str());
     LOM_LOG_DEBUG("%s: data.is_discarded = %d\n", tcfile.c_str(), data.is_discarded());
 
     rc = run_client_testcases(data.value("client_test_cases", json()));
     RET_ON_ERR(rc == 0, "run_testcases failed rc=%d", rc);
 
     LOM_LOG_INFO("SUCCEEDED in running test cases");
-
 out:
     return rc;
 }
