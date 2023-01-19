@@ -7,6 +7,7 @@
 #include "common.h"
 #include "client.h"
 #include "server.h"
+#include "server_c.h"
 #include "transport.h"
 
 using namespace std;
@@ -293,7 +294,7 @@ out:
  */
 
 int
-server_init(const vector<string> clients)
+server_init(const vector<string> &clients)
 {
     int rc = 0;
     server_transport_ptr_t tx;
@@ -332,6 +333,24 @@ out:
 }
 
 
+int
+write_server_message_c(const char *msg)
+{
+    int rc = 0;
+    ServerMsg_ptr_t req;
+
+    RET_ON_ERR(s_server_tx != NULL, "No transport for server");
+
+    req = create_server_msg(string(msg));
+
+    RET_ON_ERR(req != NULL, "String fails to parse (%s)", msg);
+
+    rc = write_server_message(req);
+out:
+    return rc;
+}
+
+
 
 ServerMsg_ptr_t
 read_server_message(int timeout)
@@ -352,5 +371,15 @@ read_server_message(int timeout)
     ret = msg;
 out:
     return ret;
+}
+
+const char *
+read_server_message_c(int timeout)
+{
+    static string s_data;
+
+    ServerMsg_ptr_t p = read_server_message(timeout);
+    s_data = (p != NULL) ? p->to_str() : "";
+    return s_data.c_str();
 }
 

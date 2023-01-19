@@ -3,6 +3,7 @@
 
 #include <string>
 #include <memory>
+#include <vector>
 #include <unordered_set>
 #include "consts.h"
 
@@ -109,11 +110,12 @@ ServerMsg_ptr_t create_server_msg(const std::string msg);
 /* APIs for use by server/engine */
 
 /* Required as the first call before using any other APIs */
-int server_init();
+int server_init(const std::vector<std::string> &clients);
 
 
 /* Helps release all resources before exit */
-void server_deinit();
+/* declared in server_c.h */
+// void server_deinit();
 
 /*
  * Writes a message to client

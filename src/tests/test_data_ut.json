@@ -7,21 +7,17 @@
     "client_test_cases": {
         "test_case_0": {
             "_description": [
-                "is_client - true implies action simulated from client",
-                "            Absence is implied to be false",
-                "client_cmd - Command to write with args",
                 "   cmd -   cmd to execute. REQ_ACTION_REQUEST does read, whereas the",
                 "           rest does write to server.",
                 "   args -  Args to use for cmds that sends. In case of read",
                 "           if non-empty, it is the expected request to read",
-                "server: ",
-                "   is_write -  true - Construct ActionRequest from data to write.",
-                "               false - Expect to read match message per data",
-                "   s_data -  Used for write / read verfication. Empty string implies",
-                "           no verification"
+                "   read -  Data expected to be read by server",
+                "   write-  Data expected from server",
+                "           Both read & write are done by mock peer",
+                ""
             ],
             "0": {
-                "cmd": "mock_server",
+                "cmd": "mock_peer",
                 "args": [ "test-0" ]
             },
             "1": {
@@ -53,6 +49,34 @@
                 "cmd": "deregister_client",
                 "args": [ "test-act-0" ],
                 "read": ["test-0", "{\"deregister_client\":{\"client_name\":\"test-0\"}}"]
+            }
+        }
+    },
+    "server_test_cases": {
+        "test_case_0": {
+            "_description": [
+                "   cmd -   cmd to execute. REQ_ACTION_REQUEST does read, whereas the",
+                "           rest does write to server.",
+                "   args -  Args to use for cmds that sends. In case of read",
+                "           if non-empty, it is the expected request to read",
+                "   read -  Data expected to be read by server",
+                "   write-  Data expected from server",
+                "           Both read & write are done by mock peer",
+                ""
+            ],
+            "0": {
+                "cmd": "mock_peer",
+                "clients": [ "test-0", "test-1" ]
+            },
+            "1": {
+                "cmd": "write",
+                "client": "test-0",
+                "data": "{\"action_request\": {\"client_name\": \"test-0\", \"action_name\": \"test-act-0\", \"instance_id\": \"0ff3a468-977d-11ed-a8fc-0242ac120002\", \"anomaly_instance_id\": \"0ff3a468-977d-11ed-a8fc-0242ac120002\"}}"
+            },
+            "2": {
+                "cmd": "read",
+                "client": "test-0",
+                "data": "{\"action_response\": {\"client_name\": \"test-0\", \"action_name\": \"test-act-0\", \"instance_id\": \"0ff3a468-977d-11ed-a8fc-0242ac120002\", \"anomaly_instance_id\": \"0ff3a468-977d-11ed-a8fc-0242ac120002\", \"anomaly_key\": \"test_key\", \"action_data\": \"{\\\"val\\\": \\\"hello\\\", \\\"id\\\": 1, \\\"flag\\\": true}\", \"result_code\": \"0\", \"result_str\": \"All Good!\"}}"
             }
         }
     }
