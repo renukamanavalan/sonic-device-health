@@ -14,6 +14,13 @@ _CT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(_CT_DIR, "..", "src"))
 sys.path.append(os.path.join(_CT_DIR, "lib"))
 
+helper_dir = None
+if os.path.exists("/etc/sonic"):
+    helper_dir = "../src/vendors/sonic/support/"
+else:
+    helper_dir = "../src/vendors/sonic/support/"
+sys.path.append(os.path.join(_CT_DIR, helper_dir))
+
 import gvars
 
 POLL_TIMEOUT = 2
@@ -146,7 +153,7 @@ class AnomalyHandler:
             self.anomaly_instance_id = self.ct_instance_id
 
         req = { gvars.REQ_ACTION_REQUEST: {
-            gvars.REQ_TYPE: gvars.REQ_TYPE_ACTION,
+            gvars.REQ_ACTION_TYPE: gvars.REQ_ACTION_TYPE_ACTION,
             gvars.REQ_ACTION_NAME: self._get_ct_action_name(),
             gvars.REQ_INSTANCE_ID: self.ct_instance_id,
             gvars.REQ_ANOMALY_INSTANCE_ID: self.anomaly_instance_id,
@@ -260,6 +267,10 @@ class AnomalyHandler:
                 seq_complete = True
 
         if seq_complete:
+            if len(self.action_seq) == 1:
+                return_code = -1
+                return_str = "No mitigation seq available"
+
             # Release if any lock being held
             self._manage_lock(False)
             # Re-publish anomaly with completed state
@@ -507,8 +518,8 @@ def run_a_testcase(test_case:str, testcase_data:{}, default_data:{}):
             elif (list(req)[0] != gvars.REQ_ACTION_REQUEST):
                 log_error("Internal error. Expected '{}': {}".format(
                     gvars.REQ_ACTION_REQUEST, json.dumps(req)))
-            elif (req[gvars.REQ_ACTION_REQUEST][gvars.REQ_TYPE] !=
-                    gvars.REQ_TYPE_ACTION):
+            elif (req[gvars.REQ_ACTION_REQUEST][gvars.REQ_ACTION_TYPE] !=
+                    gvars.REQ_ACTION_TYPE_ACTION):
                 log_error("Internal error. Expected only {} from client {}".
                         format(gvars.REQ_ACTION_REQUEST, json.dumps(req)))
                 # clients ony send response 
@@ -542,7 +553,7 @@ def run_a_testcase(test_case:str, testcase_data:{}, default_data:{}):
 
 
 
-    test_client.server_write_request({gvars.REQ_ACTION_REQUEST: {gvars.REQ_TYPE: gvars.REQ_TYPE_SHUTDOWN}})
+    test_client.server_write_request({gvars.REQ_ACTION_REQUEST: {gvars.REQ_ACTION_TYPE: gvars.REQ_ACTION_TYPE_SHUTDOWN}})
 
     # Wait for a max 5 seconds for all procs to exit
     tstart = int(time.time())
@@ -614,6 +625,7 @@ def main():
         log_info("**************** Running   testcase: {} ****************".format(k))
         run_a_testcase(k, test_data[k], default_data)
         log_info("**************** Completed testcase: {} ****************".format(k))
+    helpers.publish_deinit()
 
 
 if __name__ == "__main__":

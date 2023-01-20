@@ -44,6 +44,14 @@ def publish_event(tag:str, data:{}):
     syslog.syslog(syslog.LOG_ERR, log_str)
 
 
+def publish_deinit():
+    global publisher_handle
+
+    if publisher_handle:
+        events_deinit_publisher(publisher_handle)
+        publisher_handle = None
+
+
     
 def main():
     import time

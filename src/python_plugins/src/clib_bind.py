@@ -172,9 +172,9 @@ def _get_str_clib_globals(name:str) -> str:
 
 
 def _update_globals():
-    gvars.REQ_TYPE = _get_str_clib_globals("REQ_TYPE")
-    gvars.REQ_TYPE_ACTION = _get_str_clib_globals("REQ_TYPE_ACTION")
-    gvars.REQ_TYPE_SHUTDOWN = _get_str_clib_globals("REQ_TYPE_SHUTDOWN")
+    gvars.REQ_ACTION_TYPE = _get_str_clib_globals("REQ_ACTION_TYPE")
+    gvars.REQ_ACTION_TYPE_ACTION = _get_str_clib_globals("REQ_ACTION_TYPE_ACTION")
+    gvars.REQ_ACTION_TYPE_SHUTDOWN = _get_str_clib_globals("REQ_ACTION_TYPE_SHUTDOWN")
 
     gvars.REQ_ACTION_NAME = _get_str_clib_globals("REQ_ACTION_NAME")
     gvars.REQ_INSTANCE_ID = _get_str_clib_globals("REQ_INSTANCE_ID")
@@ -185,17 +185,14 @@ def _update_globals():
     gvars.REQ_ACTION_DATA = _get_str_clib_globals("REQ_ACTION_DATA")
     gvars.REQ_RESULT_CODE = _get_str_clib_globals("REQ_RESULT_CODE")
     gvars.REQ_RESULT_STR  = _get_str_clib_globals("REQ_RESULT_STR")
-    gvars.REQ_MITIGATION_STATE = _get_str_clib_globals("REQ_MITIGATION_STATE")
-    gvars.REQ_MITIGATION_STATE_INIT = _get_str_clib_globals("REQ_MITIGATION_STATE_INIT")
-    gvars.REQ_MITIGATION_STATE_PROG = _get_str_clib_globals("REQ_MITIGATION_STATE_PROG")
-    gvars.REQ_MITIGATION_STATE_DONE = _get_str_clib_globals("REQ_MITIGATION_STATE_DONE")
+
 
 class ActionRequest:
     def __init__(self, sdata: str):
         self.str_data = sdata
         data = json.loads(sdata)
-        self.type = data[gvars.REQ_TYPE]
-        if self.type == gvars.REQ_TYPE_ACTION:
+        self.type = data[gvars.REQ_ACTION_TYPE]
+        if self.type == gvars.REQ_ACTION_TYPE_ACTION:
             self.action_name = data[gvars.REQ_ACTION_NAME]
             self.instance_id = data[gvars.REQ_INSTANCE_ID]
             self.anomaly_instance_id = data[gvars.REQ_ANOMALY_INSTANCE_ID]
@@ -207,7 +204,7 @@ class ActionRequest:
         return self.str_data
 
     def is_shutdown(self) -> bool:
-        return self.type == gvars.REQ_TYPE_SHUTDOWN
+        return self.type == gvars.REQ_ACTION_TYPE_SHUTDOWN
 
 
 def read_action_request(timeout:int = -1) -> (bool, ActionRequest):
@@ -236,7 +233,7 @@ class ActionResponse:
             result_str:str) :
         self.data = json.dumps({
                 gvars.REQ_ACTION_NAME: action_name,
-                gvars.REQ_TYPE: gvars.REQ_TYPE_ACTION,
+                gvars.REQ_ACTION_TYPE: gvars.REQ_ACTION_TYPE_ACTION,
                 gvars.REQ_INSTANCE_ID: instance_id,
                 gvars.REQ_ANOMALY_INSTANCE_ID: anomaly_instance_id,
                 gvars.REQ_ANOMALY_KEY: anomaly_key,
