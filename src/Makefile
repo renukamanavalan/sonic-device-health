@@ -5,9 +5,12 @@ CP := cp
 MKDIR := mkdir
 CC := g++
 LIBS := -lpthread -luuid
+LOM_LIB := lom_lib.so
+LOM_TEST := tests/tests
+LOM_FILE := ./tests/test_data_ut.json
 
 PWD := $(shell pwd)
-CFLAGS += -Wall -std=c++17 -fPIE -I$(PWD)/common
+CFLAGS += -fPIC -Wall -std=c++17 -I$(PWD)/common
 
 ifneq ($(MAKECMDGOALS),clean)
 ifneq ($(strip $(C_DEPS)),)
@@ -20,13 +23,20 @@ endif
 
 all: lom-tests
 
-lom-tests: $(TEST_OBJS)
+lom-tests: $(TEST_OBJS) $(LOM_LIB)
 	@echo 'Building target: $@'
 	@echo 'Invoking: G++ Linker'
-	$(CC) $(LDFLAGS) -o $(LOM_TEST) $(TEST_OBJS) $(LIBS)
+	$(CC) $(LDFLAGS) -Wl,-R -Wl,./ -o $(LOM_TEST) $(TEST_OBJS) $(LOM_LIB) $(LIBS)
 	@echo 'Finished building target: $@'
-	$(EVENTD_TEST)
+	$(LOM_TEST) $(LOM_FILE)
 	@echo 'Finished running tests'
+	@echo ' '
+
+$(LOM_LIB): $(OBJS)
+	@echo 'Building target: $@'
+	@echo 'Invoking: G++ Linker'
+	$(CC) -fPIC $(LDFLAGS) -shared -o $(LOM_LIB) $(OBJS) $(LIBS)
+	@echo 'Finished building target: $@'
 	@echo ' '
 
 install:
