@@ -38,9 +38,27 @@ POLL_TIMEOUT = 2
 ACTIVE_POLL_TIMEOUT = 1
 
 # NOTE:
-# The APIs that talk to server are not thread friendly (may likely
-# use ZMQ). 
-# Hence all transactions with server have to happen via single thread
+# The plugin manager runs in main thread and invokes anomaly action requests 
+# in dedicated threads.
+# 
+# The manager reads sets of actions it needs to load from .conf
+# Creates LoMPluginHolder object per action.
+#
+# A request from server is passed to appropriate plugin holder.
+# The holder will pass to loaded plugin in a new thread 
+# 
+# Plugin running request calls back for heartbeat touch periodically
+# via provided callback, if the request is long running.
+# The request call returns with response. This enfd the thread.
+# Either of the above happens in the new thread and it signals the 
+# main thread via writing into pipe created per Plugin Holder.
+#
+# The main thread poll for data on all plugin-holders' pipes' read-ends
+# along with server read fd. The main thread calls back on signal
+# from dedicated thread.
+#
+# All transactions with server happen via single thread.
+# This simplifies the code.
 # Common transactions
 #   Read Action request
 #   Write Action response
@@ -59,17 +77,9 @@ ACTIVE_POLL_TIMEOUT = 1
 #   Every time a plugin's threads return from request, it writes something into
 #   its end, just to alert the main thread.
 #
-#   Main thread calls zmq_poll internally  with all fds maintained in main thread
-#   Zmq_poll returns for data in ZMQ (from server) or in any of the fds (plugins)
+#   Main thread calls poll internally  with all fds maintained in main thread.
 #   Hence handled instantaneously.
 #
-# Fallback:
-#   For any trouble with above, fall back to signal.
-#   Plugins when call return from request, raise SIGUSR1 to main thread.
-#   This will interrupt zmq_recv which will return with EINTR
-#   Generally, prefer not using signals. Hence keep it as fallback.
-#
-
 # Register signal in global variable
 # Anything but SIGTERM is used for re-reading config
 # The handler is only registered for SIGHUP & SIGTERM
@@ -175,11 +185,11 @@ class LoMPluginHolder:
         return
 
 
-    def is_valid(self):
+    def is_valid(self) -> bool:
         # If valid, the plugin object exists
         # Thread neutral -- Anyone may call
         #
-        return self.plugin
+        return True if self.plugin else False
 
 
     def do_touch_heartbeat(self, instance_id:str):
@@ -274,6 +284,10 @@ class LoMPluginHolder:
         return True
 
 
+    def handle_failure(self):
+        self.shutdown()
+
+
     def handle_response(self):
         tnow = time.time()
 
@@ -328,6 +342,7 @@ class LoMPluginHolder:
     
     def shutdown(self):
         self.plugin.shutdown()
+        self.plugin = None
 
 
 
@@ -366,8 +381,11 @@ def handle_server_request(active_plugin_holders: {}):
     return
 
 
-def handle_plugin_holder(plugin_holder: LoMPluginHolder):
-    plugin_holder.handle_response()
+def handle_plugin_holder(is_ready: bool, plugin_holder: LoMPluginHolder):
+    if is_ready:
+        plugin_holder.handle_response()
+    else:
+        plugin_holder.handle_failure()
     return
 
 
@@ -379,19 +397,14 @@ def main_run(proc_name: str) -> int:
     pipe_list = {}
     active_plugin_holders = {}
 
-    while not is_running_config_available():
-        # Loop until we get the conf
-        log_error("{}: Failing to get plugins for this proc".format(proc_name))
-        time.sleep(10)
-
-
     plugins = get_proc_plugins_conf(proc_name)
     actions_conf = get_actions_conf()
 
-    if not clib_bind.register_client(proc_name):
+    (ret, client_fd) = clib_bind.register_client(proc_name)
+    if not ret:
         log_error("Failing to register client {} with server".format(proc_name))
         return -1
-
+    pipe_list[client_fd] = ""   # Engine's fd
     try:
         for name, path in plugins.items():
             conf = actions_conf.get(name, {})
@@ -421,18 +434,25 @@ def main_run(proc_name: str) -> int:
             format(proc_name, len(plugins)))
 
     while not signal_raised:
-        ret = clib_bind.poll_for_data(list(pipe_list.keys()), POLL_TIMEOUT)
+        ready_list = []
+        err_list = []
+        ret = clib_bind.poll_for_data(list(pipe_list.keys()), POLL_TIMEOUT,
+                ready_list, err_list)
 
-        if ret == -1:
-            handle_server_request(active_plugin_holders)
-            if shutdown_request:
-                break
-        elif ret >= 0:
-            if not ret in pipe_list:
-                log_error("INTERNAL ERROR: fd {} not in pipe list".format(ret))
-            else:
-                handle_plugin_holder(active_plugin_holders[pipe_list[ret]])
-        elif ret != -2:
+        if ret > 0:
+            for fd in ready_list:
+                proc_name = pipe_list[fd];
+                if not proc_name:
+                    handle_server_request(active_plugin_holders)
+                    if shutdown_request:
+                        break
+                else:
+                    handle_plugin_holder(true, active_plugin_holders[pipe_list[fd]])
+
+            for fd in err_list:
+                handle_plugin_holder(false, active_plugin_holders[pipe_list[fd]])
+
+        elif ret < 0:
             # This is unexepected return value
             break
 
@@ -468,6 +488,11 @@ def main(proc_name, global_rc_file):
         log_error("Failed to init CLIB")
         return
 
+
+    while (not shutdown_request)  and (not is_running_config_available()):
+        # Loop until we get the conf
+        log_error("{}: Failing to get plugins for this proc".format(proc_name))
+        time.sleep(10)
 
     while (not shutdown_request) and (not sigterm_raised):
         if (main_run(proc_name) != 0):

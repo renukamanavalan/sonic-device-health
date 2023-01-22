@@ -421,7 +421,10 @@ def run_a_testcase(test_case:str, testcase_data:{}, default_data:{}):
     #   c. The procs will be waiting for request from server.
     #
 
-    # Expect all plugin-proc & plugins to have registered
+    # The main thread mimics the engine / server.
+    #
+    # Expect all plugin-proc & plugins to have registered.
+    # In other words expect client & all actions' registrations.
     # Verify the same.
     #
     rcnt = 0

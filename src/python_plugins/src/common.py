@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 
-import ctypes
 import json
 import os
 import sys

@@ -24,6 +24,7 @@
 #include "common.h"
 #include "consts.h"
 #include "transport.h"
+#include "client.h"
 
 using namespace std;
 using namespace chrono;

@@ -111,7 +111,7 @@ ServerMsg::operator==(const ServerMsg &msg) const
  */
 
 int
-register_client(const char *client_id)
+register_client(const char *client_id, int *fd)
 {
     int rc = 0;
     client_transport_ptr_t tx;
@@ -144,6 +144,7 @@ register_client(const char *client_id)
     s_registered.client_name = str_id;
     unordered_set<string>().swap(s_registered.actions);
     s_client_tx = tx;
+    *fd = tx->get_read_fd();
 out:
     LOM_LOG_DEBUG("register_client returned rc=%d", rc);
     return rc;

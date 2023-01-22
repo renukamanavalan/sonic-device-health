@@ -16,7 +16,7 @@ REQ_HEARTBEAT = "heartbeat"
 REQ_ACTION_REQUEST = "action_request"
 
 # Expected attribute names from CDLL for Action req/resp
-# These can be refreshed from loaded DLL
+# These can be refreshed from loaded DLL - TODO
 # e.g. _get_str_globals("REQ_ACTION_TYPE")
 #
 REQ_ACTION_TYPE = "request_type"
@@ -45,3 +45,4 @@ REQ_MITIGATION_STATE_DONE = "complete"
 
 # run type
 TEST_RUN = False
+MOCK_LIB = True

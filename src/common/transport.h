@@ -35,6 +35,3 @@ typedef std::shared_ptr<server_transport> server_transport_ptr_t;
 client_transport_ptr_t init_client_transport(const std::string client_name);
 server_transport_ptr_t init_server_transport(const std::vector<std::string> &clients);
 
-int poll_for_data(const int *lst_fds, int cnt,
-        int *ready_fds, int *ready_fds_cnt, 
-        int *err_fds, int *err_fds_cnt, int timeout=-1);

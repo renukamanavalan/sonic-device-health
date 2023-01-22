@@ -35,13 +35,13 @@ extern "C" {
  *      different processes.
  *
  * Output:
- *  None
+ *  fd = Server read fd. May use for poll
  *
  * Return:
  *  0 for success
  *  !=0 implies error
  */
-int register_client(const char *client_id);
+int register_client(const char *client_id, int *fd);
 
 /*
  * Register the actions 
@@ -192,17 +192,23 @@ int write_action_response(const char *res);
  *     >0 - Count of seconds to wait.
  *
  * Output:
+ *  ready_fds = Empty list of size cnt
+ *  ready_fds_cnt = int pointer to get count of ready fds
+ *
+ *  err_fds = Empty list of size cnt
+ *  err_fds_cnt = int pointer to get count of failing fds
+ *
+ * Output:
  *  None
  *
  * Return:
- *  -3 - Failure
- *  -2 - Timeout
- *  -1 - Message from server/engine
- *  >= 0 -- Fd that has message
- *  <other values> -- undefined.
+ *  -1 - Failure.
+ *   0 - Timeout occured.
+ *  >0 - Total count of fds ready or failing.
  */
-int client_poll_for_data(int *lst_fds, int cnt, int timeout);
-
+int poll_for_data(const int *lst_fds, int cnt,
+        int *ready_fds, int *ready_fds_cnt,
+        int *err_fds, int *err_fds_cnt, int timeout=-1);
 
 
 #ifdef __cplusplus

@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 from enum import Enum
+from ctypes import *
 import os
 import select
 import time
@@ -243,7 +244,7 @@ def _is_initialized():
     return getattr(th_local, 'cache_svc', None) is not None
 
 
-def clib_register_client(cl_name: bytes) -> int:
+def clib_register_client(cl_name: bytes, fd: c_int) -> int:
     if _is_initialized():
         report_error("Duplicate registration {}".format(cl_name))
         return -1
@@ -268,9 +269,12 @@ def clib_register_client(cl_name: bytes) -> int:
     th_local.actions = []
     th_local.req = None
 
+    fd.value = th_local.cache_svc.get_signal_rd_fd(False)
+
     th_local.cache_svc.write_to_server({
         gvars.REQ_REGISTER_CLIENT: {
             gvars.REQ_CLIENT_NAME: cl_name.decode("utf-8") }})
+
     return 0
 
 
@@ -397,27 +401,20 @@ def _poll(rdfds:[], timeout: int) -> [int]:
 
 # Called by client - here the Plugin Process
 #
-def clib_poll_for_data(fds:[int], cnt:int, timeout: int) -> int:
+def clib_poll_for_data(fds:[int], timeout: int, ready_fds: [int],
+        err_fds: [int]) -> int:
     if not _is_initialized():
         report_error("poll_for_data: client not registered")
-        return
+        return -1
 
-    recv_signal_fd = th_local.cache_svc.get_signal_rd_fd(False)
-    lst = [ recv_signal_fd ] + list(fds)
+    ready_fds.clear()
+    err_fds.clear()
 
     while (not shutdown):
-        r = _poll(lst, timeout)
+        r = _poll(fds, timeout)
         if r:
-            if recv_signal_fd in r:
-                # Return only if action matches calling client.
-                _read_req(0)
-                if th_local.req:
-                    return -1
-                # Continue to poll
-            else:
-                return r[0]
-        elif timeout > 0:
-            return -2
+            ready_fds.extend(r)
+        return len(r)
 
 
 ## Server side read/write wrappers

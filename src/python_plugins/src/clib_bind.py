@@ -2,16 +2,19 @@
 
 from common import *
 import gvars
+from ctypes import *
 
 # *******************************
 # c-bindings related info
 # *******************************
 #
 
+_CT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # TODO: Get list of error codes defined for various errors
 
 # Set Clib .so file path here
-CLIB_DLL_FILE = None
+CLIB_DLL_FILE = os.path.join(_CT_DIR, "lom_lib.so")
 
 _clib_dll = None
 _clib_get_last_error = None
@@ -34,7 +37,7 @@ def c_lib_init() -> bool:
     if _clib_dll:
         return True
 
-    if not gvars.TEST_RUN:
+    if not gvars.MOCK_LIB:
         try:
             _clib_dll = ctypes.CDLL(CLIB_DLL_FILE)
         except OSError as e:
@@ -51,7 +54,7 @@ def c_lib_init() -> bool:
             _clib_get_last_error_str.restype = c_char_p
 
             _clib_register_client = _clib_dll.register_client
-            _clib_register_client.argtypes = [ c_char_p ]
+            _clib_register_client.argtypes = [ c_char_p, POINTER(c_int) ]
             _clib_register_client.restype = c_int
 
             _clib_register_action = _clib_dll.register_action
@@ -75,7 +78,8 @@ def c_lib_init() -> bool:
             _clib_write_action_response.restype = c_int
 
             _clib_poll_for_data = _clib_dll.poll_for_data
-            _clib_poll_for_data.argtypes = [ POINTER(c_int), c_int, c_int ]
+            _clib_poll_for_data.argtypes = [ POINTER(c_int), c_int, POINTER(c_int), POINTER(c_int),
+                    POINTER(c_int), POINTER(c_int) , c_int ]
             _clib_poll_for_data.restype = c_int
 
             # Update values in gvars.py
@@ -124,15 +128,16 @@ def _print_clib_error(m:str, ret:int):
     log_error("{}: ret:{} last_error:{} ({})".format(m, ret, err, estr))
 
 
-def register_client(proc_id: str) -> bool:
+def register_client(proc_id: str) -> (bool, int):
     if not validate_dll():
         return False, {}
 
-    ret = _clib_register_client(proc_id.encode("utf-8"))
+    cfd  = c_int(0)
+    ret = _clib_register_client(proc_id.encode("utf-8"), cfd)
     if ret != 0:
         log_error("register_client failed for {}".format(proc_id))
-        return False
-    return True
+        return False, -1
+    return True, cfd.value
 
 
 def register_action(action: str) -> bool:
@@ -263,13 +268,35 @@ def write_action_response(res: ActionResponse) -> bool:
     return True
 
 
-def poll_for_data(lst_fds: [int], timeout:int) -> int:
+def poll_for_data(lst_fds: [int], timeout:int,
+        ready_fds: [int], err_fds: [int]) -> int:
     if not validate_dll():
         return False
 
-    if not gvars.TEST_RUN:
-        return _clib_poll_for_data((c_int*len(lst_fds))(*lst_fds), len(lst_fds), timeout)
-    else:
-        return _clib_poll_for_data(lst_fds, len(lst_fds), timeout)
+    if gvars.TEST_RUN:
+        return _clib_poll_for_data(lst_fds, timeout, ready_fds, err_fds)
+
+    lcnt = len(lst_fds)
+    elst = [-1] * lcnt
+
+    clst_fds = (c_int * lcnt)(*lst_fds)
+    clcnt = c_int(lcnt)
+    crfd = (c_int * lcnt)(*elst)
+    cefd = (c_int * lcnt)(*elst)
+    crcnt  = c_int(0)
+    cecnt  = c_int(0)
+
+    ret = _clib_poll_for_data(clst_fds, clcnt, crfd, crcnt, cefd, cecnt, c_int(timeout))
+
+    lrfd = list(crfd)
+    lefd = list(cefd)
+
+    for i in range(crcnt.value):
+        ready_fds.append(lrfd[i])
+
+    for i in range(cecnt.value):
+        err_fds.append(lefd[i])
+
+    return ret
 
 

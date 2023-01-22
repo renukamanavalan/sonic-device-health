@@ -40,13 +40,14 @@ $(LOM_LIB): $(OBJS)
 	@echo ' '
 
 install:
-	$(MKDIR) -p $(DESTDIR)/usr/bin
-	$(CP) $(LOM_TEST) $(DESTDIR)/usr/bin
+	$(MKDIR) -p $(DESTDIR)/usr/lib
+	$(CP) $(LOM_LIB) $(DESTDIR)/usr/lib
 
 deinstall:
-	$(RM) -rf $(DESTDIR)/usr
+	$(RM) -f $(DESTDIR)/usr/lib/$(LOM_LIB)
 
 clean:
+	-$(RM) $(LOM_LIB) $(OBJS) $(TEST_OBJS) $(C_DEPS) $(LOM_TEST)
 	-@echo ' '
 
 .PHONY: all clean dependents

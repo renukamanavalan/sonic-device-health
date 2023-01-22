@@ -112,10 +112,10 @@ typedef shared_ptr<mock_peer> mock_peer_ptr_t;
 static int
 test_client(const string cmd, const vector<string> args)
 {
-    int rc = 0;
+    int rc = 0, fd;
     
     if (cmd == REQ_REGISTER_CLIENT) {
-        rc = register_client(args[0].c_str());
+        rc = register_client(args[0].c_str(), &fd);
     } else if (cmd == REQ_DEREGISTER_CLIENT) {
         rc = deregister_client();
     } else if (cmd == REQ_REGISTER_ACTION) {

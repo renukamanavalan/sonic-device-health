@@ -1,6 +1,4 @@
-{
-    "default": {
-        "_description": "Global rc files provides key data on path, filenames, ...",
+{ "default": { "_description": "Global rc files provides key data on path, filenames, ...",
         "global_rc": {
             "config_running_path":  "/tmp",
             "config_static_path":  ".,/config/",
@@ -61,14 +59,14 @@
                     },
                     "action_pause": 10
                 },
-                "link_flap": {
+                "_link_flap": {
                     "action_name": "link_flap",
                     "min": 80
                 },
-                "link_safety": {
+                "_link_safety": {
                     "action_name": "link_safety"
                 },
-                "link_down": {
+                "_link_down": {
                     "action_name": "link_down"
                 }
             },
@@ -77,12 +75,12 @@
                     "Proc name must end in '_' followed by unique number",
                     "This is needed to use test_client lib"
                 ],
-                "proc_0": {
+                "_proc_0": {
                     "link_flap": "link_flap.py",
                     "link_safety": "link_safety.py",
                     "link_down": "link_down.py"
                 },
-                "_proc_0": {
+                "proc_0": {
                     "test-0-action-0": "test_action.py",
                     "test-0-action-1": "test_action.py",
                     "test-0-action-2": "test_action.py",
@@ -92,7 +90,7 @@
             "bindings_config": {
                 "test-0-action-0": [ "test-0-action-1", "test-0-action-2"],
                 "test-0-action-3": [ "test-0-action-1", "test-0-action-2"],
-                "link_flap": [ "link_safety", "link_down" ]
+                "_link_flap": [ "link_safety", "link_down" ]
             },
             "test_plugin_data": {
                 "_description":  [
@@ -165,7 +163,7 @@
                     "   Every entry is optional",
                     "----------------"
                 ],
-                "link_flap": {
+                "_link_flap": {
                     "run_cnt": 1,
                     "mitigation_timeout": 30,
                     "instances": {
@@ -179,7 +177,7 @@
                         }
                     }
                 },
-                "_test-0-action-0": {
+                "test-0-action-0": {
                     "run_cnt": 1,
                     "mitigation_timeout": 30,
                     "instances": {
@@ -200,7 +198,7 @@
                         }
                     }
                 },
-                "_test-0-action-3": {
+                "test-0-action-3": {
                     "run_cnt": 1,
                     "instances": {
                         "0": {
