@@ -39,7 +39,7 @@ def c_lib_init() -> bool:
 
     if not gvars.MOCK_LIB:
         try:
-            _clib_dll = ctypes.CDLL(CLIB_DLL_FILE)
+            _clib_dll = CDLL(CLIB_DLL_FILE)
         except OSError as e:
             log_error("Failed to load CDLL {} err: {}".format(CLIB_DLL_FILE, str(e)))
             return False

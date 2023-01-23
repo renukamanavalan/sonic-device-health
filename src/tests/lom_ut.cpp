@@ -17,6 +17,34 @@
 using namespace std;
 using json = nlohmann::json;
 
+/*
+ *  Unit test for clib. Executed by make.
+ *
+ *  Driven via test "test_data_ut.json"
+ *
+ *  "client_test_Cases":
+ *
+ *  First tc supposed to be mock_peer with needed args.
+ *  This mocks & simulates Server peer.
+ *
+ *  Each entry has a clib client cmd to test and pre/post
+ *  action by server.
+ *  A read dictates the data server is expected to read post client call.
+ *  A write dictates the data server shouid write pre client call.
+ *
+ *  "server_test_cases":
+ *
+ *  Similar to the above but vice versa
+ *  
+ *  Peer is created to mock clients with expected post read or pre-write
+ *  NOTE: client*s*
+ *
+ *  Being server the only cmd to test is read/write
+ *  For each test, right peer is chosen.
+ *  If cmd is write, ensure right peer can read back.
+ *
+ */
+
 #define TEST_ERR_PREFIX "TEST_ERROR:"
 
 #define TEST_CASE_FILE "/usr/share/tests/test_data_ut.json"
@@ -280,6 +308,8 @@ run_a_server_test_case(const string tcid, const json &tcdata)
 
 
         if (!client.empty()) {
+            /* Target client for this command; Expect peer to be pre-created */
+
             map<str_client_t, mock_peer_ptr_t>::const_iterator itc = mock_peers.find(client);
             RET_ON_ERR(itc != mock_peers.end(), "TEST error: Failed to find mock peer for (%s)",
                     client.c_str());
