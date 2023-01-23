@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import json
+from inspect import stack
 import os
 import sys
 import syslog
@@ -60,8 +61,14 @@ def set_log_level(lvl:int):
 def _log_write(lvl: int, msg:str):
     if lvl <= ct_log_level:
         syslog.syslog(lvl, msg)
-        print("{}:{}:{}: {}".format(current_thread().name, _lvl_to_str[lvl], 
-            time.time(), msg))
+        stk = stack()[2]
+        fname = os.path.basename(stk.filename)
+        if (fname in [ "helpers.py" ]) or (stk.function in  [ "report_error" ]):
+            stk = stack()[3]
+            fname = os.path.basename(stk.filename)
+
+        print("{}:{}:{}:{}:{}: {}".format(fname, stk.lineno, stk.function,
+            current_thread().name, _lvl_to_str[lvl], msg))
 
 
 def log_error(msg:str):

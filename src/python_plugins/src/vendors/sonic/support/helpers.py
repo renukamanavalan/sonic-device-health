@@ -6,7 +6,7 @@ import syslog
 
 RUNNING_IN_SONIC = os.path.exists("/etc/sonic/init_cfg.json")
 if RUNNING_IN_SONIC:
-    from swsscommon.swsscommon import events_init_publisher, event_publish, FieldValueMap
+    from swsscommon.swsscommon import events_init_publisher, event_publish, FieldValueMap, events_deinit_publisher
 
 import common
 
@@ -40,15 +40,17 @@ def publish_event(tag:str, data:{}):
 
     log_str = "LoM_PUBLISH:{}:{}".format(tag, json.dumps(data))
 
-    common.log_error(log_str)
-    syslog.syslog(syslog.LOG_ERR, log_str)
+    common.log_info(log_str)
+    syslog.syslog(syslog.LOG_INFO, log_str)
 
 
 def publish_deinit():
     global publisher_handle
 
     if publisher_handle:
-        events_deinit_publisher(publisher_handle)
+        if RUNNING_IN_SONIC:
+            events_deinit_publisher(publisher_handle)
+
         publisher_handle = None
 
 

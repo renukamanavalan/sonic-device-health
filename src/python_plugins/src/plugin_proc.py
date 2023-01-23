@@ -366,7 +366,8 @@ def handle_server_request(active_plugin_holders: {}):
             log_info("No request from server") 
             break
 
-        log_info("plugin_proc:{} server req: {}".format(this_proc_name, str(req)))
+        log_info("plugin_proc:{} is_shutdown: {} server req: {}".format(this_proc_name,
+            req.is_shutdown(), str(req)))
         if req.is_shutdown():
             handle_shutdown(active_plugin_holders)
 
@@ -433,7 +434,7 @@ def main_run(proc_name: str) -> int:
     log_info("plugin_proc:{}: All {} plugins loaded. Into reading loop".
             format(proc_name, len(plugins)))
 
-    while not signal_raised:
+    while (not signal_raised) and (not shutdown_request):
         ready_list = []
         err_list = []
         ret = clib_bind.poll_for_data(list(pipe_list.keys()), POLL_TIMEOUT,
@@ -447,10 +448,10 @@ def main_run(proc_name: str) -> int:
                     if shutdown_request:
                         break
                 else:
-                    handle_plugin_holder(true, active_plugin_holders[pipe_list[fd]])
+                    handle_plugin_holder(True, active_plugin_holders[pipe_list[fd]])
 
             for fd in err_list:
-                handle_plugin_holder(false, active_plugin_holders[pipe_list[fd]])
+                handle_plugin_holder(False, active_plugin_holders[pipe_list[fd]])
 
         elif ret < 0:
             # This is unexepected return value

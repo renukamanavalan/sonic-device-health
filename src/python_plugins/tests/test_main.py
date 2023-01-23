@@ -596,7 +596,7 @@ def main():
     parser=argparse.ArgumentParser(description="Main test code")
     parser.add_argument("-p", "--path", default=TMP_DIR, help="test runtime path")
     parser.add_argument("-t", "--testcase", default="", help="test case name; Else all tests are run")
-    parser.add_argument("-l", "--log-level", type=int, default=3, help="set log level")
+    parser.add_argument("-l", "--log-level", type=int, default=7, help="set log level")
     args = parser.parse_args()
 
     TMP_DIR = args.path
