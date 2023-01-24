@@ -59,7 +59,7 @@ class LoMPlugin:
         key, resp = self._get_resp()
         if req.anomaly_key:
             key = req.anomaly_key
-        ret = clib_bind.ActionResponse (self.action_name, req.instance_id,
+        ret = clib_bind.ActionResponse (req.client_name, self.action_name, req.instance_id,
                 req.anomaly_instance_id, key, resp, 0, "")
 
         if not self.valid:

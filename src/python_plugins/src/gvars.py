@@ -14,6 +14,7 @@ REQ_DEREGISTER_CLIENT = "deregister_client"
 REQ_REGISTER_ACTION = "register_action"
 REQ_HEARTBEAT = "heartbeat"
 REQ_ACTION_REQUEST = "action_request"
+REQ_ACTION_RESPONSE = "action_response"
 
 # Expected attribute names from CDLL for Action req/resp
 # These can be refreshed from loaded DLL - TODO
@@ -45,4 +46,4 @@ REQ_MITIGATION_STATE_DONE = "complete"
 
 # run type
 TEST_RUN = False
-MOCK_LIB = False
+MOCK_LIB = True

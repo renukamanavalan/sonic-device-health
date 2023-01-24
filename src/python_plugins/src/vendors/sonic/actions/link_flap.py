@@ -52,7 +52,7 @@ class LoMPlugin:
                         interval = lst[-1] - lst[0]
                         if interval <= self.flap_int:
                             log_error("reporting anomsaly for {}".format(ifname))
-                            return clib_bind.ActionResponse(self.name, req.instance_id,
+                            return clib_bind.ActionResponse(req.client_name, self.name, req.instance_id,
                                     req.anomaly_instance_id, ifname,
                                     self._get_resp(ifname, interval), 0, "")
             self.hb_callback(req.instance_id)

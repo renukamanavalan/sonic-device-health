@@ -42,7 +42,7 @@ _lvl_to_str = [
         "Emergency",
         "Alert",
         "Critical",
-        "Error",
+        "***ERROR***",
         "Warning",
         "Notice",
         "Informational",
@@ -63,7 +63,7 @@ def _log_write(lvl: int, msg:str):
         syslog.syslog(lvl, msg)
         stk = stack()[2]
         fname = os.path.basename(stk.filename)
-        if (fname in [ "helpers.py" ]) or (stk.function in  [ "report_error" ]):
+        if (fname in [ "helpers.py" ]) or (stk.function in  [ "_report_error" ]):
             stk = stack()[3]
             fname = os.path.basename(stk.filename)
 

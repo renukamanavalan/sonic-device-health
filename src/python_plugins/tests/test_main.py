@@ -27,7 +27,6 @@ POLL_TIMEOUT = 2
 gvars.TEST_RUN = True
 
 import test_client
-from test_client import report_error
 
 from common import *
 import clib_bind
@@ -40,6 +39,12 @@ TEST_DATA_FILE = os.path.join(_CT_DIR, "test_data", "test_data.json")
 mitigation_lock = False
 
 lst_procs = {}
+
+def _report_error(r, m):
+    c, e = clib_bind.get_last_error()
+    log_error("{}:{} {} / {}".format(c, e, r, m))
+    return r
+
 
 def clean_dir(d):
     os.system("rm -rf {}".format(d))
@@ -79,18 +84,51 @@ LockState_Pending = 2
 
 
 class AnomalyHandler:
-    def __init__(self, action_name:str, action_inp:{}, bindings:[]):
+    # Input:
+    #   From: "test_cases"/<test name>/"test-main-run"/<anomaly name>
+    #   Anomaly name
+    #   action_inp: Data under anomaly name
+    #   Bindings info for this anomaly
+    #   reg_conf[cl_name] = [] - List of actions per client
+    #       required to address request to correct client
+    #
+    def __init__(self, action_name:str, action_inp:{}, bindings:[],
+            reg_conf: {}):
+        # A set of instance data given for this action and its
+        # and its binding actions. For each run an instance data gets used.
+        # When run_cnt is greater than count of instances, it loops
+        # Instance provides data like instance-id, expected action-data, 
+        # and any tweaks for test run.
+        #
         self.test_run_cnt = action_inp.get("run_cnt", 1)
         self.mitigation_timeout = action_inp.get("mitigation_timeout", 60)
         self.test_run_index = 0
         self.test_instances = action_inp["instances"]
         self.test_instance_index = 0
         self.test_inst = None
+
+
+        # There are two flows.
+        # One flow from anomaly to binding sequence complete
+        # Another repeat the above for each test run.
+        #
         self.run_complete = False
         self.action_seq = [action_name] + bindings
         self.action_seq_index = 0
         self.instance_id_index = 0
         self.ct_instance_id = None
+
+        # Mapping of actions to clients
+        self.action_client_map = {}
+        for name in self.action_seq:
+            for k, v in reg_conf.items():
+                if name in v:
+                    self.action_client_map[name] = k
+                    break
+            if name not in self.action_client_map:
+                log_error("ERROR: unregistered action {}".format(name))
+
+        # Anomaly info cached
         self.anomaly_instance_id = None
         self.anomaly_key = ""
         self.anomaly_name = action_name
@@ -152,15 +190,19 @@ class AnomalyHandler:
         if not self.anomaly_instance_id:
             self.anomaly_instance_id = self.ct_instance_id
 
+        action_name = self._get_ct_action_name()
         req = { gvars.REQ_ACTION_REQUEST: {
+            gvars.REQ_CLIENT_NAME: self.action_client_map[action_name],
             gvars.REQ_ACTION_TYPE: gvars.REQ_ACTION_TYPE_ACTION,
-            gvars.REQ_ACTION_NAME: self._get_ct_action_name(),
+            gvars.REQ_ACTION_NAME: action_name,
             gvars.REQ_INSTANCE_ID: self.ct_instance_id,
             gvars.REQ_ANOMALY_INSTANCE_ID: self.anomaly_instance_id,
             gvars.REQ_ANOMALY_KEY: self.anomaly_key,
             gvars.REQ_CONTEXT: self.context,
             gvars.REQ_TIMEOUT: self._get_inst_val(gvars.REQ_TIMEOUT)}}
-        test_client.server_write_request(req)
+        ret = clib_bind.write_server_message(json.dumps(req))
+        if ret != 0:
+            _report_error(ret, "Failed to write request to client")
         return 
 
 
@@ -168,16 +210,16 @@ class AnomalyHandler:
         helpers.publish_event(self.anomaly_name, req)
 
 
-    def process_plugin_heartbeat(self, req:{}) -> bool:
+    def process_plugin_heartbeat(self, res:{}) -> bool:
         action_name = self._get_ct_action_name()
-        if req[gvars.REQ_ACTION_NAME] != action_name:
+        if res[gvars.REQ_ACTION_NAME] != action_name:
             return False
 
-        if req[gvars.REQ_INSTANCE_ID] != self.ct_instance_id:
+        if res[gvars.REQ_INSTANCE_ID] != self.ct_instance_id:
             return False
 
         if not self.anomaly_published:
-            data = req
+            data = res
         else:
             self.anomaly_published[gvars.REQ_MITIGATION_STATE] = gvars.REQ_MITIGATION_STATE_PROG
             data = self.anomaly_published
@@ -187,56 +229,51 @@ class AnomalyHandler:
         return True
 
 
-    def _report_error_response(self, req:{}, msg:str):
-        log_error("{}: msg:{} req:{}".format(msg,
-            self.anomaly_name, json.dumps(req)))
-
-
-    def process_plugin_response(self, req:{}) -> bool:
+    def process_plugin_response(self, res:{}) -> bool:
         action_name = self._get_ct_action_name()
-        if req[gvars.REQ_ACTION_NAME] != action_name:
+        if res[gvars.REQ_ACTION_NAME] != action_name:
             return False
 
-        if req[gvars.REQ_INSTANCE_ID] != self.ct_instance_id:
+        if res[gvars.REQ_INSTANCE_ID] != self.ct_instance_id:
             return False
 
         log_info("AnomalyHandler: Read response {}: {}".format(
-            self.anomaly_name, str(req)))
+            self.anomaly_name, str(res)))
 
         # Validate  response
-        if req[gvars.REQ_ANOMALY_INSTANCE_ID] != self.anomaly_instance_id:
-            self._report_error_response("Mismatch in anomaly_instance ID{}".
+        if res[gvars.REQ_ANOMALY_INSTANCE_ID] != self.anomaly_instance_id:
+            log_error("Mismatch in anomaly_instance ID{}".
                     format(self.anomaly_instance_id))
 
         if self.anomaly_key:
-            if req[gvars.REQ_ANOMALY_KEY] != self.anomaly_key:
-                self._report_error_response("Mismatch in anomaly_key {}".
+            if res[gvars.REQ_ANOMALY_KEY] != self.anomaly_key:
+                log_error("Mismatch in anomaly_key {}".
                     format(self.anomaly_key))
-        elif not req[gvars.REQ_ANOMALY_KEY]:
-            self._report_error_response("Misssing anomaly_key")
+        elif not res[gvars.REQ_ANOMALY_KEY]:
+            log_error("Misssing anomaly_key")
         else:
-            self.anomaly_key = req[gvars.REQ_ANOMALY_KEY]
+            self.anomaly_key = res[gvars.REQ_ANOMALY_KEY]
 
         test_act_data = self.test_inst.get(action_name, {})
         for attr in [gvars.REQ_ACTION_DATA, gvars.REQ_RESULT_CODE,
                 gvars.REQ_RESULT_STR]:
             val_expect = test_act_data.get(attr, None)
             if (val_expect != None) and (val_expect != ""):
-                if req[attr] != val_expect:
-                    _report_error_response("mismatch attr:{} exp:{}".
+                if res[attr] != val_expect:
+                    log_error("mismatch attr:{} exp:{}".
                             format(attr, val_expect))
 
         if not self.anomaly_published:
-            self.anomaly_published = req
+            self.anomaly_published = res
             self.anomaly_published[gvars.REQ_MITIGATION_STATE] = gvars.REQ_MITIGATION_STATE_INIT
             self._do_publish(self.anomaly_published)
         else:
-            self._do_publish(req)
+            self._do_publish(res)
 
         # Are we done?
         seq_complete = False
-        return_code = req[gvars.REQ_RESULT_CODE]
-        return_str = req[gvars.REQ_RESULT_STR]
+        return_code = res[gvars.REQ_RESULT_CODE]
+        return_str = res[gvars.REQ_RESULT_STR]
 
         if return_code != 0:
             # Force complete.
@@ -293,7 +330,7 @@ class AnomalyHandler:
             return True
 
         # Build context
-        self.context[action_name] = req[gvars.REQ_ACTION_DATA]
+        self.context[action_name] = res[gvars.REQ_ACTION_DATA]
         if self.lock_state == LockState_Locked:
             self._write_request()
             log_info("AnomalyHandler: {}: continue mitigation: {}: {}".format(
@@ -332,7 +369,7 @@ class AnomalyHandler:
             # Write request to next action in sequence
             self._write_request()
             log_info("AnomalyHandler: {}: start mitigation: {}".format(
-                self.anomaly_name, self._get_ct_action_name))
+                self.anomaly_name, self._get_ct_action_name()))
             return True
 
         elif self.lock_exp and (int(time.time()) > self.lock_exp):
@@ -346,8 +383,27 @@ class AnomalyHandler:
     def done(self)->bool:
         return self.run_complete
 
+
+
+class deinit_server:
+    def __init__(self):
+        self.on = False
+       
+    def __del__(self):
+        if self.on:
+            # De-Init the server.
+            clib_bind.server_deinit()
+            log_info("Server deinit called")
+
+    def turn_on(self):
+        self.on = True
+
+
+
 def run_a_testcase(test_case:str, testcase_data:{}, default_data:{}):
     global failed
+
+    deinit_guard = deinit_server()
 
     global_rc_data = {}
 
@@ -387,12 +443,19 @@ def run_a_testcase(test_case:str, testcase_data:{}, default_data:{}):
     with open(global_rc_file, "w") as s:
         s.write(json.dumps(global_rc_data, indent=4))
 
+    # Init the server.
+    ret = clib_bind.server_init(list(procs_conf.keys()))
+    if ret != 0:
+        return _report_error(ret, "failed clib_bind.server_init")
+
+    # Do server deinit, upon leaving this method
+    deinit_guard.turn_on()
+
 
     # Set test plugins data in globals
     # As plugins are loaded by another thread in the same process
     # they could access this.
     #
-
     for k, v in testcase_data.get("test_plugin_data", {}).items():
         if not k.startswith("_"):
             globals()[k] = v
@@ -405,7 +468,6 @@ def run_a_testcase(test_case:str, testcase_data:{}, default_data:{}):
 
     # init clib after runnig config is ready
     set_global_rc_file(global_rc_file)
-    clib_bind.c_lib_init()
 
     for path in global_rc_data["plugin_paths"]:
         # path can be absolute or relative to this filepath.
@@ -439,53 +501,50 @@ def run_a_testcase(test_case:str, testcase_data:{}, default_data:{}):
         tout = reg_exp - int(time.time())
         if tout < 0:
             tout = 0
-        ret, data = test_client.server_read_request(tout)
-        if not ret:
-            report_error("Server: Pending registrations: Failed to read")
-            break
+        sdata = clib_bind.read_server_message(tout)
+        if not sdata:
+            return _report_error(-1, "Server: Pending registrations: Failed to read tout={}".
+                    format(tout))
 
+        data = json.loads(sdata)
         key = list(data)[0]
         val = data[key]
         if key == gvars.REQ_REGISTER_CLIENT:
-            cl_name = test_client.parse_reg_client(val)
+            cl_name = val[gvars.REQ_CLIENT_NAME]
             if cl_name in reg_conf:
-                report_error("Server: Duplicate registration by client {}".
+                return _report_error(-1, "Server: Duplicate registration by client {}".
                         format(cl_name))
-                break
 
             reg_conf[cl_name] = []
             rcnt -= 1
             log_info("MAIN: Registered client {}".format(cl_name))
 
         elif key == gvars.REQ_REGISTER_ACTION:
-            cl_name, action_name = test_client.parse_reg_action(val)
+            cl_name = val[gvars.REQ_CLIENT_NAME]
+            action_name = val[gvars.REQ_ACTION_NAME]
             if cl_name not in reg_conf:
-                report_error("Server: register action:{} for missing client:{}".
+                return _report_error(-1, "Server: register action:{} for missing client:{}".
                         format(cl_name, action_name))
-                break
             lst = reg_conf[cl_name]
             if action_name in lst:
-                report_error("Server: Duplicate registration for action {}/{}".
+                return _report_error(-1, "Server: Duplicate registration for action {}/{}".
                         format(cl_name, action_name))
-                break
             lst.append(action_name)
             rcnt -= 1
             log_info("MAIN: Registered client:{} action:{}".format(cl_name, action_name))
         else:
-            report_error("server: In middle of vetting registration cnt={} req={}"
+            return _report_error(-1, "server: In middle of vetting registration cnt={} res={}"
                     .format(rcnt, json.dumps(data, indent=4)))
             break
 
     if set(reg_conf.keys()) != set(procs_conf.keys()):
-        report_error("server: proc registered={} != expected={}".format(
+        return _report_error(-1, "server: proc registered={} != expected={}".format(
             set(reg_conf.keys()), set(procs_conf.keys())))
-        return
 
     for cl_name, lst_actions in reg_conf.items():
         if set(procs_conf[cl_name].keys()) != set(lst_actions):
-            report_error("client:{} action registered:{} != expected:{}".
+            return _report_error(-1, "client:{} action registered:{} != expected:{}".
                     format(cl_name, lst_actions, set(procs_conf[cl_name].keys())))
-            return
 
     # all registrations arrived & verified.
     # Test run on actions
@@ -496,13 +555,12 @@ def run_a_testcase(test_case:str, testcase_data:{}, default_data:{}):
     test_anomalies = {}
     for anomaly_action, v in test_run_conf.items():
         test_anomalies[anomaly_action] = AnomalyHandler(
-                anomaly_action, v, bindings_conf[anomaly_action])
+                anomaly_action, v, bindings_conf[anomaly_action], reg_conf)
 
     log_info("Main: Starting anomaly handlers")
     for name, handler in test_anomalies.items():
         if not handler.start():
-            report_error("Failed to start anomaly {}".format(name))
-            return
+            return _report_error(-1, "Failed to start anomaly {}".format(name))
 
     # Run while there is one or more active anomalies
     while test_anomalies:
@@ -510,43 +568,45 @@ def run_a_testcase(test_case:str, testcase_data:{}, default_data:{}):
         is_heartbeat = False
 
         # Read valid request
-        while True:
-            ret, req = test_client.server_read_request(POLL_TIMEOUT)
-            if not ret:
-                break
-            elif (list(req)[0] == gvars.REQ_HEARTBEAT):
-                req_data = req[gvars.REQ_HEARTBEAT]
-                is_heartbeat = True
-                break
-            elif (list(req)[0] != gvars.REQ_ACTION_REQUEST):
-                log_error("Internal error. Expected '{}': {}".format(
-                    gvars.REQ_ACTION_REQUEST, json.dumps(req)))
-            elif (req[gvars.REQ_ACTION_REQUEST][gvars.REQ_ACTION_TYPE] !=
-                    gvars.REQ_ACTION_TYPE_ACTION):
-                log_error("Internal error. Expected only {} from client {}".
-                        format(gvars.REQ_ACTION_REQUEST, json.dumps(req)))
-                # clients ony send response 
-            else:
-                req_data = req[gvars.REQ_ACTION_REQUEST]
-                break
+        sres = clib_bind.read_server_message(POLL_TIMEOUT)
+        while not sres:
+            log_error("No request read timeout={}".format(POLL_TIMEOUT))
+            sres = clib_bind.read_server_message(POLL_TIMEOUT)
+
+        res = json.loads(sres)
+
+        if (list(res)[0] == gvars.REQ_HEARTBEAT):
+            req_data = res[gvars.REQ_HEARTBEAT]
+            is_heartbeat = True
+
+        elif (list(res)[0] != gvars.REQ_ACTION_RESPONSE):
+            return _report_error(-1, "Internal error. Expected '{}': {}".format(
+                gvars.REQ_ACTION_REQUEST, json.dumps(res)))
+
+        elif (res[gvars.REQ_ACTION_RESPONSE][gvars.REQ_ACTION_TYPE] !=
+                gvars.REQ_ACTION_TYPE_ACTION):
+            return _report_error(-1, "Internal error. Expected only {} from client {}".
+                    format(gvars.REQ_ACTION_REQUEST, json.dumps(res)))
+            # clients ony send response 
+        else:
+            req_data = res[gvars.REQ_ACTION_RESPONSE]
 
         # Process request. Loop until a handler accepts
-        if ret:
-            done = []
-            for name, handler in test_anomalies.items():
-                if is_heartbeat:
-                    ret = handler.process_plugin_heartbeat(req_data)
-                else:
-                    ret = handler.process_plugin_response(req_data)
-                    if ret:
-                        if handler.done():
-                            done.append(name)
+        done = []
+        for name, handler in test_anomalies.items():
+            if is_heartbeat:
+                ret = handler.process_plugin_heartbeat(req_data)
+            else:
+                ret = handler.process_plugin_response(req_data)
                 if ret:
-                    # request processed
-                    break
-            # drop done anomalies from tracking
-            for name in done:
-                test_anomalies.pop(name, None)
+                    if handler.done():
+                        done.append(name)
+            if ret:
+                # request processed
+                break
+        # drop done anomalies from tracking
+        for name in done:
+            test_anomalies.pop(name, None)
 
         for name, handler in test_anomalies.items():
             # Try locking  if pending to proceed with mitigation
@@ -556,7 +616,11 @@ def run_a_testcase(test_case:str, testcase_data:{}, default_data:{}):
 
 
 
-    test_client.server_write_request({gvars.REQ_ACTION_REQUEST: {gvars.REQ_ACTION_TYPE: gvars.REQ_ACTION_TYPE_SHUTDOWN}})
+    # Send shutdown to each client
+    for cl in reg_conf:
+        clib_bind.write_server_message(json.dumps({gvars.REQ_ACTION_REQUEST: {
+            gvars.REQ_CLIENT_NAME: cl,
+            gvars.REQ_ACTION_TYPE: gvars.REQ_ACTION_TYPE_SHUTDOWN}}))
 
     # Wait for a max 5 seconds for all procs to exit
     tstart = int(time.time())
@@ -577,7 +641,7 @@ def run_a_testcase(test_case:str, testcase_data:{}, default_data:{}):
         leak = False
         for proc, th in lst_procs.items():
             if th.is_alive():
-                report_error("proc:{} not exiting for {} secs".
+                _report_error(-1, "proc:{} not exiting for {} secs".
                         format(proc, int(time.time()) - tstart))
                 leak = True
         if not leak:
@@ -623,6 +687,10 @@ def main():
         test_cases.append(args.testcase)
     else:
         test_cases = list(test_data.keys())
+
+    if not clib_bind.c_lib_init():
+        print("Failed to init clib_bind")
+        return
 
     for k in test_cases:
         log_info("**************** Running   testcase: {} ****************".format(k))

@@ -13,6 +13,10 @@ from common import *
 
 # This module helps mock c-bindings calls to server.
 # This enable a test code to act as server/engine
+#  
+# This mimics every client & sever API
+# Binds writes & reads between client & server via internal mocked
+# cache service.
 #
 # Way it works:
 #   The test code invokes the plugin_proc.py in a different thread.
@@ -27,19 +31,19 @@ from common import *
 #   Main thread owns caches from all services for server to client.
 #   Proc thread owns cache for client to server.
 #
+#   Main thread mimics the server.
 #   Main thread collects write fds from all cache instances for server to client
 #   and collects rd fs from all client to server cache instances
 #   These fds are used for signalling between main thread and the thread that owns
 #   the cache instance.
 #   Cache supports rd/wr index and read / write methods.
 #
-#   Any write, the main thread writes into all server to client instances.
-#   The client threads takes only requests meant for its actions
+#   Any write, the main thread writes into appropriate client instance.
 #
 #   It listens on signals from all collected rd fds and read from signalling
 #   cache instances.
 #
-#   This test code acts ass or mimics engine in the main thread.
+#   This test code acts mimics engine in the main thread.
 #   In non-test scenario, the supervisord from container manages the processes
 #   for each proc.
 #
@@ -52,13 +56,48 @@ from common import *
 #
 th_local = threading.local()
 
-CACHE_LIMIT = 10
+CACHE_LIMIT = 100
 
 shutdown = False
 
-def report_error(errMsg: str):
-    log_error("ERROR: {}".format(errMsg))
-    return
+# TODO: Mimic error codes defined from clib_bind
+
+test_error_code = 0
+test_error_str = ""
+
+def _report_error(code: int, errMsg: str):
+    global test_error_code, test_error_str
+
+    test_error_code = code
+    test_error_str = errMsg
+    if code != 0:
+        log_error("ERROR: {}".format(errMsg))
+    return code
+
+def _reset_error():
+    global test_error_code, test_error_str
+
+    test_error_code = 0
+    test_error_str = ""
+
+
+def _poll(rdfds:[], timeout: int) -> [int]:
+    while (not shutdown):
+        poll_wait = 2
+
+        if (timeout >= 0):
+            if (timeout < poll_wait):
+                poll_wait = timeout
+            timeout -= poll_wait
+
+        r, _, _ = select.select(rdfds, [], [], poll_wait)
+        if r:
+            return r
+
+        if timeout == 0:
+            return []
+
+    return []
 
 
 # Caches data in one direction with indices for nxt, cnt to relaize Q full
@@ -88,12 +127,15 @@ class CacheData:
 
     def _drain_signal(self):
         # Drain a single signal only
-        r, _, _ = select.select([self.signal_rd], [], [], 0)
+        lst = [ self.signal_rd ]
+        r = _poll(lst, 0)
+        log_debug("***** call _drain signal: c2s:{} rd:{} r={}".format(self.c2s, self.signal_rd, r))
         if self.signal_rd in r:
             os.read(self.signal_rd, len(SIGNAL_MSG))
 
 
     def _raise_signal(self):
+        log_debug("***** Raised signal: c2s:{} rd:{}".format(self.c2s, self.signal_rd))
         os.write(self.signal_wr, SIGNAL_MSG)
 
 
@@ -121,17 +163,7 @@ class CacheData:
     #  >0 -- Wait for these many seconds for data
     # 
     def read(self, timeout=-1) -> (bool, {}):
-        while ((not shutdown) and (timeout != 0) and (self.rd_cnt >= self.wr_cnt)):
-            t = 2
-            if (timeout > 0):
-                if (timeout < t):
-                    t = timeout 
-                timeout -= t
-
-            r, _, _ = select.select([self.signal_rd], [], [], t)
-            if self.signal_rd in r:
-                break
-
+        r = _poll([self.signal_rd], timeout)
         self._drain_signal()
 
         if self.rd_cnt < self.wr_cnt:
@@ -144,17 +176,26 @@ class CacheData:
             self.rd_cnt += 1
             return True, ret
         else:
-            log_info("c2s:{} read empty. {}/{}".format(
-                self.c2s, self.wr_cnt, self.rd_cnt))
+            msg = "c2s:{} read empty. {}/{} timeout:{}".format(
+                self.c2s, self.wr_cnt, self.rd_cnt, timeout)
+            if timeout != -1:
+                log_info(msg)
+            else:
+                log_error(msg)
+
             return False, {}
 
 
 class cache_service:
-    def __init__(self, limit:int=CACHE_LIMIT):
+    def __init__(self, proc_name: [str], limit:int=CACHE_LIMIT):
         # Get cache for both directions
         self.c2s = CacheData(limit, True)
         self.s2c = CacheData(limit, False)
+        self.proc_name = proc_name
 
+
+    def get_proc_name(self) ->str:
+        return self.proc_name
 
     def write_to_server(self, d: {}) -> bool:
         return self.c2s.write(d)
@@ -182,56 +223,102 @@ class cache_service:
             return self.s2c.get_signal_wr_fd()
 
 
-cache_services = None
-rd_fds = {}
-wr_fds = {}
+lst_cache_services = {}
+server_rd_fds = {}  # fd : name
 
 
 #
 # Each Python plugin proc is created in its own thread.
-# To simplify pre-create that many cache services
-# Register client will take a service based on the number
-# in its name <...>_<n> e.g "proc_0"
-# The taken up service instance is saved in thread local
-# Rest of the calls from this thread uses this instance.
+# The server init is given the list of expected procs.
+# The server pre-creates cache for each by name.
 #
-def create_cache_services(cnt:int):
-    global cache_services
-    global rd_fds, wr_fds
+# Each proc takes its instance by name and save it in
+# thread local. Rest of the calls from this thread uses this
+# instance.
+#
+def _create_cache_services(lst: [str]):
+    global lst_cache_services
+    global server_rd_fds
 
-    cache_services = [cache_service() for i in range(cnt)]
-
-    for i in range(cnt):
-        p = cache_services[i]
-        rd_fds[p.get_signal_rd_fd(True)] = p
-        wr_fds[p.get_signal_wr_fd(False)] = p
+    for i in lst:
+        p = cache_service(i)
+        server_rd_fds[p.get_signal_rd_fd(True)] = i;
+        lst_cache_services[i] = p
 
 
-# TODO: Mimic error codes defined from clib_bind
+#
+# Mocker clib server calls
+#
+def server_init(cl: POINTER(c_char_p), cnt: c_int) -> c_int:
+    clients = []
+    for i in cl:
+        clients.append(i.decode("utf-8"))
+    _create_cache_services(clients)
+    _reset_error()
+    return c_int(0) 
 
-test_error_code = 0
-test_error_str = ""
+
+def server_deinit():
+    lst_cache_services = {}
+    _reset_error()
+
+
+def write_server_message_c(bmsg: c_char_p) -> c_int:
+    _reset_error()
+    ret = 0;
+    msg = bmsg.decode("utf-8")
+
+    d = json.loads(msg)
+    if (len(d) > 1):
+        ret = _report_error(-1, "Expect only entry ({})".format(msg))
+
+    elif (list(d)[0] != gvars.REQ_ACTION_REQUEST):
+        ret = _report_error(-1, "Server writes action-request only. ({})".format(msg))
+
+    elif gvars.REQ_CLIENT_NAME not in d[gvars.REQ_ACTION_REQUEST]:
+        ret = _report_error(-1, "Missing client_name ({})".format(msg))
+
+    else:
+        cl_name = d[gvars.REQ_ACTION_REQUEST][gvars.REQ_CLIENT_NAME]
+        if cl_name not in lst_cache_services:
+            ret = _report_error(-1, "Missing client_name {} cache services".format(cl_name))
+
+        elif not lst_cache_services[cl_name].write_to_client(d):
+            ret = _report_error(-1, "Failed to write")
+
+    return c_int(ret)
+
+
+def read_server_message_c(tout : c_int) -> c_char_p:
+    _reset_error()
+    ret_data = ""
+
+    lst = list(server_rd_fds)
+    r = _poll(lst, tout)
+    if not r:
+        _report_error(-1, "read timeout")
+        return "".encode("utf-8")
+
+    cl_name = server_rd_fds[r[0]]
+    ret, d = lst_cache_services[cl_name].read_from_client(0)
+
+    if not ret:
+        _report_error(-1, "Failed to read")
+    elif len(d) != 1:
+        _report_error(-1, "Internal error. Expected one key. ({})".
+                format(json.dumps(d)))
+    elif list(d)[0] not in [ gvars.REQ_REGISTER_CLIENT, gvars.REQ_DEREGISTER_CLIENT,
+            gvars.REQ_REGISTER_ACTION, gvars.REQ_HEARTBEAT, gvars.REQ_ACTION_RESPONSE]:
+        _report_error("Internal error. Unexpected request: {}".format(json.dumps(d)))
+    else:
+        ret_data = json.dumps(d)
+
+    return ret_data.encode("utf-8")
 
 
 #
 # Mocked clib client calls
 #
-def reset_error():
-    global test_error_code, test_error_str
-
-    test_error_code = 0
-    test_error_str = ""
-
-
-def clib_init() -> bool:
-    cnt = len(get_proc_plugins_conf())
-    if (cnt <= 0) or (cnt > 100):
-        log_error("Invalid count of proc entries cnt={}".format(cnt))
-        return False
-    create_cache_services(cnt)
-    return True
-
-
 def clib_get_last_error() -> int:
     return test_error_code
 
@@ -244,229 +331,163 @@ def _is_initialized():
     return getattr(th_local, 'cache_svc', None) is not None
 
 
-def clib_register_client(cl_name: bytes, fd: c_int) -> int:
+def clib_register_client(bcl_name: bytes, fd: c_int) -> c_int:
+    _reset_error()
+    ret = 0
+
+    cl_name = bcl_name.decode("utf-8")
     if _is_initialized():
-        report_error("Duplicate registration {}".format(cl_name))
-        return -1
+        ret = _report_error(-1, "Duplicate registration {}".format(cl_name))
 
-    l = cl_name.decode("utf-8").split("_")
-    if len(l) <= 1:
-        report_error("Proc name must trail with _<n>")
-        return -1
-
-    index = int(l[-1])
-    if index >= len(cache_services):
+    elif cl_name not in lst_cache_services:
         # Proc index must run from 0 sequentially as services
         # are created for count of entries in proc's conf.
         #
-        report_error("Index {} > cnt {}".format(index, cnt))
-        return -1
+        ret = _report_error(-1, "client:{} not in cache services created by server".format(cl_name))
 
-    log_info("Registered:{} taken service index {}".
-            format(cl_name, index))
-    th_local.cache_svc = cache_services[index]
-    th_local.cl_name = cl_name.decode("utf-8")
-    th_local.actions = []
-    th_local.req = None
+    else:
+        log_info("Registered:{}".format(cl_name))
 
-    fd.value = th_local.cache_svc.get_signal_rd_fd(False)
+        th_local.cache_svc = lst_cache_services[cl_name]
+        th_local.cl_name = cl_name
+        th_local.actions = []
 
-    th_local.cache_svc.write_to_server({
-        gvars.REQ_REGISTER_CLIENT: {
-            gvars.REQ_CLIENT_NAME: cl_name.decode("utf-8") }})
+        fd.value = th_local.cache_svc.get_signal_rd_fd(False)
 
-    return 0
+        rc = th_local.cache_svc.write_to_server({
+            gvars.REQ_REGISTER_CLIENT: {
+                gvars.REQ_CLIENT_NAME: cl_name }})
+
+        if not rc:
+            ret = _report_error(-1, "client failed to write register client {}".
+                    format(cl_name))
+    return c_int(ret)
 
 
-def clib_deregister_client(cl_name: bytes) -> int:
+def clib_deregister_client(bcl_name: bytes) -> c_int:
+    _reset_error()
+    ret = 0
+    cl_name = bcl_name.decode("utf-8")
     if not _is_initialized():
-        report_error("deregister_client: client not registered {}".format(cl_name))
-        return
+        ret = _report_error(-1, "deregister_client: client not registered {}".format(cl_name))
 
-    th_local.cache_svc.write_to_server({
-        gvars.REQ_DEREGISTER_CLIENT: {
-            gvars.REQ_CLIENT_NAME: cl_name.decode("utf-8") }})
-    
-    # Clean local cache
-    th_local.cache_svc = None
-    th_local.cl_name = None
-    th_local.actions = None
-    th_local.req = None
+    else:
+        rc = th_local.cache_svc.write_to_server({
+            gvars.REQ_DEREGISTER_CLIENT: {
+                gvars.REQ_CLIENT_NAME: cl_name }})
+        if not rc:
+            ret = _report_error(-1, "client failed to write deregister client {}".
+                    format(cl_name))
 
-    return
+        # Clean local cache
+        th_local.cache_svc = None
+        th_local.cl_name = None
+        th_local.actions = None
+
+    return c_int(ret)
 
 
-def clib_register_action(action_name: bytes) -> int:
+def clib_register_action(baction_name: bytes) -> c_int:
+    _reset_error()
+    ret = 0;
+    action_name = baction_name.decode("utf-8")
     if not _is_initialized():
-        report_error("register_action: client not registered {}".format(action_name))
-        return -1
+        ret = _report_error(-1, "register_action: client not registered {}".format(action_name))
 
-    act_name = action_name.decode("utf-8")
-    if act_name in th_local.actions:
-        report_error("Duplicate registration {}".format(act_name))
-        return -2
+    elif action_name in th_local.actions:
+        ret = _report_error(-2, "Duplicate registration {}".format(action_name))
 
-    th_local.actions.append(act_name)
-    th_local.cache_svc.write_to_server({
-        gvars.REQ_REGISTER_ACTION: {
-            gvars.REQ_ACTION_NAME: act_name,
-            gvars.REQ_CLIENT_NAME: th_local.cl_name }})
-    return 0
+    else:
+        th_local.actions.append(action_name)
+        rc = th_local.cache_svc.write_to_server({
+            gvars.REQ_REGISTER_ACTION: {
+                gvars.REQ_ACTION_NAME: action_name,
+                gvars.REQ_CLIENT_NAME: th_local.cl_name }})
+        if not rc:
+            ret = _report_error(-3, "client failed to write register action {}/{}".
+                    format(th_local.cl_name, action_name))
+    return c_int(ret)
 
 
-def clib_touch_heartbeat(action_name:bytes, instance_id: bytes) -> int:
+def clib_touch_heartbeat(baction_name:bytes, binstance_id: bytes) -> c_int:
+    _reset_error()
+    ret = 0
+
+    action_name = baction_name.decode("utf-8")
+    instance_id = binstance_id.decode("utf-8")
+
     if not _is_initialized():
-        report_error("touch_heartbeat: client not registered {}".format(action_name))
-        return -1
+        ret = _report_error(-1, "touch_heartbeat: client not registered {}".format(action_name))
 
-    name = action_name.decode("utf-8")
-    if name not in th_local.actions:
-        report_error("Heartbeat from unregistered action {}".format(name))
-        return -1
+    elif action_name not in th_local.actions:
+        ret = _report_error(-2, "Heartbeat from unregistered action {}".format(action_name))
 
-    th_local.cache_svc.write_to_server({
-        gvars.REQ_HEARTBEAT: {
-            gvars.REQ_CLIENT_NAME: th_local.cl_name,
-            gvars.REQ_ACTION_NAME: name,
-            gvars.REQ_INSTANCE_ID: instance_id.decode("utf-8") }})
-    return 0
+    else:
+        rc = th_local.cache_svc.write_to_server({
+            gvars.REQ_HEARTBEAT: {
+                gvars.REQ_CLIENT_NAME: th_local.cl_name,
+                gvars.REQ_ACTION_NAME: action_name,
+                gvars.REQ_INSTANCE_ID: instance_id }})
+        if not rc:
+            ret = _report_error(-3, "client failed to write heartbeat {}/{}/{}".
+                    format(th_local.cl_name, action_name, instance_id))
 
- 
-def _read_req(timeout:int = -1) -> bool:
-    if th_local.req:
-        return True
-
-    req = {}
-    ret, req = th_local.cache_svc.read_from_server(timeout)
-    if not ret:
-        return False
-
-    if ((len(req) != 1) or (list(req.keys())[0] != gvars.REQ_ACTION_REQUEST)):
-        report_error("Expect ACTION_REQUEST req: {} {}".format(len(req), req.keys()))
-        return False
-
-    d = req[gvars.REQ_ACTION_REQUEST]
-    if ((d["request_type"] != gvars.REQ_ACTION_TYPE_SHUTDOWN) and
-            (d[gvars.REQ_ACTION_NAME] not in th_local.actions)):
-        report_error("unknown req/action {}".format(json.dumps(d)))
-        return False
-
-    th_local.req = req
-    return True
+    return c_int(ret)
 
 
 def clib_read_action_request(timeout:int) -> bytes:
+    _reset_error()
+    data = ""
     if not _is_initialized():
-        report_error("read_action_request: client not registered")
-        return
+        _report_error(-1, "read_action_request: client not registered")
+        return "".encode("utf-8")
 
-    # read and also check if 
-    ret = _read_req(timeout)
+    ret, d = th_local.cache_svc.read_from_server(timeout)
     if not ret:
-        return b""
+        if timeout == -1:
+            _report_error(-2, "client failed to read action request {}".
+                format(th_local.cl_name))
+    else:
+        data = json.dumps(d)
+    return data.encode("utf-8")
 
-    req = json.dumps(th_local.req[gvars.REQ_ACTION_REQUEST]).encode("utf-8")
-    th_local.req = None
-    return req
 
+def clib_write_action_response(resp: bytes) -> c_int:
+    _reset_error()
+    ret = 0
 
-def clib_write_action_response(resp: bytes) -> int:
     if not _is_initialized():
-        report_error("write_action_request: client not registered")
-        return
+        ret = _report_error(-1, "write_action_request: client not registered")
 
-    th_local.cache_svc.write_to_server({
-        gvars.REQ_ACTION_REQUEST: json.loads(resp.decode("utf-8"))})
-    return 0
+    else:
+        rc = th_local.cache_svc.write_to_server(json.loads(resp.decode("utf-8")))
+        if not rc:
+            ret = _report_error(-3, "client failed to write response {}".
+                    format(th_local.cl_name))
+    return c_int(ret)
 
-
-def _poll(rdfds:[], timeout: int) -> [int]:
-    while (not shutdown):
-        poll_wait = 2
-
-        if (timeout >= 0):
-            if (timeout < poll_wait):
-                poll_wait = timeout
-            timeout -= poll_wait
-        
-        r, _, _ = select.select(rdfds, [], [], poll_wait)
-        if r:
-            return r
-
-        if timeout == 0:
-            return []
-
-    return []
 
 
 # Called by client - here the Plugin Process
 #
-def clib_poll_for_data(fds:[int], timeout: int, ready_fds: [int],
-        err_fds: [int]) -> int:
+def clib_poll_for_data(fds: POINTER(c_int), cnt: c_int,
+        ready_fds: POINTER(c_int), ready_cnt: POINTER(c_int),
+        err_fds: POINTER(c_int), err_cnt: POINTER(c_int),
+        timeout: c_int) -> c_int:
+    ret = 0
     if not _is_initialized():
-        report_error("poll_for_data: client not registered")
-        return -1
+        ret = _report_error("poll_for_data: client not registered")
 
-    ready_fds.clear()
-    err_fds.clear()
+    else:
+        lfds = list(fds)
+        r = _poll(lfds, timeout.value)
 
-    while (not shutdown):
-        r = _poll(fds, timeout)
-        if r:
-            ready_fds.extend(r)
-        return len(r)
+        ret = ready_cnt.value = len(r)
+        err_cnt.value = 0
 
+        for i in range(ret):
+            ready_fds[i] = r[i]
 
-## Server side read/write wrappers
-# NOTE: These are not clib wrappers but match implementation
-# of clib wrappers as server writes are read by clib mock and 
-# vice versa
+    return c_int(ret)
 
-def server_read_request(timeout:int = -1) -> (bool, {}):
-    lst = list(rd_fds.keys())
-    r = _poll(lst, timeout)
-    if not r:
-        return False, {}
-
-    ret, d = rd_fds[r[0]].read_from_client(0)
-
-    if not ret:
-        return False, {}
-    if len(d) != 1:
-        report_error("Internal error. Expected one key. ({})".format(json.dumps(d)))
-        return False, {}
-    if list(d.keys())[0] not in [ gvars.REQ_REGISTER_CLIENT, gvars.REQ_DEREGISTER_CLIENT,
-            gvars.REQ_REGISTER_ACTION, gvars.REQ_HEARTBEAT, gvars.REQ_ACTION_REQUEST]:
-        report_error("Internal error. Unexpected request: {}".format(json.dumps(d)))
-        return False, {}
-
-    return True, d
-
-
-
-def server_write_request(data:{}) -> bool:
-    # Write is broadcast to all instances
-    # The instances filter out requests for their actions
-    #
-    if ((len(data) != 1) or (list(data)[0] != gvars.REQ_ACTION_REQUEST)):
-        report_error("Expect key {} with JSON object of the req as val: {}".
-                format(gvars.REQ_ACTION_TYPE_ACTION, json.dumps(data)))
-        return False
-
-    for _, svc in wr_fds.items():
-        svc.write_to_client(data)
-    return True
-
-
-def parse_reg_client(data: {}) -> str :
-    return data[gvars.REQ_CLIENT_NAME]
-
-
-def parse_reg_action(data: {}) -> (str, str):
-    return data[gvars.REQ_CLIENT_NAME], data[gvars.REQ_ACTION_NAME]
-
-
-def parse_heartbeat(data: {}) -> (str, str, str):
-    return (data[gvars.REQ_CLIENT_NAME], 
-            data[gvars.REQ_ACTION_NAME], data[gvars.REQ_INSTANCE_ID])
 

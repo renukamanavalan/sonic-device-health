@@ -18,6 +18,7 @@ def hb(id:str):
 
 
 req = clib_bind.ActionRequest(json.dumps({
+    REQ_CLIENT_NAME: "test",
     REQ_ACTION_TYPE: REQ_ACTION_TYPE_ACTION,
     REQ_ACTION_NAME: "link_flap",
     REQ_INSTANCE_ID: "inst_0_flap",
@@ -45,6 +46,7 @@ print("")
 print("----------------------------------------------")
 print("")
 sreq = clib_bind.ActionRequest(json.dumps({
+    REQ_CLIENT_NAME: "test",
     REQ_ACTION_TYPE: REQ_ACTION_TYPE_ACTION,
     REQ_ACTION_NAME: "link_safety",
     REQ_INSTANCE_ID: "inst_0_safety",
@@ -65,6 +67,7 @@ print("")
 print("----------------------------------------------")
 print("")
 dreq = clib_bind.ActionRequest(json.dumps({
+    REQ_CLIENT_NAME: "test",
     REQ_ACTION_TYPE: REQ_ACTION_TYPE_ACTION,
     REQ_ACTION_NAME: "link_down",
     REQ_INSTANCE_ID: "inst_0_link_down",

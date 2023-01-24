@@ -34,7 +34,7 @@ class LoMPlugin:
             down_cnt = subprocess.check_output("show int status | grep down | wc -l", shell=True) 
             res = 100 * float(int(up_cnt))/float(int(up_cnt)+int(down_cnt))
             if res >= self.min:
-                ret_str = "{}: Has {}% up. Min: {}%".format(self.name, res, self.min)
+                ret_str = "{}: Has {}% up. Min: {}%".format(req.client_name, self.name, res, self.min)
         else:
             ret = -1
             ret_str = "{}: Missing ifname ctx={}".format(self.name, json.dumps(req.context))

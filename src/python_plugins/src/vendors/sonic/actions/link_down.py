@@ -33,7 +33,7 @@ class LoMPlugin:
             ret_str = "Missing ifname ctx={}".format(json.dumps(req.context))
         log_error("ret={} ret_str={}".format(ret, ret_str))
 
-        return clib_bind.ActionResponse(self.name, req.instance_id,
+        return clib_bind.ActionResponse(req.client_name, self.name, req.instance_id,
                 req.anomaly_instance_id, req.anomaly_key, "", ret, ret_str)
 
 
