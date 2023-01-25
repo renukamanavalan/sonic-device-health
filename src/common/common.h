@@ -57,8 +57,6 @@ typedef enum {
 
 void set_last_error(const char *fl, int ln, const char *caller,
         int e, int rc, const char *msg, ...);
-int get_last_error();
-const char *get_last_error_msg();
 
 
 /* JSON conversion helpers */

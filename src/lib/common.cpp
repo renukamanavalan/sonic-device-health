@@ -63,7 +63,7 @@ log_write(int lvl, const char *caller, const char *msg, ...)
 
         buf[sizeof(buf) - 1] = 0;
 
-        syslog(lvl, buf);
+        syslog(lvl, "%s", buf);
         if (is_test_mode()) {
             printf("%s\n", buf);
         }

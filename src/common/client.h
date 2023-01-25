@@ -12,6 +12,10 @@
 extern "C" {
 #endif
 
+int get_last_error();
+const char *get_last_error_msg();
+
+
 /*
  * Requests used by clients/plugins to reach server.
  *
