@@ -129,13 +129,11 @@ class CacheData:
         # Drain a single signal only
         lst = [ self.signal_rd ]
         r = _poll(lst, 0)
-        log_debug("***** call _drain signal: c2s:{} rd:{} r={}".format(self.c2s, self.signal_rd, r))
         if self.signal_rd in r:
             os.read(self.signal_rd, len(SIGNAL_MSG))
 
 
     def _raise_signal(self):
-        log_debug("***** Raised signal: c2s:{} rd:{}".format(self.c2s, self.signal_rd))
         os.write(self.signal_wr, SIGNAL_MSG)
 
 
