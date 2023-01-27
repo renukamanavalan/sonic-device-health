@@ -14,9 +14,19 @@ _CT_DIR = os.path.dirname(os.path.abspath(__file__))
 # TODO: Get list of error codes defined for various errors
 
 # Set Clib .so file path here
-CLIB_DLL_FILE = os.path.join(_CT_DIR, "lom_lib.so")
+CLIB_DLL_FILE = os.path.join(_CT_DIR, "../../lom_lib.so")
 
 _clib_dll = None
+_clib_set_test_mode = None
+_clib_is_test_mode = None
+
+_clib_set_log_level = None
+_clib_get_log_level = None
+
+_clib_log_write = None
+
+_clib_set_thread_name = None
+
 _clib_get_last_error = None
 _clib_get_last_error_str = None
 _clib_register_client = None
@@ -42,6 +52,8 @@ def c_lib_init() -> bool:
     global _clib_read_action_request, _clib_write_action_response, _clib_poll_for_data
     global _clib_server_init, _clib_server_deinit
     global _clib_write_server_message_c, _clib_read_server_message_c
+    global _clib_set_test_mode, _clib_is_test_mode, _clib_set_thread_name
+    global _clib_set_log_level, _clib_get_log_level, _clib_log_write
 
     if _clib_dll:
         return True
@@ -54,14 +66,6 @@ def c_lib_init() -> bool:
             return False
 
         try:
-            _clib_get_last_error = _clib_dll.get_last_error
-            _clib_get_last_error.argtypes = []
-            _clib_get_last_error.restype = c_int
-
-            _clib_get_last_error_str = _clib_dll.get_last_error_str
-            _clib_get_last_error_str.argtypes = []
-            _clib_get_last_error_str.restype = c_char_p
-
             _clib_register_client = _clib_dll.register_client
             _clib_register_client.argtypes = [ c_char_p, POINTER(c_int) ]
             _clib_register_client.restype = c_int
@@ -91,21 +95,53 @@ def c_lib_init() -> bool:
                     POINTER(c_int), POINTER(c_int) , c_int ]
             _clib_poll_for_data.restype = c_int
 
-            _clib_server_init = _clib_dll._clib_server_init
+            _clib_server_init = _clib_dll.server_init_c
             _clib_server_init.argtypes = [ POINTER(c_char_p), c_int ]
             _clib_server_init.restype = c_int
 
-            _clib_server_deinit = _clib_dll._clib_server_deinit
+            _clib_server_deinit = _clib_dll.server_deinit
             _clib_server_deinit.argtypes = []
             _clib_server_deinit.restype = None
 
-            _clib_write_server_message_c = _clib_dll._clib_write_server_message_c
+            _clib_write_server_message_c = _clib_dll.write_server_message_c
             _clib_write_server_message_c.argtypes = [ c_char_p ]
             _clib_write_server_message_c.restype = c_int
 
-            _clib_read_server_message_c = _clib_dll._clib_read_server_message_c
+            _clib_read_server_message_c = _clib_dll.read_server_message_c
             _clib_read_server_message_c.argtypes = [ c_int ]
             _clib_read_server_message_c.restype = c_char_p
+
+            _clib_get_last_error = _clib_dll.lom_get_last_error
+            _clib_get_last_error.argtypes = []
+            _clib_get_last_error.restype = c_int
+
+            _clib_get_last_error_str = _clib_dll.lom_get_last_error_msg
+            _clib_get_last_error_str.argtypes = []
+            _clib_get_last_error_str.restype = c_char_p
+
+            _clib_set_test_mode = _clib_dll.set_test_mode
+            _clib_set_test_mode.argtypes = []
+            _clib_set_test_mode.restype = None
+
+            _clib_is_test_mode = _clib_dll.is_test_mode
+            _clib_is_test_mode.argtypes = []
+            _clib_is_test_mode.restype = c_bool
+
+            _clib_set_log_level = _clib_dll.set_log_level
+            _clib_set_log_level.argtypes = [ c_int ]
+            _clib_set_log_level.restype = None
+
+            _clib_get_log_level = _clib_dll.get_log_level
+            _clib_get_log_level.argtypes = []
+            _clib_get_log_level.restype = c_int
+
+            _clib_log_write = _clib_dll.log_write
+            _clib_log_write.argtypes = [ c_int, c_char_p , c_char_p ]
+            _clib_log_write.restype = None
+
+            _clib_set_thread_name = _clib_dll.set_thread_name
+            _clib_set_thread_name.argtypes = [ c_char_p ]
+            _clib_set_thread_name.restype = None
 
             # Update values in gvars.py
             _update_globals()
@@ -132,6 +168,15 @@ def c_lib_init() -> bool:
         _clib_server_deinit = test_client.server_deinit
         _clib_write_server_message_c = test_client.write_server_message_c
         _clib_read_server_message_c = test_client.read_server_message_c
+
+        _clib_set_test_mode = test_client.set_test_mode
+        _clib_is_test_mode = test_client.is_test_mode
+
+        _clib_set_log_level = test_client.set_log_level
+        _clib_get_log_level = test_client.get_log_level
+        _clib_log_write = test_client.log_write
+        _clib_set_thread_name = test_client.set_thread_name
+
         _clib_dll = "Test mode"
         
     return True
@@ -145,7 +190,9 @@ def validate_dll():
 
 
 def get_last_error() -> (int, str):
-    return _clib_get_last_error(), _clib_get_last_error_str()
+    print("_clib_get_last_error={}".format(_clib_get_last_error()))
+    print("_clib_get_last_error_str={}".format(_clib_get_last_error_str()))
+    return _clib_get_last_error(), _clib_get_last_error_str().decode("utf-8")
 
 
 def _print_clib_error(m:str, ret:int):
@@ -158,7 +205,7 @@ def register_client(proc_id: str) -> (bool, int):
         return False, {}
 
     cfd  = c_int(0)
-    ret = _clib_register_client(proc_id.encode("utf-8"), cfd).value
+    ret = _clib_register_client(proc_id.encode("utf-8"), cfd)
     if ret != 0:
         log_error("register_client failed for {}".format(proc_id))
         return False, -1
@@ -169,7 +216,7 @@ def register_action(action: str) -> bool:
     if not validate_dll():
         return False, {}
 
-    ret = _clib_register_action(action.encode("utf-8")).value
+    ret = _clib_register_action(action.encode("utf-8"))
     if ret != 0:
         log_error("register_action failed {}".format(action))
         return False
@@ -189,7 +236,7 @@ def touch_heartbeat(action: str, instance_id: str) -> bool:
     if not validate_dll():
         return False, {}
 
-    ret = _clib_touch_heartbeat(action.encode("utf-8"), instance_id.encode("utf-8")).value
+    ret = _clib_touch_heartbeat(action.encode("utf-8"), instance_id.encode("utf-8"))
     if ret != 0:
         log_error("touch_heartbeat failed action:{} id:{}".format(action, instance_id))
         return False
@@ -201,11 +248,13 @@ def _get_str_clib_globals(name:str) -> str:
     return (c_char_p.in_dll(_clib_dll, name)).value.decode("utf-8")
 
 
+
 def _update_globals():
     gvars.REQ_ACTION_TYPE = _get_str_clib_globals("REQ_ACTION_TYPE")
     gvars.REQ_ACTION_TYPE_ACTION = _get_str_clib_globals("REQ_ACTION_TYPE_ACTION")
     gvars.REQ_ACTION_TYPE_SHUTDOWN = _get_str_clib_globals("REQ_ACTION_TYPE_SHUTDOWN")
 
+    gvars.REQ_CLIENT_NAME = _get_str_clib_globals("REQ_CLIENT_NAME")
     gvars.REQ_ACTION_NAME = _get_str_clib_globals("REQ_ACTION_NAME")
     gvars.REQ_INSTANCE_ID = _get_str_clib_globals("REQ_INSTANCE_ID")
     gvars.REQ_ANOMALY_INSTANCE_ID = _get_str_clib_globals("REQ_ANOMALY_INSTANCE_ID")
@@ -215,6 +264,19 @@ def _update_globals():
     gvars.REQ_ACTION_DATA = _get_str_clib_globals("REQ_ACTION_DATA")
     gvars.REQ_RESULT_CODE = _get_str_clib_globals("REQ_RESULT_CODE")
     gvars.REQ_RESULT_STR  = _get_str_clib_globals("REQ_RESULT_STR")
+    gvars.REQ_REGISTER_CLIENT = _get_str_clib_globals("REQ_REGISTER_CLIENT")
+    gvars.REQ_DEREGISTER_CLIENT = _get_str_clib_globals("REQ_DEREGISTER_CLIENT")
+    gvars.REQ_REGISTER_ACTION = _get_str_clib_globals("REQ_REGISTER_ACTION")
+    gvars.REQ_HEARTBEAT = _get_str_clib_globals("REQ_HEARTBEAT")
+    gvars.REQ_ACTION_REQUEST = _get_str_clib_globals("REQ_ACTION_REQUEST")
+    gvars.REQ_ACTION_RESPONSE = _get_str_clib_globals("REQ_ACTION_RESPONSE")
+    gvars.REQ_HEARTBEAT_INTERVAL = _get_str_clib_globals("REQ_HEARTBEAT_INTERVAL")
+    gvars.REQ_PAUSE = _get_str_clib_globals("REQ_PAUSE")
+    gvars.REQ_MITIGATION_STATE = _get_str_clib_globals("REQ_MITIGATION_STATE" )
+    gvars.REQ_MITIGATION_STATE_INIT = _get_str_clib_globals("REQ_MITIGATION_STATE_INIT")
+    gvars.REQ_MITIGATION_STATE_PROG = _get_str_clib_globals("REQ_MITIGATION_STATE_PROG")
+    gvars.REQ_MITIGATION_STATE_TIMEOUT = _get_str_clib_globals("REQ_MITIGATION_STATE_TIMEOUT")
+    gvars.REQ_MITIGATION_STATE_DONE = _get_str_clib_globals("REQ_MITIGATION_STATE_DONE")
 
 
 class ActionRequest:
@@ -268,7 +330,7 @@ class ActionResponse:
                 gvars.REQ_ANOMALY_INSTANCE_ID: anomaly_instance_id,
                 gvars.REQ_ANOMALY_KEY: anomaly_key,
                 gvars.REQ_ACTION_DATA: action_data,
-                gvars.REQ_RESULT_CODE: result_code,
+                gvars.REQ_RESULT_CODE: str(result_code),
                 gvars.REQ_RESULT_STR : result_str }})
 
                 
@@ -284,7 +346,7 @@ def write_action_response(res: ActionResponse) -> bool:
         return False
 
     ret = _clib_write_action_response(
-            res.value().encode("utf-8")).value
+            res.value().encode("utf-8"))
 
     if ret != 0:
         log_error("write_action_response failed")
@@ -308,7 +370,8 @@ def poll_for_data(lst_fds: [int], timeout:int,
     crcnt  = c_int(0)
     cecnt  = c_int(0)
 
-    ret = _clib_poll_for_data(clst_fds, clcnt, crfd, crcnt, cefd, cecnt, c_int(timeout)).value
+    DROP_TEST("fds=({})".format(lst_fds))
+    ret = _clib_poll_for_data(clst_fds, clcnt, crfd, crcnt, cefd, cecnt, c_int(timeout))
 
     lrfd = list(crfd)
     lefd = list(cefd)
@@ -319,6 +382,7 @@ def poll_for_data(lst_fds: [int], timeout:int,
     for i in range(cecnt.value):
         err_fds.append(lefd[i])
 
+    DROP_TEST("ret={} crcnt={} readyfds=({})".format(ret, crcnt.value, ready_fds))
     return ret
 
 
@@ -328,7 +392,7 @@ def server_init(slst: [str]) -> int:
         lst.append(i.encode("utf-8"))
     clients = (c_char_p * len(lst))(*lst)
 
-    return _clib_server_init(clients, len(lst)).value
+    return _clib_server_init(clients, len(lst))
 
 
 def server_deinit():
@@ -336,9 +400,33 @@ def server_deinit():
 
 
 def write_server_message(msg: str) -> int:
-    return _clib_write_server_message_c(msg.encode("utf-8")).value
+    ret = _clib_write_server_message_c(msg.encode("utf-8"))
+    return ret
 
 
 def read_server_message(tout: int) -> str:
     return _clib_read_server_message_c(tout).decode("utf-8")
+
+
+def set_test_mode():
+    _clib_set_test_mode()
+
+
+def is_test_mode() -> bool:
+    return _clib_is_test_mode()
+
+
+def set_log_level(lvl: int):
+    _clib_set_log_level(c_int(lvl))
+
+
+def get_log_level() -> int:
+    return _clib_get_log_level()
+
+def log_write(lvl: int, caller: str, msg: str):
+    _clib_log_write(c_int(lvl), caller.encode("utf-8"), msg.encode("utf-8"))
+
+
+def set_thread_name(name: str):
+    _clib_set_thread_name(name.encode("utf-8"))
 

@@ -1,0 +1,54 @@
+Layout:
+
+1)  src/common - has all header files
+    client.h -- All APIs used by clients to server/engine.
+        - Has C i/f only
+        - Clients are plugin managers 
+
+    server.h - APIs used by server to communicate with clients. C++
+
+    server_c.h - C Wrapper APIs for C++ server APIs so as to enable
+        plugin manager clients to be able to mock to help them run
+        tests w/o involving engine
+
+    common.h  - Common definitions shared
+
+    transport.h - Underlying transport that connects clients to server.
+        Having it as a separate layer used by both client & server.
+        This layering helps in modularization and makes it easy to switch
+        transport, if needed in future.
+        For now, it is a big help in testing client & server APIs in isolation
+        by using transport APIs to mock the other.
+
+                
+2) src/lib -- C-lib source
+    common.cpp - Common/shared code
+    lom_lib.cpp - Implementation of client & server APIs
+    transport.cpp - Implementaion of transport layer.
+    subdir.mk - To help compile
+
+
+3) src/Makefile -- to build lib & unit tests
+
+4) src/tests
+    lom_ut.cpp - Tests client & server APIs. While testing client APIs the
+        server end is mocked and vice versa
+
+    test_data_ut.json - Drives i/p to APIs and data expected at peer
+
+
+5) Python-plugins
+    Has plugin manager, plugins, test code, test-plugins and test-data
+
+    test_data.json::"test-main-run" has the actions it tests.
+    If you are running in dev-vm only enable test actions
+    If you are running in switch, enable link_flap.
+    To disable, prefix the name with "_"
+o
+
+To compile & execute:
+Run KEEP_SLAVE_ON=yes BLDENV=bullseye make target/debs/bullseye/sonic-eventd_1.0.0-0_amd64.deb
+Get into docker
+
+cd src/device-health/src/
+rm -f tests/tests; make; ./tests/tests ./tests/test_data.json

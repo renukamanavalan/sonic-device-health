@@ -1,8 +1,8 @@
 CC := g++
 
-OBJS += ./lib/common.o ./lib/lom_lib.o ./lib/transport.o
+OBJS += ./lib/common.o ./lib/lom_lib.o ./lib/transport.o ./lib/consts.o
 
-C_DEPS += ./lib/common.d ./lib/lom_lib.d ./lib/transport.d
+C_DEPS += ./lib/common.d ./lib/lom_lib.d ./lib/transport.d ./lib/consts.d
 
 includes = $(wildcard ./common/*.h)
 

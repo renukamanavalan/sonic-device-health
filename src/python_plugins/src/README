@@ -1,0 +1,10 @@
+The plugin manager
+
+plugin_proc.py -- The main plugin manager. Read the starting comments to undestand the code.
+common.py - log handling, read conf files
+
+misc.py -- Not used yet.o
+
+gvars.py -- Global variables. TODO read from CDLL
+
+clib_bind.py -- Wrapper for c-lib APIs

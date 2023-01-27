@@ -24,7 +24,6 @@ sys.path.append(os.path.join(_CT_DIR, helper_dir))
 import gvars
 
 POLL_TIMEOUT = 2
-gvars.TEST_RUN = True
 
 import test_client
 
@@ -56,6 +55,7 @@ def clean_dir(d):
 def run_proc(proc_name: str, rcfile: str):
     # Running in Proc dedicated thread
     #
+    clib_bind.set_thread_name("PluginProc:{}".format(proc_name))
     module = importlib.import_module("plugin_proc")
     module.main(proc_name, rcfile)
     log_info("Returned from plugin_proc: proc={} rc={}".format(
@@ -143,22 +143,22 @@ class AnomalyHandler:
         return self.action_seq[self.action_seq_index]
 
 
-    def _get_inst_val(self, attr_name:str):
+    def _get_inst_val(self, attr_name:str) ->str:
         action_name = self._get_ct_action_name()
         val = self.test_inst.get(action_name, {}).get(attr_name, None)
         if val != None:
-            return val
+            return str(val)
 
         if attr_name == "run_cnt":
-            return 1
+            return str(1)
         if attr_name == gvars.REQ_INSTANCE_ID:
             return str(uuid.uuid4())
         if attr_name == gvars.REQ_TIMEOUT:
-            return 0        # No timeout
+            return str(0)        # No timeout
         if attr_name in [gvars.REQ_ACTION_DATA, gvars.REQ_CONTEXT,
                 gvars.REQ_RESULT_CODE, gvars.REQ_RESULT_STR]:
-            return None
-        return None
+            return ""
+        return ""
 
 
     def start(self) -> bool:
@@ -198,16 +198,14 @@ class AnomalyHandler:
             gvars.REQ_INSTANCE_ID: self.ct_instance_id,
             gvars.REQ_ANOMALY_INSTANCE_ID: self.anomaly_instance_id,
             gvars.REQ_ANOMALY_KEY: self.anomaly_key,
-            gvars.REQ_CONTEXT: self.context,
+            gvars.REQ_CONTEXT: json.dumps(self.context),
             gvars.REQ_TIMEOUT: self._get_inst_val(gvars.REQ_TIMEOUT)}}
-        ret = clib_bind.write_server_message(json.dumps(req))
+        smsg = json.dumps(req)
+        ret = clib_bind.write_server_message(smsg)
         if ret != 0:
             _report_error(ret, "Failed to write request to client")
+        DROP_TEST("Write req: {}".format(smsg))
         return 
-
-
-    def _do_publish(self, req:{}):
-        helpers.publish_event(self.anomaly_name, req)
 
 
     def process_plugin_heartbeat(self, res:{}) -> bool:
@@ -225,7 +223,7 @@ class AnomalyHandler:
             data = self.anomaly_published
 
         data[gvars.REQ_HEARTBEAT] = str(time.time())
-        self._do_publish(data)
+        helpers.publish_event(self.anomaly_name, data)
         return True
 
 
@@ -266,21 +264,25 @@ class AnomalyHandler:
         if not self.anomaly_published:
             self.anomaly_published = res
             self.anomaly_published[gvars.REQ_MITIGATION_STATE] = gvars.REQ_MITIGATION_STATE_INIT
-            self._do_publish(self.anomaly_published)
+            helpers.publish_event(self.anomaly_name, self.anomaly_published)
         else:
-            self._do_publish(res)
+            helpers.publish_event(self.anomaly_name, res)
 
         # Are we done?
         seq_complete = False
-        return_code = res[gvars.REQ_RESULT_CODE]
+        return_code = int(res[gvars.REQ_RESULT_CODE])
         return_str = res[gvars.REQ_RESULT_STR]
 
         if return_code != 0:
             # Force complete.
             seq_complete = True
+            return_str = "Force complete as return code {} != 0".format(return_code)
         else:
             self.action_seq_index += 1
             seq_complete = self.action_seq_index >= len(self.action_seq)
+            if seq_complete:
+                return_str = "seq index={} cnt={} Complete successfully".format(
+                        self.action_seq_index, len(self.action_seq))
 
         if not seq_complete and (self.action_seq_index == 1):
             # Start of mitigation sequence
@@ -304,17 +306,13 @@ class AnomalyHandler:
                 seq_complete = True
 
         if seq_complete:
-            if len(self.action_seq) == 1:
-                return_code = -1
-                return_str = "No mitigation seq available"
-
             # Release if any lock being held
             self._manage_lock(False)
             # Re-publish anomaly with completed state
-            self.anomaly_published[gvars.REQ_RESULT_CODE] = return_code
+            self.anomaly_published[gvars.REQ_RESULT_CODE] = str(return_code)
             self.anomaly_published[gvars.REQ_RESULT_STR] = return_str
             self.anomaly_published[gvars.REQ_MITIGATION_STATE] = gvars.REQ_MITIGATION_STATE_DONE
-            self._do_publish(self.anomaly_published)
+            helpers.publish_event(self.anomaly_name, self.anomaly_published)
 
             # increment run index, as are done with binding sequence.
             self.test_run_index += 1
@@ -330,11 +328,12 @@ class AnomalyHandler:
             return True
 
         # Build context
-        self.context[action_name] = res[gvars.REQ_ACTION_DATA]
+        stmp = res[gvars.REQ_ACTION_DATA]
+        self.context[action_name] = json.loads(stmp if not stmp else "{}")
         if self.lock_state == LockState_Locked:
             self._write_request()
             log_info("AnomalyHandler: {}: continue mitigation: {}: {}".format(
-                self.anomaly_name, self.action_seq_index, self._get_ct_action_name))
+                self.anomaly_name, self.action_seq_index, self._get_ct_action_name()))
         else:
             self.resume()
 
@@ -374,10 +373,10 @@ class AnomalyHandler:
 
         elif self.lock_exp and (int(time.time()) > self.lock_exp):
             self._manage_lock(False)
-            self.anomaly_published[gvars.REQ_RESULT_CODE] = -3
+            self.anomaly_published[gvars.REQ_RESULT_CODE] = str(-3)
             self.anomaly_published[gvars.REQ_RESULT_STR] = "Anomaly mitigation timeout"
             self.anomaly_published[gvars.REQ_MITIGATION_STATE] = gvars.REQ_MITIGATION_STATE_TIMEOUT
-            self._do_publish(self.anomaly_published)
+            helpers.publish_event(self.anomaly_name, self.anomaly_published)
 
 
     def done(self)->bool:
@@ -665,7 +664,15 @@ def main():
 
     TMP_DIR = args.path
 
-    set_log_level(args.log_level)
+    if not clib_bind.c_lib_init():
+        print("Failed to init clib_bind")
+        return
+
+    clib_bind.set_thread_name("MAIN")
+    clib_bind.set_test_mode()
+    clib_bind.set_log_level(args.log_level)
+
+    set_log_info(clib_bind.get_log_level(), clib_bind.log_write)
 
     test_data = {}
     default_data = {}
@@ -687,10 +694,6 @@ def main():
         test_cases.append(args.testcase)
     else:
         test_cases = list(test_data.keys())
-
-    if not clib_bind.c_lib_init():
-        print("Failed to init clib_bind")
-        return
 
     for k in test_cases:
         log_info("**************** Running   testcase: {} ****************".format(k))

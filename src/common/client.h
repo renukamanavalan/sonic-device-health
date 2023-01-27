@@ -12,9 +12,17 @@
 extern "C" {
 #endif
 
-int get_last_error();
-const char *get_last_error_msg();
+void set_thread_name(const char *name);
 
+int lom_get_last_error();
+const char *lom_get_last_error_msg();
+
+void set_test_mode();
+bool is_test_mode();
+
+void set_log_level(int lvl);
+int get_log_level();
+void log_write(int lvl, const char *caller, const char *msg);
 
 /*
  * Requests used by clients/plugins to reach server.
@@ -139,7 +147,7 @@ int touch_heartbeat(const char *action, const char *instance_id);
  *
  * Return:
  *  Non-NULL - Request read as JSON string
- *  NULL/empty string - Timeout or internal error. Use get_last_error
+ *  NULL/empty string - Timeout or internal error. Use lom_get_last_error
  *                      to get the error code.
  *
  */

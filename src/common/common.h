@@ -5,16 +5,14 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <syslog.h>
+#include <thread>
 #include <map>
-
-void set_test_mode();
-bool is_test_mode();
 
 extern int errno;
 
-#define LOM_LOG_ERROR(msg, ...) log_write(LOG_ERR, __FUNCTION__, msg, ##__VA_ARGS__)
-#define LOM_LOG_INFO(msg, ...) log_write(LOG_INFO, __FUNCTION__, msg, ##__VA_ARGS__)
-#define LOM_LOG_DEBUG(msg, ...) log_write(LOG_DEBUG, __FUNCTION__, msg, ##__VA_ARGS__)
+#define LOM_LOG_ERROR(msg, ...) clog_write(LOG_ERR, __FUNCTION__, msg, ##__VA_ARGS__)
+#define LOM_LOG_INFO(msg, ...) clog_write(LOG_INFO, __FUNCTION__, msg, ##__VA_ARGS__)
+#define LOM_LOG_DEBUG(msg, ...) clog_write(LOG_DEBUG, __FUNCTION__, msg, ##__VA_ARGS__)
 
 #define RET_ON_ERR(res, msg, ...)\
     if (!(res)) {                                                               \
@@ -25,9 +23,15 @@ extern int errno;
         }                                                                       \
         goto out; }
 
-#define DROP_TEST(msg, ...) {       \
-    printf("%s::%d------------- DROP: ", __FILE__, __LINE__);   \
-    printf( msg, ##__VA_ARGS__);    \
+#define DROP_TEST(msg, ...)
+
+std::string get_thread_name();
+
+#define XDROP_TEST(msg, ...) {                                                       \
+    stringstream _ss;                                                               \
+    _ss << std::this_thread::get_id();                                              \
+    printf("%s:%s::%d------------- DROP: ", get_thread_name().c_str(), __FILE__, __LINE__); \
+    printf( msg, ##__VA_ARGS__);                                                    \
     printf("\n"); }
 
 #define ARRAYSIZE(d) (sizeof(d)/sizeof((d)[0]))
@@ -36,13 +40,10 @@ extern int errno;
  * Log helpers       *
  *********************/
 
-void set_log_level(int lvl);
-int get_log_level();
-
 void log_init(const char *identifier=NULL, int facility=0);
 void log_close();
 
-void log_write(int loglvl, const char *caller, const char *msg, ...);
+void clog_write(int loglvl, const char *caller, const char *msg, ...);
 
 /*********************
  * Error set         *

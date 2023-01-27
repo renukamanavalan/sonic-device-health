@@ -153,6 +153,7 @@ class LoMPluginHolder:
         self.touchSent = None   # Last touch that is sent
                                 # touch stores epoch seconds
         self.action_pause = config.get(gvars.REQ_PAUSE, None)
+        self.signal_msg = b'Hello'
 
         try:
             module = importlib.import_module(module_name)
@@ -176,7 +177,7 @@ class LoMPluginHolder:
             log_info("Loaded plugin {} from {}".format(name, plugin_file))
 
         except Exception as e:
-            log_error("Failed to create plugin {} e={}".format(plugin_file, str(e)))
+            log_error("Failure to create plugin {} except={}".format(plugin_file, str(e)))
 
         return
 
@@ -202,7 +203,7 @@ class LoMPluginHolder:
         #
         self.touch = int(time.time())
         self.instance_id = instance_id
-        self._raise_signal()
+        self._raise_signal(False)
 
 
     def send_heartbeat(self) -> bool:
@@ -227,11 +228,13 @@ class LoMPluginHolder:
         return
 
 
-    def _raise_signal(self):
+    def _raise_signal(self, is_resp: bool):
         # Called from request thread upon plugin returning from request or heartbeat
         # call to indicate to main thread.
         #
-        os.write(self.fdW, b"Hello")
+        os.write(self.fdW, self.signal_msg)
+        DROP_TEST("{}: from: {} Raise signal fdR = {}".format(self.name,
+            "Response" if is_resp else "Heartbeat", self.fdR))
         return
 
 
@@ -240,22 +243,27 @@ class LoMPluginHolder:
         # Check before making blocking read, as it might have
         # already got cleared. Read w/o data will block.
         #
+        DROP_TEST("{}: _drain signal fdR = {}".format(self.name, self.fdR))
         r, _, _ = select.select([self.fdR], [], [], 0)
         if self.fdR in r:
-            os.read(self.fdR, 100)
+            os.read(self.fdR, len(self.signal_msg))
+            DROP_TEST("{}: READ: _drain signal fdR = {}".format(self.name, self.fdR))
+        else:
+            DROP_TEST("{}: NO READ: _drain signal fdR = {}".format(self.name, self.fdR))
 
 
     def _run_request(self):
         # Starting method of the request thread.
         # Running in a dedicated thread. So make a blocking call.
         #
+        clib_bind.set_thread_name("Plugin:Request:{}".format(self.name))
         self.response = self.plugin.request(self.last_request)
         self.req_end = time.time()
 
         log_info("{}: Completed request".format(self.name))
 
         # Raise signal as last step.
-        self._raise_signal()     # Inform the completion
+        self._raise_signal(True)     # Inform the completion
 
         # request thread terminates upon return.
         return
@@ -297,7 +305,7 @@ class LoMPluginHolder:
         # May be response or heartbeat from plugin
         #
         if not self.req_end:
-            log_info("plugin_proc:{} req_end not set".format(this_proc_name))
+            log_info("plugin_proc:{} req_end not set. send heartbeat.".format(this_proc_name))
             self.send_heartbeat()
             return
 
@@ -485,10 +493,6 @@ def main(proc_name, global_rc_file):
         signal.signal(signal.SIGUSR1, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
-    if not clib_bind.c_lib_init():
-        log_error("Failed to init CLIB")
-        return
-
 
     while (not shutdown_request)  and (not is_running_config_available()):
         # Loop until we get the conf
@@ -515,11 +519,18 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--log-level", type=int, default=3, help="set log level")
     args = parser.parse_args()
 
-    if args.test:
-        set_test_mode()
+    if not clib_bind.c_lib_init():
+        log_error("Failed to init CLIB")
 
-    set_log_level(args.log_level)
+    else:
+        clib_bind.set_thread_name("PluginProc:MAIN")
+        if args.test:
+            clib_bind.set_test_mode()
 
-    main(args.proc_name, args.global_rc)
+        clib_bind.set_log_level(args.log_level)
+
+        set_log_info(clib_bind.get_log_level(), clib_bind.log_write)
+
+        main(args.proc_name, args.global_rc)
 
 
