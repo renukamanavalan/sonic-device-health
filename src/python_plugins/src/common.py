@@ -6,8 +6,11 @@ import os
 import sys
 import syslog
 import time
-from threading import current_thread
+import threading
 from typing import NamedTuple
+
+# Global thread local object created once and used by all
+th_local = threading.local()
 
 # python_proc overrides this path via args, if provided.
 GLOBAL_RC_FILE = "/etc/LoM/global.rc.json"
@@ -46,6 +49,9 @@ _lvl_to_str = [
         "Informational",
         "Debug"
     ]
+
+def get_log_level_str(lvl:int):
+    return _lvl_to_str[lvl] if lvl < len(_lvl_to_str) else "UNKNOWN_LVL"
 
 
 ct_log_level = syslog.LOG_ERR

@@ -164,18 +164,18 @@ def c_lib_init() -> bool:
         _clib_read_action_request = test_client.clib_read_action_request
         _clib_write_action_response = test_client.clib_write_action_response
         _clib_poll_for_data = test_client.clib_poll_for_data
-        _clib_server_init = test_client.server_init
-        _clib_server_deinit = test_client.server_deinit
-        _clib_write_server_message_c = test_client.write_server_message_c
-        _clib_read_server_message_c = test_client.read_server_message_c
+        _clib_server_init = test_client.clib_server_init
+        _clib_server_deinit = test_client.clib_server_deinit
+        _clib_write_server_message_c = test_client.clib_write_server_message_c
+        _clib_read_server_message_c = test_client.clib_read_server_message_c
 
-        _clib_set_test_mode = test_client.set_test_mode
-        _clib_is_test_mode = test_client.is_test_mode
+        _clib_set_test_mode = test_client.clib_set_test_mode
+        _clib_is_test_mode = test_client.clib_is_test_mode
 
-        _clib_set_log_level = test_client.set_log_level
-        _clib_get_log_level = test_client.get_log_level
-        _clib_log_write = test_client.log_write
-        _clib_set_thread_name = test_client.set_thread_name
+        _clib_set_log_level = test_client.clib_set_log_level
+        _clib_get_log_level = test_client.clib_get_log_level
+        _clib_log_write = test_client.clib_log_write
+        _clib_set_thread_name = test_client.clib_set_thread_name
 
         _clib_dll = "Test mode"
         
@@ -190,8 +190,6 @@ def validate_dll():
 
 
 def get_last_error() -> (int, str):
-    print("_clib_get_last_error={}".format(_clib_get_last_error()))
-    print("_clib_get_last_error_str={}".format(_clib_get_last_error_str()))
     return _clib_get_last_error(), _clib_get_last_error_str().decode("utf-8")
 
 
@@ -311,7 +309,7 @@ def read_action_request(timeout:int = -1) -> (bool, ActionRequest):
         if e and (timeout == -1):
             log_error("read_action_request failed")
         else:
-            log_info("read_action_request failed. timeout={}".format(timeout))
+            log_info("read_action_request timedout. timeout={}".format(timeout))
         return False, None
 
     return True, ActionRequest(req)

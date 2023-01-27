@@ -25,8 +25,6 @@ import gvars
 
 POLL_TIMEOUT = 2
 
-import test_client
-
 from common import *
 import clib_bind
 import helpers
@@ -569,7 +567,7 @@ def run_a_testcase(test_case:str, testcase_data:{}, default_data:{}):
         # Read valid request
         sres = clib_bind.read_server_message(POLL_TIMEOUT)
         while not sres:
-            log_error("No request read timeout={}".format(POLL_TIMEOUT))
+            log_info("No request read timeout={}".format(POLL_TIMEOUT))
             sres = clib_bind.read_server_message(POLL_TIMEOUT)
 
         res = json.loads(sres)

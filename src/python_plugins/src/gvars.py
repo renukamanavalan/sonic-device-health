@@ -45,4 +45,4 @@ REQ_MITIGATION_STATE_TIMEOUT = "timeout"
 REQ_MITIGATION_STATE_DONE = "complete"
 
 # run type
-MOCK_LIB = False
+MOCK_LIB = True

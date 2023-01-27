@@ -4,8 +4,6 @@ from enum import Enum
 from ctypes import *
 import os
 import select
-import time
-import threading
 
 import gvars
 
@@ -50,11 +48,6 @@ from common import *
 # All requests/responses across are saved in a list capped by size.
 # Each side adding to list, signals the other via a pipe.
 #
-
-# Create this just once and use
-# Each thread transparently gets its own copy
-#
-th_local = threading.local()
 
 CACHE_LIMIT = 100
 
@@ -247,21 +240,21 @@ def _create_cache_services(lst: [str]):
 #
 # Mocker clib server calls
 #
-def server_init(cl: POINTER(c_char_p), cnt: c_int) -> c_int:
+def clib_server_init(cl: POINTER(c_char_p), cnt: c_int) -> c_int:
     clients = []
     for i in cl:
         clients.append(i.decode("utf-8"))
     _create_cache_services(clients)
     _reset_error()
-    return c_int(0) 
+    return 0 
 
 
-def server_deinit():
+def clib_server_deinit():
     lst_cache_services = {}
     _reset_error()
 
 
-def write_server_message_c(bmsg: c_char_p) -> c_int:
+def clib_write_server_message_c(bmsg: c_char_p) -> c_int:
     _reset_error()
     ret = 0;
     msg = bmsg.decode("utf-8")
@@ -284,17 +277,18 @@ def write_server_message_c(bmsg: c_char_p) -> c_int:
         elif not lst_cache_services[cl_name].write_to_client(d):
             ret = _report_error(-1, "Failed to write")
 
-    return c_int(ret)
+    return ret
 
 
-def read_server_message_c(tout : c_int) -> c_char_p:
+def clib_read_server_message_c(tout : c_int) -> c_char_p:
     _reset_error()
     ret_data = ""
 
     lst = list(server_rd_fds)
     r = _poll(lst, tout)
     if not r:
-        _report_error(-1, "read timeout")
+        if (tout == -1):
+            _report_error(-1, "read timeout")
         return "".encode("utf-8")
 
     cl_name = server_rd_fds[r[0]]
@@ -315,14 +309,57 @@ def read_server_message_c(tout : c_int) -> c_char_p:
 
 
 #
+# Mocked common APIs from c-lib
+#
+ct_test_mode = False
+
+def clib_set_test_mode():
+    global ct_test_mode
+
+    ct_test_mode = True
+
+
+def clib_is_test_mode():
+    return ct_test_mode
+    
+
+_set_log_level_val = ct_log_level
+def clib_set_log_level(lvl: c_int):
+    global _set_log_level_val
+
+    _set_log_level_val = lvl.value
+
+
+def clib_get_log_level():
+    return _set_log_level_val
+
+
+def clib_log_write(clvl:c_int, caller:bytes, msg:bytes):
+    lvl = clvl.value
+    if lvl <= clib_get_log_level():
+        tname = getattr(th_local, 'thr_name', threading.current_thread().name)
+        lmsg = "{}:LOM:{}:{}: {}".format(tname, get_log_level_str(lvl),
+                caller.decode("utf-8"), msg.decode("utf-8"))
+        syslog.syslog(lvl, lmsg)
+
+        if (clib_is_test_mode() or (lvl == syslog.LOG_DEBUG)):
+            print(lmsg)
+
+
+
+def clib_set_thread_name(tname: bytes):
+    th_local.thr_name = tname.decode("utf-8");
+
+
+#
 # Mocked clib client calls
 #
 def clib_get_last_error() -> int:
     return test_error_code
 
 
-def clib_get_last_error_str() -> str:
-    return test_error_str
+def clib_get_last_error_str() -> bytes:
+    return test_error_str.encode("utf-8")
 
 
 def _is_initialized():
@@ -359,7 +396,7 @@ def clib_register_client(bcl_name: bytes, fd: c_int) -> c_int:
         if not rc:
             ret = _report_error(-1, "client failed to write register client {}".
                     format(cl_name))
-    return c_int(ret)
+    return ret
 
 
 def clib_deregister_client(bcl_name: bytes) -> c_int:
@@ -382,7 +419,7 @@ def clib_deregister_client(bcl_name: bytes) -> c_int:
         th_local.cl_name = None
         th_local.actions = None
 
-    return c_int(ret)
+    return ret
 
 
 def clib_register_action(baction_name: bytes) -> c_int:
@@ -404,7 +441,7 @@ def clib_register_action(baction_name: bytes) -> c_int:
         if not rc:
             ret = _report_error(-3, "client failed to write register action {}/{}".
                     format(th_local.cl_name, action_name))
-    return c_int(ret)
+    return ret
 
 
 def clib_touch_heartbeat(baction_name:bytes, binstance_id: bytes) -> c_int:
@@ -430,7 +467,7 @@ def clib_touch_heartbeat(baction_name:bytes, binstance_id: bytes) -> c_int:
             ret = _report_error(-3, "client failed to write heartbeat {}/{}/{}".
                     format(th_local.cl_name, action_name, instance_id))
 
-    return c_int(ret)
+    return ret
 
 
 def clib_read_action_request(timeout:int) -> bytes:
@@ -462,7 +499,7 @@ def clib_write_action_response(resp: bytes) -> c_int:
         if not rc:
             ret = _report_error(-3, "client failed to write response {}".
                     format(th_local.cl_name))
-    return c_int(ret)
+    return ret
 
 
 
@@ -486,6 +523,6 @@ def clib_poll_for_data(fds: POINTER(c_int), cnt: c_int,
         for i in range(ret):
             ready_fds[i] = r[i]
 
-    return c_int(ret)
+    return ret
 
 

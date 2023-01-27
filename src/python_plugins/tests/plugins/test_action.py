@@ -11,7 +11,6 @@ import sys
 import time
 
 from common import *
-import test_client
 import gvars
 import clib_bind
 
