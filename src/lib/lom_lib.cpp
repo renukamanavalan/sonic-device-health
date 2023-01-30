@@ -45,7 +45,11 @@ create_server_msg(const string msg)
     } else if (type == REQ_ACTION_RESPONSE) {
         req.reset(new ActionResponse());
     } else if (type == REQ_ACTION_REQUEST) {
-        req.reset(new ActionRequest());
+        if (data[REQ_ACTION_TYPE] == REQ_ACTION_TYPE_SHUTDOWN) {
+            req.reset(new ShutdownRequest());
+        } else {
+            req.reset(new ActionRequest());
+        }
     } else {
         RET_ON_ERR(false, "Create message failed unknown type=(%s)", type.c_str());
     }
@@ -56,9 +60,7 @@ create_server_msg(const string msg)
         RET_ON_ERR("Failed to set. Type(%s) key(%s) val(%s)",
                 type.c_str(), itc->first.c_str(), itc->second.c_str());
     }
-
     RET_ON_ERR(req->validate(), "req (%s) failed to validate", msg.c_str());
-
     ret = req;
 out:
     return ret;
@@ -89,7 +91,8 @@ ServerMsg::set(const std::string key, const std::string val)
     keys_set_itc itc = m_reqd_keys.find(key);
     if (itc == m_reqd_keys.end()) {
         itc = m_opt_keys.find(key);
-        RET_ON_ERR(itc != m_opt_keys.end(), "Unexpected key %s", key.c_str());
+        RET_ON_ERR(itc != m_opt_keys.end(), "Unexpected key %s val:%s",
+                key.c_str(), val.c_str());
     }
     else {
         RET_ON_ERR(!val.empty(), "required key %s val is empty", key.c_str());
@@ -249,19 +252,27 @@ read_action_request(int timeout)
     s_msg.clear();
     RET_ON_ERR(s_client_tx != NULL, "No transport to server");
 
-    rc = s_client_tx->read(msg);
+    rc = s_client_tx->read(msg, timeout);
     RET_ON_ERR(rc == 0, "Failed to read msg from engine");
 
-    req = create_server_msg(msg);
-    RET_ON_ERR(req != NULL, "failed to create req from (%s)", msg.c_str());
+    if (!msg.empty()) {
+        DROP_TEST("msg=%s", msg.c_str());
+        req = create_server_msg(msg);
+        RET_ON_ERR(req != NULL, "failed to create req from (%s)", msg.c_str());
 
-    RET_ON_ERR(req->validate(), "req (%s) failed to validate", msg.c_str());
+        RET_ON_ERR(req->validate(), "req (%s) failed to validate", msg.c_str());
 
-    req_client = req->get(REQ_CLIENT_NAME);
-    RET_ON_ERR(s_registered.client_name == req_client, "Read req_client(%s) != client(%s)",
-           s_registered.client_name.c_str(), req_client.c_str());
+        req_client = req->get(REQ_CLIENT_NAME);
+        RET_ON_ERR(s_registered.client_name == req_client, "Read req_client(%s) != client(%s)",
+               s_registered.client_name.c_str(), req_client.c_str());
+    } else {
+        DROP_TEST("Empty message read");
+        RET_ON_ERR(timeout >= 0, "Failing to read for blocking read timeout=%d",
+                timeout);
+    }
     s_msg = msg;
 out:
+    DROP_TEST("read_action_request return (%s)", s_msg.c_str());
     return s_msg.c_str();
 }
 
@@ -276,15 +287,10 @@ write_action_response(const char *res)
     RET_ON_ERR(s_client_tx != NULL, "No transport to server");
 
     msg = create_server_msg(str_res);
+    RET_ON_ERR(msg != NULL, "req (%s) failed to create message", res);
     RET_ON_ERR(msg->validate(), "req (%s) failed to validate", res);
 
-    rc = msg->set(REQ_CLIENT_NAME, s_registered.client_name);
-    RET_ON_ERR(rc == 0, "Failed to set client name %s",
-            s_registered.client_name.c_str());
-
-    RET_ON_ERR(msg->validate(), "req (%s) failed to validate", res);
-
-    rc = s_client_tx->write(msg->to_str());
+    rc = s_client_tx->write(str_res);
     RET_ON_ERR(rc == 0, "Failed to write action response");
 out:
     return rc;
@@ -309,6 +315,16 @@ server_init(const vector<string> &clients)
 out:
     return rc;
 }
+
+int server_init_c(const char *clients[], int cnt)
+{
+    /* array -> set -> vec cuts off duplicates */
+    unordered_set<string> s({clients, clients+cnt});
+    vector<string> lst({s.begin(), s.end()});
+
+    return server_init(lst);
+}
+
 
 void
 server_deinit()
@@ -365,11 +381,16 @@ read_server_message(int timeout)
     rc = s_server_tx->read(client_id, str_msg, timeout);
     RET_ON_ERR(rc == 0, "Failed to read from transport");
 
-    msg = create_server_msg(str_msg);
+    if (!str_msg.empty()) {
+        msg = create_server_msg(str_msg);
 
-    RET_ON_ERR(msg->validate(), "req (%s) failed to validate", str_msg.c_str());
+        RET_ON_ERR(msg != NULL, "req (%s) failed to create message", str_msg.c_str());
+        RET_ON_ERR(msg->validate(), "req (%s) failed to validate", str_msg.c_str());
 
-    ret = msg;
+        ret = msg;
+    } else {
+        RET_ON_ERR(timeout >= 0, "Failed to read with no timeout=%d", timeout);
+    }
 out:
     return ret;
 }

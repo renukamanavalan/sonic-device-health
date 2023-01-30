@@ -25,6 +25,8 @@ class ServerMsg {
 
         RequestType_t get_type() const { return m_type; }
 
+        virtual bool is_shutdown() const { return false; }
+
         virtual bool validate() const;
 
         virtual std::string get(const std::string key) const {
@@ -85,7 +87,7 @@ class ActionRequest : public ServerMsg {
     public:
         ActionRequest(): ServerMsg(REQ_ACTION_REQUEST) {
             m_reqd_keys = {
-                REQ_CLIENT_NAME, REQ_ACTION_NAME, REQ_INSTANCE_ID,
+                REQ_CLIENT_NAME, REQ_ACTION_NAME, REQ_ACTION_TYPE, REQ_INSTANCE_ID,
                 REQ_ANOMALY_INSTANCE_ID };
 
             m_opt_keys = {
@@ -94,13 +96,23 @@ class ActionRequest : public ServerMsg {
 };
 
 
+class ShutdownRequest : public ServerMsg {
+    public:
+        ShutdownRequest(): ServerMsg(REQ_ACTION_REQUEST) {
+            m_reqd_keys = { REQ_CLIENT_NAME, REQ_ACTION_TYPE };
+        };
+        virtual bool is_shutdown() const { return true; }
+};
+
+
 class ActionResponse : public ServerMsg {
     public:
         ActionResponse(): ServerMsg(REQ_ACTION_RESPONSE) {
             m_reqd_keys = {
-                REQ_CLIENT_NAME, REQ_ACTION_NAME, REQ_INSTANCE_ID,
-                REQ_ANOMALY_INSTANCE_ID, REQ_ANOMALY_KEY, 
-                REQ_ACTION_DATA, REQ_RESULT_CODE, REQ_RESULT_STR };
+                REQ_CLIENT_NAME, REQ_ACTION_NAME, REQ_ACTION_TYPE,
+                REQ_INSTANCE_ID, REQ_ANOMALY_INSTANCE_ID, REQ_ANOMALY_KEY, 
+                REQ_ACTION_DATA, REQ_RESULT_CODE };
+            m_opt_keys = { REQ_RESULT_STR };
         };
 };
 

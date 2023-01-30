@@ -137,6 +137,7 @@ class mock_peer
 
 typedef shared_ptr<mock_peer> mock_peer_ptr_t;
 
+// TODO: Test failing cases, like calling read_action_request/poll when no data with timeout
 static int
 test_client(const string cmd, const vector<string> args)
 {
@@ -411,8 +412,10 @@ int main(int argc, const char **argv)
 {
     int rc = 0;
     string tcfile(argc > 1 ? argv[1] : TEST_CASE_FILE);
+    int log_lvl = argc > 2 ? stoi(argv[2]) : LOG_DEBUG;
 
     set_test_mode();
+    set_log_level(log_lvl);
 
     ifstream f(tcfile.c_str());
     json data = json::parse(f, nullptr, false);
@@ -425,8 +428,9 @@ int main(int argc, const char **argv)
     rc = run_server_testcases(data.value("server_test_cases", json()));
     RET_ON_ERR(rc == 0, "run_server_testcases failed rc=%d", rc);
 
-    LOM_LOG_INFO("SUCCEEDED in running test cases");
 out:
+    LOM_LOG_INFO("%s in running test casess rc=%d",
+            (rc == 0 ? "SUCCEEDED" : "FAILED"), rc);
     return rc;
 }
 

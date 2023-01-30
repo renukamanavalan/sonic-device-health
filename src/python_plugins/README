@@ -1,0 +1,2 @@
+./tests/test_main.py <--- to run the test
+Make sure only test actions are enabled in tests/test_data/test_data.json inside "test-main-run"

@@ -145,16 +145,31 @@ int poll_for_data(const fd_t *lst_fds, int cnt,
         p->events = POLLIN;
     }
 
+    if (is_test_mode()) {
+        stringstream ss;
+        ss << "{ ";
+        p = fds;
+        for(int i=0; i<cnt; ++i, ++p) {
+            ss << p->fd << " ";
+        }
+        ss << "}";
+        DROP_TEST("lom_lib: poll_for_data START timeout(%d) %s",
+                timeout, ss.str().c_str());
+    }
+
     rc = poll (fds, cnt, TO_MS(timeout));
+    DROP_TEST("lom_lib: poll_for_data rc=%d", rc);
     RET_ON_ERR(rc >= 0, "Poll failed");
 
     if (rc != 0) {
         p = fds;
         for(int i=0; (i < cnt); ++i, ++p) {
-            if (p->revents & (POLLIN|POLLERR|POLLHUP)) {
+            if (p->revents & POLLIN) {
                 ready_fds[ready_cnt++] = p->fd;
+                DROP_TEST("lom_lib: poll_for_data ready fd=%d", p->fd);
             } else if (p->revents & (POLLNVAL|POLLERR|POLLHUP)) {
                 err_fds[err_cnt++] = p->fd;
+                DROP_TEST("lom_lib: poll_for_data ERR fd=%d", p->fd);
             }
         }
     }
@@ -162,6 +177,7 @@ int poll_for_data(const fd_t *lst_fds, int cnt,
     *err_fds_cnt = err_cnt;
 
 out:
+    DROP_TEST("lom_lib: poll_for_data EXIT rc=%d", rc);
     return rc;
 }
 
@@ -188,12 +204,13 @@ class reader_writer
                 /* poll for fd with data */
 
                 rc = poll_for_data(&m_lst[0], m_lst.size(), &m_ready[0], &m_ready_cnt,
-                        &m_err[0], &tcnt);
+                        &m_err[0], &tcnt, timeout);
                 RET_ON_ERR(rc != -1, "Poll failed in reader");
                 m_ready_index = 0;
             }
             if (rc == 0) {
                 LOM_LOG_DEBUG("Read timed out list sz=%d", m_lst.size());
+                fd = -1;
             } else {
                 fd = m_ready[m_ready_index++];
                 m_ready_cnt--;
@@ -351,12 +368,14 @@ class transportImpl : public server_transport, public client_transport
             int fd;
             int rc = m_reader_writer->read_data(timeout, msg, fd);
             RET_ON_ERR(rc == 0, "read_data failed fd=%d", fd);
+            DROP_TEST("fd=%d", fd);
             if (fd >= 0) {
                 client_id = m_rclients[fd];
             } else {
                 /* timeout occurred */
                 client_id = string();
                 msg = string();
+                DROP_TEST("msg cleared");
             }
         out:
             return rc;
@@ -432,6 +451,8 @@ transportImpl::create_a_fd(bool c2e, const string client)
 
         m_rfds[client] = fd;
         m_rclients[fd] = client;
+        DROP_TEST("client=%s is_client=%d rfd=%d", client.c_str(), is_client(), fd);
+
     } else {
         /*
          * Pause wr_fd creation until first write request.

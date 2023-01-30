@@ -6,10 +6,11 @@ import os
 import sys
 import syslog
 import time
-from threading import current_thread
+import threading
 from typing import NamedTuple
 
-import gvars
+# Global thread local object created once and used by all
+th_local = threading.local()
 
 # python_proc overrides this path via args, if provided.
 GLOBAL_RC_FILE = "/etc/LoM/global.rc.json"
@@ -49,26 +50,36 @@ _lvl_to_str = [
         "Debug"
     ]
 
+def get_log_level_str(lvl:int):
+    return _lvl_to_str[lvl] if lvl < len(_lvl_to_str) else "UNKNOWN_LVL"
+
 
 ct_log_level = syslog.LOG_ERR
 
-def set_log_level(lvl:int):
-    global ct_log_level
+def _default_log_fn(lvl: int, caller: str, msg: str):
+    if lvl <= ct_log_level:
+        syslog.syslog(lvl, "{}: {}".format(caller, msg))
+        print("{}: {}".format(caller, msg)) 
+
+log_wr_fn = _default_log_fn
+
+def set_log_info(lvl: int, wrfn):
+    global ct_log_level, log_wr_fn
 
     ct_log_level = lvl
+    log_wr_fn = wrfn
 
 
 def _log_write(lvl: int, msg:str):
     if lvl <= ct_log_level:
-        syslog.syslog(lvl, msg)
         stk = stack()[2]
         fname = os.path.basename(stk.filename)
         if (fname in [ "helpers.py" ]) or (stk.function in  [ "_report_error" ]):
             stk = stack()[3]
             fname = os.path.basename(stk.filename)
 
-        print("{}:{}:{}:{}:{}: {}".format(fname, stk.lineno, stk.function,
-            current_thread().name, _lvl_to_str[lvl], msg))
+        caller = "{}:{}".format(fname, stk.lineno)
+        log_wr_fn(lvl, caller, msg)
 
 
 def log_error(msg:str):
@@ -82,6 +93,12 @@ def log_warning(msg:str):
 
 def log_debug(msg:str):
     _log_write(syslog.LOG_DEBUG, msg)
+
+
+def DROP_TEST(msg:str):
+    # smsg = "********** DROP ****** {}".format(msg)
+    # _log_write(syslog.LOG_DEBUG, smsg)
+    pass
 
 
 # *******************************
@@ -237,8 +254,4 @@ def get_plugin_data(action_name:str) -> {}:
         d = d.get(action_name, {})
     return d
 
-
-def set_test_mode():
-    gvars.TEST_RUN = True
-    print("Running in TEST mode ****************")
 
