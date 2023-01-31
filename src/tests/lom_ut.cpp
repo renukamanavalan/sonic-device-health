@@ -5,7 +5,6 @@
 #include <string>
 #include <semaphore.h>
 #include <thread>
-#include <nlohmann/json.hpp>
 #include <unistd.h>
 #include "consts.h"
 #include "common.h"
@@ -417,10 +416,9 @@ int main(int argc, const char **argv)
     set_test_mode();
     set_log_level(log_lvl);
 
-    ifstream f(tcfile.c_str());
-    json data = json::parse(f, nullptr, false);
+    json data = parse_json_file(tcfile);
 
-    RET_ON_ERR(!data.is_discarded(), "Failed to parse file %s", tcfile.c_str());
+    RET_ON_ERR(!data.empty(), "Failed to parse file %s", tcfile.c_str());
 
     rc = run_client_testcases(data.value("client_test_cases", json()));
     RET_ON_ERR(rc == 0, "run_client_testcases failed rc=%d", rc);

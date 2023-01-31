@@ -1,0 +1,7 @@
+The schema here explains action specific data & their inter dependencies with other actions
+
+The action-data published is as per this schema
+This schema also describes configurable knobs for this action.
+
+LOM_ACTIONS::action-specific could carry serialized JSON string of these configurable knobs.
+

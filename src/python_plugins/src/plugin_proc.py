@@ -416,7 +416,10 @@ def main_run(proc_name: str) -> int:
     pipe_list[client_fd] = ""   # Engine's fd
     try:
         for name, path in plugins.items():
-            conf = actions_conf.get(name, {})
+            if name not in actions_conf"
+                log_error("Failed to find config for action {}".format(name))
+                return -1
+            conf = actions_conf[name]
             disabled = conf.get("disable", False)
             if not disabled:
                 pluginHolder = LoMPluginHolder(name, path, conf)

@@ -24,9 +24,11 @@ module actions {
         type enumeration {
             enum anomaly;
             enum safety-check;
-            enum mitigation;
+            enum mitigation;        
+            enum cleanup;
         }
-        description "Type of action";
+        description "Type of action. This is informational only
+                LoM engine does not use this.";
     }
 
     grouping actions-cmn-config {
@@ -66,26 +68,36 @@ module actions {
             type boolean;
             default false;
             configure true;
-            base-entity true;
             description "Disable just this action. Disable = true overrides
-                any, including global switch value for disable.
-                base-entity implies that it is not part of action specific param.";
+                any, including global switch value for disable.";
         }
 
         leaf mimic {
             type boolean;
             default false;
             configure true;
-            base-entity true;
             description "
                 Applicable to mitigations only; Run normally but skip making any changes to switch.
                 The action will publish o/p but with return code stating mimicked.
-                This will provide a great way to have dry runs.
-                base-entity implies that it is not part of action specific param.";
+                This will provide a great way to have dry runs.";
+        }
+
+        leaf mandatory {
+            type boolean;
+            default false;
+            configure true; 
+            description "
+                A plugin is called in mitigation/binding sequence only of all preceding
+                plugins succeed. But some plugins may need to be called irrespective.
+                An example may be resource-cleanup plugin.
+                A value true implies that this is called in sequence mandatorily.
+                This is only a recommendation. The setting in bindings.conf
+                is final.";
         }
     }
 
-    container LoM-Action {
+    container LoM-Action-publish {
+        description: "Schema for publishing";
         leaf timestamp {
             type yang:date-and-time;
             description "time of the event";
@@ -108,31 +120,13 @@ module actions {
                 string which will be the same across all recurrences.
                 No explicit guidelines on the string coining/formatting";
         }
-        leaf action-type {
-            type action-types
-        }
-
-        uses actions-cmn-config;
 
         leaf action-data {
-            description "Action specific data, totally depends on action name";
-
-            type union {
-                type leafref {
-                    path "/anmdhcp:anomalies-dhcp-relay/anmdhcp:dhcp-relay-discard";
-                }
-                type leafref {
-                    path "/anmdhcp:anomalies-dhcp-relay/anmdhcp:dhcp-relay-disparity";
-                }
-                type leafref {
-                    path "/anmdhcp:anomalies-dhcp-relay/anmdhcp:dhcp-relay-bind-failure";
-                }
-                type leafref {
-                    path "/svcrst:mitigations-service-restart/svcrst:service-restart";
-                }
-                type leafref {
-                    path "/svcchk:safetychecks-service-restart/svcchk:service-restart";
-                }
+            type string;
+            description "
+                Action specific data, totally depends on action name
+                JSON serialized data as string.
+                For specific details refer each action's schema";
             }
         }
 
@@ -142,7 +136,6 @@ module actions {
                 enum PENDING;
                 enum IN-PROGRESS;
                 enum COMPLETE;
-                enum NO-LOCAL-MITIGATION;
             }
             description "Anomaly with mitigation available
                 will move as INIT --> [ PENDING -->] [ IN-PROGRESS -->] COMPLETE
