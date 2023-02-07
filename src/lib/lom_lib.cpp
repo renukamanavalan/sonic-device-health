@@ -84,7 +84,22 @@ out:
 }
 
 int
-ServerMsg::set(const std::string key, const std::string val) 
+ServerMsg::set(const map<string, string> &lst) 
+{
+    int rc = 0;
+
+    for(map<string, string>:;const_iterator itc = lst.begin();
+            itc != lst.end(); ++itc) {
+        RET_ON_ERR((rc = set(itc->first, itc->second)) == 0,
+                "Failed to set %s/%s", itc->first.c_str(),
+                itc->second.c_str());
+    }
+out:
+    return rc;
+}
+
+int
+ServerMsg::set(const string key, const string val) 
 {
     int rc = 0;
 

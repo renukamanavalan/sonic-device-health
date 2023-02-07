@@ -54,13 +54,26 @@ extern const char * REQ_RESULT_CODE;
 extern const char * REQ_RESULT_STR;
 
 extern const char * REQ_MITIGATION_STATE;
-extern const char * REQ_MITIGATION_STATE_INIT;
+extern const char * REQ_MITIGATION_STATE_PENDING;
 extern const char * REQ_MITIGATION_STATE_PROG;
 extern const char * REQ_MITIGATION_STATE_TIMEOUT;
 extern const char * REQ_MITIGATION_STATE_DONE;
 
 extern const char * SUB_END_PATH;
 extern const char * PUB_END_PATH;
+
+extern const char * REQ_TIMESTAMP;
+extern const char * REQ_ACTIONS;
+
+
+/* Actions.conf */
+extern const char * ACTION_CONF_TIMEOUT;
+extern const char * ACTION_CONF_DISABLE;
+extern const char * ACTION_CONF_MIMIC;
+extern const char * ACTION_CONF_MANDATORY;
+extern const char * ACTION_CONF_MIN_RECUR;
+extern const char * ACTION_CONF_HB_INTERVAL;
+extern const char * ACTION_CONF_MITIGATION_TIMEOUT;
 
 #ifdef __cplusplus
 }

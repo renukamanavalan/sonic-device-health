@@ -66,27 +66,16 @@ module local-action-info {
                 key "sequence"
                 
                 leaf sequence {
-                    type uint8;
+                    type string;
                     description "Order of running. Lower sequence go before higher";
                 }
         
-                leaf ACTION-NAME {
+                leaf action {
                     type leafref {
                         path "../../LOM_ACTIONS/ACTION-NAME";
                     }
                     description "Name of the action" of the action as
                         <yang module name>:<container name>";
-                }
-                leaf mandatory {
-                    type boolean;
-                    default false;
-                    configure true; 
-                    description "
-                        A plugin is called in mitigation/binding sequence only of all preceding
-                        plugins succeed. But some plugins may need to be called irrespective.
-                        An example may be resource-cleanup plugin.
-                        A value true implies that this is called in sequence mandatorily.
-                        This overrided any action config setting";
                 }
             } 
         } 

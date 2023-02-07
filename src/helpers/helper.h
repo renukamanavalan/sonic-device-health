@@ -8,7 +8,7 @@ extern "C" {
  * As init is async and can take time, it could make publish
  * take longer if it is done right before publish call.
  */
-int lom_init_publish(void);
+int lom_init_publish(const char *csource);
 
 /*
  * Publish the JSON serialized object

@@ -94,7 +94,14 @@ bool json_has_key(const nlohmann::json &data, const std::string key);
  *  False - If either of the above is not true
  */
 template <typename T>
-bool json_get_val(const nlohmann::json &data, const std::string key,
-        T &val);
+bool json_get_val(const nlohmann::json &data, const std::string key, T &val);
+
+/* Get any JSON value as string */
+string json_get_as_string(const json &v);
+
+
+uint64_t get_epoch_secs_now();
+uint64_t get_epoch_millisecs_now();
+
 #endif // _COMMON_H_
 

@@ -53,6 +53,18 @@ module actions {
             default 0;
         }
 
+        leaf mitigation_timeout {
+            type uint16;
+            units seconds;
+            configure true;
+            description "
+                Max time for entire mitigation sequence to complete.
+                On timeot the sequence is aborted and published.
+                <= 0 - No timeout
+                > 0 - Time to complete in seconds";
+            default 0;
+        }
+
         leaf heartbeat-interval {
             type uint8;
             configure true;
@@ -90,10 +102,31 @@ module actions {
                 A plugin is called in mitigation/binding sequence only of all preceding
                 plugins succeed. But some plugins may need to be called irrespective.
                 An example may be resource-cleanup plugin.
-                A value true implies that this is called in sequence mandatorily.
-                This is only a recommendation. The setting in bindings.conf
-                is final.";
+                A value true implies that this is called in sequence mandatorily.";
         }
+
+        leaf min_recurrence {
+            type int;
+            default 300;
+            description "
+                Min interval between two runs for this action for same
+                anomaly key in seconds.
+
+                This puts some sanity, when things are not stable.
+
+                For example, repeated restart of a service as mitigation
+                implies there is some bigger issue. So stop restarting
+                and instead fail.
+
+                Same way re-detecing & publishing same anomaly repeatedly
+                many times within a short interval has no gain, but uses 
+                up resources redundantly.
+
+                A value of <= 0 implies no constraint.
+
+                This is to protect from going in buggy loop of detecting/mitigiating.";
+        }
+            
     }
 
     container LoM-Action-publish {

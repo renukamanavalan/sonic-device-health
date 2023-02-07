@@ -16,7 +16,19 @@ typedef keys_set_t::const_iterator keys_set_itc;
  * Explicit derived classes written per request type.
  *
  */
-typedef std::string RequestType_t;
+typedef enum {
+    REQ_TYPE_REGISTER_CLIENT = 0,
+    REQ_TYPE_DEREGISTER_CLIENT,
+    REQ_TYPE_REGISTER_ACTION,
+    REQ_TYPE_HEARTBEAT,
+    REQ_TYPE_ACTION_REQUEST,
+    REQ_TYPE_SHUTDOWN,
+    REQ_TYPE_ACTION_RESPONSE,
+    REQ_TYPE_COUNT
+} RequestType_t;
+
+extern const char *REQ_TYPE_TO_STR[];
+
 
 class ServerMsg {
     public:
@@ -24,6 +36,9 @@ class ServerMsg {
         virtual ~ServerMsg() {};
 
         RequestType_t get_type() const { return m_type; }
+        const char * get_type_str() const {
+            return m_type < REQ_TYPE_COUNT ?
+                    REQ_TYPE_TO_STR[m_type] : "UNKNOWN"; }
 
         virtual bool is_shutdown() const { return false; }
 
@@ -35,8 +50,9 @@ class ServerMsg {
         }
 
         virtual int set(const std::string key, const std::string val);
+        virtual int set(const map<std::string, std::string} &lst);
 
-        virtual std::string to_str() const { return convert_to_json(m_type, m_data); };
+        virtual std::string to_str() const { return convert_to_json(get_type_str(m_type), m_data); };
 
         bool operator==(const ServerMsg &msg) const;
 
@@ -53,7 +69,7 @@ typedef std::shared_ptr<ServerMsg> ServerMsg_ptr_t;
 
 class RegisterClient : public ServerMsg {
     public:
-        RegisterClient(): ServerMsg(REQ_REGISTER_CLIENT) {
+        RegisterClient(): ServerMsg(REQ_TYPE_REGISTER_CLIENT) {
             m_reqd_keys = { REQ_CLIENT_NAME };
         };
 };
@@ -61,7 +77,7 @@ class RegisterClient : public ServerMsg {
 
 class DeregisterClient : public ServerMsg {
     public:
-        DeregisterClient(): ServerMsg(REQ_DEREGISTER_CLIENT) {
+        DeregisterClient(): ServerMsg(REQ_TYPE_DEREGISTER_CLIENT) {
             m_reqd_keys = { REQ_CLIENT_NAME };
         };
 };
@@ -69,7 +85,7 @@ class DeregisterClient : public ServerMsg {
 
 class RegisterAction : public ServerMsg {
     public:
-        RegisterAction(): ServerMsg(REQ_REGISTER_ACTION) {
+        RegisterAction(): ServerMsg(REQ_TYPE_REGISTER_ACTION) {
             m_reqd_keys = { REQ_CLIENT_NAME, REQ_ACTION_NAME };
         };
 };
@@ -77,7 +93,7 @@ class RegisterAction : public ServerMsg {
 
 class HeartbeatClient : public ServerMsg {
     public:
-        HeartbeatClient(): ServerMsg(REQ_HEARTBEAT) {
+        HeartbeatClient(): ServerMsg(REQ_TYPE_HEARTBEAT) {
             m_reqd_keys = { REQ_CLIENT_NAME, REQ_ACTION_NAME, REQ_INSTANCE_ID };
         };
 };
@@ -85,7 +101,7 @@ class HeartbeatClient : public ServerMsg {
 
 class ActionRequest : public ServerMsg {
     public:
-        ActionRequest(): ServerMsg(REQ_ACTION_REQUEST) {
+        ActionRequest(): ServerMsg(REQ_TYPE_ACTION_REQUEST) {
             m_reqd_keys = {
                 REQ_CLIENT_NAME, REQ_ACTION_NAME, REQ_ACTION_TYPE, REQ_INSTANCE_ID,
                 REQ_ANOMALY_INSTANCE_ID };
@@ -98,7 +114,7 @@ class ActionRequest : public ServerMsg {
 
 class ShutdownRequest : public ServerMsg {
     public:
-        ShutdownRequest(): ServerMsg(REQ_ACTION_REQUEST) {
+        ShutdownRequest(): ServerMsg(REQ_TYPE_SHUTDOWN) {
             m_reqd_keys = { REQ_CLIENT_NAME, REQ_ACTION_TYPE };
         };
         virtual bool is_shutdown() const { return true; }
@@ -107,12 +123,12 @@ class ShutdownRequest : public ServerMsg {
 
 class ActionResponse : public ServerMsg {
     public:
-        ActionResponse(): ServerMsg(REQ_ACTION_RESPONSE) {
+        ActionResponse(): ServerMsg(REQ_TYPE_ACTION_RESPONSE) {
             m_reqd_keys = {
                 REQ_CLIENT_NAME, REQ_ACTION_NAME, REQ_ACTION_TYPE,
-                REQ_INSTANCE_ID, REQ_ANOMALY_INSTANCE_ID, REQ_ANOMALY_KEY, 
+                REQ_INSTANCE_ID, REQ_ANOMALY_INSTANCE_ID, 
                 REQ_ACTION_DATA, REQ_RESULT_CODE };
-            m_opt_keys = { REQ_RESULT_STR };
+            m_opt_keys = { REQ_ANOMALY_KEY, REQ_RESULT_STR };
         };
 };
 

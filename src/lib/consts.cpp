@@ -37,6 +37,7 @@ const char * REQ_RESULT_CODE = "result_code";
 const char * REQ_RESULT_STR = "result_str";
 
 const char * REQ_MITIGATION_STATE = "state";
+const char * REQ_MITIGATION_STATE_PENDING = "pending";
 const char * REQ_MITIGATION_STATE_INIT = "init";
 const char * REQ_MITIGATION_STATE_PROG = "in-progress";
 const char * REQ_MITIGATION_STATE_TIMEOUT = "timeout";
@@ -44,4 +45,26 @@ const char * REQ_MITIGATION_STATE_DONE = "complete";
 
 const char * SUB_END_PATH = "tcp://127.0.0.1:5572";
 const char * PUB_END_PATH = "tcp://127.0.0.1:5570";
+
+const char * REQ_TIMESTAMP = "timestamp"
+const char * REQ_ACTIONS = "actions"
+
+const char *REQ_TYPE_TO_STR[REQ_TYPE_COUNT] = {
+    "REQ_REGISTER_CLIENT",
+    "REQ_DEREGISTER_CLIENT",
+    "REQ_REGISTER_ACTION",
+    "REQ_HEARTBEAT",
+    "REQ_ACTION_REQUEST",     /* request type is same for shutdown as action */
+    "REQ_ACTION_REQUEST",
+    "REQ_ACTION_RESPONSE"
+};
+
+
+const char * ACTION_CONF_TIMEOUT = "timeout";
+const char * ACTION_CONF_DISABLE = "disable";
+const char * ACTION_CONF_MIMIC = "mimic";
+const char * ACTION_CONF_MANDATORY = "mandatory";
+const char * ACTION_CONF_MIN_RECUR = "min_recurrence";
+const char * ACTION_CONF_HB_INTERVAL = "heartbeat-interval";
+const char * ACTION_CONF_MITIGATION_TIMEOUT = "mitigation_timeout";
 

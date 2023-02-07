@@ -6,7 +6,9 @@
 #include "common.h"
 #include "client.h"
 
+using namespace std;
 using json = nlohmann::json;
+using namespace chrono;
 
 #define DEFAULT_IDENTITY "LoM"
 #define LOG_FACILITY LOG_LOCAL0
@@ -16,9 +18,6 @@ static int s_log_level = LOG_ERR;
 static bool s_log_initialized = false;
 
 static bool s_test_mode = false;
-
-using namespace std;
-
 
 void set_log_level(int lvl)
 {
@@ -335,4 +334,20 @@ T json_get_val(const nlohmann::json &data, const std::string key,
 }
 
 
+string
+json_get_as_string(const json &v)
+{
+    return v.is_string() ? v.get<string>() : v.dump();
+}
+
+
+uint64_t get_epoch_secs_now()
+{
+    return duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
+}
+
+uint64_t get_epoch_millisecs_now()
+{
+    return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+}
 
