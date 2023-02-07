@@ -1,0 +1,10 @@
+Layout:
+
+1) src -- Has all the source code.
+2) src/lib -- C-lib source
+3) src/test -- UT for lib & server
+4) src/server -- Engine code
+5) Python-plugins  -- Plugin manager, the plugins and the test code
+6) Rust-plugin -- TODO  Plugin manager, the plugins and the test code
+6) GO-plugin -- TODO  Plugin manager, the plugins and the test code
+6) C-plugin -- TODO  Plugin manager, the plugins and the test code

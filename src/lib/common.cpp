@@ -3,11 +3,12 @@
 #include <syslog.h>
 #include <sstream>
 #include <fstream>
-#include <nlohmann/json.hpp>
 #include "common.h"
 #include "client.h"
 
+using namespace std;
 using json = nlohmann::json;
+using namespace chrono;
 
 #define DEFAULT_IDENTITY "LoM"
 #define LOG_FACILITY LOG_LOCAL0
@@ -17,9 +18,6 @@ static int s_log_level = LOG_ERR;
 static bool s_log_initialized = false;
 
 static bool s_test_mode = false;
-
-using namespace std;
-
 
 void set_log_level(int lvl)
 {
@@ -251,5 +249,105 @@ convert_from_json(const string json_str, string &key, map_str_str_t &params)
     RET_ON_ERR(rc == 0, "Failed to get params key=%s", key.c_str());
 out:
     return rc;
+}
+
+
+/* JSON helpers */
+
+json
+parse_json_file(const std::string fpath)
+{
+    int rc = 0;
+
+    ifstream ifs(fpath);
+    RET_ON_ERR (ifs.is_open(), "Failed to open (%s)", fpath.c_str());
+
+    try {
+        return json::parse(ifs);
+    } catch (json::parse_error& ex) {
+        RET_ON_ERR(false, "Failed to parse %s: %s", fpath.c_str(), ex.what());
+    }
+out:
+    return json();
+}
+
+
+/*
+ * Return JSON object upon parsing input string. The object will be empty
+ * on failure to parse. Use get_last_error for details.
+ */
+json
+parse_json_str(const std::string json_str)
+{
+    int rc = 0;
+
+    try {
+        return json::parse(json_str);
+    } catch (json::parse_error& ex) {
+        RET_ON_ERR(false, "Failed to parse %s: %s",
+                    json_str.substr(0, 20).c_str(), ex.what());
+    }
+out:
+    return json();
+}
+
+
+/* Helpers to get data from JSON object */
+bool
+json_has_key(const json &data, const string key)
+{
+    return data.find(key) != data.end() ? true : false;
+}
+
+
+/* For Key value:
+ * Explicit type conversion between the JSON value and a compatible value which
+ * is CopyConstructible and DefaultConstructible. The value is converted by
+ * calling the json_serializer<ValueType> from_json() method.
+ * For more detail refer: /usr/include/nlohmann/json.hpp (@brief get a value (explicit))
+ *
+ * ref: https://json.nlohmann.me/api/basic_json/type/
+ * Available types:
+ *  Value type                  return value
+ *  ----------------------------------------
+ *   null                       value_t::null
+ *   boolean                    value_t::boolean
+ *   string                     value_t::string
+ *   number (integer)           value_t::number_integer
+ *   number (unsigned integer)  value_t::number_unsigned
+ *   number (floating-point)    value_t::number_float
+ *   object                     value_t::object
+ *   array                      value_t::array  returne as vector<...>
+ *    binary                     value_t::binary
+ *
+ * e.g.     result = d.value(key, vector<string>());
+ *
+ * Return:
+ *  True - If key exists & conversion succeeds.
+ *  False - If either of the above is not true
+ */
+template <typename T>
+T json_get_val(const nlohmann::json &data, const std::string key,
+        T&& defval)
+{
+    return data.value(key, defval);
+}
+
+
+string
+json_get_as_string(const json &v)
+{
+    return v.is_string() ? v.get<string>() : v.dump();
+}
+
+
+uint64_t get_epoch_secs_now()
+{
+    return duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
+}
+
+uint64_t get_epoch_millisecs_now()
+{
+    return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 }
 

@@ -66,11 +66,11 @@ module local-action-info {
                 key "sequence"
                 
                 leaf sequence {
-                    type uint8;
+                    type string;
                     description "Order of running. Lower sequence go before higher";
                 }
         
-                leaf ACTION-NAME {
+                leaf action {
                     type leafref {
                         path "../../LOM_ACTIONS/ACTION-NAME";
                     }

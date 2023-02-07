@@ -1,3 +1,4 @@
+LOM_ACTION_BINDINGS seems to cover everything
 module local-action-binding {
     namespace "http://github.com/sonic-net/sonic-action-binding";
     prefix actbnd;
