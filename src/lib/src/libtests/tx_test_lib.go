@@ -1,12 +1,12 @@
 package main
 
 import (
-    "errors"
-    "fmt"
-    "transport"
-    "client_transport"
+    - "errors"
+    - "fmt"
+    "lom/common"
 )
 
+/*
 type TestClientData struct {
     type    transport.MsgType
     args    []string
@@ -107,5 +107,11 @@ func main()
     else {
         log.Printf("SUCCEEDED\n")
     }
+}
+
+*/
+
+func main() {
+   common.LogDebug("Debug message") 
 }
 

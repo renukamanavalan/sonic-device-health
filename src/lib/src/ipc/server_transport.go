@@ -1,4 +1,4 @@
-package transport
+package lomipc
 
 import (
     "errors"
@@ -47,11 +47,11 @@ const (
     TypeActionOutput
     TypeActionHeartbeat
     TypeReceiverResponse
-    TypeShutdown,
+    TypeShutdown
     TypeCount
 )
 
-MsgTypeToStr := [TypeCount]string{
+var MsgTypeToStr = [TypeCount]string {
     "None",
     "RegisterClient",
     "RegisterAction",
@@ -61,18 +61,17 @@ MsgTypeToStr := [TypeCount]string{
     "ActionOutput",
     "ActionHeartbeat",
     "ReceiverResponse",
-    "Shutdown"
-}
+    "Shutdown" }
 
 type Msg struct {
     Type    MsgType
     Client  string
     Action  string
 
-    chResponse  chan interface
+    chResponse  chan interface{}
 }
 
-type MsgActionInput {
+type MsgActionInput struct {
     Msg
     InstanceId          string
     AnomalyInstanceId   string
@@ -81,7 +80,7 @@ type MsgActionInput {
     timeout             int
 }
 
-type MsgActionOutput {
+type MsgActionOutput struct {
     Msg
     InstanceId          string
     AnomalyInstanceId   string
@@ -98,7 +97,7 @@ type MsgActionOutput {
  */
 type LoMTransport struct {
     ServerCh    chan interface{}
-    ClientsCh   map[string]chan interface
+    ClientsCh   map[string]chan interface{}
 }
 
 type Reply struct {
@@ -110,23 +109,23 @@ type Reply struct {
 /* RPC call from client */
 func (tr *LoMTransport) SendToServer(msg *Msg, reply *Reply) error {
 
-    type := msg.Type
+    mtype := msg.Type
+    clientName := msg.Client
 
-    if type == TypeRegClient {
-        delete(tr->ClientsCh, client)
-        tr->ClientsCh[client] = make (chan interface{})
+    if mtype == TypeRegClient {
+        delete(tr.ClientsCh, clientName)
+        tr.ClientsCh[clientName] = make (chan interface{})
+    } else if _, ok := tr.ClientsCh[clientName]; !ok {
+        return errors.New("Client is not registered yet " + clientName + ": " + MsgTypeToStr(mtype))
     }
-    else if _, ok := tr->ClientsCh[client]; !ok {
-        return errors.New("Client is not registered yet " + MsgTypeToStr(type))
-    }
-    msg.chResponse = make(chan, Reply)
+    msg.chResponse = make(chan Reply)
     tr.ServerCh <- msg
 
     /* Wait for server response */
     *reply = <- msg.chResponse
 
-    if type == TypeDeregClient {
-        delete(tr->ClientsCh, client)
+    if mtype == TypeDeregClient {
+        delete(tr.ClientsCh, clientName)
     }
 
     return nil
@@ -134,15 +133,16 @@ func (tr *LoMTransport) SendToServer(msg *Msg, reply *Reply) error {
 
 /* RPC call from client */
 func (tr *LoMTransport) readFromServer(msg *Msg, reply *Msg) error {
-    if ch, ok := tr->ClientsCh[client]; ok {
+    if ch, ok := tr.ClientsCh[client]; ok {
         *reply = <-ch
-        if msg.chResponse:
+        if msg.chResponse {
             /* If server need response, send upon client reading it */
             msg.chResponse <- "Done"
             msg.chResponse = nil
+        }
         return nil
     } else {
-        return errors.New("Client is not registered yet " + msg.Client))
+        return errors.New("Client is not registered yet " + msg.Client)
     }
 }
 
@@ -167,14 +167,14 @@ func (tr *LoMTransport) ReadFromClient(ch chan interface{}) *Msg {
 func (tr *LoMTransport) SendToClient(msg *Msg) error {
     client := msg.Client
 
-    if ch, ok := tr->ClientsCh[client]; ok {
-        *reply = ch <- msg
+    if ch, ok := tr.ClientsCh[client]; ok {
+        ch <- msg
     } else {
-        return errors.New("Client is not registered yet " + client + " " + MsgTypeToStr(type))
+        return errors.New("Client is not registered yet " + client + " " + MsgTypeToStr(msg.Type))
     }
 }
 
-func ServerInit() *LoMTransport, errors {
+func ServerInit() (*LoMTransport, error) {
     tr := new(LoMTransport)
     
     tr.ServerCh = make(chan interface{})
