@@ -1,6 +1,7 @@
-package common
+package lomcommon
 
 import (
+    "errors"
     "fmt"
     "log"
     "log/syslog"
@@ -76,5 +77,12 @@ func LogInfo(s string, a ...interface{})  {
 
 func LogDebug(s string, a ...interface{})  {
     LogMessage(syslog.LOG_DEBUG, s, a...)
+}
+
+
+func GetError(s string, a ...interface{}) error {
+    e := fmt.Sprintf(s, a...)
+    LogError(e)
+    return errors.New(e)
 }
 

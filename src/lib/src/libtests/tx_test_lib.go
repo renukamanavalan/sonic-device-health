@@ -1,21 +1,20 @@
 package main
 
 import (
-    - "errors"
-    - "fmt"
-    "lom/common"
+    . "lomcommon"
+    . "lomipc"
+    "strconv"
 )
 
-/*
 type TestClientData struct {
-    type    transport.MsgType
-    args    []string
-    result  client_transport.ServerResult
+    ReqType     ReqDataType  /* Req type to call */
+    Args        []string            /* Args needed for the call */
+    Failed      bool                /* Expect to fail or succeed */
 }
 
 type TestServerData struct {
-    transport.Msg
-    transport.Reply
+    Req     LoMRequest
+    Res     LoMResponse             /* LoMResponse to send back */
 }
 
 type TestData struct {
@@ -24,94 +23,63 @@ type TestData struct {
 }
 
 var testData = [1]TestData {
-            {   TestClientData { transport.TypeRegClient, []string{"Foo"}, 
-                        client_transport.ServerResult{0, ""}},
-                TestServerData { transport.Msg { transport.TypeRegClient, "Foo", ""},
-                        transport.Reply { 0, "" } }}}
+            {   TestClientData { TypeRegClient, []string{"Foo", "2"},  false },
+                TestServerData { LoMRequest { TypeRegClient, "foo", 2, MsgRegClient {} },
+                        LoMResponse { 0, "Succeeded", nil } } }}
 
 
 
-func testClient(ch chan interface{}, chRes chan int) {
-    txClient = &client_transport.ClientTx
-    ret := 0
+func testClient(chRes chan interface{}) {
+    txClient := &ClientTx{nil, ""}
 
     for i := 0; i < len(testData); i++ {
         tdata := &testData[i]
-        var res *client_transport.ServerResult
-        var err errors
 
-        switch tdata.type {
+        switch tdata.ReqType {
         case TypeRegClient:
-            res, err = txClient.RegisterClient(tdata.args[0])
+            if len(tdata.Args) != 2 {
+                LogPanic("client: tid:%d: Expect 2 args for register client", i, len(tdata.Args[1]))
+            }
+            if tout, err := strconv.Atoi(tdata.Args[1]); err == nil {
+                err := txClient.RegisterClient(tdata.Args[0], tout)
+                if (err != nil) == tdata.Failed {
+                    LogPanic("client: tid:%d err=%v failed=%v", i, err, tdata.Failed)
+                }
+            } else {
+                LogPanic("client: tid:%d Expect int val (%s) for timeout", tdata.Args[1], i)
+            }
         default:
-            log.fatal("TODO - Not yet implemented (%d)", tdata.type)
-        }
-
-        if (err != nil) {
-            ret = -1
-            log.Printf("%d: Type(%d) Failed err(%v)", i, tdata.type, err)
-        } else if (*res != tdata.result) {
-            log.Printf("%d: Type(%d) Failed to match res(%v) != exp(%v)",
-                    i, tdata.type, res, tdata.result)
-            ret = -2
-        }
-        if ret {
-            ch <- "failed"
-            break
+            LogPanic("TODO - Not yet implemented (%d)", tdata.ReqType)
         }
     }
-    chRes <- ret
+    chRes <- struct {}{}
 }
 
-
-func main()
-{
-    ret := 0
-    tx, err := transport.ServerInit()
-    if err != nil {
-        log.Fatal("Failed to init server")
-    }
-    ch := make(chan interface{})
-    chResult := make(chan int)
-
-    go testClient(ch, chResult)
-
-    go func abort(tout int) {
-        time.Sleep(tout * time.Second)
-        ch <- "Abort"
-    }(10)
-
-    for i := 0; i < len(testData); i++ {
-        tdata := &testData[i]
-
-        p := tx.ReadFromClient(ch)
-        if p == nil {
-            log.Printf("ReadFromClient returned nil")
-            ret = -1
-            break
-        }
-        if (*p != tdata.TestServerData.Msg) {
-            log.Printf("Server: %d: Type(%d) Failed to match msg(%v) != exp(%v)",
-                                i, tdata.type, *p, tdata.TestServerData.Msg)
-            ret = -1
-            break
-        }
-        msg.ch <- tdata.transport.Reply
-    }
-
-    if ret != 0 {
-        log.Printf("main/test-server failed")
-    } else if ret = <- chResult; ret {
-        log.Printf("testClient failed")
-    }
-    else {
-        log.Printf("SUCCEEDED\n")
-    }
-}
-
-*/
+const readTimeoutSeconds = 2
 
 func main() {
-   common.LogDebug("Debug message") 
+    tx, err := ServerInit()
+    if err != nil {
+        LogPanic("Failed to init server")
+    }
+    chResult := make(chan interface{})
+
+    go testClient(chResult)
+
+    for i := 0; i < len(testData); i++ {
+        tdata := &testData[i]
+
+        p := tx.ReadClientRequest(readTimeoutSeconds)
+        if p == nil {
+            LogPanic("Server: tid:%d ReadClientRequest returned nil", i)
+        }
+        if (*p.Req != tdata.Req) {
+            LogPanic("Server: tid:%d: Type(%d) Failed to match msg(%v) != exp(%v)",
+                                i, tdata.ReqType, p.Req, tdata.Req)
+        }
+        p.ChResponse <- tdata.Res
+    }
+
+    LogDebug("SUCCEEDED")
 }
 

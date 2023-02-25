@@ -1,5 +1,6 @@
 #! /bin/bash
 
+# may have to set GO111MODULE=off
 
 export GOPATH=$(pwd;)
 
@@ -8,7 +9,6 @@ echo $GOPATH
 install() {
     echo "run install"
     go install ./...
-    tree0
 }
 
 runtest() {
@@ -25,9 +25,11 @@ clean() {
     echo "run clean"
     rm -rf bin/*
     rm -rf pkg/*
-    tree0
 }
 
+list() {
+    tree0
+}
 
 cmd="None"
 
@@ -43,6 +45,9 @@ elif [[ "test" == "$cmd"* ]]; then
 
 elif [[ "clean" == "$cmd"* ]]; then
     clean
+
+elif [[ "list" == "$cmd"* ]]; then
+    list
 
 else
     echo "($cmd) match None"
