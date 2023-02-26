@@ -42,7 +42,7 @@ func SetLogLevel(lvl syslog.Priority) {
 
 func LogMessage(lvl syslog.Priority, s string, a ...interface{})  {
     ct_lvl := GetLogLevel()
-    if ct_lvl <= lvl {
+    if lvl <= ct_lvl {
         fmt.Fprintf(writers[lvl], s, a...)
         if ct_lvl >= syslog.LOG_DEBUG {
             /* Debug messages gets printed out to STDOUT */
@@ -60,8 +60,10 @@ func LogPanic(s string, a ...interface{})  {
 }
 
 
-func LogError(s string, a ...interface{})  {
-    LogMessage(syslog.LOG_ERR, s, a...)
+func LogError(s string, a ...interface{}) error {
+    e := fmt.Sprintf(s, a...)
+    LogMessage(syslog.LOG_ERR, e)
+    return errors.New(e)
 }
 
 
@@ -79,10 +81,4 @@ func LogDebug(s string, a ...interface{})  {
     LogMessage(syslog.LOG_DEBUG, s, a...)
 }
 
-
-func GetError(s string, a ...interface{}) error {
-    e := fmt.Sprintf(s, a...)
-    LogError(e)
-    return errors.New(e)
-}
 

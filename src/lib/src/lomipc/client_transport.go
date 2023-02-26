@@ -6,7 +6,7 @@ import(
     "net/rpc"
 )
 
-const server_address = "127.0.0.1"
+const server_address = "localhost"
 
 type ClientTx struct {
     ClientRpc   *rpc.Client
@@ -20,18 +20,17 @@ func (tx *ClientTx) RegisterClient(client string, timeoutSeconds int) error {
         LogError("Failed to call rpc.DialHTTP err:(%v)", err)
         return err
     }
-
     req := &LoMRequest { TypeRegClient, client, timeoutSeconds, MsgRegClient{} }
+    // req := &LoMRequest { TypeRegClient, client, timeoutSeconds }
     reply := &LoMResponse{}
     err = r.Call("LoMTransport.SendToServer", req, reply)
     if (err != nil) {
-        LogError("Failed to call SendToServer for RegClient (%s)", client)
+        LogError("Failed to call SendToServer for RegClient (%s) (%v)", client, err)
         return err
     }
     if (reply.ResultCode != 0) {
-        LogError("Server failed to register client (%v) result(%d/%%s)", client,
+        return LogError("Server failed to register client (%v) result(%d/%%s)", client,
                 reply.ResultCode, reply.ResultStr)
-        return err
     }
 
     tx.ClientRpc = r

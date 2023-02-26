@@ -1,6 +1,7 @@
 package lomipc
 
 import (
+    "encoding/gob"
     . "lomcommon"
     "net"
     "net/http"
@@ -64,6 +65,7 @@ var ReqTypeToStr = map[ReqDataType]string {
     TypeReadServerRequest: "ReadServerRequest",
 }
 
+/* Request from client to server over RPC */
 type LoMRequest struct {
     ReqType     ReqDataType
     Client      string
@@ -71,13 +73,16 @@ type LoMRequest struct {
     ReqData     interface{}
 }
 
-type LoMRequestRPC struct {
+/* Internal req object that is sent over chan */
+type LoMRequestInt struct {
     Req         *LoMRequest
     /* LoMResponse to this request is sent via this chan */
     ChResponse  chan interface{}
 } 
 
 /*
+ * Response from server to client.
+ *
  * LoMResponse is tied to request closely as sent back via chan
  * embedded in the request. Hence does not need any more additional
  * data 
@@ -135,6 +140,9 @@ type MsgShutdown struct {
 type MsgReadServerReq struct {
 }
 
+type MsgEmptyResp struct {
+}
+
 const DefeultTimeoutSeconds = 2    /* Default timeout for any pending call */
 
 /*
@@ -153,13 +161,13 @@ func (tr *LoMTransport) SendToServer(req *LoMRequest, reply *LoMResponse) (err e
             LogError("SendToServer cl(%s) mtype(%s) failed (%v)", 
                     req.Client, ReqTypeToStr[req.ReqType], err)
         } else {
-            LogInfo("SendToServer cl(%s) mtype(%s) result(%d)/(%s)", req.Client,
+            LogInfo("SUCCESS: SendToServer cl(%s) mtype(%s) result(%d)/(%s)", req.Client,
                      ReqTypeToStr[req.ReqType], reply.ResultCode, reply.ResultStr)
         }
     } ()
 
-    rpcReq := LoMRequestRPC { req, make(chan interface{}) }
-    tr.ServerCh <- rpcReq
+    rpcReq := LoMRequestInt { req, make(chan interface{}) }
+    tr.ServerCh <- &rpcReq
 
     LogDebug("Req sent to server client(%s) type(%s). Waiting for response...",
             req.Client, ReqTypeToStr[req.ReqType])
@@ -169,17 +177,17 @@ func (tr *LoMTransport) SendToServer(req *LoMRequest, reply *LoMResponse) (err e
     if x, ok := p.(*LoMResponse); ok {
         *reply = *x
     } else {
-        return GetError("Server response message (%T) != LoMResponse", x)
+        return LogError("Server response message (%T) != *LoMResponse", x)
     }
 
     return nil
 }
 
 /* Local call from server to read client request. */
-func (tr *LoMTransport) ReadClientRequest(timeout int) *LoMRequestRPC {
+func (tr *LoMTransport) ReadClientRequest(timeout int) *LoMRequestInt {
     select {
     case p := <-tr.ServerCh:
-        if x, ok := p.(*LoMRequestRPC); ok {
+        if x, ok := p.(*LoMRequestInt); ok {
             LogDebug("Server: Read from client (%s) type(%s)", x.Req.Client, ReqTypeToStr[x.Req.ReqType])
             return x;
             /* Let server return response upon processing, via channel embedded in msg. */
@@ -192,10 +200,25 @@ func (tr *LoMTransport) ReadClientRequest(timeout int) *LoMRequestRPC {
         /* Aborting per instruction */
         return nil
     }
+    return nil
 }
 
 
+func init_encoding() {
+    gob.Register(MsgRegClient{})
+    gob.Register(MsgDeregClient{})
+    gob.Register(MsgRegAction{})
+    gob.Register(MsgDeregAction{})
+    gob.Register(MsgActionRequest{})
+    gob.Register(MsgActionResponse{})
+    gob.Register(MsgRegHeartbeat{})
+    gob.Register(MsgShutdown{})
+    gob.Register(MsgReadServerReq{})
+    gob.Register(MsgEmptyResp{})
+}
+
 func ServerInit() (*LoMTransport, error) {
+    init_encoding()
     tr := new(LoMTransport)
     
     tr.ServerCh = make(chan interface{})

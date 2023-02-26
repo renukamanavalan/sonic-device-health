@@ -24,9 +24,8 @@ type TestData struct {
 
 var testData = [1]TestData {
             {   TestClientData { TypeRegClient, []string{"Foo", "2"},  false },
-                TestServerData { LoMRequest { TypeRegClient, "foo", 2, MsgRegClient {} },
-                        LoMResponse { 0, "Succeeded", nil } } }}
-
+                TestServerData { LoMRequest { TypeRegClient, "Foo", 2, MsgRegClient {} },
+                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } }}
 
 
 func testClient(chRes chan interface{}) {
@@ -40,18 +39,20 @@ func testClient(chRes chan interface{}) {
             if len(tdata.Args) != 2 {
                 LogPanic("client: tid:%d: Expect 2 args for register client", i, len(tdata.Args[1]))
             }
-            if tout, err := strconv.Atoi(tdata.Args[1]); err == nil {
+            if tout, e := strconv.Atoi(tdata.Args[1]); e == nil {
                 err := txClient.RegisterClient(tdata.Args[0], tout)
-                if (err != nil) == tdata.Failed {
+                if (err != nil) != tdata.Failed {
                     LogPanic("client: tid:%d err=%v failed=%v", i, err, tdata.Failed)
                 }
             } else {
-                LogPanic("client: tid:%d Expect int val (%s) for timeout", tdata.Args[1], i)
+                LogPanic("client: tid:%d Expect int val (%s) for timeout", i, tdata.Args[1])
             }
         default:
-            LogPanic("TODO - Not yet implemented (%d)", tdata.ReqType)
+            LogPanic("client: tid:%d TODO - Not yet implemented (%d)", i, tdata.ReqType)
         }
+        LogDebug("client: tid=%d succeeded", i)
     }
+    LogDebug("client: Complete")
     chRes <- struct {}{}
 }
 
@@ -75,11 +76,11 @@ func main() {
         }
         if (*p.Req != tdata.Req) {
             LogPanic("Server: tid:%d: Type(%d) Failed to match msg(%v) != exp(%v)",
-                                i, tdata.ReqType, p.Req, tdata.Req)
+                                i, tdata.ReqType, *p.Req, tdata.Req)
         }
-        p.ChResponse <- tdata.Res
+        p.ChResponse <- &tdata.Res
     }
-
+    <- chResult
     LogDebug("SUCCEEDED")
 }
 
