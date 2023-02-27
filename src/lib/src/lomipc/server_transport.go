@@ -116,7 +116,7 @@ type MsgActionRequest struct {
     InstanceId          string
     AnomalyInstanceId   string
     AnomalyKey          string
-    Context             string
+    Context             []MsgActionResponse
 }
 
 type MsgActionResponse struct {
@@ -184,7 +184,7 @@ func (tr *LoMTransport) SendToServer(req *LoMRequest, reply *LoMResponse) (err e
 }
 
 /* Local call from server to read client request. */
-func (tr *LoMTransport) ReadClientRequest(timeout int) *LoMRequestInt {
+func (tr *LoMTransport) ReadClientRequest(timeout int, chAbort chan interface{}) *LoMRequestInt {
     select {
     case p := <-tr.ServerCh:
         if x, ok := p.(*LoMRequestInt); ok {
@@ -197,6 +197,10 @@ func (tr *LoMTransport) ReadClientRequest(timeout int) *LoMRequestInt {
         }
     case <- time.After(time.Duration(timeout) * time.Second):
         LogError("Server: Aborting read from client timeout=%d", timeout)
+        /* Aborting per instruction */
+        return nil
+    case <- chAbort:
+        LogError("Server: Aborting read via abort channel")
         /* Aborting per instruction */
         return nil
     }
