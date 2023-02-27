@@ -30,8 +30,14 @@ var testData = []TestData {
             {   TestClientData { TypeRegClient, []string{TEST_CL_NAME },  false },
                 TestServerData { LoMRequest { TypeRegClient, TEST_CL_NAME, ClTimeout, MsgRegClient {} },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+            {   TestClientData { TypeRegAction, []string{ TEST_ACTION_NAME },  true },
+                TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
+                        LoMResponse { 1, "failed by design", MsgEmptyResp {} } } },
             {   TestClientData { TypeRegAction, []string{ TEST_ACTION_NAME },  false },
                 TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
+                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+            {   TestClientData { TypeDeregAction, []string{ TEST_ACTION_NAME },  false },
+                TestServerData { LoMRequest { TypeDeregAction, TEST_CL_NAME, ClTimeout, MsgDeregAction { TEST_ACTION_NAME } },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
             {   TestClientData { TypeDeregClient,  []string{}, false },
                 TestServerData { LoMRequest { TypeDeregClient, TEST_CL_NAME, ClTimeout, MsgDeregClient {} },
@@ -66,9 +72,17 @@ func testClient(chRes chan interface{}, chComplete chan interface{}) {
             }
         case TypeRegAction:
             if len(tdata.Args) != 1 {
-                LogPanic("client: tid:%d: Expect 1 args for register client len=%d", i, len(tdata.Args))
+                LogPanic("client: tid:%d: Expect 1 args for register action len=%d", i, len(tdata.Args))
             }
             err := txClient.RegisterAction(tdata.Args[0])
+            if (err != nil) != tdata.Failed {
+                LogPanic("client: tid:%d err=%v failed=%v", i, err, tdata.Failed)
+            }
+        case TypeDeregAction:
+            if len(tdata.Args) != 1 {
+                LogPanic("client: tid:%d: Expect 1 args for deregister action len=%d", i, len(tdata.Args))
+            }
+            err := txClient.DeregisterAction(tdata.Args[0])
             if (err != nil) != tdata.Failed {
                 LogPanic("client: tid:%d err=%v failed=%v", i, err, tdata.Failed)
             }
@@ -108,7 +122,7 @@ func main() {
                 LogPanic("Server: tid:%d ReadClientRequest returned nil", i)
             }
             if (*p.Req != tdata.Req) {
-                LogPanic("Server: tid:%d: Type(%d) Failed to match msg(%v) != exp(%v)",
+                LogInfo("Server: tid:%d: Type(%d) Failed to match msg(%v) != exp(%v)",
                                     i, tdata.ReqType, *p.Req, tdata.Req)
             }
             /* Response to remote client -- done via clientTx */

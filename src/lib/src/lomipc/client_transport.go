@@ -89,3 +89,25 @@ func (tx *ClientTx) RegisterAction(action string) error {
     return nil
 }
 
+func (tx *ClientTx) DeregisterAction(action string) error {
+    if tx.ClientRpc == nil {
+        return LogError("No Transport; Need to register first")
+    }
+
+    req := &LoMRequest { TypeDeregAction, tx.ClientName, tx.TimeoutSecs, MsgDeregAction{action} }
+    reply := &LoMResponse{}
+    err := tx.ClientRpc.Call("LoMTransport.SendToServer", req, reply)
+    if (err != nil) {
+        LogError("Failed to call SendToServer for DeregAction (%s/%s) (%v)", tx.ClientName,
+                action, err)
+        return err
+    }
+    if (reply.ResultCode != 0) {
+        return LogError("Server failed to deregister action (%s/s%) result(%d/%%s)", tx.ClientName,
+                action, reply.ResultCode, reply.ResultStr)
+    }
+
+    LogInfo("Deregistered action (%s/%s)", tx.ClientName, action)
+    return nil
+}
+
