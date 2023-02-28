@@ -6,6 +6,7 @@ import (
     "net"
     "net/http"
     "net/rpc"
+    "reflect"
     "time"
 )
 
@@ -37,6 +38,7 @@ import (
  */
 
 type ReqDataType int
+type ServerReqDataType int
 
 const (
     TypeNone = iota
@@ -44,11 +46,16 @@ const (
     TypeDeregClient
     TypeRegAction
     TypeDeregAction
-    TypeRecvActionRequest
-    TypeSendActionResponse
+    TypeRecvServerRequest
+    TypeSendServerResponse
     TypeNotifyActionHeartbeat
-    TypeShutdown
     TypeCount
+)
+
+const (
+    TypeServerRequestAction = iota
+    TypeServerRequestShutdown
+    TypeServerRequestCount
 )
 
 var ReqTypeToStr = map[ReqDataType]string {
@@ -57,10 +64,14 @@ var ReqTypeToStr = map[ReqDataType]string {
     TypeDeregClient: "DeregisterClient",
     TypeRegAction: "RegisterAction",
     TypeDeregAction: "DeregisterAction",
-    TypeRecvActionRequest: "RecvActionRequest",
-    TypeSendActionResponse: "SendActionResponse",
+    TypeRecvServerRequest: "RecvServerRequest",
+    TypeSendServerResponse: "SendServerResponse",
     TypeNotifyActionHeartbeat: "NotifyActionHeartbeat",
-    TypeShutdown: "Shutdown",
+}
+
+var ServerReqTypeToStr = map[ServerReqDataType]string {
+    TypeServerRequestAction: "RecvServerRequestAction",
+    TypeServerRequestShutdown: "RecvServerRequestShutdown",
 }
 
 /* Request from client to server over RPC */
@@ -109,7 +120,17 @@ type MsgDeregAction struct {
     Action  string
 }
 
-type MsgRecvActionRequest struct {
+type MsgRecvServerRequest struct {
+}
+
+type ServerRequestData struct {
+    ReqType             ServerReqDataType
+    ReqData             interface {}
+}
+
+type ServerResponseData struct {
+    ReqType             ServerReqDataType
+    ResData             interface {}
 }
 
 type ActionResponseData struct {
@@ -122,13 +143,29 @@ type ActionResponseData struct {
     ResultStr           string
 }
 
-/* Data sent as response via RespData for MsgRecvActionRequest */
+/* Data sent as response via RespData for MsgRecvServerRequest */
 type ActionRequestData struct {
     Action              string
     InstanceId          string
     AnomalyInstanceId   string
     AnomalyKey          string
     Context             []ActionResponseData
+}
+
+type ShutdownRequestData struct {
+}
+
+type EpochSecs int64
+
+type MsgNotifyHeartbeat struct {
+    Action      string
+    Timestamp   EpochSecs
+}
+
+type MsgShutdownData struct {
+}
+
+type MsgEmptyResp struct {
 }
 
 func SlicesComp(p []ActionResponseData, q []ActionResponseData) bool {
@@ -159,22 +196,35 @@ func (r *ActionRequestData) Equal(p *ActionRequestData) bool {
 }
 
 
-type MsgSendActionResponse struct {
-    ActionResponseData
+func (r *ServerRequestData) Equal(p *ServerRequestData) bool {
+    if r.ReqType != p.ReqType {
+        LogDebug("Differing Req types %s vs %s", ServerReqTypeToStr[r.ReqType], 
+                ServerReqTypeToStr[p.ReqType])
+        return false
+    }
+    rr := r.ReqData
+    pr := p.ReqData
+    if reflect.TypeOf(rr) != reflect.TypeOf(pr) {
+        LogDebug("Differing ReqData types %T vs %T", rr, pr)
+        return false
+    }
+    switch rr.(type) {
+    case ActionRequestData:
+        rq, ok1 := rr.(ActionRequestData) 
+        pq, ok2 := pr.(ActionRequestData) 
+        if (!ok1 || !ok2 || !(&rq).Equal(&pq)) {
+            LogDebug("ActionRequestData mismatch ok1=%v ok2=%v", ok1, ok2)
+            return false
+        }
+        return true
+    case ShutdownRequestData:
+        return true
+    default:
+        LogError("Unkown ReqData type (%T) in ServerRequestData", rr)
+        return false
+    }
 }
 
-type EpochSecs int64
-
-type MsgNotifyHeartbeat struct {
-    Action      string
-    Timestamp   EpochSecs
-}
-
-type MsgShutdown struct {
-}
-
-type MsgEmptyResp struct {
-}
 
 const DefeultTimeoutSeconds = 2    /* Default timeout for any pending call */
 
@@ -246,12 +296,13 @@ func init_encoding() {
     gob.Register(MsgDeregClient{})
     gob.Register(MsgRegAction{})
     gob.Register(MsgDeregAction{})
-    gob.Register(MsgRecvActionRequest{})
+    gob.Register(MsgRecvServerRequest{})
+    gob.Register(ServerRequestData{})
+    gob.Register(ServerResponseData{})
     gob.Register(ActionRequestData{})
-    gob.Register(MsgSendActionResponse{})
     gob.Register(ActionResponseData{})
+    gob.Register(ShutdownRequestData{})
     gob.Register(MsgNotifyHeartbeat{})
-    gob.Register(MsgShutdown{})
     gob.Register(MsgEmptyResp{})
 }
 

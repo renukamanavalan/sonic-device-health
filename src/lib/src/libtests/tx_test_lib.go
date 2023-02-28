@@ -26,42 +26,68 @@ type TestData struct {
 
 const TEST_CL_NAME = "Foo"
 const TEST_ACTION_NAME = "Detect-0"
-var ActReqData = ActionRequestData { "Bar", "inst_1", "an_inst_0", "an_key",
-        []ActionResponseData {
-                { TEST_ACTION_NAME, "an_inst_0", "an_inst_0", "an_key", "res_anomaly", 0, ""},
-                { "Foo-safety", "inst_0", "an_inst_0", "an_key", "res_foo_check", 2, "some failure"},
-        } }
+var ActReqData = ServerRequestData { TypeServerRequestAction,
+        ActionRequestData { "Bar", "inst_1", "an_inst_0", "an_key",
+            []ActionResponseData {
+                    { TEST_ACTION_NAME, "an_inst_0", "an_inst_0", "an_key", "res_anomaly", 0, ""},
+                    { "Foo-safety", "inst_0", "an_inst_0", "an_key", "res_foo_check", 2, "some failure"},
+        } } }
 
-var ActResData = ActionResponseData { "Foo", "Inst-0", "AN-Inst-0", "an-key", "some resp", 9, "Failure Data" }
+var ActResData = ServerResponseData { TypeServerRequestAction, ActionResponseData {
+                "Foo", "Inst-0", "AN-Inst-0", "an-key", "some resp", 9, "Failure Data" } }
+
+var ShutReqData = ServerRequestData { TypeServerRequestShutdown, ShutdownRequestData{} }
 
 var ClTimeout = 2
 
 var testData = []TestData {
+            // Reg Client
             {   TestClientData { TypeRegClient, []string{TEST_CL_NAME }, nil, false, MsgEmptyResp{} },
                 TestServerData { LoMRequest { TypeRegClient, TEST_CL_NAME, ClTimeout, MsgRegClient {} },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+
+            // Reg Action - test failure
             {   TestClientData { TypeRegAction, []string{ TEST_ACTION_NAME }, nil, true, MsgEmptyResp{} },
                 TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
                         LoMResponse { 1, "failed by design", MsgEmptyResp {} } } },
+
+            // Register action
             {   TestClientData { TypeRegAction, []string{ TEST_ACTION_NAME }, nil, false, MsgEmptyResp{} },
                 TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+
+            // Request for request and server sends Action request
             {   TestClientData { TypeRecvServerRequest, []string{}, nil, false, ActReqData },
                 TestServerData { LoMRequest { TypeRecvServerRequest, TEST_CL_NAME, ClTimeout, MsgRecvServerRequest{} },
                         LoMResponse { 0, "Succeeded", ActReqData } } },
+
+            // Send Action response to server
             {   TestClientData { TypeSendServerResponse, []string{}, ActResData, false, MsgEmptyResp{} },
                 TestServerData { LoMRequest { TypeSendServerResponse, TEST_CL_NAME, ClTimeout, ActResData },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp{} } } },
-                        {   TestClientData { TypeNotifyActionHeartbeat, []string{ TEST_ACTION_NAME, "100" }, nil, false, MsgEmptyResp{} },
+
+            // Send Action heartbeat to server
+            {   TestClientData { TypeNotifyActionHeartbeat, []string{ TEST_ACTION_NAME, "100" }, nil, false, MsgEmptyResp{} },
                 TestServerData { LoMRequest { TypeNotifyActionHeartbeat, TEST_CL_NAME, ClTimeout,
                                             MsgNotifyHeartbeat { TEST_ACTION_NAME, 100 } },
                         LoMResponse { 0, "Good", MsgEmptyResp {} } } },
+
+            // Request for request and server sends shutdown request
+            {   TestClientData { TypeRecvServerRequest, []string{}, nil, false, ShutReqData },
+                TestServerData { LoMRequest { TypeRecvServerRequest, TEST_CL_NAME, ClTimeout, MsgRecvServerRequest{} },
+                        LoMResponse { 0, "Succeeded", ShutReqData } } },
+
+            // Send Dereg action
             {   TestClientData { TypeDeregAction, []string{ TEST_ACTION_NAME }, nil, false, MsgEmptyResp{} },
                 TestServerData { LoMRequest { TypeDeregAction, TEST_CL_NAME, ClTimeout, MsgDeregAction { TEST_ACTION_NAME } },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+
+            // Send Dereg client
             {   TestClientData { TypeDeregClient,  []string{}, nil, false, MsgEmptyResp{} },
                 TestServerData { LoMRequest { TypeDeregClient, TEST_CL_NAME, ClTimeout, MsgDeregClient {} },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+
+            // Send duplicate Dereg client which is expected to fail
             {   TestClientData { TypeDeregClient,  []string{}, nil, true, MsgEmptyResp{} },
                 TestServerData { LoMRequest {}, LoMResponse {} } },
         }
@@ -74,7 +100,7 @@ func testClient(chRes chan interface{}, chComplete chan interface{}) {
     for i := 0; i < testCount; i++ {
         tdata := &testData[i]
         var err error
-        var reqData *ActionRequestData = nil
+        var reqData *ServerRequestData = nil
 
         switch tdata.ReqType {
         case TypeRegClient:
@@ -107,9 +133,9 @@ func testClient(chRes chan interface{}, chComplete chan interface{}) {
                  LogPanic("client: tid:%d: Expect No args for SendServerResponse len=%d", i, len(tdata.Args))
             }
             p := tdata.DataArgs
-            res, ok := p.(ActionResponseData)
+            res, ok := p.(ServerResponseData)
             if (!ok) {
-                LogPanic("client: tid:%d: Expect ActionResponseData as DataArgs (%T)/(%v)", i, p, p)
+                LogPanic("client: tid:%d: Expect ServerResponseData as DataArgs (%T)/(%v)", i, p, p)
             }
             err = txClient.SendServerResponse(&res)
         case TypeNotifyActionHeartbeat:
@@ -131,7 +157,7 @@ func testClient(chRes chan interface{}, chComplete chan interface{}) {
 
         p := tdata.ExpResp
         if reqData != nil {
-            if expData, ok := p.(ActionRequestData); ok {
+            if expData, ok := p.(ServerRequestData); ok {
                 if !reqData.Equal(&expData) {
                     LogPanic("Client: tid:%d ReqData (%v) != expData(%v)", i, *reqData, expData)
                 }

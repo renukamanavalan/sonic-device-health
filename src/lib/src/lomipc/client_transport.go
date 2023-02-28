@@ -132,7 +132,7 @@ func (tx *ClientTx) DeregisterAction(action string) error {
     return nil
 }
 
-func (tx *ClientTx) RecvServerRequest() (*ActionRequestData, error) {
+func (tx *ClientTx) RecvServerRequest() (*ServerRequestData, error) {
     if tx.ClientRpc == nil {
         return nil, LogError("RecvServerRequest: No Transport; Need to register first")
     }
@@ -150,15 +150,17 @@ func (tx *ClientTx) RecvServerRequest() (*ActionRequestData, error) {
     }
 
     p := reply.RespData
-    res, ok := p.(ActionRequestData)
+    res, ok := p.(ServerRequestData)
     if !ok {
         return nil, LogError("RecvServerRequest: RespData (%T) != *ActionRequestData", res)
     }
-    LogInfo("RecvServerRequest: succeeded (%s/%s)", tx.ClientName, res.Action)
+
+    LogInfo("RecvServerRequest: succeeded (%s/%s)", tx.ClientName,
+                    ServerReqTypeToStr[res.ReqType])
     return &res, nil
 }
 
-func (tx *ClientTx) SendServerResponse(res *ActionResponseData) error {
+func (tx *ClientTx) SendServerResponse(res *ServerResponseData) error {
     if tx.ClientRpc == nil {
         return LogError("SendServerResponse: No Transport; Need to register first")
     }
@@ -180,7 +182,7 @@ func (tx *ClientTx) SendServerResponse(res *ActionResponseData) error {
         return LogError("SendServerResponse: Expect empty resp. (%T) (%v)", x, x)
     }
 
-    LogInfo("SendServerResponse: succeeded (%s/%s)", tx.ClientName, res.Action)
+    LogInfo("SendServerResponse: succeeded (%s/%s)", tx.ClientName, ServerReqTypeToStr[res.ReqType])
     return nil
 
 }
