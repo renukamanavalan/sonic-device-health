@@ -46,11 +46,11 @@ var testData = []TestData {
             {   TestClientData { TypeRegAction, []string{ TEST_ACTION_NAME }, nil, false, MsgEmptyResp{} },
                 TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
-            {   TestClientData { TypeRecvActionRequest, []string{}, nil, false, ActReqData },
-                TestServerData { LoMRequest { TypeRecvActionRequest, TEST_CL_NAME, ClTimeout, MsgRecvActionRequest{} },
+            {   TestClientData { TypeRecvServerRequest, []string{}, nil, false, ActReqData },
+                TestServerData { LoMRequest { TypeRecvServerRequest, TEST_CL_NAME, ClTimeout, MsgRecvServerRequest{} },
                         LoMResponse { 0, "Succeeded", ActReqData } } },
-            {   TestClientData { TypeSendActionResponse, []string{}, ActResData, false, MsgEmptyResp{} },
-                TestServerData { LoMRequest { TypeSendActionResponse, TEST_CL_NAME, ClTimeout, ActResData },
+            {   TestClientData { TypeSendServerResponse, []string{}, ActResData, false, MsgEmptyResp{} },
+                TestServerData { LoMRequest { TypeSendServerResponse, TEST_CL_NAME, ClTimeout, ActResData },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp{} } } },
                         {   TestClientData { TypeNotifyActionHeartbeat, []string{ TEST_ACTION_NAME, "100" }, nil, false, MsgEmptyResp{} },
                 TestServerData { LoMRequest { TypeNotifyActionHeartbeat, TEST_CL_NAME, ClTimeout,
@@ -97,21 +97,21 @@ func testClient(chRes chan interface{}, chComplete chan interface{}) {
                 LogPanic("client: tid:%d: Expect 1 args for deregister action len=%d", i, len(tdata.Args))
             }
             err = txClient.DeregisterAction(tdata.Args[0])
-        case TypeRecvActionRequest:
+        case TypeRecvServerRequest:
             if len(tdata.Args) != 0 {
-                 LogPanic("client: tid:%d: Expect No args for RecvActionRequest len=%d", i, len(tdata.Args))
+                 LogPanic("client: tid:%d: Expect No args for RecvServerRequest len=%d", i, len(tdata.Args))
             }
-            reqData, err = txClient.RecvActionRequest()
-        case TypeSendActionResponse:
+            reqData, err = txClient.RecvServerRequest()
+        case TypeSendServerResponse:
             if len(tdata.Args) != 0 {
-                 LogPanic("client: tid:%d: Expect No args for SendActionResponse len=%d", i, len(tdata.Args))
+                 LogPanic("client: tid:%d: Expect No args for SendServerResponse len=%d", i, len(tdata.Args))
             }
             p := tdata.DataArgs
             res, ok := p.(ActionResponseData)
             if (!ok) {
                 LogPanic("client: tid:%d: Expect ActionResponseData as DataArgs (%T)/(%v)", i, p, p)
             }
-            err = txClient.SendActionResponse(&res)
+            err = txClient.SendServerResponse(&res)
         case TypeNotifyActionHeartbeat:
             if len(tdata.Args) != 2 {
                 LogPanic("client: tid:%d: Expect 2 args for register action len=%d", i, len(tdata.Args))

@@ -132,55 +132,55 @@ func (tx *ClientTx) DeregisterAction(action string) error {
     return nil
 }
 
-func (tx *ClientTx) RecvActionRequest() (*ActionRequestData, error) {
+func (tx *ClientTx) RecvServerRequest() (*ActionRequestData, error) {
     if tx.ClientRpc == nil {
-        return nil, LogError("RecvActionRequest: No Transport; Need to register first")
+        return nil, LogError("RecvServerRequest: No Transport; Need to register first")
     }
 
-    req := &LoMRequest { TypeRecvActionRequest, tx.ClientName, tx.TimeoutSecs, MsgRecvActionRequest{} }
+    req := &LoMRequest { TypeRecvServerRequest, tx.ClientName, tx.TimeoutSecs, MsgRecvServerRequest{} }
     reply := &LoMResponse{}
     err := tx.ClientRpc.Call("LoMTransport.SendToServer", req, reply)
     if (err != nil) {
-        LogError("RecvActionRequest: Failed to call SendToServer (%s) (%v)", tx.ClientName, err)
+        LogError("RecvServerRequest: Failed to call SendToServer (%s) (%v)", tx.ClientName, err)
         return nil, err
     }
     if (reply.ResultCode != 0) {
-        return nil, LogError("RecvActionRequest: Server failed (%s) result(%d/%s)", tx.ClientName,
+        return nil, LogError("RecvServerRequest: Server failed (%s) result(%d/%s)", tx.ClientName,
                 reply.ResultCode, reply.ResultStr)
     }
 
     p := reply.RespData
     res, ok := p.(ActionRequestData)
     if !ok {
-        return nil, LogError("RecvActionRequest: RespData (%T) != *ActionRequestData", res)
+        return nil, LogError("RecvServerRequest: RespData (%T) != *ActionRequestData", res)
     }
-    LogInfo("RecvActionRequest: succeeded (%s/%s)", tx.ClientName, res.Action)
+    LogInfo("RecvServerRequest: succeeded (%s/%s)", tx.ClientName, res.Action)
     return &res, nil
 }
 
-func (tx *ClientTx) SendActionResponse(res *ActionResponseData) error {
+func (tx *ClientTx) SendServerResponse(res *ActionResponseData) error {
     if tx.ClientRpc == nil {
-        return LogError("SendActionResponse: No Transport; Need to register first")
+        return LogError("SendServerResponse: No Transport; Need to register first")
     }
 
-    req := &LoMRequest { TypeSendActionResponse, tx.ClientName, tx.TimeoutSecs, res }
+    req := &LoMRequest { TypeSendServerResponse, tx.ClientName, tx.TimeoutSecs, res }
     reply := &LoMResponse{}
     err := tx.ClientRpc.Call("LoMTransport.SendToServer", req, reply)
     if (err != nil) {
-        LogError("SendActionResponse: Failed to call SendToServer (%s) (%v)", tx.ClientName, err)
+        LogError("SendServerResponse: Failed to call SendToServer (%s) (%v)", tx.ClientName, err)
         return err
     }
     if (reply.ResultCode != 0) {
-        return LogError("SendActionResponse: Server failed (%s) result(%d/%s)", tx.ClientName,
+        return LogError("SendServerResponse: Server failed (%s) result(%d/%s)", tx.ClientName,
                 reply.ResultCode, reply.ResultStr)
     }
 
     resD := reply.RespData
     if x, ok := resD.(MsgEmptyResp); !ok {
-        return LogError("SendActionResponse: Expect empty resp. (%T) (%v)", x, x)
+        return LogError("SendServerResponse: Expect empty resp. (%T) (%v)", x, x)
     }
 
-    LogInfo("SendActionResponse: succeeded (%s/%s)", tx.ClientName, res.Action)
+    LogInfo("SendServerResponse: succeeded (%s/%s)", tx.ClientName, res.Action)
     return nil
 
 }
