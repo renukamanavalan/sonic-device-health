@@ -44,11 +44,10 @@ const (
     TypeDeregClient
     TypeRegAction
     TypeDeregAction
-    TypeActionRequest
-    TypeActionResponse
-    TypeActionHeartbeat
+    TypeRecvActionRequest
+    TypeSendActionResponse
+    TypeNotifyActionHeartbeat
     TypeShutdown
-    TypeReadServerRequest
     TypeCount
 )
 
@@ -58,11 +57,10 @@ var ReqTypeToStr = map[ReqDataType]string {
     TypeDeregClient: "DeregisterClient",
     TypeRegAction: "RegisterAction",
     TypeDeregAction: "DeregisterAction",
-    TypeActionRequest: "ActionRequest",
-    TypeActionResponse: "ActionResponse",
-    TypeActionHeartbeat: "ActionHeartbeat",
+    TypeRecvActionRequest: "RecvActionRequest",
+    TypeSendActionResponse: "SendActionResponse",
+    TypeNotifyActionHeartbeat: "NotifyActionHeartbeat",
     TypeShutdown: "Shutdown",
-    TypeReadServerRequest: "ReadServerRequest",
 }
 
 /* Request from client to server over RPC */
@@ -111,15 +109,10 @@ type MsgDeregAction struct {
     Action  string
 }
 
-type MsgActionRequest struct {
-    Action              string
-    InstanceId          string
-    AnomalyInstanceId   string
-    AnomalyKey          string
-    Context             []MsgActionResponse
+type MsgRecvActionRequest struct {
 }
 
-type MsgActionResponse struct {
+type ActionResponseData struct {
     Action              string
     InstanceId          string
     AnomalyInstanceId   string
@@ -129,15 +122,54 @@ type MsgActionResponse struct {
     ResultStr           string
 }
 
-type MsgRegHeartbeat struct {
+/* Data sent as response via RespData for MsgRecvActionRequest */
+type ActionRequestData struct {
+    Action              string
+    InstanceId          string
+    AnomalyInstanceId   string
+    AnomalyKey          string
+    Context             []ActionResponseData
+}
+
+func SlicesComp(p []ActionResponseData, q []ActionResponseData) bool {
+    if (len(p) != len(q)) {
+        LogDebug("Slice len differ %d != %d\n", len(p), len(q))
+        return false
+    }
+
+    for i, v := range(p) {
+        if (v != q[i]) {
+            LogDebug("p[%d] (%v) != q[%d] (%v)\n", i, v, i, q[i])
+            return false
+        }
+    }
+    return true
+}
+
+func (r *ActionRequestData) Equal(p *ActionRequestData) bool {
+    if ((r.Action == p.Action) &&
+        (r.InstanceId == p.InstanceId) &&
+        (r.AnomalyInstanceId == p.AnomalyInstanceId) &&
+        (r.AnomalyKey == p.AnomalyKey) &&
+        SlicesComp(r.Context, p.Context)) {
+        return true
+    } else {
+        return false
+    }
+}
+
+
+type MsgSendActionResponse struct {
+    ActionResponseData
+}
+
+
+type MsgNotifyHeartbeat struct {
     Action      string
     Timestamp   int
 }
 
 type MsgShutdown struct {
-}
-
-type MsgReadServerReq struct {
 }
 
 type MsgEmptyResp struct {
@@ -213,11 +245,12 @@ func init_encoding() {
     gob.Register(MsgDeregClient{})
     gob.Register(MsgRegAction{})
     gob.Register(MsgDeregAction{})
-    gob.Register(MsgActionRequest{})
-    gob.Register(MsgActionResponse{})
-    gob.Register(MsgRegHeartbeat{})
+    gob.Register(MsgRecvActionRequest{})
+    gob.Register(ActionRequestData{})
+    gob.Register(MsgSendActionResponse{})
+    gob.Register(ActionResponseData{})
+    gob.Register(MsgNotifyHeartbeat{})
     gob.Register(MsgShutdown{})
-    gob.Register(MsgReadServerReq{})
     gob.Register(MsgEmptyResp{})
 }
 

@@ -18,19 +18,23 @@ type ClientTx struct {
 func (tx *ClientTx) RegisterClient(client string) error {
     r, err := rpc.DialHTTP("tcp", server_address+":1234")
     if (err != nil) {
-        LogError("Failed to call rpc.DialHTTP err:(%v)", err)
+        LogError("RegisterClient: Failed to call rpc.DialHTTP err:(%v)", err)
         return err
     }
     req := &LoMRequest { TypeRegClient, client, tx.TimeoutSecs, MsgRegClient{} }
     reply := &LoMResponse{}
     err = r.Call("LoMTransport.SendToServer", req, reply)
     if (err != nil) {
-        LogError("Failed to call SendToServer for RegClient (%s) (%v)", client, err)
+        LogError("RegisterClient: Failed to call SendToServer (%s) (%v)", client, err)
         return err
     }
     if (reply.ResultCode != 0) {
-        return LogError("Server failed to register client (%v) result(%d/%%s)", client,
+        return LogError("RegisterClient: Server failed client (%v) result(%d/%s)", client,
                 reply.ResultCode, reply.ResultStr)
+    }
+    res := reply.RespData
+    if x, ok := res.(MsgEmptyResp); !ok {
+        return LogError("RegisterClient: Expect empty resp. (%T) (%v)", x, x)
     }
 
     tx.ClientRpc = r
@@ -47,18 +51,18 @@ func (tx *ClientTx) DeregisterClient() error {
     }()
 
     if tx.ClientRpc == nil {
-        return LogError("No Transport; Need to register first")
+        return LogError("DeregisterClient: No Transport; Need to register first")
     }
 
     req := &LoMRequest { TypeDeregClient, tx.ClientName, tx.TimeoutSecs, MsgDeregClient{} }
     reply := &LoMResponse{}
     err := tx.ClientRpc.Call("LoMTransport.SendToServer", req, reply)
     if (err != nil) {
-        LogError("Failed to call SendToServer for DeregClient (%s) (%v)", tx.ClientName, err)
+        LogError("DeregisterClient: Failed to call SendToServer (%s) (%v)", tx.ClientName, err)
         return err
     }
     if (reply.ResultCode != 0) {
-        return LogError("Server failed to deregister client (%v) result(%d/%%s)", tx.ClientName,
+        return LogError("DeregisterClient: Server failed (%v) result(%d/%s)", tx.ClientName,
                 reply.ResultCode, reply.ResultStr)
     }
 
@@ -69,19 +73,19 @@ func (tx *ClientTx) DeregisterClient() error {
 
 func (tx *ClientTx) RegisterAction(action string) error {
     if tx.ClientRpc == nil {
-        return LogError("No Transport; Need to register first")
+        return LogError("RegisterAction: No Transport; Need to register first")
     }
 
     req := &LoMRequest { TypeRegAction, tx.ClientName, tx.TimeoutSecs, MsgRegAction{action} }
     reply := &LoMResponse{}
     err := tx.ClientRpc.Call("LoMTransport.SendToServer", req, reply)
     if (err != nil) {
-        LogError("Failed to call SendToServer for RegAction (%s/%s) (%v)", tx.ClientName,
+        LogError("RegisterAction: Failed to call SendToServer (%s/%s) (%v)", tx.ClientName,
                 action, err)
         return err
     }
     if (reply.ResultCode != 0) {
-        return LogError("Server failed to register action (%s/s%) result(%d/%%s)", tx.ClientName,
+        return LogError("RegisterAction: Server failed (%s/%s) result(%d/%s)", tx.ClientName,
                 action, reply.ResultCode, reply.ResultStr)
     }
 
@@ -91,23 +95,49 @@ func (tx *ClientTx) RegisterAction(action string) error {
 
 func (tx *ClientTx) DeregisterAction(action string) error {
     if tx.ClientRpc == nil {
-        return LogError("No Transport; Need to register first")
+        return LogError("DeregisterAction: No Transport; Need to register first")
     }
 
     req := &LoMRequest { TypeDeregAction, tx.ClientName, tx.TimeoutSecs, MsgDeregAction{action} }
     reply := &LoMResponse{}
     err := tx.ClientRpc.Call("LoMTransport.SendToServer", req, reply)
     if (err != nil) {
-        LogError("Failed to call SendToServer for DeregAction (%s/%s) (%v)", tx.ClientName,
+        LogError("DeregisterAction: Failed to call SendToServer (%s/%s) (%v)", tx.ClientName,
                 action, err)
         return err
     }
     if (reply.ResultCode != 0) {
-        return LogError("Server failed to deregister action (%s/s%) result(%d/%%s)", tx.ClientName,
+        return LogError("DeregisterAction: Server failed (%s/%s) result(%d/%s)", tx.ClientName,
                 action, reply.ResultCode, reply.ResultStr)
     }
 
     LogInfo("Deregistered action (%s/%s)", tx.ClientName, action)
     return nil
+}
+
+func (tx *ClientTx) RecvActionRequest() (*ActionRequestData, error) {
+    if tx.ClientRpc == nil {
+        return nil, LogError("RecvActionRequest: No Transport; Need to register first")
+    }
+
+    req := &LoMRequest { TypeRecvActionRequest, tx.ClientName, tx.TimeoutSecs, MsgRecvActionRequest{} }
+    reply := &LoMResponse{}
+    err := tx.ClientRpc.Call("LoMTransport.SendToServer", req, reply)
+    if (err != nil) {
+        LogError("RecvActionRequest: Failed to call SendToServer (%s) (%v)", tx.ClientName, err)
+        return nil, err
+    }
+    if (reply.ResultCode != 0) {
+        return nil, LogError("RecvActionRequest: Server failed (%s) result(%d/%s)", tx.ClientName,
+                reply.ResultCode, reply.ResultStr)
+    }
+
+    p := reply.RespData
+    res, ok := p.(ActionRequestData)
+    if !ok {
+        return nil, LogError("RecvActionRequest: RespData (%T) != *ActionRequestData", res)
+    }
+    LogInfo("RecvActionRequest: succeeded (%s/%s)", tx.ClientName, res.Action)
+    return &res, nil
 }
 
