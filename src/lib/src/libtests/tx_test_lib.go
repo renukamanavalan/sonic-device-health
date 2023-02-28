@@ -8,6 +8,7 @@ import (
 type TestClientData struct {
     ReqType     ReqDataType  /* Req type to call */
     Args        []string            /* Args needed for the call */
+    DataArgs    interface{}
     Failed      bool                /* Expect to fail or succeed */
     ExpResp     interface{}         /* Differs per request */
 }
@@ -30,36 +31,42 @@ var ActReqData = ActionRequestData { "Bar", "inst_1", "an_inst_0", "an_key",
                 { "Foo-safety", "inst_0", "an_inst_0", "an_key", "res_foo_check", 2, "some failure"},
         } }
 
+var ActResData = ActionResponseData { "Foo", "Inst-0", "AN-Inst-0", "an-key", "some resp", 9, "Failure Data" }
+
 var ClTimeout = 2
 
 var testData = []TestData {
-            {   TestClientData { TypeRegClient, []string{TEST_CL_NAME },  false, MsgEmptyResp{} },
+            {   TestClientData { TypeRegClient, []string{TEST_CL_NAME }, nil, false, MsgEmptyResp{} },
                 TestServerData { LoMRequest { TypeRegClient, TEST_CL_NAME, ClTimeout, MsgRegClient {} },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
-            {   TestClientData { TypeRegAction, []string{ TEST_ACTION_NAME },  true, MsgEmptyResp{} },
+            {   TestClientData { TypeRegAction, []string{ TEST_ACTION_NAME }, nil, true, MsgEmptyResp{} },
                 TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
                         LoMResponse { 1, "failed by design", MsgEmptyResp {} } } },
-            {   TestClientData { TypeRegAction, []string{ TEST_ACTION_NAME },  false, MsgEmptyResp{} },
+            {   TestClientData { TypeRegAction, []string{ TEST_ACTION_NAME }, nil, false, MsgEmptyResp{} },
                 TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
-            {   TestClientData { TypeRecvActionRequest, []string{},  false, ActReqData },
-                TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRecvActionRequest{} },
+            {   TestClientData { TypeRecvActionRequest, []string{}, nil, false, ActReqData },
+                TestServerData { LoMRequest { TypeRecvActionRequest, TEST_CL_NAME, ClTimeout, MsgRecvActionRequest{} },
                         LoMResponse { 0, "Succeeded", ActReqData } } },
-            {   TestClientData { TypeDeregAction, []string{ TEST_ACTION_NAME },  false, MsgEmptyResp{} },
+            {   TestClientData { TypeSendActionResponse, []string{}, ActResData, false, MsgEmptyResp{} },
+                TestServerData { LoMRequest { TypeSendActionResponse, TEST_CL_NAME, ClTimeout, ActResData },
+                        LoMResponse { 0, "Succeeded", MsgEmptyResp{} } } },
+            {   TestClientData { TypeDeregAction, []string{ TEST_ACTION_NAME }, nil, false, MsgEmptyResp{} },
                 TestServerData { LoMRequest { TypeDeregAction, TEST_CL_NAME, ClTimeout, MsgDeregAction { TEST_ACTION_NAME } },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
-            {   TestClientData { TypeDeregClient,  []string{}, false, MsgEmptyResp{} },
+            {   TestClientData { TypeDeregClient,  []string{}, nil, false, MsgEmptyResp{} },
                 TestServerData { LoMRequest { TypeDeregClient, TEST_CL_NAME, ClTimeout, MsgDeregClient {} },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
-            {   TestClientData { TypeDeregClient,  []string{}, true, MsgEmptyResp{} },
+            {   TestClientData { TypeDeregClient,  []string{}, nil, true, MsgEmptyResp{} },
                 TestServerData { LoMRequest {}, LoMResponse {} } },
         }
 
+var testCount = len(testData)
 
 func testClient(chRes chan interface{}, chComplete chan interface{}) {
     txClient := &ClientTx{nil, "", ClTimeout}
 
-    for i := 0; i < len(testData); i++ {
+    for i := 0; i < testCount; i++ {
         tdata := &testData[i]
         var err error
         var reqData *ActionRequestData = nil
@@ -87,9 +94,19 @@ func testClient(chRes chan interface{}, chComplete chan interface{}) {
             err = txClient.DeregisterAction(tdata.Args[0])
         case TypeRecvActionRequest:
             if len(tdata.Args) != 0 {
-                 LogPanic("client: tid:%d: Expect No args for RecvActionRequest  len=%d", i, len(tdata.Args))
+                 LogPanic("client: tid:%d: Expect No args for RecvActionRequest len=%d", i, len(tdata.Args))
             }
             reqData, err = txClient.RecvActionRequest()
+        case TypeSendActionResponse:
+            if len(tdata.Args) != 0 {
+                 LogPanic("client: tid:%d: Expect No args for SendActionResponse len=%d", i, len(tdata.Args))
+            }
+            p := tdata.DataArgs
+            res, ok := p.(ActionResponseData)
+            if (!ok) {
+                LogPanic("client: tid:%d: Expect ActionResponseData as DataArgs (%T)/(%v)", i, p, p)
+            }
+            err = txClient.SendActionResponse(&res)
         default:
             LogPanic("client: tid:%d TODO - Not yet implemented (%d)", i, tdata.ReqType)
         }
@@ -130,7 +147,7 @@ func main() {
 
     go testClient(chResult, chComplete)
 
-    for i := 0; i < len(testData); i++ {
+    for i := 0; i < testCount; i++ {
         if len(chComplete) != 0 {
             LogPanic("Server tid:%d But client complete", i)
         }
@@ -144,7 +161,7 @@ func main() {
                 LogPanic("Server: tid:%d ReadClientRequest returned nil", i)
             }
             if (*p.Req != tdata.Req) {
-                LogInfo("Server: tid:%d: Type(%d) Failed to match msg(%v) != exp(%v)",
+                LogPanic("Server: tid:%d: Type(%d) Failed to match msg(%v) != exp(%v)",
                                     i, tdata.ReqType, *p.Req, tdata.Req)
             }
             /* Response to remote client -- done via clientTx */

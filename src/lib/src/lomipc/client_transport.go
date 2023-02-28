@@ -32,6 +32,7 @@ func (tx *ClientTx) RegisterClient(client string) error {
         return LogError("RegisterClient: Server failed client (%v) result(%d/%s)", client,
                 reply.ResultCode, reply.ResultStr)
     }
+
     res := reply.RespData
     if x, ok := res.(MsgEmptyResp); !ok {
         return LogError("RegisterClient: Expect empty resp. (%T) (%v)", x, x)
@@ -66,6 +67,11 @@ func (tx *ClientTx) DeregisterClient() error {
                 reply.ResultCode, reply.ResultStr)
     }
 
+    res := reply.RespData
+    if x, ok := res.(MsgEmptyResp); !ok {
+        return LogError("DeegisterClient: Expect empty resp. (%T) (%v)", x, x)
+    }
+
     LogInfo("Deregistered client (%s)", tx.ClientName)
     return nil
 }
@@ -89,6 +95,11 @@ func (tx *ClientTx) RegisterAction(action string) error {
                 action, reply.ResultCode, reply.ResultStr)
     }
 
+    res := reply.RespData
+    if x, ok := res.(MsgEmptyResp); !ok {
+        return LogError("RegisterAction: Expect empty resp. (%T) (%v)", x, x)
+    }
+
     LogInfo("Registered action (%s/%s)", tx.ClientName, action)
     return nil
 }
@@ -109,6 +120,11 @@ func (tx *ClientTx) DeregisterAction(action string) error {
     if (reply.ResultCode != 0) {
         return LogError("DeregisterAction: Server failed (%s/%s) result(%d/%s)", tx.ClientName,
                 action, reply.ResultCode, reply.ResultStr)
+    }
+
+    res := reply.RespData
+    if x, ok := res.(MsgEmptyResp); !ok {
+        return LogError("DeegisterAction: Expect empty resp. (%T) (%v)", x, x)
     }
 
     LogInfo("Deregistered action (%s/%s)", tx.ClientName, action)
@@ -139,5 +155,32 @@ func (tx *ClientTx) RecvActionRequest() (*ActionRequestData, error) {
     }
     LogInfo("RecvActionRequest: succeeded (%s/%s)", tx.ClientName, res.Action)
     return &res, nil
+}
+
+func (tx *ClientTx) SendActionResponse(res *ActionResponseData) error {
+    if tx.ClientRpc == nil {
+        return LogError("SendActionResponse: No Transport; Need to register first")
+    }
+
+    req := &LoMRequest { TypeSendActionResponse, tx.ClientName, tx.TimeoutSecs, res }
+    reply := &LoMResponse{}
+    err := tx.ClientRpc.Call("LoMTransport.SendToServer", req, reply)
+    if (err != nil) {
+        LogError("SendActionResponse: Failed to call SendToServer (%s) (%v)", tx.ClientName, err)
+        return err
+    }
+    if (reply.ResultCode != 0) {
+        return LogError("SendActionResponse: Server failed (%s) result(%d/%s)", tx.ClientName,
+                reply.ResultCode, reply.ResultStr)
+    }
+
+    resD := reply.RespData
+    if x, ok := resD.(MsgEmptyResp); !ok {
+        return LogError("SendActionResponse: Expect empty resp. (%T) (%v)", x, x)
+    }
+
+    LogInfo("SendActionResponse: succeeded (%s/%s)", tx.ClientName, res.Action)
+    return nil
+
 }
 
