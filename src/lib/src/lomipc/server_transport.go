@@ -163,10 +163,11 @@ type MsgSendActionResponse struct {
     ActionResponseData
 }
 
+type EpochSecs int64
 
 type MsgNotifyHeartbeat struct {
     Action      string
-    Timestamp   int
+    Timestamp   EpochSecs
 }
 
 type MsgShutdown struct {

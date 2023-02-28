@@ -3,6 +3,7 @@ package main
 import (
     . "lomcommon"
     . "lomipc"
+    "strconv"
 )
 
 type TestClientData struct {
@@ -51,6 +52,10 @@ var testData = []TestData {
             {   TestClientData { TypeSendActionResponse, []string{}, ActResData, false, MsgEmptyResp{} },
                 TestServerData { LoMRequest { TypeSendActionResponse, TEST_CL_NAME, ClTimeout, ActResData },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp{} } } },
+                        {   TestClientData { TypeNotifyActionHeartbeat, []string{ TEST_ACTION_NAME, "100" }, nil, false, MsgEmptyResp{} },
+                TestServerData { LoMRequest { TypeNotifyActionHeartbeat, TEST_CL_NAME, ClTimeout,
+                                            MsgNotifyHeartbeat { TEST_ACTION_NAME, 100 } },
+                        LoMResponse { 0, "Good", MsgEmptyResp {} } } },
             {   TestClientData { TypeDeregAction, []string{ TEST_ACTION_NAME }, nil, false, MsgEmptyResp{} },
                 TestServerData { LoMRequest { TypeDeregAction, TEST_CL_NAME, ClTimeout, MsgDeregAction { TEST_ACTION_NAME } },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
@@ -107,6 +112,15 @@ func testClient(chRes chan interface{}, chComplete chan interface{}) {
                 LogPanic("client: tid:%d: Expect ActionResponseData as DataArgs (%T)/(%v)", i, p, p)
             }
             err = txClient.SendActionResponse(&res)
+        case TypeNotifyActionHeartbeat:
+            if len(tdata.Args) != 2 {
+                LogPanic("client: tid:%d: Expect 2 args for register action len=%d", i, len(tdata.Args))
+            }
+            t, e := strconv.ParseInt(tdata.Args[1], 10, 64)
+            if e != nil {
+                LogPanic("client: tid:%d: Expect int64 val as second arg (%v)", i, tdata.Args[1])
+            }
+            err = txClient.NotifyHeartbeat(tdata.Args[0], EpochSecs(t))
         default:
             LogPanic("client: tid:%d TODO - Not yet implemented (%d)", i, tdata.ReqType)
         }

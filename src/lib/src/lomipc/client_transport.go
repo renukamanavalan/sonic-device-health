@@ -104,6 +104,7 @@ func (tx *ClientTx) RegisterAction(action string) error {
     return nil
 }
 
+
 func (tx *ClientTx) DeregisterAction(action string) error {
     if tx.ClientRpc == nil {
         return LogError("DeregisterAction: No Transport; Need to register first")
@@ -183,4 +184,34 @@ func (tx *ClientTx) SendActionResponse(res *ActionResponseData) error {
     return nil
 
 }
+
+
+func (tx *ClientTx) NotifyHeartbeat(action string, tstamp EpochSecs) error {
+    if tx.ClientRpc == nil {
+        return LogError("RegisterAction: No Transport; Need to register first")
+    }
+
+    req := &LoMRequest { TypeNotifyActionHeartbeat, tx.ClientName, tx.TimeoutSecs, 
+                MsgNotifyHeartbeat { action, tstamp }}
+    reply := &LoMResponse{}
+    err := tx.ClientRpc.Call("LoMTransport.SendToServer", req, reply)
+    if (err != nil) {
+        LogError("NotifyHeartbeat: Failed to call SendToServer (%s/%s) (%v)", tx.ClientName,
+                action, err)
+        return err
+    }
+    if (reply.ResultCode != 0) {
+        return LogError("NotifyHeartbeat: Server failed (%s/%s) result(%d/%s)", tx.ClientName,
+                action, reply.ResultCode, reply.ResultStr)
+    }
+
+    res := reply.RespData
+    if x, ok := res.(MsgEmptyResp); !ok {
+        return LogError("NotifyHeartbeat: Expect empty resp. (%T) (%v)", x, x)
+    }
+
+    LogInfo("Notified heartbeat from action (%s/%s)", tx.ClientName, action)
+    return nil
+}
+
 
