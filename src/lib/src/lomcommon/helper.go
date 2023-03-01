@@ -12,6 +12,9 @@ var writers = make(map[syslog.Priority]*syslog.Writer)
 
 var log_level = syslog.LOG_DEBUG
 
+var FmtFprintf = fmt.Fprintf
+var OSExit = os.Exit
+
 func init() {
 
     for i := syslog.LOG_EMERG; i <= syslog.LOG_DEBUG; i++ {
@@ -43,7 +46,7 @@ func SetLogLevel(lvl syslog.Priority) {
 func LogMessage(lvl syslog.Priority, s string, a ...interface{})  {
     ct_lvl := GetLogLevel()
     if lvl <= ct_lvl {
-        fmt.Fprintf(writers[lvl], s, a...)
+        FmtFprintf(writers[lvl], s, a...)
         if ct_lvl >= syslog.LOG_DEBUG {
             /* Debug messages gets printed out to STDOUT */
             fmt.Printf(s, a...)
@@ -56,7 +59,7 @@ func LogMessage(lvl syslog.Priority, s string, a ...interface{})  {
 func LogPanic(s string, a ...interface{})  {
     LogMessage(syslog.LOG_CRIT, s, a...)
     LogMessage(syslog.LOG_CRIT, "LoM exiting ...")
-    os.Exit(-1)
+    OSExit(-1)
 }
 
 

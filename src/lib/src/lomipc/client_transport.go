@@ -8,22 +8,43 @@ import(
 
 const server_address = "localhost"
 
+var RPCDialHttp = rpc.DialHTTP
+
 type ClientTx struct {
     ClientRpc   *rpc.Client
     ClientName  string
     TimeoutSecs int
 }
 
+func txCallClient(tx *ClientTx, serviceMethod string, args any, reply any) error {
+    if tx.ClientRpc == nil {
+        return LogError("txCallClient: No Transport; Need to register first")
+    }
+    return tx.ClientRpc.Call(serviceMethod, args, reply)
+}
+
+var ClientCall = txCallClient
 
 func (tx *ClientTx) RegisterClient(client string) error {
-    r, err := rpc.DialHTTP("tcp", server_address+":1234")
+    r, err := RPCDialHttp("tcp", server_address+":1234")
+
     if (err != nil) {
         LogError("RegisterClient: Failed to call rpc.DialHTTP err:(%v)", err)
         return err
     }
+
+    defer func() {
+        if err != nil {
+            tx.ClientRpc = nil
+            tx.ClientName = ""
+        }
+    }()
+    
+    tx.ClientRpc = r
+    tx.ClientName = client
     req := &LoMRequest { TypeRegClient, client, tx.TimeoutSecs, MsgRegClient{} }
     reply := &LoMResponse{}
-    err = r.Call("LoMTransport.SendToServer", req, reply)
+    err = ClientCall(tx, "LoMTransport.SendToServer", req, reply)
     if (err != nil) {
         LogError("RegisterClient: Failed to call SendToServer (%s) (%v)", client, err)
         return err
@@ -38,8 +59,6 @@ func (tx *ClientTx) RegisterClient(client string) error {
         return LogError("RegisterClient: Expect empty resp. (%T) (%v)", x, x)
     }
 
-    tx.ClientRpc = r
-    tx.ClientName = client
     LogInfo("Registered client (%s)", client)
     return nil
 }
@@ -51,13 +70,9 @@ func (tx *ClientTx) DeregisterClient() error {
         tx.ClientName = ""
     }()
 
-    if tx.ClientRpc == nil {
-        return LogError("DeregisterClient: No Transport; Need to register first")
-    }
-
     req := &LoMRequest { TypeDeregClient, tx.ClientName, tx.TimeoutSecs, MsgDeregClient{} }
     reply := &LoMResponse{}
-    err := tx.ClientRpc.Call("LoMTransport.SendToServer", req, reply)
+    err := ClientCall(tx, "LoMTransport.SendToServer", req, reply)
     if (err != nil) {
         LogError("DeregisterClient: Failed to call SendToServer (%s) (%v)", tx.ClientName, err)
         return err
@@ -78,13 +93,10 @@ func (tx *ClientTx) DeregisterClient() error {
 
 
 func (tx *ClientTx) RegisterAction(action string) error {
-    if tx.ClientRpc == nil {
-        return LogError("RegisterAction: No Transport; Need to register first")
-    }
 
     req := &LoMRequest { TypeRegAction, tx.ClientName, tx.TimeoutSecs, MsgRegAction{action} }
     reply := &LoMResponse{}
-    err := tx.ClientRpc.Call("LoMTransport.SendToServer", req, reply)
+    err := ClientCall(tx, "LoMTransport.SendToServer", req, reply)
     if (err != nil) {
         LogError("RegisterAction: Failed to call SendToServer (%s/%s) (%v)", tx.ClientName,
                 action, err)
@@ -106,13 +118,10 @@ func (tx *ClientTx) RegisterAction(action string) error {
 
 
 func (tx *ClientTx) DeregisterAction(action string) error {
-    if tx.ClientRpc == nil {
-        return LogError("DeregisterAction: No Transport; Need to register first")
-    }
 
     req := &LoMRequest { TypeDeregAction, tx.ClientName, tx.TimeoutSecs, MsgDeregAction{action} }
     reply := &LoMResponse{}
-    err := tx.ClientRpc.Call("LoMTransport.SendToServer", req, reply)
+    err := ClientCall(tx, "LoMTransport.SendToServer", req, reply)
     if (err != nil) {
         LogError("DeregisterAction: Failed to call SendToServer (%s/%s) (%v)", tx.ClientName,
                 action, err)
@@ -133,13 +142,10 @@ func (tx *ClientTx) DeregisterAction(action string) error {
 }
 
 func (tx *ClientTx) RecvServerRequest() (*ServerRequestData, error) {
-    if tx.ClientRpc == nil {
-        return nil, LogError("RecvServerRequest: No Transport; Need to register first")
-    }
 
     req := &LoMRequest { TypeRecvServerRequest, tx.ClientName, tx.TimeoutSecs, MsgRecvServerRequest{} }
     reply := &LoMResponse{}
-    err := tx.ClientRpc.Call("LoMTransport.SendToServer", req, reply)
+    err := ClientCall(tx, "LoMTransport.SendToServer", req, reply)
     if (err != nil) {
         LogError("RecvServerRequest: Failed to call SendToServer (%s) (%v)", tx.ClientName, err)
         return nil, err
@@ -161,13 +167,9 @@ func (tx *ClientTx) RecvServerRequest() (*ServerRequestData, error) {
 }
 
 func (tx *ClientTx) SendServerResponse(res *ServerResponseData) error {
-    if tx.ClientRpc == nil {
-        return LogError("SendServerResponse: No Transport; Need to register first")
-    }
-
     req := &LoMRequest { TypeSendServerResponse, tx.ClientName, tx.TimeoutSecs, res }
     reply := &LoMResponse{}
-    err := tx.ClientRpc.Call("LoMTransport.SendToServer", req, reply)
+    err := ClientCall(tx, "LoMTransport.SendToServer", req, reply)
     if (err != nil) {
         LogError("SendServerResponse: Failed to call SendToServer (%s) (%v)", tx.ClientName, err)
         return err
@@ -189,14 +191,10 @@ func (tx *ClientTx) SendServerResponse(res *ServerResponseData) error {
 
 
 func (tx *ClientTx) NotifyHeartbeat(action string, tstamp EpochSecs) error {
-    if tx.ClientRpc == nil {
-        return LogError("RegisterAction: No Transport; Need to register first")
-    }
-
     req := &LoMRequest { TypeNotifyActionHeartbeat, tx.ClientName, tx.TimeoutSecs, 
                 MsgNotifyHeartbeat { action, tstamp }}
     reply := &LoMResponse{}
-    err := tx.ClientRpc.Call("LoMTransport.SendToServer", req, reply)
+    err := ClientCall(tx, "LoMTransport.SendToServer", req, reply)
     if (err != nil) {
         LogError("NotifyHeartbeat: Failed to call SendToServer (%s/%s) (%v)", tx.ClientName,
                 action, err)

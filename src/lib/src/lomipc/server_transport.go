@@ -267,27 +267,25 @@ func (tr *LoMTransport) SendToServer(req *LoMRequest, reply *LoMResponse) (err e
 }
 
 /* Local call from server to read client request. */
-func (tr *LoMTransport) ReadClientRequest(timeout int, chAbort chan interface{}) *LoMRequestInt {
+func (tr *LoMTransport) ReadClientRequest(timeout int, chAbort chan interface{}) (*LoMRequestInt, error) {
     select {
     case p := <-tr.ServerCh:
         if x, ok := p.(*LoMRequestInt); ok {
             LogDebug("Server: Read from client (%s) type(%s)", x.Req.Client, ReqTypeToStr[x.Req.ReqType])
-            return x;
+            return x, nil
             /* Let server return response upon processing, via channel embedded in msg. */
         } else {
-            LogError("Client request message (%T) != *Msg", x)
-            return nil
+            return nil, LogError("Client request message (%T) != *Msg", x)
         }
     case <- time.After(time.Duration(timeout) * time.Second):
-        LogError("Server: Aborting read from client timeout=%d", timeout)
+        return nil, LogError("Server: Aborting read from client timeout=%d", timeout)
         /* Aborting per instruction */
-        return nil
+        
     case <- chAbort:
-        LogError("Server: Aborting read via abort channel")
+        return nil, LogError("Server: Aborting read via abort channel")
         /* Aborting per instruction */
-        return nil
+        
     }
-    return nil
 }
 
 

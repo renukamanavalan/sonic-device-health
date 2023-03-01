@@ -11,6 +11,13 @@ install() {
     go install ./...
 }
 
+coverage() {
+    go test -coverprofile=coverprofile.out  -coverpkg lomipc,lomcommon -covermode=atomic txlib_test
+    go tool cover -html=coverprofile.out -o /tmp/coverage.html
+    ls -l coverprofile.out /tmp/coverage.html
+    echo "View /tmp/coverage.html in Edge"
+}
+
 runtest() {
     echo "run test"
     bin/libtests
@@ -48,6 +55,9 @@ elif [[ "clean" == "$cmd"* ]]; then
 
 elif [[ "list" == "$cmd"* ]]; then
     list
+
+elif [[ "verify" == "$cmd"* ]]; then
+    coverage
 
 else
     echo "($cmd) match None"
