@@ -87,14 +87,17 @@ lomipc:
             Send notification to engine. Wait for server response; Return
             nil or non nil error, depending upon server response as success/failed.
 
+    APIs for making remote write and local read by engine/server
+        SendToServer
+            An internal API that encodes and send any
+
+        ReadClientRequest
+            Internal API for server to read any client request
+
 
 Unit test:
     Exercise all the above code.
     Try to be data driven where possible
     Get test result as "code coverage" >= 85%
 
-    Provides API for server to read & respond
-        ReadClientRequest
-
-        Ever
     
