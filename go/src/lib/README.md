@@ -1,6 +1,8 @@
 Summary:
     Provides shared common APIs, like log related
-    Provides APIs for clients to communicate with Engine
+    Provides APIs for clients to communicate with Server.
+    The server is referred as Engine as well. 
+    The terms server & engine are used interchangeably.
     Unit tests
 
 
@@ -32,7 +34,7 @@ lomcommon:
             Log messages with syslog.LOG_DEBUG
             
     
-    All LoM code (plugins, pluginMgr, Engine, Config-Mgr, ...) uses this single set of APIs for
+    All LoM code (plugins, pluginMgr, Server, Config-Mgr, ...) uses this single set of APIs for
     logging. This helps us provide a unified presentation of LoM logs and ability to tweak any
     in one place for entire LoM
 
@@ -42,7 +44,7 @@ TODO:
 
 
 lomipc:
-    Provides APIs for clients to use to contact Engine
+    Provides APIs for clients to use to contact Server
 
         ClientTx - Client object that is created once & used for entire session
             All calls below are methods on this object.
@@ -50,25 +52,25 @@ lomipc:
             Every API below is blocking until timeout.
 
         RegisterClient:
-            Expected to be the first call to engine.
+            Expected to be the first call to server.
             Create the comm channel with server.
-            Send register request to Engine. Wait for server response; Return
+            Send register request to Server. Wait for server response; Return
             nil or non nil error, depending upon server response as success/failed.
             
         DeregisterClient
-            Expected to be the last call to engine.
+            Expected to be the last call to server.
             Deletes the comm channel with server.
             Send deregister request to Engine. Wait for server response; Return
             nil or non nil error, depending upon server response as success/failed.
 
         RegisterAction
             Registers a valid action upon loading it.
-            Send register request to Engine. Wait for server response; Return
+            Send register request to Server. Wait for server response; Return
             nil or non nil error, depending upon server response as success/failed.
 
         DeregisterAction
             Deregisters a valid action upon any fatal error or upon need to reload it.
-            Send deregister request to Engine. Wait for server response; Return
+            Send deregister request to Server. Wait for server response; Return
             nil or non nil error, depending upon server response as success/failed.
 
         RecvServerRequest
@@ -78,16 +80,16 @@ lomipc:
             (read-request, error). When error is non nil, the requset is nil.
 
         SendServerResponse
-            Any response from plugin for request from engine is returned back to engine.
+            Any response from plugin for request from server is returned back to server.
             Response is sent to server. Wait for server response; Return
             nil or non nil error, depending upon server response as success/failed.
 
         NotifyHeartbeat
-            Send heartbeat from any action to engine.
-            Send notification to engine. Wait for server response; Return
+            Send heartbeat from any action to server.
+            Send notification to server. Wait for server response; Return
             nil or non nil error, depending upon server response as success/failed.
 
-    APIs for making remote write and local read by engine/server
+    APIs for making remote write and local read by server
         SendToServer
             An internal API that encodes and send any
 
