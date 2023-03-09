@@ -38,6 +38,37 @@ lomcommon:
     logging. This helps us provide a unified presentation of LoM logs and ability to tweak any
     in one place for entire LoM
 
+    ConfigSupport:
+    We have few config filed in JSON format. These APIs are helpers to load and
+    fetch needed config
+
+    LoadConfigFiles:
+        func LoadConfigFiles(actions_fl string, bind_fl string) error
+
+        Read Actions & Bind config files
+        TODO:
+            When we add one more file, make input as struct 
+            struct {
+                ActionsConfigFile   string
+                BindingConfigFile   string
+                ProcsConfigFile     string
+                <soon there will be one or two more, like global config >
+            }
+
+    func IsStartSequenceAction(name ActionName_t) bool
+        A way to validate an action as start of sequence or not.
+
+    func GetSequence(name ActionName_t) (*BindingSequence_t, error)
+        Get complete sequence info for an action. 
+        The i/p action is expected to be the first action in sequence.
+
+    func GetActionConfig(name ActionName_t) (*ActionInfo_t, error)
+        Get config for given action as in actions.conf
+
+    func GetActionsList() map[ActionName_t]struct{IsAnomaly bool} 
+        Get list of all actions
+    
+
 TODO:
     Add facility for callers to override syslog provided Writer with any. 
     This is an *advanced* use case and hence we do, when we see a need.
