@@ -51,11 +51,15 @@ lomipc:
             The timeout value for any call can be set in this object 
             Every API below is blocking until timeout.
 
+            type ClientTx struct {}
+
         RegisterClient:
             Expected to be the first call to server.
             Create the comm channel with server.
             Send register request to Server. Wait for server response; Return
             nil or non nil error, depending upon server response as success/failed.
+
+            func (tx *ClientTx) RegisterClient(client string) error
             
         DeregisterClient
             Expected to be the last call to server.
@@ -63,15 +67,21 @@ lomipc:
             Send deregister request to Engine. Wait for server response; Return
             nil or non nil error, depending upon server response as success/failed.
 
+            func (tx *ClientTx) DeregisterClient() error 
+
         RegisterAction
             Registers a valid action upon loading it.
             Send register request to Server. Wait for server response; Return
             nil or non nil error, depending upon server response as success/failed.
 
+            func (tx *ClientTx) RegisterAction(action string) error
+
         DeregisterAction
             Deregisters a valid action upon any fatal error or upon need to reload it.
             Send deregister request to Server. Wait for server response; Return
             nil or non nil error, depending upon server response as success/failed.
+
+            func (tx *ClientTx) DeregisterAction(action string) error
 
         RecvServerRequest
             Call for any server request. 
@@ -79,15 +89,21 @@ lomipc:
             Send the request to read it; Wait for server response; Return a tuple
             (read-request, error). When error is non nil, the requset is nil.
 
+            func (tx *ClientTx) RecvServerRequest() (*ServerRequestData, error)
+
         SendServerResponse
             Any response from plugin for request from server is returned back to server.
             Response is sent to server. Wait for server response; Return
             nil or non nil error, depending upon server response as success/failed.
 
+            func (tx *ClientTx) SendServerResponse(res *ServerResponseData) 
+
         NotifyHeartbeat
             Send heartbeat from any action to server.
             Send notification to server. Wait for server response; Return
             nil or non nil error, depending upon server response as success/failed.
+    
+            func (tx *ClientTx) NotifyHeartbeat(action string, tstamp EpochSecs) error
 
     APIs for making remote write and local read by server
         SendToServer
@@ -103,3 +119,4 @@ Unit test:
     Get test result as "code coverage" >= 85%
 
     
+Note: Please refer code for struct details
