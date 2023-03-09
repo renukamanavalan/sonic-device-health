@@ -36,9 +36,8 @@ import (
  *  plugins managed by client.
  */
 
-type ReqDataType int
-type ServerReqDataType int
 
+type ReqDataType int
 const (
     TypeNone = iota
     TypeRegClient
@@ -51,6 +50,7 @@ const (
     TypeCount
 )
 
+type ServerReqDataType int
 const (
     TypeServerRequestAction = iota
     TypeServerRequestShutdown

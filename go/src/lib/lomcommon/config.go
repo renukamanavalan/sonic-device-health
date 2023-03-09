@@ -35,8 +35,7 @@ type BindingActionInfo_t struct {
     Mandatory   bool    /* Once sequence kicked off, mandatory to call this */
     /*
      * Timeout to use while in this sequence
-     * 0    - means no timeout set.
-     * -1   - means run w/o timeout.
+     * <= 0 - means no timeout set.
      * >0   - timeout in seconds
      *
      */
@@ -46,7 +45,7 @@ type BindingActionInfo_t struct {
 
 type BindingSequence_t struct {
     SequenceName    string
-    Timeout         int
+    Timeout         int     /*  >0   - timeout in seconds; else no timeout */
     Actions         []BindingActionInfo_t
 }
 
@@ -69,13 +68,12 @@ func (s *BindingSequence_t) Compare(d *BindingSequence_t) bool {
 type BindingsConfig_t map[ActionName_t]BindingSequence_t
 
 
-/* Unexported globals */
+type ConfigMgr_t struct {
+    bindingsConfig BindingsConfig_t
+    actionsConfig  ActionsConfigList_t
+}
 
-var bindingsConfig = BindingsConfig_t{}
-var actionsConfig = ActionsConfigList_t{}
-
-
-func readActionsConf(fl string) error {
+func (p *ConfigMgr_t) readActionsConf(fl string) error {
     actions := struct {
         Actions []ActionInfo_t
     }{}
@@ -92,15 +90,15 @@ func readActionsConf(fl string) error {
     } else if err1 := json.Unmarshal(byteValue, &actions); err1 != nil {
         return err1
     } else {
-        for _, p := range actions.Actions {
-            actionsConfig[p.Name] = p
+        for _, a := range actions.Actions {
+            p.actionsConfig[a.Name] = a
         }
         return nil
     }
 }
 
 
-func readBindingsConf(fl string) error {
+func (p *ConfigMgr_t) readBindingsConf(fl string) error {
     bindings := struct {
         Bindings []BindingSequence_t
     }{}
@@ -117,11 +115,11 @@ func readBindingsConf(fl string) error {
     } else if err1 := json.Unmarshal(byteValue, &bindings); err1 != nil {
         return err1
     } else {
-        for _, p := range bindings.Bindings {
+        for _, b := range bindings.Bindings {
             seq := 0
             firstAction := ActionName_t("")
-            for i, a := range p.Actions {
-                actInfo, ok := actionsConfig[a.Name]
+            for i, a := range b.Actions {
+                actInfo, ok := p.actionsConfig[a.Name]
                 if !ok {
                     return LogError("%s: %d: Failed to get conf for action (%s)",
                             fl, i, a.Name)
@@ -140,7 +138,7 @@ func readBindingsConf(fl string) error {
                     a.Timeout = actInfo.Timeout
                 }
             }
-            bindingsConfig[firstAction] = p
+            p.bindingsConfig[firstAction] = b
         }
         return nil
     }
@@ -148,37 +146,32 @@ func readBindingsConf(fl string) error {
 
 
 
-func LoadConfigFiles(actions_fl string, bind_fl string) error {
-    bindingsConfig = BindingsConfig_t{}
-    actionsConfig = ActionsConfigList_t{}
-
-    if err := readActionsConf(actions_fl); err != nil {
+func (p *ConfigMgr_t) loadConfigFiles(actions_fl string, bind_fl string) error {
+    if err := p.readActionsConf(actions_fl); err != nil {
         return LogError("Actions: %s: %v", actions_fl, err)
     } 
-    if err := readBindingsConf(bind_fl); err != nil {
+    if err := p.readBindingsConf(bind_fl); err != nil {
         return LogError("Bind: %s: %v", bind_fl, err)
     } 
     return nil
 }
 
-func IsStartSequenceAction(name ActionName_t) bool {
+func (p *ConfigMgr_t) IsStartSequenceAction(name ActionName_t) bool {
     /* Return true, if action is start of any sequence; else false */
-    _, ok := bindingsConfig[name]
+    _, ok := p.bindingsConfig[name]
      return ok
 }
 
-func GetSequence(name ActionName_t) (*BindingSequence_t, error) {
+func (p *ConfigMgr_t) GetSequence(name ActionName_t) (*BindingSequence_t, error) {
     ret := &BindingSequence_t{}
 
-    v, ok := bindingsConfig[name]
+    v, ok := p.bindingsConfig[name]
     if !ok {
         return nil, LogError("Failed to find sequence for (%s)", name)
     }
 
     /* Copy primitives and deep copy actions slice */
     *ret = v
-    LogDebug("*ret=(%v)", *ret)
-    LogDebug("v=(%v)", v)
     ret.Actions = make([]BindingActionInfo_t, len(v.Actions))
     copy(ret.Actions, v.Actions)
     
@@ -186,22 +179,35 @@ func GetSequence(name ActionName_t) (*BindingSequence_t, error) {
 }
 
 
-func GetActionConfig(name ActionName_t) (*ActionInfo_t, error) {
-    actInfo, ok := actionsConfig[name]
+func (p *ConfigMgr_t) GetActionConfig(name ActionName_t) (*ActionInfo_t, error) {
+    actInfo, ok := p.actionsConfig[name]
     if !ok {
         return nil, LogError("Failed to get conf for action (%s)", name)
     }
     return &actInfo, nil
 }
 
-func GetActionsList() map[ActionName_t]struct{IsAnomaly bool} {
+func (p *ConfigMgr_t) GetActionsList() map[ActionName_t]struct{IsAnomaly bool} {
 
     ret := make(map[ActionName_t]struct{IsAnomaly bool})
 
-    for k, _ := range actionsConfig {
-        _, ok := bindingsConfig[k]
+    for k, _ := range p.actionsConfig {
+        _, ok := p.bindingsConfig[k]
         ret[k] = struct{IsAnomaly bool} { ok }
     }
     return ret
 }
+
+func GetConfigMgr(actions_fl string, bind_fl string) (*ConfigMgr_t, error) {
+    t := &ConfigMgr_t{}
+    t.actionsConfig = make(ActionsConfigList_t)
+    t.bindingsConfig = make(BindingsConfig_t)
+
+    if err := t.loadConfigFiles(actions_fl, bind_fl); err != nil {
+        return nil, err
+    } else {
+        return t, nil
+    }
+}
+
 

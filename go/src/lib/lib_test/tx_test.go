@@ -612,55 +612,44 @@ func createFile(name string, s string) (string, error) {
 
 func TestConfig(t *testing.T) {
     for i, d := range testConfigData {
-        var err error
-        flA := ""
-        flB := ""
-
-        if flA, err = createFile("actions", d.ActionStr); err != nil {
+        if flA, err := createFile("actions", d.ActionStr); err != nil {
             t.Errorf("TestConfig: %d: Failed to create Action file", i)
             return
-        }
-
-        if flB, err = createFile("bindings", d.BindStr); err != nil {
+        } else if flB, err := createFile("bindings", d.BindStr); err != nil {
             t.Errorf("TestConfig: %d: Failed to create Action file", i)
             return
-        }
-
-        err = LoadConfigFiles(flA, flB)
-        if d.Failed != (err != nil) {
-            if err != nil {
-                t.Errorf("Unexpected error: (%v)", err)
-            } else {
-                t.Errorf("Expect to fail: (%s)", d.Reason)
+        } else {
+            _, err = GetConfigMgr(flA, flB)
+            if d.Failed != (err != nil) {
+                if err != nil {
+                    t.Errorf("Unexpected error: (%v)", err)
+                } else {
+                    t.Errorf("Expect to fail: (%s)", d.Reason)
+                }
             }
         }
     }
 
     {
-        var err error
-        flA := ""
-        flB := ""
+        mgr := (*ConfigMgr_t)(nil)
 
-        if flA, err = createFile("actions", testApiData.ActionStr); err != nil {
+        if flA, err := createFile("actions", testApiData.ActionStr); err != nil {
             t.Errorf("APITest: Failed to create Action file")
             return
-        }
-
-        if flB, err = createFile("bindings", testApiData.BindStr); err != nil {
+        } else if flB, err := createFile("bindings", testApiData.BindStr); err != nil {
             t.Errorf("APITest: Failed to create Action file")
             return
-        }
-
-        err = LoadConfigFiles(flA, flB)
-        if err != nil {
+        } else if m, err := GetConfigMgr(flA, flB); err != nil {
             t.Errorf("Unexpected error: (%v)", err)
+        } else {
+            mgr = m
         }
 
         startSeqAct := ActionName_t("")
 
-        lst := GetActionsList()
+        lst := mgr.GetActionsList()
         for k, b := range testApiData.Seq {
-            if b != IsStartSequenceAction(k) {
+            if b != mgr.IsStartSequenceAction(k) {
                 t.Errorf("%v != IsStartSequenceAction(%s)", b, k)
             }
             if v, ok := lst[k]; !ok {
@@ -673,7 +662,7 @@ func TestConfig(t *testing.T) {
             }
         }
         
-        if bs, err1 := GetSequence(startSeqAct); err1 != nil {
+        if bs, err1 := mgr.GetSequence(startSeqAct); err1 != nil {
             t.Errorf("Failed to get seq (%s) err(%v)", startSeqAct, err1)
         } else if !bs.Compare(&testApiData.Sequence) {
             t.Errorf("%s: sequence mismatch (%v) != (%v)", startSeqAct, *bs, testApiData.Sequence)
@@ -688,19 +677,19 @@ func TestConfig(t *testing.T) {
             }
         }
 
-        if _, err1 := GetSequence("xyz"); err1 == nil {
+        if _, err1 := mgr.GetSequence("xyz"); err1 == nil {
             t.Errorf("Failed to fail for missing seq xyz")
         }
 
         for k, v := range testApiData.ActionsCfg {
-            if a, e := GetActionConfig(k); e != nil {
+            if a, e := mgr.GetActionConfig(k); e != nil {
                 t.Errorf("%s: Failed to get action cfg", k)
             } else if *a != v {
                 t.Errorf("%s: config mismatch (%v) != (%v)", k, a, v)
             }
         }
 
-        if _, e := GetActionConfig("zyy"); e == nil {
+        if _, e := mgr.GetActionConfig("zyy"); e == nil {
             t.Errorf("Failed to fail for nin existing action cfg")
         }
 
