@@ -7,7 +7,6 @@ import (
     "net/http"
     "net/rpc"
     "reflect"
-    "time"
 )
 
 /*
@@ -143,12 +142,16 @@ type ActionResponseData struct {
     ResultStr           string
 }
 
-/* Data sent as response via RespData for MsgRecvServerRequest */
-type ActionRequestData struct {
+type ActionRequestBaseData struct {
     Action              string
     InstanceId          string
     AnomalyInstanceId   string
     AnomalyKey          string
+}
+
+/* Data sent as response via RespData for MsgRecvServerRequest */
+type ActionRequestData struct {
+    ActionRequestBaseData
     Context             []ActionResponseData
 }
 
@@ -226,8 +229,6 @@ func (r *ServerRequestData) Equal(p *ServerRequestData) bool {
 }
 
 
-const DefeultTimeoutSeconds = 2    /* Default timeout for any pending call */
-
 /*
  * Each proc has a channel for remote end to write request.
  * Each request carry a channel for response to that request.
@@ -267,7 +268,8 @@ func (tr *LoMTransport) SendToServer(req *LoMRequest, reply *LoMResponse) (err e
 }
 
 /* Local call from server to read client request. */
-func (tr *LoMTransport) ReadClientRequest(timeout int, chAbort chan interface{}) (*LoMRequestInt, error) {
+func (tr *LoMTransport) ReadClientRequest(chAbort chan interface{}) (*LoMRequestInt, error) {
+    /* Return on non-null request or upon abort */
     select {
     case p := <-tr.ServerCh:
         if x, ok := p.(*LoMRequestInt); ok {
@@ -277,14 +279,10 @@ func (tr *LoMTransport) ReadClientRequest(timeout int, chAbort chan interface{})
         } else {
             return nil, LogError("Client request message (%T) != *Msg", x)
         }
-    case <- time.After(time.Duration(timeout) * time.Second):
-        return nil, LogError("Server: Aborting read from client timeout=%d", timeout)
-        /* Aborting per instruction */
         
     case <- chAbort:
         return nil, LogError("Server: Aborting read via abort channel")
         /* Aborting per instruction */
-        
     }
 }
 
@@ -297,6 +295,7 @@ func init_encoding() {
     gob.Register(MsgRecvServerRequest{})
     gob.Register(ServerRequestData{})
     gob.Register(ServerResponseData{})
+    gob.Register(ActionRequestBaseData{})
     gob.Register(ActionRequestData{})
     gob.Register(ActionResponseData{})
     gob.Register(ShutdownRequestData{})

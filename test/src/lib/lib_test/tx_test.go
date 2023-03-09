@@ -24,6 +24,7 @@ import (
     "net/rpc"
     . "lib/lomcommon"
     . "lib/lomipc"
+    "os"
     "strconv"
     "testing"
 )
@@ -49,7 +50,7 @@ type TestData struct {
 const TEST_CL_NAME = "Foo"
 const TEST_ACTION_NAME = "Detect-0"
 var ActReqData = ServerRequestData { TypeServerRequestAction,
-        ActionRequestData { "Bar", "inst_1", "an_inst_0", "an_key",
+        ActionRequestData { ActionRequestBaseData { "Bar", "inst_1", "an_inst_0", "an_key" },
             []ActionResponseData {
                     { TEST_ACTION_NAME, "an_inst_0", "an_inst_0", "an_key", "res_anomaly", 0, ""},
                     { "Foo-safety", "inst_0", "an_inst_0", "an_key", "res_foo_check", 2, "some failure"},
@@ -202,8 +203,6 @@ func testClient(chRes chan interface{}, chComplete chan interface{}) {
     chComplete <- struct {}{}
 }
 
-const readTimeoutSeconds = 2
-
 func TestMain(t *testing.T) {
     tx, err := ServerInit()
     if err != nil {
@@ -223,7 +222,7 @@ func TestMain(t *testing.T) {
         LogDebug("Server: Running: tid=%d", i)
 
         if (tdata.Req != LoMRequest{}) {
-            p, _ := tx.ReadClientRequest(readTimeoutSeconds, chComplete)
+            p, _ := tx.ReadClientRequest(chComplete)
             if p == nil {
                 t.Errorf("Server: tid:%d ReadClientRequest returned nil", i)
             }
@@ -388,7 +387,7 @@ func TestServerFail(t *testing.T) {
     {
         s1 := &ServerRequestData { TypeServerRequestAction, struct{}{} }
         s2 := &ServerRequestData { TypeServerRequestShutdown, 
-                    ActionRequestData {"foo", "", "", "", []ActionResponseData{}} }
+                    ActionRequestData {ActionRequestBaseData{"foo", "", "", ""}, []ActionResponseData{}} }
         if false != s1.Equal(s2) {
             t.Errorf("Failed to find mismatched req type")
         }
@@ -398,7 +397,7 @@ func TestServerFail(t *testing.T) {
             t.Errorf("Failed to find mismatched reqData type")
         }
 
-        s1.ReqData = ActionRequestData{"bar", "", "", "", []ActionResponseData{} }
+        s1.ReqData = ActionRequestData{ActionRequestBaseData{"bar", "", "", ""}, []ActionResponseData{} }
         if false != s1.Equal(s2) {
             t.Errorf("Failed to find mismatched reqData value")
         }
@@ -420,19 +419,14 @@ func TestServerFail(t *testing.T) {
             t := &struct{}{}
             tx.ServerCh <- t
             }
-            if p, e := tx.ReadClientRequest(1, chAbort); e == nil || p != nil {
+            if p, e := tx.ReadClientRequest(chAbort); e == nil || p != nil {
                 t.Errorf("Failed to fail for incorrect Req data type to server")
             }
         }
 
-        /* Timeout */
-        if p, e := tx.ReadClientRequest(1, chAbort); e == nil || p != nil {
-            t.Errorf("Failed to fail for timeout")
-        }
-
         /* explicit Abort */
         chAbort <- "Abort"
-        if p, e := tx.ReadClientRequest(1, chAbort); e == nil || p != nil {
+        if p, e := tx.ReadClientRequest(chAbort); e == nil || p != nil {
             t.Errorf("Failed to fail for abort")
         }
     } 
@@ -490,4 +484,227 @@ func TestHelper(t *testing.T) {
     }
 
 }
+
+type ConfigData_t struct {
+    ActionStr   string
+    BindStr     string
+    Failed      bool
+    Reason      string
+}
+
+var testConfigData = []ConfigData_t {
+        {
+            "",
+            "",
+            true,
+            "No config file given",
+        },
+        {
+            "eee",
+            "",
+            true,
+            "Invalid Json data",
+        },
+        {
+            "{}",
+            "",
+            true,
+            "Missing bindings file",
+        },
+        {
+            "{}",
+            "eee",
+            true,
+            "Invalid Json data",
+        },
+        {
+            `{ "actions": [ { "name": "xxx" } ] }`,
+            `{ "bindings": [ { "name": "Test", "actions": [ {"name": "YYY"} ] } ] }`,
+            true,
+            "Action name YYY not in actions",
+        },
+        {
+            `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+            `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 0 }, {"name": "yyy"}] } ] }`,
+            true,
+            "Duplicate sequence",
+        },
+        {
+            `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+            `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
+            false,
+            "",
+        },
+    }
+
+type testAPIData_t struct {
+    ActionStr       string
+    BindStr         string
+    Seq             map[ActionName_t]bool
+    Sequence        BindingSequence_t
+    ActionsCfg      map[ActionName_t]ActionInfo_t
+}
+
+var testApiData = testAPIData_t {
+    `{ "actions": [ { "name": "foo" }, { "name": "bar" } ] }`,
+    `{ "bindings": [ { "sequencename": "TestFoo", "timeout": 60, "actions": [ {"name": "foo", "sequence": 1 }, {"name": "bar"}] } ] }`,
+    map[ActionName_t]bool {
+        ActionName_t("foo"): false,
+        ActionName_t("bar"): true,
+    },
+    BindingSequence_t {
+        "TestFoo",
+       60,
+       []BindingActionInfo_t {
+           {
+               ActionName_t("foo"),
+               false,
+               0,
+               1,
+           },
+           {
+               ActionName_t("bar"),
+               false,
+               0,
+               0,
+           },
+       },
+   },
+   map[ActionName_t]ActionInfo_t {
+       ActionName_t("foo"): {
+           ActionName_t("foo"),
+           "",
+           0,
+           0,
+           false,
+           false,
+           "",
+       },
+       ActionName_t("bar"): {
+           ActionName_t("bar"),
+           "",
+           0,
+           0,
+           false,
+           false,
+           "",
+       },
+   },
+}
+
+
+
+func createFile(name string, s string) (string, error) {
+
+    if len(s) == 0 {
+        return "", nil
+    }
+    fl := "/tmp/" + name + ".json"
+    if f, err := os.Create(fl); err != nil {
+        return "", err
+    } else {
+        _, err := f.WriteString(s)
+        f.Close()
+        return fl, err
+    }
+}
+
+
+func TestConfig(t *testing.T) {
+    for i, d := range testConfigData {
+        var err error
+        flA := ""
+        flB := ""
+
+        if flA, err = createFile("actions", d.ActionStr); err != nil {
+            t.Errorf("TestConfig: %d: Failed to create Action file", i)
+            return
+        }
+
+        if flB, err = createFile("bindings", d.BindStr); err != nil {
+            t.Errorf("TestConfig: %d: Failed to create Action file", i)
+            return
+        }
+
+        err = LoadConfigFiles(flA, flB)
+        if d.Failed != (err != nil) {
+            if err != nil {
+                t.Errorf("Unexpected error: (%v)", err)
+            } else {
+                t.Errorf("Expect to fail: (%s)", d.Reason)
+            }
+        }
+    }
+
+    {
+        var err error
+        flA := ""
+        flB := ""
+
+        if flA, err = createFile("actions", testApiData.ActionStr); err != nil {
+            t.Errorf("APITest: Failed to create Action file")
+            return
+        }
+
+        if flB, err = createFile("bindings", testApiData.BindStr); err != nil {
+            t.Errorf("APITest: Failed to create Action file")
+            return
+        }
+
+        err = LoadConfigFiles(flA, flB)
+        if err != nil {
+            t.Errorf("Unexpected error: (%v)", err)
+        }
+
+        startSeqAct := ActionName_t("")
+
+        lst := GetActionsList()
+        for k, b := range testApiData.Seq {
+            if b != IsStartSequenceAction(k) {
+                t.Errorf("%v != IsStartSequenceAction(%s)", b, k)
+            }
+            if v, ok := lst[k]; !ok {
+                t.Errorf("%s missing in GetActionsList", k)
+            } else if v.IsAnomaly != b {
+                t.Errorf("%s isAnomaly (%v) != (%v)", k, v.IsAnomaly, b)
+            }
+            if b {
+                startSeqAct = k
+            }
+        }
+        
+        if bs, err1 := GetSequence(startSeqAct); err1 != nil {
+            t.Errorf("Failed to get seq (%s) err(%v)", startSeqAct, err1)
+        } else if !bs.Compare(&testApiData.Sequence) {
+            t.Errorf("%s: sequence mismatch (%v) != (%v)", startSeqAct, *bs, testApiData.Sequence)
+        } else {
+            bs.Actions[0].Name = "xxx"
+            if bs.Compare(&testApiData.Sequence) {
+                t.Errorf("%s: sequence Failed to mismatch (%v) != (%v)", startSeqAct, *bs, testApiData.Sequence)
+            }
+            bs.SequenceName = "XXXX"
+            if bs.Compare(&testApiData.Sequence) {
+                t.Errorf("%s: sequence Failed to mismatch (%v) != (%v)", startSeqAct, *bs, testApiData.Sequence)
+            }
+        }
+
+        if _, err1 := GetSequence("xyz"); err1 == nil {
+            t.Errorf("Failed to fail for missing seq xyz")
+        }
+
+        for k, v := range testApiData.ActionsCfg {
+            if a, e := GetActionConfig(k); e != nil {
+                t.Errorf("%s: Failed to get action cfg", k)
+            } else if *a != v {
+                t.Errorf("%s: config mismatch (%v) != (%v)", k, a, v)
+            }
+        }
+
+        if _, e := GetActionConfig("zyy"); e == nil {
+            t.Errorf("Failed to fail for nin existing action cfg")
+        }
+
+    }
+}
+
 

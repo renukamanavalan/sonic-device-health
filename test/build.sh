@@ -6,13 +6,15 @@ export GOPATH=$(pwd;)
 
 echo $GOPATH
 
+# set -x
+
 install() {
     echo "run install"
     go install ./...
 }
 
 test() {
-    go test -coverprofile=coverprofile.out  -coverpkg lib/lomipc,lib/lomcommon -covermode=atomic lib/lib_test
+    go test $1 -coverprofile=coverprofile.out  -coverpkg lib/lomipc,lib/lomcommon -covermode=atomic lib/lib_test
     if [ $? -ne 0 ]; then
         echo "Failed to run test"
         exit -1
@@ -49,7 +51,10 @@ elif [[ "list" == "$cmd"* ]]; then
     list
 
 elif [[ "test" == "$cmd"* ]]; then
-    test
+    test ""
+
+elif [[ "vtest" == "$cmd"* ]]; then
+    test "-v"
 
 else
     echo "($cmd) match None"
