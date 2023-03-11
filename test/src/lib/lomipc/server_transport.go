@@ -36,9 +36,9 @@ import (
  *  plugins managed by client.
  */
 
-type ReqDataType int
-type ServerReqDataType int
 
+/* All types of requests from client to server */
+type ReqDataType int
 const (
     TypeNone = iota
     TypeRegClient
@@ -49,12 +49,6 @@ const (
     TypeSendServerResponse
     TypeNotifyActionHeartbeat
     TypeCount
-)
-
-const (
-    TypeServerRequestAction = iota
-    TypeServerRequestShutdown
-    TypeServerRequestCount
 )
 
 var ReqTypeToStr = map[ReqDataType]string {
@@ -68,6 +62,15 @@ var ReqTypeToStr = map[ReqDataType]string {
     TypeNotifyActionHeartbeat: "NotifyActionHeartbeat",
 }
 
+/* Server sends its request as response to TypeRecvServerRequest */ 
+type ServerReqDataType int
+const (
+    TypeServerRequestAction = iota
+    TypeServerRequestShutdown
+    TypeServerRequestCount
+)
+
+
 var ServerReqTypeToStr = map[ServerReqDataType]string {
     TypeServerRequestAction: "RecvServerRequestAction",
     TypeServerRequestShutdown: "RecvServerRequestShutdown",
@@ -75,27 +78,19 @@ var ServerReqTypeToStr = map[ServerReqDataType]string {
 
 /* Request from client to server over RPC */
 type LoMRequest struct {
-    ReqType     ReqDataType
-    Client      string
-    TimeoutSecs int
-    ReqData     interface{}
+    ReqType     ReqDataType     /* Type of request */
+    Client      string          /* The client sending this request */
+    TimeoutSecs int             /* RFE: Timeout */
+    ReqData     interface{}     /* Data specific to request type */
 }
-
-/* Internal req object that is sent over chan */
-type LoMRequestInt struct {
-    Req         *LoMRequest
-    /* LoMResponse to this request is sent via this chan */
-    ChResponse  chan interface{}
-} 
 
 /*
  * Response from server to client.
  *
- * LoMResponse is tied to request closely as sent back via chan
- * embedded in the request. Hence does not need any more additional
- * data 
+ * All client requests are synchrnous. Hence the response does not
+ * include any client request details.
  *
- * RespData is specific to request. It could be nil.
+ * RespData is specific to client's request. It could be nil.
  */
 type LoMResponse struct {
     ResultCode  int
@@ -104,34 +99,54 @@ type LoMResponse struct {
     RespData    interface{}
 }
 
-/* All kinds of request data matching request type */
-type MsgRegClient struct {
+/*
+ * Msg to pass via ReqData in LomRequest
+ * All kinds of msg data matching request type
+ */
+type MsgRegClient struct {          /* For TypeRegClient */
 }
 
-type MsgDeregClient struct {
+type MsgDeregClient struct {        /* For TypeDeregClient */
 }
 
-type MsgRegAction struct {
+type MsgRegAction struct {          /* For TypeRegAction */
     Action  string
 }
 
-type MsgDeregAction struct {
+type MsgDeregAction struct {        /* For TypeDeregAction */
     Action  string
 }
 
-type MsgRecvServerRequest struct {
+type MsgRecvServerRequest struct {  /* For TypeRecvServerRequest */
 }
 
-type ServerRequestData struct {
-    ReqType             ServerReqDataType
-    ReqData             interface {}
-}
-
-type ServerResponseData struct {
+type MsgSendServerResponse struct { /* For TypeSendServerResponse */
     ReqType             ServerReqDataType
     ResData             interface {}
 }
 
+type MsgNotifyHeartbeat struct {    /* For TypeNotifyActionHeartbeat */
+    Action      string
+    Timestamp   EpochSecs
+}
+
+/*
+ * Server requests are pulled by client via TypeRecvServerRequest.
+ * Hence the server request object is sent via RespData in LoMResponse.
+ *
+ * The ReqType specifies the type of server request.
+ * The ReqData is specific per type.
+ */
+type ServerRequestData struct {
+    ReqType             ServerReqDataType   /* Type of requests from server to client */
+    ReqData             interface {}        /* Data per request type */
+                                            /* ActionRequestData or ShutdownRequestData */
+}
+
+/*
+ * Sent as MsgSendServerResponse::ResData for
+ * MsgSendServerResponse::ReqType == TypeServerRequestAction
+ */
 type ActionResponseData struct {
     Action              string
     InstanceId          string
@@ -142,31 +157,27 @@ type ActionResponseData struct {
     ResultStr           string
 }
 
-type ActionRequestBaseData struct {
+/*
+ * ReqData for ServerRequestData::ReqData for
+ * ServerRequestData::ReqType == TypeServerRequestAction
+ */
+type ActionRequestData struct {
     Action              string
     InstanceId          string
     AnomalyInstanceId   string
     AnomalyKey          string
-}
-
-/* Data sent as response via RespData for MsgRecvServerRequest */
-type ActionRequestData struct {
-    ActionRequestBaseData
+    Timeout             int
     Context             []ActionResponseData
 }
 
+/*
+ * ReqData for ServerRequestData::ReqData for
+ * ServerRequestData::ReqType == TypeServerRequestShutdown
+ */
 type ShutdownRequestData struct {
 }
 
 type EpochSecs int64
-
-type MsgNotifyHeartbeat struct {
-    Action      string
-    Timestamp   EpochSecs
-}
-
-type MsgShutdownData struct {
-}
 
 type MsgEmptyResp struct {
 }
@@ -237,6 +248,13 @@ type LoMTransport struct {
     ServerCh    chan interface{}
 }
 
+/* Internal req object within server. */
+type LoMRequestInt struct {
+    Req         *LoMRequest
+    /* LoMResponse to this request is sent via this chan */
+    ChResponse  chan interface{}
+} 
+
 /* RPC call from client */
 func (tr *LoMTransport) SendToServer(req *LoMRequest, reply *LoMResponse) (err error) {
 
@@ -293,13 +311,12 @@ func init_encoding() {
     gob.Register(MsgRegAction{})
     gob.Register(MsgDeregAction{})
     gob.Register(MsgRecvServerRequest{})
+    gob.Register(MsgSendServerResponse{})
+    gob.Register(MsgNotifyHeartbeat{})
     gob.Register(ServerRequestData{})
-    gob.Register(ServerResponseData{})
-    gob.Register(ActionRequestBaseData{})
     gob.Register(ActionRequestData{})
     gob.Register(ActionResponseData{})
     gob.Register(ShutdownRequestData{})
-    gob.Register(MsgNotifyHeartbeat{})
     gob.Register(MsgEmptyResp{})
 }
 

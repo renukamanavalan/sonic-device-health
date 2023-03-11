@@ -50,13 +50,13 @@ type TestData struct {
 const TEST_CL_NAME = "Foo"
 const TEST_ACTION_NAME = "Detect-0"
 var ActReqData = ServerRequestData { TypeServerRequestAction,
-        ActionRequestData { ActionRequestBaseData { "Bar", "inst_1", "an_inst_0", "an_key" },
+        ActionRequestData { "Bar", "inst_1", "an_inst_0", "an_key", 10,
             []ActionResponseData {
                     { TEST_ACTION_NAME, "an_inst_0", "an_inst_0", "an_key", "res_anomaly", 0, ""},
                     { "Foo-safety", "inst_0", "an_inst_0", "an_key", "res_foo_check", 2, "some failure"},
         } } }
 
-var ActResData = ServerResponseData { TypeServerRequestAction, ActionResponseData {
+var ActResData = MsgSendServerResponse { TypeServerRequestAction, ActionResponseData {
                 "Foo", "Inst-0", "AN-Inst-0", "an-key", "some resp", 9, "Failure Data" } }
 
 var ShutReqData = ServerRequestData { TypeServerRequestShutdown, ShutdownRequestData{} }
@@ -161,9 +161,9 @@ func testClient(chRes chan interface{}, chComplete chan interface{}) {
                  LogPanic("client: tid:%d: Expect No args for SendServerResponse len=%d", i, len(tdata.Args))
             }
             p := tdata.DataArgs
-            res, ok := p.(ServerResponseData)
+            res, ok := p.(MsgSendServerResponse)
             if (!ok) {
-                LogPanic("client: tid:%d: Expect ServerResponseData as DataArgs (%T)/(%v)", i, p, p)
+                LogPanic("client: tid:%d: Expect MsgSendServerResponse as DataArgs (%T)/(%v)", i, p, p)
             }
             err = txClient.SendServerResponse(&res)
         case TypeNotifyActionHeartbeat:
@@ -300,7 +300,7 @@ func TestClientFail(t *testing.T) {
             if _, err := txClient.RecvServerRequest(); err != retC {
                 t.Errorf("Failed to fail in RPC call")
             }
-            d := ServerResponseData{}
+            d := MsgSendServerResponse{}
             if err := txClient.SendServerResponse(&d); err != retC {
                 t.Errorf("Failed to fail in RPC call")
             }
@@ -327,7 +327,7 @@ func TestClientFail(t *testing.T) {
             if _, err := txClient.RecvServerRequest(); err == nil {
                 t.Errorf("Failed to handle non zero response")
             }
-            d := ServerResponseData{}
+            d := MsgSendServerResponse{}
             if err := txClient.SendServerResponse(&d); err == nil {
                 t.Errorf("Failed to handle non zero response")
             }
@@ -354,7 +354,7 @@ func TestClientFail(t *testing.T) {
             if _, err := txClient.RecvServerRequest(); err == nil {
                 t.Errorf("Failed to handle non Empty response")
             }
-            d := ServerResponseData{}
+            d := MsgSendServerResponse{}
             if err := txClient.SendServerResponse(&d); err == nil {
                 t.Errorf("Failed to handle non Empty response")
             }
@@ -387,7 +387,7 @@ func TestServerFail(t *testing.T) {
     {
         s1 := &ServerRequestData { TypeServerRequestAction, struct{}{} }
         s2 := &ServerRequestData { TypeServerRequestShutdown, 
-                    ActionRequestData {ActionRequestBaseData{"foo", "", "", ""}, []ActionResponseData{}} }
+                    ActionRequestData {"foo", "", "", "", 9, []ActionResponseData{}} }
         if false != s1.Equal(s2) {
             t.Errorf("Failed to find mismatched req type")
         }
@@ -397,7 +397,7 @@ func TestServerFail(t *testing.T) {
             t.Errorf("Failed to find mismatched reqData type")
         }
 
-        s1.ReqData = ActionRequestData{ActionRequestBaseData{"bar", "", "", ""}, []ActionResponseData{} }
+        s1.ReqData = ActionRequestData{"bar", "", "", "", 9, []ActionResponseData{} }
         if false != s1.Equal(s2) {
             t.Errorf("Failed to find mismatched reqData value")
         }
@@ -540,39 +540,39 @@ var testConfigData = []ConfigData_t {
 type testAPIData_t struct {
     ActionStr       string
     BindStr         string
-    Seq             map[ActionName_t]bool
+    Seq             map[string]bool
     Sequence        BindingSequence_t
-    ActionsCfg      map[ActionName_t]ActionInfo_t
+    ActionsCfg      map[string]ActionInfo_t
 }
 
 var testApiData = testAPIData_t {
     `{ "actions": [ { "name": "foo" }, { "name": "bar" } ] }`,
     `{ "bindings": [ { "sequencename": "TestFoo", "timeout": 60, "actions": [ {"name": "foo", "sequence": 1 }, {"name": "bar"}] } ] }`,
-    map[ActionName_t]bool {
-        ActionName_t("foo"): false,
-        ActionName_t("bar"): true,
+    map[string]bool {
+        "foo": false,
+        "bar": true,
     },
     BindingSequence_t {
         "TestFoo",
        60,
        []BindingActionInfo_t {
            {
-               ActionName_t("foo"),
+               "foo",
                false,
                0,
                1,
            },
            {
-               ActionName_t("bar"),
+               "bar",
                false,
                0,
                0,
            },
        },
    },
-   map[ActionName_t]ActionInfo_t {
-       ActionName_t("foo"): {
-           ActionName_t("foo"),
+   map[string]ActionInfo_t {
+       "foo": {
+           "foo",
            "",
            0,
            0,
@@ -580,8 +580,8 @@ var testApiData = testAPIData_t {
            false,
            "",
        },
-       ActionName_t("bar"): {
-           ActionName_t("bar"),
+       "bar": {
+           "bar",
            "",
            0,
            0,
@@ -612,55 +612,44 @@ func createFile(name string, s string) (string, error) {
 
 func TestConfig(t *testing.T) {
     for i, d := range testConfigData {
-        var err error
-        flA := ""
-        flB := ""
-
-        if flA, err = createFile("actions", d.ActionStr); err != nil {
+        if flA, err := createFile("actions", d.ActionStr); err != nil {
             t.Errorf("TestConfig: %d: Failed to create Action file", i)
             return
-        }
-
-        if flB, err = createFile("bindings", d.BindStr); err != nil {
+        } else if flB, err := createFile("bindings", d.BindStr); err != nil {
             t.Errorf("TestConfig: %d: Failed to create Action file", i)
             return
-        }
-
-        err = LoadConfigFiles(flA, flB)
-        if d.Failed != (err != nil) {
-            if err != nil {
-                t.Errorf("Unexpected error: (%v)", err)
-            } else {
-                t.Errorf("Expect to fail: (%s)", d.Reason)
+        } else {
+            _, err = InitConfigMgr(flA, flB)
+            if d.Failed != (err != nil) {
+                if err != nil {
+                    t.Errorf("Unexpected error: (%v)", err)
+                } else {
+                    t.Errorf("Expect to fail: (%s)", d.Reason)
+                }
             }
         }
     }
 
     {
-        var err error
-        flA := ""
-        flB := ""
+        mgr := (*ConfigMgr_t)(nil)
 
-        if flA, err = createFile("actions", testApiData.ActionStr); err != nil {
+        if flA, err := createFile("actions", testApiData.ActionStr); err != nil {
             t.Errorf("APITest: Failed to create Action file")
             return
-        }
-
-        if flB, err = createFile("bindings", testApiData.BindStr); err != nil {
+        } else if flB, err := createFile("bindings", testApiData.BindStr); err != nil {
             t.Errorf("APITest: Failed to create Action file")
             return
-        }
-
-        err = LoadConfigFiles(flA, flB)
-        if err != nil {
+        } else if m, err := InitConfigMgr(flA, flB); err != nil {
             t.Errorf("Unexpected error: (%v)", err)
+        } else {
+            mgr = m
         }
 
-        startSeqAct := ActionName_t("")
+        startSeqAct := ""
 
-        lst := GetActionsList()
+        lst := mgr.GetActionsList()
         for k, b := range testApiData.Seq {
-            if b != IsStartSequenceAction(k) {
+            if b != mgr.IsStartSequenceAction(k) {
                 t.Errorf("%v != IsStartSequenceAction(%s)", b, k)
             }
             if v, ok := lst[k]; !ok {
@@ -673,7 +662,7 @@ func TestConfig(t *testing.T) {
             }
         }
         
-        if bs, err1 := GetSequence(startSeqAct); err1 != nil {
+        if bs, err1 := mgr.GetSequence(startSeqAct); err1 != nil {
             t.Errorf("Failed to get seq (%s) err(%v)", startSeqAct, err1)
         } else if !bs.Compare(&testApiData.Sequence) {
             t.Errorf("%s: sequence mismatch (%v) != (%v)", startSeqAct, *bs, testApiData.Sequence)
@@ -688,19 +677,19 @@ func TestConfig(t *testing.T) {
             }
         }
 
-        if _, err1 := GetSequence("xyz"); err1 == nil {
+        if _, err1 := mgr.GetSequence("xyz"); err1 == nil {
             t.Errorf("Failed to fail for missing seq xyz")
         }
 
         for k, v := range testApiData.ActionsCfg {
-            if a, e := GetActionConfig(k); e != nil {
+            if a, e := mgr.GetActionConfig(k); e != nil {
                 t.Errorf("%s: Failed to get action cfg", k)
             } else if *a != v {
                 t.Errorf("%s: config mismatch (%v) != (%v)", k, a, v)
             }
         }
 
-        if _, e := GetActionConfig("zyy"); e == nil {
+        if _, e := mgr.GetActionConfig("zyy"); e == nil {
             t.Errorf("Failed to fail for nin existing action cfg")
         }
 
