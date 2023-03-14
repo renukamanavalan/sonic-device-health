@@ -16,6 +16,7 @@ const (
     LoMUnknownReqType,
     LoMIncorrectReqData,
     LoMReqFailed,
+    LoMReqTimeout,
     LoMErrorEnd
 )
 
@@ -24,6 +25,7 @@ var LoMResponseStr = map[int]string {
     "Unknown request",
     "Incorrect Msg type",
     "Request failed",
+    "Request Timed out"
     "END"
 }
 
@@ -35,7 +37,8 @@ func GetLoMResponseStr(code int) string {
 }
 
 
-func getLomResponse(code int, msg string, data interface{})
+/* Helper to construct LoMResponse object */
+func createLomResponse(code int, msg string, data interface{})
 {
     if (code <LoMResponseOk) || (code >= LoMErrorEnd) {
         LogPanic("Unexpected error code (%d) range (%d to %d)",
@@ -57,85 +60,111 @@ type serverHandler_t struct {
 }
 
 func (p *serverHandler_t) processRequest(req *LoMRequestInt) {
+    vat res *LomResponse) := nil
+
     switch req.Req.ReqType {
     case TypeRegClient:
-        req.ChResponse <- p.registerClient(req.Req)
+        res = p.registerClient(req.Req)
     case TypeDeregClient:
-        req.ChResponse <- p.deregisterClient(req.Req)
+        res = p.deregisterClient(req.Req)
     case TypeRegAction:
-        req.ChResponse <- p.registerAction(req.Req)
+        res = p.registerAction(req.Req)
     case TypeDeregAction:
-        req.ChResponse <- p.deregisterAction(req.Req)
+        res = p.deregisterAction(req.Req)
     case TypeRecvServerRequest:
-        req.ChResponse <- p.recvServerRequest(req.Req)
+        res = p.recvServerRequest(req.Req)
     case TypeSendServerResponse:
-        req.ChResponse <- p.sendServerResponse(req.Req)
+        res = p.sendServerResponse(req.Req)
     case TypeNotifyActionHeartbeat:
-        req.ChResponse <- p.notifyHeartbeat(req.Req)
+        res = p.notifyHeartbeat(req.Req)
     default:
-        req.ChResponse <- getLomResponse(LoMUnknownReqType, "", nil)
+        res = createLomResponse(LoMUnknownReqType, "", nil)
+    }
+    req.ChResponse <- res
+    if res.ResultCode == 0 {
+        switch req.Req.ReqType {
+        case TypeRegAction:
+            m, _ := req.ReqData.(MsgRegAction)
+            GetSeqHandler().RaiseRequest(m.Action)
+        case TypeSendServerResponse:
+            m, _ := req.ReqData.(MsgSendServerResponse)
+            GetSeqHandler().ProcessResponse(m)
+        }
     }
 }
 
 
 func (p *serverHandler_t) registerClient(req *LoMRequest) *LomResponse {
     if _, ok := req.ReqData.(MsgRegClient); !ok {
-        return getLomResponse(LoMIncorrectReqData, "", nil)
+        return createLomResponse(LoMIncorrectReqData, "", nil)
     }
     e := GetRegistrations().RegisterClient(ClientName_t(req.Client))
     if e != nil {
-        return getLomResponse(LoMReqFailed, fmt.Sprint(e), nil)
+        return createLomResponse(LoMReqFailed, fmt.Sprint(e), nil)
     }
-    return getLomResponse(LoMResponseOk, "", nil)
+    return createLomResponse(LoMResponseOk, "", nil)
 }
 
 
 func (p *serverHandler_t) deregisterClient(req *LoMRequest) *LomResponse {
     if _, ok := req.ReqData.(MsgDeregClient); !ok {
-        return getLomResponse(LoMIncorrectReqData, "", nil)
+        return createLomResponse(LoMIncorrectReqData, "", nil)
     }
     GetRegistrations().DeregisterClient(ClientName_t(req.Client))
-    return getLomResponse(LoMResponseOk, "", nil)
+    return createLomResponse(LoMResponseOk, "", nil)
 }
 
 
 func (p *serverHandler_t) registerAction(req *LoMRequest) *LomResponse {
     if m, ok := req.ReqData.(MsgRegAction); !ok {
-        return getLomResponse(LoMIncorrectReqData, "", nil)
+        return createLomResponse(LoMIncorrectReqData, "", nil)
     }
-    info := &ActiveActionInfo_t { ActionName_t(m.Action), ClientName_t(req.Client), 0 }
+    info := &ActiveActionInfo_t { m.Action, ClientName_t(req.Client), 0 }
     e := GetRegistrations().RegisterAction(info)
     if e != nil {
-        return getLomResponse(LoMReqFailed, fmt.Sprint(e), nil)
+        return createLomResponse(LoMReqFailed, fmt.Sprint(e), nil)
     }
-    return getLomResponse(LoMResponseOk, "", nil)
+    return createLomResponse(LoMResponseOk, "", nil)
 }
 
 
 func (p *serverHandler_t) deregisterAction(req *LoMRequest) *LomResponse {
     if m, ok := req.ReqData.(MsgDeregAction); !ok {
-        return getLomResponse(LoMIncorrectReqData, "", nil)
+        return createLomResponse(LoMIncorrectReqData, "", nil)
     }
-    GetRegistrations().DeregisterAction(ActionName_t(m.Action))
-    return getLomResponse(LoMResponseOk, "", nil)
+    GetRegistrations().DeregisterAction(m.Action)
+    return createLomResponse(LoMResponseOk, "", nil)
 }
 
 
 func (p *serverHandler_t) notifyHeartbeat(req *LoMRequest) *LomResponse {
     if m, ok := req.ReqData.(MsgNotifyHeartbeat); !ok {
-        return getLomResponse(LoMIncorrectReqData, "", nil)
+        return createLomResponse(LoMIncorrectReqData, "", nil)
     }
-    GetRegistrations().NotifyHeartbeats(ActionName_t(m.Action), m.Timestamp)
-    return getLomResponse(LoMResponseOk, "", nil)
+    GetRegistrations().NotifyHeartbeats(m.Action, m.Timestamp)
+    return createLomResponse(LoMResponseOk, "", nil)
 }
 
 
 func (p *serverHandler_t) recvServerRequest(req *LoMRequest) *LomResponse {
-    if m, ok := req.ReqData.(MsgNotifyHeartbeat); !ok {
-        return getLomResponse(LoMIncorrectReqData, "", nil)
+    if m, ok := req.ReqData.(MsgRecvServerRequest); !ok {
+        return createLomResponse(LoMIncorrectReqData, "", nil)
     }
-    GetRegistrations().NotifyHeartbeats(ActionName_t(m.Action), m.Timestamp)
-    return getLomResponse(LoMResponseOk, "", nil)
+    if err := GetRegistrations().SendServerRequest(req); err == nil {
+        /* ClientRegistrations_t will send the request whenever available */
+        return nil
+    } else {
+        return createLomResponse(LoMReqFailed, fmt.Sprintf("%v", err), nil)
+    }
+}
+
+
+func (p *serverHandler_t) sendServerResponse(req *LoMRequest) *LomResponse {
+    if m, ok := req.ReqData.(MsgSendServerResponse); !ok {
+        return createLomResponse(LoMIncorrectReqData, "", nil)
+    }
+    return createLomResponse(LoMResponseOk, "", sreq)
+    /* Process response called in caller after sending response back */
 }
 
 

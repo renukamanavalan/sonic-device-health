@@ -1,0 +1,27 @@
+{
+    "actions": [
+        {
+            "name": "LinkCRC",
+            "type": "Detection",
+            "heartbeat-interval": 5,
+            "actionKnobs": "",
+            "timeout": 99
+        },
+        {
+            "name": "LinkSafety",
+            "type": "SafetyCheck",
+            "timeout": 10,
+            "heartbeat-interval": 0,
+            "mimic": false,
+            "actionKnobs": ""
+        },
+        {
+            "name": "LinkDown",
+            "type": "Mitigation",
+            "timeout": 10,
+            "heartbeat-interval": 0,
+            "disable": false,
+            "mimic": false
+        }
+    ]
+}

@@ -1,0 +1,30 @@
+{
+    "_description": "Priority is used when multiple anomalies are detected",
+    "bindings": [ 
+        {
+            "sequencename": "CRCError",
+            "timeout" : 60,
+            "priority": 1,
+            "actions": [
+                { 
+                    "name": "linkCRC",
+                    "mandatory": false,
+                    "timeout": 0,
+                    "sequence": 0
+                },
+                {
+                    "name": "linkSafety",
+                    "timeout": 15,
+                    "mandatory": false,
+                    "sequence": 1
+                },
+                {
+                    "name": "linkDown",
+                    "timeout": 10,
+                    "mandatory": false,
+                    "sequence": 2
+                }
+            ]
+        }
+    ]
+}

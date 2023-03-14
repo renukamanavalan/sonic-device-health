@@ -80,7 +80,7 @@ var ServerReqTypeToStr = map[ServerReqDataType]string {
 type LoMRequest struct {
     ReqType     ReqDataType     /* Type of request */
     Client      string          /* The client sending this request */
-    TimeoutSecs int             /* RFE: Timeout */
+    TimeoutSecs int             /* Timeout - Honored in long running requests */
     ReqData     interface{}     /* Data specific to request type */
 }
 
@@ -157,6 +157,31 @@ type ActionResponseData struct {
     ResultStr           string
 }
 
+func (p *ActionResponseData) ToMap() map[string]string {
+    return &map[string]string {
+        "Action": p.Action,
+        "InstanceId": p.InstanceId,
+        "AnomalyInstanceId": p.AnomalyInstanceId,
+        "AnomalyKey": p.AnomalyKey,
+        "Response": p.Response,
+        "ResultCode": fmt.Sprintf("%d", p.ResultCode),
+        "ResultStr": p.ResultStr
+    }
+}
+
+
+func (p *ActionResponseData) Validate() bool {
+    if ((len(p.Action) > 0) && (len(p.InstanceId) > 0) &&
+            (len(p.AnomalyInstanceId) > 0) &&
+            (len(p.AnomalyKey) > 0) &&
+            (len(p.Response) > 0)) {
+        return true
+    } else {
+        return false
+    }
+}
+
+
 /*
  * ReqData for ServerRequestData::ReqData for
  * ServerRequestData::ReqType == TypeServerRequestAction
@@ -167,7 +192,7 @@ type ActionRequestData struct {
     AnomalyInstanceId   string
     AnomalyKey          string
     Timeout             int
-    Context             []ActionResponseData
+    Context             []*ActionResponseData
 }
 
 /*

@@ -13,7 +13,26 @@ const (
     Mitigation string = "Mitigation"
 )
 
-type ActionInfo_t struct {
+type GlobalConfig_t map[string]string
+
+func (p *GlobalConfig_t) GetVal(key string) string {
+    if s, ok := p[key]; ok {
+        return s
+    }
+    switch(key) {
+    case "MAX_SEQ_TIMEOUT_SECS":
+        return "120"                /* Default of 2 mins */
+    case "MIN_PERIODIC_LOG_PERIOD":
+        return "15"
+    case "ENGINE_HB_INTERVAL":
+        return "10"
+    default:
+        return "UNKNOWN"
+    }
+}
+
+
+type ActionCfg_t struct {
     Name            string
     Type            string
     Timeout         int     /* Timeout recommended for this action */
@@ -23,9 +42,9 @@ type ActionInfo_t struct {
     ActionKnobs     string  /* Json String with action specific knobs */
 }
 
-type ActionsConfigList_t  map[string]ActionInfo_t
+type ActionsConfigList_t  map[string]ActionCfg_t
 
-type BindingActionInfo_t struct {
+type BindingActionCfg_t struct {
     Name        string
     Mandatory   bool    /* Once sequence kicked off, mandatory to call this */
     /*
@@ -41,7 +60,8 @@ type BindingActionInfo_t struct {
 type BindingSequence_t struct {
     SequenceName    string
     Timeout         int     /*  >0   - timeout in seconds; else no timeout */
-    Actions         []BindingActionInfo_t
+    Priority        int
+    Actions         []BindingActionCfg_t
 }
 
 func (s *BindingSequence_t) Compare(d *BindingSequence_t) bool {
@@ -64,13 +84,41 @@ type BindingsConfig_t map[string]BindingSequence_t
 
 
 type ConfigMgr_t struct {
-    actionsConfig  ActionsConfigList_t
-    bindingsConfig BindingsConfig_t
+    globalConfig    *GlobalConfig_t
+    actionsConfig   *ActionsConfigList_t
+    bindingsConfig  *BindingsConfig_t
 }
+
+func (p *ConfigMgr_t) readGlobalsConf(fl string) error {
+    v := make(map[string]any)
+
+    jsonFile, err := os.Open(fl)
+    if err != nil {
+        return err
+    }
+
+    defer jsonFile.Close()
+
+    if byteValue, err1 := ioutil.ReadAll(jsonFile); err1 != nil {
+        return err1
+    } else if err1 := json.Unmarshal(byteValue, &v); err1 != nil {
+        return err1
+    } else {
+        for k, v := range v {
+            s, ok := v.(string)
+            if !ok {
+                LogPanic("Global config %s:%s is not string but (%T)", k, v, v)
+            }
+            p.globalConfig[k] = s
+        }
+        return nil
+    }
+}
+
 
 func (p *ConfigMgr_t) readActionsConf(fl string) error {
     actions := struct {
-        Actions []ActionInfo_t
+        Actions []ActionCfg_t
     }{}
 
     jsonFile, err := os.Open(fl)
@@ -113,6 +161,8 @@ func (p *ConfigMgr_t) readBindingsConf(fl string) error {
         for _, b := range bindings.Bindings {
             seq := 0
             firstAction := string("")
+            ordered := make([]BindingActionCfg_t, 0, len(b.Actions))
+
             for i, a := range b.Actions {
                 actInfo, ok := p.actionsConfig[a.Name]
                 if !ok {
@@ -133,7 +183,25 @@ func (p *ConfigMgr_t) readBindingsConf(fl string) error {
                     a.Timeout = actInfo.Timeout
                 }
             }
-            p.bindingsConfig[firstAction] = b
+            if len(b.Actions) > 0 {
+                /* Sort by sequence */
+                sort.Slice(b.Actions, func(i, j int) bool {
+                    return b.Actions[i].Sequence < b.Actions[j].Sequence
+                })
+                if b.Timeout == 0 {
+                    s := p.GetGlobalCfg("MAX_SEQ_TIMEOUT_SECS")
+                    if t, e := strconv.Atoi(s); e != nil {
+                        LogError("COnfig Error: Failed to convert MAX_SEQ_TIMEOUT_SECS=%s to int (%v)", s, e)
+                        b.Timeout = 120
+                    } else {
+                        b.Timeout = t
+                    }
+                }
+                p.bindingsConfig[firstAction] = b
+            } else {
+                LogError("Internal Error: Missing actions in bindings for (%s) fl(%s)",
+                        b.SequenceName, jsonFile)
+            }
         }
         return nil
     }
@@ -141,7 +209,10 @@ func (p *ConfigMgr_t) readBindingsConf(fl string) error {
 
 
 
-func (p *ConfigMgr_t) loadConfigFiles(actions_fl string, bind_fl string) error {
+func (p *ConfigMgr_t) loadConfigFiles(globals_fl, actions_fl string, bind_fl string) error {
+    if err := p.readGlobalsConf(globals_fl); err != nil {
+        return LogError("Actions: %s: %v", actions_fl, err)
+    } 
     if err := p.readActionsConf(actions_fl); err != nil {
         return LogError("Actions: %s: %v", actions_fl, err)
     } 
@@ -150,6 +221,11 @@ func (p *ConfigMgr_t) loadConfigFiles(actions_fl string, bind_fl string) error {
     } 
     return nil
 }
+
+func (p *ConfigMgr_t) GetGlobalCfg(key string) string {
+    return globalConfig.GetVal(key)
+}
+
 
 func (p *ConfigMgr_t) IsStartSequenceAction(name string) bool {
     /* Return true, if action is start of any sequence; else false */
@@ -167,14 +243,14 @@ func (p *ConfigMgr_t) GetSequence(name string) (*BindingSequence_t, error) {
 
     /* Copy primitives and deep copy actions slice */
     *ret = v
-    ret.Actions = make([]BindingActionInfo_t, len(v.Actions))
+    ret.Actions = make([]BindingActionCfg_t, len(v.Actions))
     copy(ret.Actions, v.Actions)
     
     return ret, nil
 }
 
 
-func (p *ConfigMgr_t) GetActionConfig(name string) (*ActionInfo_t, error) {
+func (p *ConfigMgr_t) GetActionConfig(name string) (*ActionCfg_t, error) {
     actInfo, ok := p.actionsConfig[name]
     if !ok {
         return nil, LogError("Failed to get conf for action (%s)", name)
@@ -193,6 +269,7 @@ func (p *ConfigMgr_t) GetActionsList() map[string]struct{IsAnomaly bool} {
     return ret
 }
 
+
 var configMgr *ConfigMgr_t = nil
 
 func GetConfigMgr() *ConfigMgr_t {
@@ -200,10 +277,10 @@ func GetConfigMgr() *ConfigMgr_t {
 }
 
 
-func InitConfigMgr(actions_fl string, bind_fl string) (*ConfigMgr_t, error) {
-    t := &ConfigMgr_t{make(ActionsConfigList_t), make(BindingsConfig_t)}
+func InitConfigMgr(global_fl, actions_fl, bind_fl string) (*ConfigMgr_t, error) {
+    t := &ConfigMgr_t{make(GlobalConfig_t), make(ActionsConfigList_t), make(BindingsConfig_t)}
 
-    if err := t.loadConfigFiles(actions_fl, bind_fl); err != nil {
+    if err := t.loadConfigFiles(global_fl, actions_fl, bind_fl); err != nil {
         return nil, err
     } else {
         configMgr = t
