@@ -166,7 +166,7 @@ func (tx *ClientTx) RecvServerRequest() (*ServerRequestData, error) {
     return &res, nil
 }
 
-func (tx *ClientTx) SendServerResponse(res *ServerResponseData) error {
+func (tx *ClientTx) SendServerResponse(res *MsgSendServerResponse) error {
     req := &LoMRequest { TypeSendServerResponse, tx.ClientName, tx.TimeoutSecs, res }
     reply := &LoMResponse{}
     err := ClientCall(tx, "LoMTransport.SendToServer", req, reply)
