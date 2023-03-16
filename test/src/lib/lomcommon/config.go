@@ -4,6 +4,7 @@ import (
     "encoding/json"
     "io/ioutil"
     "os"
+    "sort"
 )
 
 
@@ -13,22 +14,64 @@ const (
     Mitigation string = "Mitigation"
 )
 
-type GlobalConfig_t map[string]string
+type GlobalConfig_t struct {
+    strings map[string]string
+    ints    map[string]int
+    anyVal  map[string]any
+}
 
-func (p *GlobalConfig_t) GetVal(key string) string {
-    if s, ok := p[key]; ok {
-        return s
+
+func (p *GlobalConfig_t) setDefaults() {
+    p.strings = make(map[string]string)
+    p.ints = make(map[string]int)
+    p.anyVal = make(map[string]any)
+
+    p.ints["MAX_SEQ_TIMEOUT_SECS"] = 120
+    p.ints["MIN_PERIODIC_LOG_PERIOD"] = 15
+    p.ints["ENGINE_HB_INTERVAL"] = 10
+}
+
+func (p *GlobalConfig_t) readGlobalsConf(fl string) error {
+    p.setDefaults()
+
+    v := make(map[string]any)
+
+    jsonFile, err := os.Open(fl)
+    if err != nil {
+        LogError("Failed to open (%s) (%v)", jsonFile, err)
+        return err
     }
-    switch(key) {
-    case "MAX_SEQ_TIMEOUT_SECS":
-        return "120"                /* Default of 2 mins */
-    case "MIN_PERIODIC_LOG_PERIOD":
-        return "15"
-    case "ENGINE_HB_INTERVAL":
-        return "10"
-    default:
-        return "UNKNOWN"
+
+    defer jsonFile.Close()
+
+    if byteValue, err := ioutil.ReadAll(jsonFile); err != nil {
+        return LogError("Failed to read (%s) (%v)", jsonFile, err)
+    } else if err := json.Unmarshal(byteValue, &v); err != nil {
+        return LogError("Failed to parse (%s) (%v)", jsonFile, err)
+    } else {
+        for k, v := range v {
+            p.anyVal[k] = v
+            if s, ok := v.(string); ok {
+                p.strings[k] = s
+            } else if f, ok := v.(float64); ok {
+                p.ints[k] = int(f)
+            }
+
+        }
+        return nil
     }
+}
+
+func (p *GlobalConfig_t) GetValStr(key string) string {
+    return p.strings[key]
+}
+
+func (p *GlobalConfig_t) GetValInt(key string) int {
+    return p.ints[key]
+}
+
+func (p *GlobalConfig_t) GetValAny(key string) any {
+    return p.anyVal[key]
 }
 
 
@@ -85,34 +128,8 @@ type BindingsConfig_t map[string]BindingSequence_t
 
 type ConfigMgr_t struct {
     globalConfig    *GlobalConfig_t
-    actionsConfig   *ActionsConfigList_t
-    bindingsConfig  *BindingsConfig_t
-}
-
-func (p *ConfigMgr_t) readGlobalsConf(fl string) error {
-    v := make(map[string]any)
-
-    jsonFile, err := os.Open(fl)
-    if err != nil {
-        return err
-    }
-
-    defer jsonFile.Close()
-
-    if byteValue, err1 := ioutil.ReadAll(jsonFile); err1 != nil {
-        return err1
-    } else if err1 := json.Unmarshal(byteValue, &v); err1 != nil {
-        return err1
-    } else {
-        for k, v := range v {
-            s, ok := v.(string)
-            if !ok {
-                LogPanic("Global config %s:%s is not string but (%T)", k, v, v)
-            }
-            p.globalConfig[k] = s
-        }
-        return nil
-    }
+    actionsConfig   ActionsConfigList_t
+    bindingsConfig  BindingsConfig_t
 }
 
 
@@ -128,10 +145,10 @@ func (p *ConfigMgr_t) readActionsConf(fl string) error {
 
     defer jsonFile.Close()
 
-    if byteValue, err1 := ioutil.ReadAll(jsonFile); err1 != nil {
-        return err1
-    } else if err1 := json.Unmarshal(byteValue, &actions); err1 != nil {
-        return err1
+    if byteValue, err := ioutil.ReadAll(jsonFile); err != nil {
+        return err
+    } else if err := json.Unmarshal(byteValue, &actions); err != nil {
+        return err
     } else {
         for _, a := range actions.Actions {
             p.actionsConfig[a.Name] = a
@@ -153,15 +170,14 @@ func (p *ConfigMgr_t) readBindingsConf(fl string) error {
     
     defer jsonFile.Close()
     
-    if byteValue, err1 := ioutil.ReadAll(jsonFile); err1 != nil {
-        return err1
-    } else if err1 := json.Unmarshal(byteValue, &bindings); err1 != nil {
-        return err1
+    if byteValue, err := ioutil.ReadAll(jsonFile); err != nil {
+        return err
+    } else if err := json.Unmarshal(byteValue, &bindings); err != nil {
+        return err
     } else {
         for _, b := range bindings.Bindings {
             seq := 0
             firstAction := string("")
-            ordered := make([]BindingActionCfg_t, 0, len(b.Actions))
 
             for i, a := range b.Actions {
                 actInfo, ok := p.actionsConfig[a.Name]
@@ -189,17 +205,11 @@ func (p *ConfigMgr_t) readBindingsConf(fl string) error {
                     return b.Actions[i].Sequence < b.Actions[j].Sequence
                 })
                 if b.Timeout == 0 {
-                    s := p.GetGlobalCfg("MAX_SEQ_TIMEOUT_SECS")
-                    if t, e := strconv.Atoi(s); e != nil {
-                        LogError("COnfig Error: Failed to convert MAX_SEQ_TIMEOUT_SECS=%s to int (%v)", s, e)
-                        b.Timeout = 120
-                    } else {
-                        b.Timeout = t
-                    }
+                    b.Timeout = p.GetGlobalCfgInt("MAX_SEQ_TIMEOUT_SECS")
                 }
                 p.bindingsConfig[firstAction] = b
             } else {
-                LogError("Internal Error: Missing actions in bindings for (%s) fl(%s)",
+                return LogError("Internal Error: Missing actions in bindings for (%s) fl(%s)",
                         b.SequenceName, jsonFile)
             }
         }
@@ -210,7 +220,7 @@ func (p *ConfigMgr_t) readBindingsConf(fl string) error {
 
 
 func (p *ConfigMgr_t) loadConfigFiles(globals_fl, actions_fl string, bind_fl string) error {
-    if err := p.readGlobalsConf(globals_fl); err != nil {
+    if err := p.globalConfig.readGlobalsConf(globals_fl); err != nil {
         return LogError("Actions: %s: %v", actions_fl, err)
     } 
     if err := p.readActionsConf(actions_fl); err != nil {
@@ -222,8 +232,16 @@ func (p *ConfigMgr_t) loadConfigFiles(globals_fl, actions_fl string, bind_fl str
     return nil
 }
 
-func (p *ConfigMgr_t) GetGlobalCfg(key string) string {
-    return globalConfig.GetVal(key)
+func (p *ConfigMgr_t) GetGlobalCfgStr(key string) string {
+    return p.globalConfig.GetValStr(key)
+}
+
+func (p *ConfigMgr_t) GetGlobalCfgInt(key string) int {
+    return p.globalConfig.GetValInt(key)
+}
+
+func (p *ConfigMgr_t) GetGlobalCfgAny(key string) any {
+    return p.globalConfig.GetValAny(key)
 }
 
 
@@ -278,7 +296,7 @@ func GetConfigMgr() *ConfigMgr_t {
 
 
 func InitConfigMgr(global_fl, actions_fl, bind_fl string) (*ConfigMgr_t, error) {
-    t := &ConfigMgr_t{make(GlobalConfig_t), make(ActionsConfigList_t), make(BindingsConfig_t)}
+    t := &ConfigMgr_t{new(GlobalConfig_t), make(ActionsConfigList_t), make(BindingsConfig_t)}
 
     if err := t.loadConfigFiles(global_fl, actions_fl, bind_fl); err != nil {
         return nil, err

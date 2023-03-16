@@ -132,7 +132,8 @@ func InitRegistrations() *ClientRegistrations_t {
                 make(map[string]*ActiveClientInfo_t)
                 make(chan string)
             }
-            return clientRegistrations
+    go clientRegistrations.PublishHeartbeats()
+    return clientRegistrations
 }
 
 func (p *ClientRegistrations_t) RegisterClient(name string) error {

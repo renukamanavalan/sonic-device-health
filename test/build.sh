@@ -2,6 +2,7 @@
 
 # may have to set GO111MODULE=off
 
+# export GO111MODULE=off
 export GOPATH=$(pwd;)
 
 echo $GOPATH

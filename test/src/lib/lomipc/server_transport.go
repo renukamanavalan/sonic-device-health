@@ -2,6 +2,7 @@ package lomipc
 
 import (
     "encoding/gob"
+    "fmt"
     . "lib/lomcommon"
     "net"
     "net/http"
@@ -157,16 +158,24 @@ type ActionResponseData struct {
     ResultStr           string
 }
 
-func (p *ActionResponseData) ToMap() map[string]string {
-    return &map[string]string {
-        "Action": p.Action,
-        "InstanceId": p.InstanceId,
-        "AnomalyInstanceId": p.AnomalyInstanceId,
-        "AnomalyKey": p.AnomalyKey,
-        "Response": p.Response,
-        "ResultCode": fmt.Sprintf("%d", p.ResultCode),
-        "ResultStr": p.ResultStr
+func (p *ActionResponseData) ToMap(end bool) map[string]string {
+    ret := map[string]string {
+        "action": p.Action,
+        "instanceId": p.InstanceId,
+        "anomalyInstanceId": p.AnomalyInstanceId,
+        "anomalyKey": p.AnomalyKey,
+        "response": p.Response,
+        "resultCode": fmt.Sprintf("%d", p.ResultCode),
+        "resultStr": p.ResultStr,
     }
+    if p.InstanceId == p.AnomalyInstanceId {
+        if end {
+            ret["state"] = "complete"
+        } else {
+            ret["state"] = "init"
+        }
+    }
+    return ret
 }
 
 
@@ -207,14 +216,14 @@ type EpochSecs int64
 type MsgEmptyResp struct {
 }
 
-func SlicesComp(p []ActionResponseData, q []ActionResponseData) bool {
+func SlicesComp(p []*ActionResponseData, q []*ActionResponseData) bool {
     if (len(p) != len(q)) {
         LogDebug("Slice len differ %d != %d\n", len(p), len(q))
         return false
     }
 
     for i, v := range(p) {
-        if (v != q[i]) {
+        if *v != *(q[i]) {
             LogDebug("p[%d] (%v) != q[%d] (%v)\n", i, v, i, q[i])
             return false
         }

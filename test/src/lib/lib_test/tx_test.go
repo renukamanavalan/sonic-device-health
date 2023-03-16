@@ -27,6 +27,7 @@ import (
     "os"
     "strconv"
     "testing"
+    "time"
 )
 
 type TestClientData struct {
@@ -51,7 +52,7 @@ const TEST_CL_NAME = "Foo"
 const TEST_ACTION_NAME = "Detect-0"
 var ActReqData = ServerRequestData { TypeServerRequestAction,
         ActionRequestData { "Bar", "inst_1", "an_inst_0", "an_key", 10,
-            []ActionResponseData {
+            []*ActionResponseData {
                     { TEST_ACTION_NAME, "an_inst_0", "an_inst_0", "an_key", "res_anomaly", 0, ""},
                     { "Foo-safety", "inst_0", "an_inst_0", "an_key", "res_foo_check", 2, "some failure"},
         } } }
@@ -369,16 +370,33 @@ func TestClientFail(t *testing.T) {
     }
 }
 
+func cmpMap(s map[string]string, d map[string]string) bool {
+    if len(s) != len(d) {
+        LogDebug("len mismatch %d != %d", len(s), len(d))
+        return false
+    }
+    for k, v := range s {
+        v1, ok := d[k]
+        if !ok || (v1 != v) {
+            LogDebug("ok(%v) v1(%v) v(%v)\n", ok, v1, v)
+            return false
+        }
+    }
+    LogDebug("MAtched\n")
+    return true
+}
+
+
 func TestServerFail(t *testing.T) {
     {
-        p1 := []ActionResponseData {{}, {} }
-        p2 := []ActionResponseData {{} }
+        p1 := []*ActionResponseData {{}, {} }
+        p2 := []*ActionResponseData {{} }
 
         if false != SlicesComp(p1, p2) {
             t.Errorf("SlicesComp Failed to fail")
         }
 
-        p2 = []ActionResponseData{{}, {}}
+        p2 = []*ActionResponseData{{}, {}}
         p2[0].Action = "foo"
         if false != SlicesComp(p1, p2) {
             t.Errorf("SlicesComp same len Failed to fail")
@@ -387,7 +405,7 @@ func TestServerFail(t *testing.T) {
     {
         s1 := &ServerRequestData { TypeServerRequestAction, struct{}{} }
         s2 := &ServerRequestData { TypeServerRequestShutdown, 
-                    ActionRequestData {"foo", "", "", "", 9, []ActionResponseData{}} }
+        ActionRequestData {"foo", "", "", "", 9, []*ActionResponseData{}} }
         if false != s1.Equal(s2) {
             t.Errorf("Failed to find mismatched req type")
         }
@@ -397,7 +415,7 @@ func TestServerFail(t *testing.T) {
             t.Errorf("Failed to find mismatched reqData type")
         }
 
-        s1.ReqData = ActionRequestData{"bar", "", "", "", 9, []ActionResponseData{} }
+        s1.ReqData = ActionRequestData{"bar", "", "", "", 9, []*ActionResponseData{} }
         if false != s1.Equal(s2) {
             t.Errorf("Failed to find mismatched reqData value")
         }
@@ -416,8 +434,8 @@ func TestServerFail(t *testing.T) {
         /* Send incorrect data type */
         {
             {
-            t := &struct{}{}
-            tx.ServerCh <- t
+                t := &struct{}{}
+                tx.ServerCh <- t
             }
             if p, e := tx.ReadClientRequest(chAbort); e == nil || p != nil {
                 t.Errorf("Failed to fail for incorrect Req data type to server")
@@ -430,13 +448,71 @@ func TestServerFail(t *testing.T) {
             t.Errorf("Failed to fail for abort")
         }
     } 
+    {
+        p := &ActionResponseData {
+            Action: "aaa",
+            InstanceId: "rerew-erere",
+            AnomalyInstanceId: "fgfg-gfgg-453",
+            AnomalyKey: "Blah-Blah",
+            Response: "All good",
+            ResultCode: 77,
+            ResultStr: "Seventy Seven",
+        }
+        m := map[string]string {
+            "action": p.Action,
+            "instanceId": p.InstanceId,
+                "anomalyInstanceId": p.AnomalyInstanceId,
+                "anomalyKey": p.AnomalyKey,
+                "response": p.Response,
+                "resultCode": "77",
+                "resultStr": p.ResultStr,
+            }
+        if !cmpMap(p.ToMap(false), m) {
+            t.Errorf("1: Failed cmp (%v) != (%v)", p.ToMap(false), m)
+        }
+
+        /* Mark it as first action to get state */
+        p.AnomalyInstanceId = p.InstanceId
+        m["state"] = "init"
+        m["anomalyInstanceId"] = p.AnomalyInstanceId
+        if !cmpMap(p.ToMap(false), m) {
+            t.Errorf("2: Failed cmp (%v) != (%v)", p.ToMap(false), m)
+        }
+
+        m["state"] = "complete"
+        if !cmpMap(p.ToMap(true), m) {
+            t.Errorf("2: Failed cmp (%v) != (%v)", p.ToMap(true), m)
+        }
+
+        lst := map[string]ActionResponseData {
+            "missing Action": ActionResponseData {},
+            "missing Instanceid": ActionResponseData{ Action: "foo" },
+            "missing AnomalyInstanceid": ActionResponseData{ Action: "foo", InstanceId: "ddd" },
+            "missing AnomalyKey": ActionResponseData{ Action: "foo", InstanceId: "ddd",
+                        AnomalyInstanceId: "ddd" },
+            "missing Response": ActionResponseData{ Action: "foo", InstanceId: "ddd",
+                        AnomalyInstanceId: "ddd", AnomalyKey: "erere" },
+            }
+
+        good := ActionResponseData{ Action: "foo", InstanceId: "ddd",
+                    AnomalyInstanceId: "ddd", AnomalyKey: "erere", Response: "rr" }
+
+        for k, v := range lst {
+            if v.Validate() != false {
+                t.Errorf("Expect to fail (%s)", k)
+            }
+        }
+        if good.Validate() != true {
+            t.Errorf("Expect to succeed (%v)", good)
+        }
+    }
 }
 
 func TestHelper(t *testing.T) {
     {
         /* Test logger helper */
         FmtFprintfCnt := 0
-        
+
         v := FmtFprintf
         FmtFprintf = func(w io.Writer, s string, a ...any) (int, error) {
             FmtFprintfCnt++
@@ -486,6 +562,7 @@ func TestHelper(t *testing.T) {
 }
 
 type ConfigData_t struct {
+    GlobalStr   string
     ActionStr   string
     BindStr     string
     Failed      bool
@@ -496,40 +573,68 @@ var testConfigData = []ConfigData_t {
         {
             "",
             "",
-            true,
-            "No config file given",
-        },
-        {
-            "eee",
             "",
             true,
-            "Invalid Json data",
+            "Missing global file",
         },
         {
+            "{}",
+            "",
+            "",
+            true,
+            "Missing actions file",
+        },
+        {
+            "{}",
             "{}",
             "",
             true,
             "Missing bindings file",
         },
         {
+            "eee",
+            "",
+            "",
+            true,
+            "Invalid global Json data",
+        },
+        {
+            "{}",
+            "eee",
+            "",
+            true,
+            "Invalid actions Json data",
+        },
+        {
+            "{}",
             "{}",
             "eee",
             true,
-            "Invalid Json data",
+            "Invalid bindings Json data",
         },
         {
+            `{}`,
             `{ "actions": [ { "name": "xxx" } ] }`,
             `{ "bindings": [ { "name": "Test", "actions": [ {"name": "YYY"} ] } ] }`,
             true,
             "Action name YYY not in actions",
         },
         {
+            `{}`,
             `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
             `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 0 }, {"name": "yyy"}] } ] }`,
             true,
             "Duplicate sequence",
         },
         {
+            `{ "foo": "bar", "ENGINE_HB_INTERVAL": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
+            `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+            `{ "bindings": [ { "name": "Test", "actions": [ ] } ] }`,
+            true,
+            "No actions in sequence",
+        },
+        {
+            `{ "foo": "bar", "ENGINE_HB_INTERVAL": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
             `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
             `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
             false,
@@ -538,14 +643,16 @@ var testConfigData = []ConfigData_t {
     }
 
 type testAPIData_t struct {
+    GlobalStr       string
     ActionStr       string
     BindStr         string
     Seq             map[string]bool
     Sequence        BindingSequence_t
-    ActionsCfg      map[string]ActionInfo_t
+    ActionsCfg      map[string]ActionCfg_t
 }
 
 var testApiData = testAPIData_t {
+    `{ "foo": "bar", "ENGINE_HB_INTERVAL": 22, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
     `{ "actions": [ { "name": "foo" }, { "name": "bar" } ] }`,
     `{ "bindings": [ { "sequencename": "TestFoo", "timeout": 60, "actions": [ {"name": "foo", "sequence": 1 }, {"name": "bar"}] } ] }`,
     map[string]bool {
@@ -555,22 +662,23 @@ var testApiData = testAPIData_t {
     BindingSequence_t {
         "TestFoo",
        60,
-       []BindingActionInfo_t {
-           {
-               "foo",
-               false,
-               0,
-               1,
-           },
+       0,
+       []BindingActionCfg_t {
            {
                "bar",
                false,
                0,
                0,
            },
+           {
+               "foo",
+               false,
+               0,
+               1,
+           },
        },
    },
-   map[string]ActionInfo_t {
+   map[string]ActionCfg_t {
        "foo": {
            "foo",
            "",
@@ -609,40 +717,64 @@ func createFile(name string, s string) (string, error) {
     }
 }
 
+func getConfigMgr(t *testing.T, gl, ac, bi string) (*ConfigMgr_t, error) {
+    if flG, err := createFile("globals", gl); err != nil {
+        t.Errorf("TestConfig: Failed to create Global file")
+    } else if flA, err := createFile("actions", ac); err != nil {
+        t.Errorf("TestConfig: Failed to create Action file")
+    } else if flB, err := createFile("bindings", bi); err != nil {
+        t.Errorf("TestConfig: Failed to create Action file")
+    } else {
+        return InitConfigMgr(flG, flA, flB)
+    }
+    return nil, LogError("Failed to init Cfg Manager")
+}
+
 
 func TestConfig(t *testing.T) {
-    for i, d := range testConfigData {
-        if flA, err := createFile("actions", d.ActionStr); err != nil {
-            t.Errorf("TestConfig: %d: Failed to create Action file", i)
-            return
-        } else if flB, err := createFile("bindings", d.BindStr); err != nil {
-            t.Errorf("TestConfig: %d: Failed to create Action file", i)
-            return
-        } else {
-            _, err = InitConfigMgr(flA, flB)
-            if d.Failed != (err != nil) {
-                if err != nil {
-                    t.Errorf("Unexpected error: (%v)", err)
-                } else {
-                    t.Errorf("Expect to fail: (%s)", d.Reason)
-                }
-            }
+    for _, d := range testConfigData {
+        _, err := getConfigMgr(t, d.GlobalStr, d.ActionStr, d.BindStr)
+        if d.Failed == (err == nil) {
+            t.Errorf("Expect to fail(%v) but result:(%v): (%s)",
+                    d.Failed, err, d.Reason)
         }
     }
 
     {
-        mgr := (*ConfigMgr_t)(nil)
-
-        if flA, err := createFile("actions", testApiData.ActionStr); err != nil {
-            t.Errorf("APITest: Failed to create Action file")
-            return
-        } else if flB, err := createFile("bindings", testApiData.BindStr); err != nil {
-            t.Errorf("APITest: Failed to create Action file")
-            return
-        } else if m, err := InitConfigMgr(flA, flB); err != nil {
+        mgr, err := getConfigMgr(t, testApiData.GlobalStr, testApiData.ActionStr, testApiData.BindStr)
+        if err != nil {
             t.Errorf("Unexpected error: (%v)", err)
+        }
+
+        if v := mgr.GetGlobalCfgStr("foo"); v != "bar" {
+            t.Errorf("Global foo: bar != (%s)", v)
+        } else if v := mgr.GetGlobalCfgStr("Foo"); v != "" {
+            t.Errorf("Global Foo <empty> != (%s)", v)
+        } else if v := mgr.GetGlobalCfgInt("ENGINE_HB_INTERVAL"); v != 22 {
+            t.Errorf("Global ENGINE_HB_INTERVAL: 22 != (%v) (%T)", v, v)
+        } else if v := mgr.GetGlobalCfgInt("MIN_PERIODIC_LOG_PERIOD"); v != 15 {
+            t.Errorf("Global MIN_PERIODIC_LOG_PERIOD: Default: 15 != (%v) (%T)", v, v)
+        } else if v := mgr.GetGlobalCfgInt("XXN_PERIODIC_LOG_PERIOD"); v != 0 {
+            t.Errorf("Global XXN_PERIODIC_LOG_PERIOD: Non-existing: 0 != (%v) (%T)", v, v)
+        } else if v := mgr.GetGlobalCfgAny("List"); v != nil {
+            t.Errorf("Global List: not expected but exist (%T) (%v)", v, v)
+        } else if v := mgr.GetGlobalCfgAny("list"); v == nil {
+            t.Errorf("Global list: expected to exist")
         } else {
-            mgr = m
+            if l, ok := v.([]interface{}); !ok {
+                t.Errorf("Global list: Not interface list")
+            } else if len(l) != 2 {
+                t.Errorf("Global list: len: 2 != (%d)", len(l))
+            } else {
+                lst := [2]string {  "hello", "world" }
+                for i, ac := range l {
+                    if s, ok := ac.(string); !ok {
+                        t.Errorf("Global list: entry type string != (%T) (%v)", s, s)
+                    } else if s != lst[i] {
+                        t.Errorf("Global list[%d] %s != %s", i, s, lst[i])
+                    }
+                }
+            }
         }
 
         startSeqAct := ""
@@ -661,7 +793,7 @@ func TestConfig(t *testing.T) {
                 startSeqAct = k
             }
         }
-        
+
         if bs, err1 := mgr.GetSequence(startSeqAct); err1 != nil {
             t.Errorf("Failed to get seq (%s) err(%v)", startSeqAct, err1)
         } else if !bs.Compare(&testApiData.Sequence) {
@@ -693,6 +825,92 @@ func TestConfig(t *testing.T) {
             t.Errorf("Failed to fail for nin existing action cfg")
         }
 
+    }
+}
+
+
+func TestPeriodic(t *testing.T) {
+    s := GetUUID()
+    if len(s) != 36 {
+        t.Errorf("Expect 36 chars long != (%d)", len(s))
+    }
+
+    UUID_BIN = "xxx"
+    s = GetUUID()
+    if len(s) == 36 {
+        t.Errorf("Expect custom string not 36. (%d) (%s)", len(s), s)
+    }
+    _, err := getConfigMgr(t, `{ "MIN_PERIODIC_LOG_PERIOD": 1 }`,"{}", "{}")
+    if err != nil {
+        t.Errorf("Unexpected error: (%v)", err)
+    }
+
+    {
+        chAbort := make(chan interface{})
+
+        defer func() {
+            chAbort <- struct{}{}
+        }()
+
+        LogPeriodicInit(chAbort)
+
+        lg := GetlogPeriodic()
+
+        d := &LogPeriodicEntry_t{}
+
+        if err := lg.AddLogPeriodic(d); err == nil {
+            t.Errorf("LogPerodic: Expect to fail for empty ID")
+        }
+
+        Ids := []string {"ID_0", "ID_1", "ID_2"}
+        d.ID = Ids[0]
+        if err := lg.AddLogPeriodic(d); err == nil {
+            t.Errorf("LogPerodic: Expect to fail for empty message")
+        }
+
+        d.Message = "Message"
+        if err := lg.AddLogPeriodic(d); err == nil {
+            t.Errorf("LogPerodic: Expect to fail for too small period:%d", d.Period)
+        }
+
+        d.Period = 1
+        d.Lvl = syslog.LOG_DEBUG
+        if err := lg.AddLogPeriodic(d); err != nil {
+            t.Errorf("LogPerodic: Expect to succeed (%v)", d)
+        }
+
+        d.ID = Ids[1]
+        d.Period = 5
+        if err := lg.AddLogPeriodic(d); err != nil {
+            t.Errorf("LogPerodic: Expect to succeed (%v)", d)
+        }
+
+        d.ID = Ids[2]
+        d.Period = 2
+        if err := lg.AddLogPeriodic(d); err != nil {
+            t.Errorf("LogPerodic: Expect to succeed (%v)", d)
+        }
+
+        // Sleep to ensure run method, all cases executed 
+        time.Sleep(2 * time.Second)
+        for _, k := range Ids {
+            lg.DropLogPeriodic(k)
+        }
+        time.Sleep(2 * time.Second)
+
+    }
+
+    {
+        m := map[string]string {
+            "foo": "bar",
+            "val": "42",
+            "data": "xxx",
+        }  
+        s := PublishEvent(m)
+        exp := `{"data":"xxx","foo":"bar","val":"42"}`
+        if s != exp {
+            t.Errorf("Incorrect publish string (%s) != (%s)", s, exp)
+        }
     }
 }
 
