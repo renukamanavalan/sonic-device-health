@@ -404,8 +404,18 @@ func TestServerFail(t *testing.T) {
         }
     }
     {
-        s1 := &ServerRequestData { TypeServerRequestAction, struct{}{} }
-        s2 := &ServerRequestData { TypeServerRequestShutdown, 
+        s1 := (*ServerRequestData)(nil)
+        s2 := (*ServerRequestData)(nil)
+        if true != s1.Equal(s2) {
+            t.Errorf("Failed to match nil pointers")
+        }
+
+        s1 = &ServerRequestData { TypeServerRequestAction, struct{}{} }
+        if false != s1.Equal(s2) {
+            t.Errorf("Failed to mismatch non nil vs nil")
+        }
+
+        s2 = &ServerRequestData { TypeServerRequestShutdown, 
         ActionRequestData {"foo", "", "", "", 9, []*ActionResponseData{}} }
         if false != s1.Equal(s2) {
             t.Errorf("Failed to find mismatched req type")
@@ -418,13 +428,45 @@ func TestServerFail(t *testing.T) {
 
         s1.ReqData = ActionRequestData{"bar", "", "", "", 9, []*ActionResponseData{} }
         if false != s1.Equal(s2) {
+            t.Errorf("Failed to find mismatched reqData value type")
+        }
+
+        s2.ReqData = ActionRequestData{"Bar", "", "", "", 9, []*ActionResponseData{} }
+        if false != s1.Equal(s2) {
             t.Errorf("Failed to find mismatched reqData value")
+        }
+
+        s2.ReqData = ActionRequestData{"bar", "", "", "", 9, []*ActionResponseData{} }
+        if true != s1.Equal(s2) {
+            t.Errorf("Failed to find match reqData value")
         }
 
         s1.ReqData = struct{}{}
         s2.ReqData = struct{}{}
         if false != s1.Equal(s2) {
             t.Errorf("Failed to find Unexpected ReqData type")
+        }
+    }
+    {
+        s1 := (*ActionRequestData)(nil)
+        s2 := (*ActionRequestData)(nil)
+        if true != s1.Equal(s2) {
+            t.Errorf("Failed to match nil pointers")
+        }
+
+        s1 = &ActionRequestData { "bar", "", "", "", 9, []*ActionResponseData{} }
+        if false != s1.Equal(s2) {
+            t.Errorf("Failed to mismatch non nil vs nil")
+        }
+
+        s2 = &ActionRequestData { "bar", "rrr", "", "", 9, []*ActionResponseData{} }
+        if false != s1.Equal(s2) {
+            t.Errorf("Failed to find mismatched value")
+        }
+
+        s2 = &ActionRequestData { "bar", "", "", "", 9, []*ActionResponseData{} }
+        if true != s1.Equal(s2) {
+            t.Errorf("Failed to find matched value")
         }
     }
 
@@ -802,10 +844,15 @@ func TestConfig(t *testing.T) {
             }
         }
 
+        bsNil := (*BindingSequence_t)(nil)
         if bs, err1 := mgr.GetSequence(startSeqAct); err1 != nil {
             t.Errorf("Failed to get seq (%s) err(%v)", startSeqAct, err1)
         } else if !bs.Compare(&testApiData.Sequence) {
             t.Errorf("%s: sequence mismatch (%v) != (%v)", startSeqAct, *bs, testApiData.Sequence)
+        } else if bs.Compare(bsNil) {
+            t.Errorf("BindingSequence_t:Compare Failed to mismatch non-nil & nil")
+        } else if !bsNil.Compare(bsNil) {
+            t.Errorf("BindingSequence_t:Compare Failed to match nil & nil")
         } else {
             bs.Actions[0].Name = "xxx"
             if bs.Compare(&testApiData.Sequence) {

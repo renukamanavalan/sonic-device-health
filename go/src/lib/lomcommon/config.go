@@ -2,7 +2,7 @@ package lomcommon
 
 import (
     "encoding/json"
-    "io/ioutil"
+    "io"
     "os"
     "sort"
 )
@@ -52,7 +52,7 @@ func (p *GlobalConfig_t) readGlobalsConf(fl string) error {
 
     defer jsonFile.Close()
 
-    if byteValue, err := ioutil.ReadAll(jsonFile); err != nil {
+    if byteValue, err := io.ReadAll(jsonFile); err != nil {
         return LogError("Failed to read (%s) (%v)", jsonFile, err)
     } else if err := json.Unmarshal(byteValue, &v); err != nil {
         return LogError("Failed to parse (%s) (%v)", jsonFile, err)
@@ -163,6 +163,15 @@ type BindingSequence_t struct {
 
 /* Helper to compare two sequences. Return true on match, else false */
 func (s *BindingSequence_t) Compare(d *BindingSequence_t) bool {
+    if s == d {
+        /* Same ptr */
+        return true
+    }
+    if (s == nil) || (d == nil) {
+        LogError("Unexpected nil args self(%v) arg(%v)\n", (s == nil), (d == nil))
+        return false
+    }
+
     if ((s.SequenceName != d.SequenceName) ||
             (s.Timeout != d.Timeout) ||
             (len(s.Actions) != len(d.Actions))) {
@@ -201,7 +210,7 @@ func (p *ConfigMgr_t) readActionsConf(fl string) error {
 
     defer jsonFile.Close()
 
-    if byteValue, err := ioutil.ReadAll(jsonFile); err != nil {
+    if byteValue, err := io.ReadAll(jsonFile); err != nil {
         return err
     } else if err := json.Unmarshal(byteValue, &actions); err != nil {
         return err
@@ -226,7 +235,7 @@ func (p *ConfigMgr_t) readBindingsConf(fl string) error {
     
     defer jsonFile.Close()
     
-    if byteValue, err := ioutil.ReadAll(jsonFile); err != nil {
+    if byteValue, err := io.ReadAll(jsonFile); err != nil {
         return err
     } else if err := json.Unmarshal(byteValue, &bindings); err != nil {
         return err
