@@ -14,6 +14,10 @@ const (
     Mitigation string = "Mitigation"
 )
 
+/*
+ * Classified into different types, for the convenience of caller.
+ * For example, converting from string to int is pre-done
+ */
 type GlobalConfig_t struct {
     strings map[string]string
     ints    map[string]int
@@ -21,14 +25,18 @@ type GlobalConfig_t struct {
 }
 
 
+/*
+ * NOTE: This will be deprecated soon.
+ * Guideline: conf should have a value for every entry
+ */
 func (p *GlobalConfig_t) setDefaults() {
     p.strings = make(map[string]string)
     p.ints = make(map[string]int)
     p.anyVal = make(map[string]any)
 
     p.ints["MAX_SEQ_TIMEOUT_SECS"] = 120
-    p.ints["MIN_PERIODIC_LOG_PERIOD"] = 15
-    p.ints["ENGINE_HB_INTERVAL"] = 10
+    p.ints["MIN_PERIODIC_LOG_PERIOD_SECS"] = 15
+    p.ints["ENGINE_HB_INTERVAL_SECS"] = 10
 }
 
 func (p *GlobalConfig_t) readGlobalsConf(fl string) error {
@@ -38,7 +46,7 @@ func (p *GlobalConfig_t) readGlobalsConf(fl string) error {
 
     jsonFile, err := os.Open(fl)
     if err != nil {
-        LogError("Failed to open (%s) (%v)", jsonFile, err)
+        LogError("Failed to open (%s) (%v)", fl, err)
         return err
     }
 
@@ -62,19 +70,62 @@ func (p *GlobalConfig_t) readGlobalsConf(fl string) error {
     }
 }
 
+/*
+ * Get config value for given key as string. If value in config
+ * is not string type or if this key is unknown, an empty string
+ * is returned.
+ *
+ * Input:
+ *  key: Config key. 
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  o/p as string
+ */
 func (p *GlobalConfig_t) GetValStr(key string) string {
     return p.strings[key]
 }
 
+/*
+ * Get config value for given key as int. If value in config
+ * is not int type or if this key is unknown, a default of 0
+ * is returned.
+ *
+ * Input:
+ *  key: Config key. 
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  o/p as int
+ */
 func (p *GlobalConfig_t) GetValInt(key string) int {
     return p.ints[key]
 }
 
+/*
+ * Get config value for given key as any. If value in config
+ * it is returned as any type or if this key is unknown, an empty i/f
+ * is returned.
+ *
+ * Input:
+ *  key: Config key. 
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  o/p as any
+ */
 func (p *GlobalConfig_t) GetValAny(key string) any {
     return p.anyVal[key]
 }
 
 
+/* Action config as read from actions.conf.json */
 type ActionCfg_t struct {
     Name            string
     Type            string
@@ -85,8 +136,10 @@ type ActionCfg_t struct {
     ActionKnobs     string  /* Json String with action specific knobs */
 }
 
+/* Map with action name */
 type ActionsConfigList_t  map[string]ActionCfg_t
 
+/* Action entry in sequence from binding sequence config */
 type BindingActionCfg_t struct {
     Name        string
     Mandatory   bool    /* Once sequence kicked off, mandatory to call this */
@@ -100,13 +153,15 @@ type BindingActionCfg_t struct {
     Sequence    int     /* Sequence index */
 }
 
+/* Entire single binding sequence */
 type BindingSequence_t struct {
     SequenceName    string
     Timeout         int     /*  >0   - timeout in seconds; else no timeout */
     Priority        int
-    Actions         []BindingActionCfg_t
+    Actions         []*BindingActionCfg_t
 }
 
+/* Helper to compare two sequences. Return true on match, else false */
 func (s *BindingSequence_t) Compare(d *BindingSequence_t) bool {
     if ((s.SequenceName != d.SequenceName) ||
             (s.Timeout != d.Timeout) ||
@@ -115,7 +170,7 @@ func (s *BindingSequence_t) Compare(d *BindingSequence_t) bool {
     }
      
     for i := 0; i < len(s.Actions); i++ {
-        if s.Actions[i] != d.Actions[i] {
+        if *(s.Actions[i]) != *(d.Actions[i]) {
             return false
         }
     }
@@ -126,6 +181,7 @@ func (s *BindingSequence_t) Compare(d *BindingSequence_t) bool {
 type BindingsConfig_t map[string]BindingSequence_t
 
 
+/* ConfigMgr - A single stop for all configs */
 type ConfigMgr_t struct {
     globalConfig    *GlobalConfig_t
     actionsConfig   ActionsConfigList_t
@@ -232,25 +288,96 @@ func (p *ConfigMgr_t) loadConfigFiles(globals_fl, actions_fl string, bind_fl str
     return nil
 }
 
+/*
+ * Get global config value for given key as string. If value in config
+ * is not string type or if this key is unknown, an empty string
+ * is returned.
+ *
+ * Input:
+ *  key: Config key. 
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  o/p as string
+ */
 func (p *ConfigMgr_t) GetGlobalCfgStr(key string) string {
     return p.globalConfig.GetValStr(key)
 }
 
+/*
+ * Get global config value for given key as int. If value in config
+ * is not int type or if this key is unknown, a default of 0
+ * is returned.
+ *
+ * Input:
+ *  key: Config key. 
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  o/p as int
+ */
 func (p *ConfigMgr_t) GetGlobalCfgInt(key string) int {
     return p.globalConfig.GetValInt(key)
 }
 
+/*
+ * Get global config value for given key as any. If value in config
+ * it is returned as any type or if this key is unknown, an empty i/f
+ * is returned.
+ *
+ * Input:
+ *  key: Config key. 
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  o/p as any
+ */
 func (p *ConfigMgr_t) GetGlobalCfgAny(key string) any {
     return p.globalConfig.GetValAny(key)
 }
 
 
+/*
+ * IsStartSequenceAction
+ *  Check if given action is first action of any binding sequence
+ *
+ * Input:
+ *  name - Name of the action to test.
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  true - It is indeed first action of a sequence
+ *  false - If not, first action of a sequence
+ */
 func (p *ConfigMgr_t) IsStartSequenceAction(name string) bool {
     /* Return true, if action is start of any sequence; else false */
     _, ok := p.bindingsConfig[name]
      return ok
 }
 
+/*
+ * GetSequence
+ *  If given action is first action of any binding sequence, it is returned.
+ *  Else null with non nil error.
+ *
+ * Input:
+ *  name - Name of the action 
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  sequence - If first action of a sequence, non-nil ptr to seq object, else nil
+ *  error - If not, first action of a sequence, return non nil error, else nil
+ */
 func (p *ConfigMgr_t) GetSequence(name string) (*BindingSequence_t, error) {
     ret := &BindingSequence_t{}
 
@@ -261,13 +388,28 @@ func (p *ConfigMgr_t) GetSequence(name string) (*BindingSequence_t, error) {
 
     /* Copy primitives and deep copy actions slice */
     *ret = v
-    ret.Actions = make([]BindingActionCfg_t, len(v.Actions))
+    ret.Actions = make([]*BindingActionCfg_t, len(v.Actions))
     copy(ret.Actions, v.Actions)
     
     return ret, nil
 }
 
 
+/*
+ * GetActionConfig
+ *  Return config as read from actions.conf for the given action.
+ *  Else null with non nil error.
+ *
+ * Input:
+ *  name - Name of the action 
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  config - If present in conf file, return it, else nil
+ *  error - If not in actions config, return non nil error, else nil
+ */
 func (p *ConfigMgr_t) GetActionConfig(name string) (*ActionCfg_t, error) {
     actInfo, ok := p.actionsConfig[name]
     if !ok {
@@ -276,6 +418,21 @@ func (p *ConfigMgr_t) GetActionConfig(name string) (*ActionCfg_t, error) {
     return &actInfo, nil
 }
 
+/*
+ * GetActionsList
+ *  Return list of all actions from config, with a flag indicating if that
+ *  action is anomaly or not. IsAnomaly is set to true, if first action
+ *  of any sequence
+ *
+ * Input:
+ *  None
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  List of all actions with a flag for each.
+ */
 func (p *ConfigMgr_t) GetActionsList() map[string]struct{IsAnomaly bool} {
 
     ret := make(map[string]struct{IsAnomaly bool})
@@ -295,6 +452,21 @@ func GetConfigMgr() *ConfigMgr_t {
 }
 
 
+/*
+ * Initialize config or re-refresh config from files.
+ *
+ * Input:
+ *  global_fl - Global config file
+ *  actions_fl - Actions config file
+ *  bind_fl - Bindings config file
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  ConfigMgr - Non nil instance, if successful, else nil
+ *  error - Non nil on any failure, else nil
+ */
 func InitConfigMgr(global_fl, actions_fl, bind_fl string) (*ConfigMgr_t, error) {
     t := &ConfigMgr_t{new(GlobalConfig_t), make(ActionsConfigList_t), make(BindingsConfig_t)}
 
