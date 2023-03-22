@@ -5,6 +5,20 @@ import (
     "fmt"
 )
 
+
+/*
+ *  Publish as event
+ *
+ *  Input:
+ *      A map of string vs string. JSonified map will be published.
+ *      
+ *  Output:
+ *      None
+ *
+ *  Return:
+ *      The string that was published. 
+ *
+ */
 func PublishEvent(m map[string]string) string {
     s := ""
     if b, err := json.Marshal(m); err != nil {
@@ -16,6 +30,19 @@ func PublishEvent(m map[string]string) string {
     return PublishString(s)
 }
 
+/*
+ *  Publish string as event
+ *
+ *  Input:
+ *      The given string is logged & published
+ *      
+ *  Output:
+ *      None
+ *
+ *  Return:
+ *      The string that was published.
+ *
+ */
 func PublishString(s string) string {
     LogInfo(s)
     // TODO: Call event publish

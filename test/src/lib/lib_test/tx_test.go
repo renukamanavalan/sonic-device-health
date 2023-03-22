@@ -124,7 +124,7 @@ var testData = []TestData {
 var testCount = len(testData)
 
 func testClient(chRes chan interface{}, chComplete chan interface{}) {
-    txClient := &ClientTx{nil, "", ClTimeout}
+    txClient := GetClientTx(ClTimeout)
 
     for i := 0; i < testCount; i++ {
         tdata := &testData[i]
@@ -175,7 +175,7 @@ func testClient(chRes chan interface{}, chComplete chan interface{}) {
             if e != nil {
                 LogPanic("client: tid:%d: Expect int64 val as second arg (%v)", i, tdata.Args[1])
             }
-            err = txClient.NotifyHeartbeat(tdata.Args[0], EpochSecs(t))
+            err = txClient.NotifyHeartbeat(tdata.Args[0], t)
         default:
             LogPanic("client: tid:%d TODO - Not yet implemented (%d)", i, tdata.ReqType)
         }
@@ -249,7 +249,8 @@ func TestMain(t *testing.T) {
 
 
 func TestClientFail(t *testing.T) {
-    txClient := &ClientTx{nil, "", ClTimeout}
+    txClient := GetClientTx(ClTimeout)
+
     {
         retE := errors.New("rerer")
         retC := errors.New("irerrwe")
@@ -627,14 +628,14 @@ var testConfigData = []ConfigData_t {
             "Duplicate sequence",
         },
         {
-            `{ "foo": "bar", "ENGINE_HB_INTERVAL": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
+            `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
             `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
             `{ "bindings": [ { "name": "Test", "actions": [ ] } ] }`,
             true,
             "No actions in sequence",
         },
         {
-            `{ "foo": "bar", "ENGINE_HB_INTERVAL": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
+            `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
             `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
             `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
             false,
@@ -652,8 +653,8 @@ type testAPIData_t struct {
 }
 
 var testApiData = testAPIData_t {
-    `{ "foo": "bar", "ENGINE_HB_INTERVAL": 22, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
-    `{ "actions": [ { "name": "foo" }, { "name": "bar" } ] }`,
+    `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 22, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
+    `{ "actions": [ { "name": "foo", "timeout":77 }, { "name": "bar" } ] }`,
     `{ "bindings": [ { "sequencename": "TestFoo", "timeout": 60, "actions": [ {"name": "foo", "sequence": 1 }, {"name": "bar"}] } ] }`,
     map[string]bool {
         "foo": false,
@@ -663,7 +664,7 @@ var testApiData = testAPIData_t {
         "TestFoo",
        60,
        0,
-       []BindingActionCfg_t {
+       []*BindingActionCfg_t {
            {
                "bar",
                false,
@@ -673,7 +674,7 @@ var testApiData = testAPIData_t {
            {
                "foo",
                false,
-               0,
+               77,
                1,
            },
        },
@@ -682,7 +683,7 @@ var testApiData = testAPIData_t {
        "foo": {
            "foo",
            "",
-           0,
+           77,
            0,
            false,
            false,
@@ -703,11 +704,18 @@ var testApiData = testAPIData_t {
 
 
 func createFile(name string, s string) (string, error) {
+    fl := ""
+    defer func() {
+        LogDebug("name:(%s) file(%s)", name, fl)
+        if (len(fl) == 9) {
+            LogPanic("Failed to create file")
+        }
+    }()
 
     if len(s) == 0 {
         return "", nil
     }
-    fl := "/tmp/" + name + ".json"
+    fl = "/tmp/" + name + ".json"
     if f, err := os.Create(fl); err != nil {
         return "", err
     } else {
@@ -743,17 +751,17 @@ func TestConfig(t *testing.T) {
     {
         mgr, err := getConfigMgr(t, testApiData.GlobalStr, testApiData.ActionStr, testApiData.BindStr)
         if err != nil {
-            t.Errorf("Unexpected error: (%v)", err)
+            t.Errorf("Unexpected error: (%v) (%v)", err,mgr == nil)
         }
 
         if v := mgr.GetGlobalCfgStr("foo"); v != "bar" {
             t.Errorf("Global foo: bar != (%s)", v)
         } else if v := mgr.GetGlobalCfgStr("Foo"); v != "" {
             t.Errorf("Global Foo <empty> != (%s)", v)
-        } else if v := mgr.GetGlobalCfgInt("ENGINE_HB_INTERVAL"); v != 22 {
-            t.Errorf("Global ENGINE_HB_INTERVAL: 22 != (%v) (%T)", v, v)
-        } else if v := mgr.GetGlobalCfgInt("MIN_PERIODIC_LOG_PERIOD"); v != 15 {
-            t.Errorf("Global MIN_PERIODIC_LOG_PERIOD: Default: 15 != (%v) (%T)", v, v)
+        } else if v := mgr.GetGlobalCfgInt("ENGINE_HB_INTERVAL_SECS"); v != 22 {
+            t.Errorf("Global ENGINE_HB_INTERVAL_SECS: 22 != (%v) (%T)", v, v)
+        } else if v := mgr.GetGlobalCfgInt("MIN_PERIODIC_LOG_PERIOD_SECS"); v != 15 {
+            t.Errorf("Global MIN_PERIODIC_LOG_PERIOD_SECS: Default: 15 != (%v) (%T)", v, v)
         } else if v := mgr.GetGlobalCfgInt("XXN_PERIODIC_LOG_PERIOD"); v != 0 {
             t.Errorf("Global XXN_PERIODIC_LOG_PERIOD: Non-existing: 0 != (%v) (%T)", v, v)
         } else if v := mgr.GetGlobalCfgAny("List"); v != nil {
@@ -824,7 +832,6 @@ func TestConfig(t *testing.T) {
         if _, e := mgr.GetActionConfig("zyy"); e == nil {
             t.Errorf("Failed to fail for nin existing action cfg")
         }
-
     }
 }
 
@@ -840,7 +847,7 @@ func TestPeriodic(t *testing.T) {
     if len(s) == 36 {
         t.Errorf("Expect custom string not 36. (%d) (%s)", len(s), s)
     }
-    _, err := getConfigMgr(t, `{ "MIN_PERIODIC_LOG_PERIOD": 1 }`,"{}", "{}")
+    _, err := getConfigMgr(t, `{ "MIN_PERIODIC_LOG_PERIOD_SECS": 1 }`,"{}", "{}")
     if err != nil {
         t.Errorf("Unexpected error: (%v)", err)
     }

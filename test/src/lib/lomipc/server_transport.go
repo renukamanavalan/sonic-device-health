@@ -128,7 +128,7 @@ type MsgSendServerResponse struct { /* For TypeSendServerResponse */
 
 type MsgNotifyHeartbeat struct {    /* For TypeNotifyActionHeartbeat */
     Action      string
-    Timestamp   EpochSecs
+    Timestamp   int64
 }
 
 /*
@@ -158,6 +158,7 @@ type ActionResponseData struct {
     ResultStr           string
 }
 
+/* Helper to convert ActionResponseData as Map */
 func (p *ActionResponseData) ToMap(end bool) map[string]string {
     ret := map[string]string {
         "action": p.Action,
@@ -179,6 +180,7 @@ func (p *ActionResponseData) ToMap(end bool) map[string]string {
 }
 
 
+/* Helper to validate ActionResponseData */
 func (p *ActionResponseData) Validate() bool {
     if ((len(p.Action) > 0) && (len(p.InstanceId) > 0) &&
             (len(p.AnomalyInstanceId) > 0) &&
@@ -211,11 +213,10 @@ type ActionRequestData struct {
 type ShutdownRequestData struct {
 }
 
-type EpochSecs int64
-
 type MsgEmptyResp struct {
 }
 
+/* Helper to compare given slices */
 func SlicesComp(p []*ActionResponseData, q []*ActionResponseData) bool {
     if (len(p) != len(q)) {
         LogDebug("Slice len differ %d != %d\n", len(p), len(q))
@@ -231,6 +232,7 @@ func SlicesComp(p []*ActionResponseData, q []*ActionResponseData) bool {
     return true
 }
 
+/* Helper to compare given requests. */
 func (r *ActionRequestData) Equal(p *ActionRequestData) bool {
     if ((r.Action == p.Action) &&
         (r.InstanceId == p.InstanceId) &&
@@ -244,6 +246,7 @@ func (r *ActionRequestData) Equal(p *ActionRequestData) bool {
 }
 
 
+/* Helper to compare given requests. */
 func (r *ServerRequestData) Equal(p *ServerRequestData) bool {
     if r.ReqType != p.ReqType {
         LogDebug("Differing Req types %s vs %s", ServerReqTypeToStr[r.ReqType], 
@@ -354,6 +357,7 @@ func init_encoding() {
     gob.Register(MsgEmptyResp{})
 }
 
+/* Init the serverside transport */
 func ServerInit() (*LoMTransport, error) {
     init_encoding()
     tr := new(LoMTransport)
