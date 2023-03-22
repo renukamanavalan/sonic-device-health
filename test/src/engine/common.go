@@ -13,7 +13,7 @@ type ActiveActionInfo_t {
     Action      string
     Client      string    /* Client that registered this action
     /*
-     * Timeout to use if not set in sequence 
+     * Timeout to use if not set in sequence as obtained from actions.conf 
      */
     Timeout     int
     /* For now, Engine does not need any other config, hence not saved */
@@ -27,10 +27,42 @@ type ActiveClientInfo_t struct {
     /* List of registered actions by this client */
     Actions     map[string]struct{}
 
+    /*
+     * Clients read server's request via RecvServerRequest API.
+     * This API sends LoMRequest for type = TypeRecvServerRequest
+     * This is sent to LoMTransport.SendToServer.
+     * The server is expected to send ServerRequestData via LomResponse
+     *
+     * Every accepted client connection run in its own Go routine as 
+     * managed by HTTP-RPC client. Hence multiple instances of LoMTransport.SendToServer
+     * will be running as one per client connection. All these instances
+     * pipe requests into single tr.ServerCh channel.
+     *
+     * Unlike other requests, like RegisterClient, recvServer request can't be
+     * served immediately but wait till the engine raise one. Engine would raise
+     * upon processing a registerAction or upon processing a response from another
+     * action. In other words this need to block
+     *
+     * So the handler for TypeRecvServerRequest, queues the request with client
+     * via GetRegistrations().SendServerRequest(req). This writes the request into
+     * pendingReadRequests channel. 
+     *
+     * Whenever a request to be raised to client (upon register action/process response/
+     * ...), that sends the request into pendingWriteRequests, as there may or may not
+     * be a read request from client pending.
+     *
+     * A dedicated Go routine ProcessSendRequests watches both and do the transfer
+     * as appropriate.
+     *
+     * Each request from SendToServer has a request specific channel (LoMRequestInt::
+     * ChResponse) for its response and return it via RPC to client's blocking
+     * RecvServerRequest.
+     */
     /* Pending requests per client */
     pendingWriteRequests chan *ServerRequestData
-    pendingReadRequests chan req *LoMRequest
+    pendingReadRequests chan req *LoMRequestInt
 
+    /* To abort the go routine for ProcessSendRequests */
     abortCh chan interface{}
 }
 
@@ -46,14 +78,14 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
      *
      * This handler watches for both and as well timeout and responds
      *
-     * Client de-register call Close method, which sends abort to thi
+     * Client de-register call Close method, which sends abort to this
      * routine
      */
     type wait_t struct {
-        req *LoMRequest
+        req *LoMRequestInt
         due int64 
     }
-    listWTimeout := make([]*wait_t, 0, 5)  /* Hold client requests for read */
+    listWTimeout := make([]*wait_t, 0, 5)   /* Hold client requests for read */
     listNoTimeout := make([]*wait_t, 0, 5)  /* Hold client requests for read */
     serverRequests := make([]*ServerRequestData, 0, 10)
     tout := A_DAY_IN_SECS
@@ -78,11 +110,15 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
 
         case <- time.After(time.Duration(tout) * time.Second):
             /* bail out */
+
+        case <- p.abortCh:
+            LogInfo("Aborting Send requests")
+            return
         }
         
         /* Here you come on client/server request or timeout */
         while len(serverRequests) > 0 {
-            var r *LoMRequest = nil
+            var r *LoMRequestInt = nil
             if len(listWTimeout) > 0 {
                 r = listWTimeout[0]
                 listWTimeout = listWTimeout[1:]
@@ -111,6 +147,7 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
 }
 
 
+/* All registrations & heartbeats from clients. */
 type ClientRegistrations_t struct {
     activeActions   map[string]*ActiveActionInfo_t
     activeClients   map[string]*ActiveClientInfo_t
@@ -138,16 +175,15 @@ func InitRegistrations() *ClientRegistrations_t {
 
 func (p *ClientRegistrations_t) RegisterClient(name string) error {
     if _, ok := p.ActiveClients[name]; ok {
-        LogError("%s: Duplicate client registration", name)
+        LogError("%s: Duplicate client registration; De & re-register", name)
         p.DeregisterClient(name)
     }
     cl := &ActiveClientInfo_t {
         ClientName: name,
         Actions: make(map[string]struct{}),
         pendingWriteRequests: make(chan *ServerRequestData),
-        pendingReadRequests: make(chan *LoMRequest),
+        pendingReadRequests: make(chan *LoMRequestInt),
         abortCh: make(chan, interface{}) }
-                        /* This max is used just to set the init buffer size */
                 
     go cl.ProcessSendRequests()
     p.ActiveClients[name] = cl
@@ -160,6 +196,8 @@ func (p *ClientRegistrations_t) RegisterAction(action *ActiveActionInfo_t) error
         return LogError("%s: Missing client registration", action.Client)
     }
     else if r, ok1 := p.ActiveActions[action.Action]; ok1 {
+        LogError("%s/%s: Duplicate action registration (%s); De/re-register,",
+                action.Client, action.Action, r.Client)
         p.DeregisterAction(action.Action)
     }
     if cfg, err := GetConfigMgr().GetActionConfig(action.Action); err != nil {
@@ -235,13 +273,7 @@ func (p *ClientRegistrations_t) PublishHeartbeats() {
 
     for {
         /* Read inside the loop to help refresh any change */
-        hb := 10
-        s := GetConfigMgr(().GetGlobalCfg("ENGINE_HB_INTERVAL")
-        if t, e := strconv.Atoi(s); e != nil {
-            LogError("COnfig Error: Failed to convert "ENGINE_HB_INTERVAL"=%s to int (%v)", s, e)
-        } else {
-            hb = t
-        }
+        hb := GetConfigMgr().GetGlobalCfgInt("ENGINE_HB_INTERVAL")
         select {
         case a := <- p.heartbeatCh:
             lst[a] = struct{}{}
@@ -275,6 +307,7 @@ func (p *ClientRegistrations_t) PublishHeartbeats() {
 }
 
 
+/* Request to be sent to client as response to client's recvServerRequest */
 func (p, *ClientRegistrations_t) AddServerRequest(
             actionName string, req *ServerRequestData) error {
     if a, ok := p.ActiveActions[actName]; !ok {
@@ -288,74 +321,14 @@ func (p, *ClientRegistrations_t) AddServerRequest(
     }
 }
 
-func (p, *ClientRegistrations_t) SendServerRequest(req *LoMRequest) error {
-    if cl, ok := p.ActiveClients[clName]; !ok {
-        return LogError("Internal error: client(%s) for action (%s) not found",
-                actionName, clName)
+/* Client's request to read server request via recvServerRequest */
+func (p, *ClientRegistrations_t) SendServerRequest(req *LoMRequestInt) error {
+    if cl, ok := p.ActiveClients[req.Client]; !ok {
+        return LogError("Internal error: client(%s) not found", req.Client)
     }
     cl.pendingReadRequests <- req
     return nil
 }
 
-
-type waitingReadReq_t struct {
-    req *LoMRequest
-    Due int64
-}
-
-func (p, *ClientRegistrations_t) RequestSender() {
-    /* All cncu
-    waitingList := make([]waitingReadReq_t, 0, 5)
-            req *LoMRequest
-            Due int64
-        }
-    for {
-    }
-    if timeout <= 0 {
-        return <- cl.pendingRequests
-    } else {
-        select {
-        case ret := <- cl.pendingRequests:
-            return ret
-
-        case time.After(time.Duration(timeout) * time.Second):
-            return nil
-        }
-    }
-}
-
-
-const (
-    SIG_NONE = iota
-    SIG_HUP
-    SIG_INT
-    SIG_TERM
-)
-
-type SigReceived_t int
-
-func sigHandler(chAlert chan interface{}) {
-    sigs := make(chan os.Signal, 1)
-    signal.Notify(sigs, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
-
-    go func() {
-        for {
-            select {
-            case sig:= <- sigs:
-                switch(sig) {
-                case syscall.SIGHUP:
-                    chAlert <- SigReceived(SIG_HUP)
-                case syscall.SIGINT:
-                    chAlert <- SigReceived(SIG_INT)
-                case syscall.SIGTERM:
-                    chAlert <- SigReceived(SIG_TERM)
-                    return
-                default:
-                    log_error("Internal ERROR: Unknown signal received (%v)", sig)
-                }
-            }
-        }
-    }()
-}
 
 

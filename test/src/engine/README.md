@@ -1,4 +1,6 @@
-Engine is the core btain behind that manages all plugins invoked by one or more plugin managers.
+Engine is the core brain behind that manages all plugins invoked by one or more plugin managers.
+But the feed to the btain is bindings.conf
+
 Plugins could be impelemented using different programming languages.
 The pluginMgr handles the plugins and communicate server requests/responses appropriately.
 
@@ -9,7 +11,8 @@ Refer lib/Readme.md for details.
 
 PluginMgr is one of the clients. The pluginMgr can run as multiple process instances and as 
 well written in different programming languages. The PluginMgr written in Go can directly use
-this package. Support for pluginmgrs in other languages is a TODO.
+this package. We may likely provide c-binding to PluginMgr to plugin i/f, which will open up
+languages to use for plugins.
 
 Engine functionality:
 1. Reads bindings.conf on startup and upon every SIGHUP
@@ -109,3 +112,5 @@ NotifyHeartbeat:
     Request from client to notify engine on heartbeat sent by an action.
     Engine collects and reports on its heartbeats as list of actions that
     notified since last heartbeat by engine.
+
+

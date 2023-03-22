@@ -10,27 +10,38 @@ import (
     "syscall"
 )
 
+const LoMResponseOk = 0
+const LOM_RESP_CODE_START = 4096
 
 const (
-    LoMResponseOk = iota,
-    LoMUnknownReqType,
+    LoMUnknownReqType = LOM_RESP_CODE_START,
     LoMIncorrectReqData,
     LoMReqFailed,
     LoMReqTimeout,
-    LoMErrorEnd
+    LoMFirstActionFailed,
+    LoMMissingSequence,
+    LoMActionDeregistered,
+    LoMActionNotRegistered,
+    LoMActionActive,
+    LoMShutdown,
+    LoMErrorCnt
 )
 
-var LoMResponseStr = map[int]string {
-    "",
+var LoMResponseStr = [LoMErrorCnt-LOM_RESP_CODE_START]string {
     "Unknown request",
     "Incorrect Msg type",
     "Request failed",
-    "Request Timed out"
-    "END"
+    "Request Timed out",
+    "First Action failed",
+    "First Action's sequence missing",
+    "Action not registered",
+    "Action de-regsitered",
+    "Action already active",
+    "LOM system shutdown",
 }
 
 func GetLoMResponseStr(code int) string {
-    if (code <LoMResponseOk) || (code >= LoMErrorEnd) {
+    if (code <LoMResponseOk) || (code >= LoMErrorCnt) {
         return "Unknown error code"
     }
     return LoMResponseStr[code]
@@ -72,7 +83,7 @@ func (p *serverHandler_t) processRequest(req *LoMRequestInt) {
     case TypeDeregAction:
         res = p.deregisterAction(req.Req)
     case TypeRecvServerRequest:
-        res = p.recvServerRequest(req.Req)
+        res = p.recvServerRequest(req)
     case TypeSendServerResponse:
         res = p.sendServerResponse(req.Req)
     case TypeNotifyActionHeartbeat:
@@ -98,7 +109,7 @@ func (p *serverHandler_t) registerClient(req *LoMRequest) *LomResponse {
     if _, ok := req.ReqData.(MsgRegClient); !ok {
         return createLomResponse(LoMIncorrectReqData, "", nil)
     }
-    e := GetRegistrations().RegisterClient(ClientName_t(req.Client))
+    e := GetRegistrations().RegisterClient(req.Client)
     if e != nil {
         return createLomResponse(LoMReqFailed, fmt.Sprint(e), nil)
     }
@@ -110,7 +121,7 @@ func (p *serverHandler_t) deregisterClient(req *LoMRequest) *LomResponse {
     if _, ok := req.ReqData.(MsgDeregClient); !ok {
         return createLomResponse(LoMIncorrectReqData, "", nil)
     }
-    GetRegistrations().DeregisterClient(ClientName_t(req.Client))
+    GetRegistrations().DeregisterClient(req.Client)
     return createLomResponse(LoMResponseOk, "", nil)
 }
 
@@ -119,7 +130,7 @@ func (p *serverHandler_t) registerAction(req *LoMRequest) *LomResponse {
     if m, ok := req.ReqData.(MsgRegAction); !ok {
         return createLomResponse(LoMIncorrectReqData, "", nil)
     }
-    info := &ActiveActionInfo_t { m.Action, ClientName_t(req.Client), 0 }
+    info := &ActiveActionInfo_t { m.Action, req.Client, 0 }
     e := GetRegistrations().RegisterAction(info)
     if e != nil {
         return createLomResponse(LoMReqFailed, fmt.Sprint(e), nil)
@@ -146,8 +157,8 @@ func (p *serverHandler_t) notifyHeartbeat(req *LoMRequest) *LomResponse {
 }
 
 
-func (p *serverHandler_t) recvServerRequest(req *LoMRequest) *LomResponse {
-    if m, ok := req.ReqData.(MsgRecvServerRequest); !ok {
+func (p *serverHandler_t) recvServerRequest(req *LoMRequestInt) *LomResponse {
+    if m, ok := req.Req.ReqData.(MsgRecvServerRequest); !ok {
         return createLomResponse(LoMIncorrectReqData, "", nil)
     }
     if err := GetRegistrations().SendServerRequest(req); err == nil {

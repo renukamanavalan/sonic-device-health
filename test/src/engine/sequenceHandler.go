@@ -7,14 +7,22 @@ import (
 )
 
 /*
- * Active requests - Requests sent out awaiting response with no timeout/sequence
- * First action in sequence -- In other works detection action requests
+ * Active request - Requests sent out awaiting response with or w/o timeout
  */
 type ActiveRequest_t struct {
     req         *ServerRequestData
     anomalyID   string
     ReqExpEpoch EpochSecs   /* Expiry time. A value of 0 means no expiry */
 }
+
+/*
+ * Action vs request -- All active requests
+ *
+ * NOTE: Only one outstanding request per Action
+ * Hence can be keyed off by action.
+ */
+type ActiveRequestsList_t map[string]*ActiveRequest_t
+
 
 /*
  * Sequence is kicked off when first request of a sequence responds.
@@ -41,26 +49,19 @@ type SequenceState_t struct {
     sequence                *BindingSequence_t /* Read from config; Cache as config may change. */
     SeqStartEpoch           EpochSecs       /* Start of the sequence */
     SeqExpEpoch             EpochSecs       /* Timepoint of expiry for sequence */
-    CtIndex                 int             /* Index of action in progress */
-    Context                 []*ActionResponseData /* Ordered responses as received */
+    CtIndex                 int             /* Index of action in sequence in-progress */
+    Context                 []*ActionResponseData /* Ordered responses as received, so far */
     CurrentRequest          *ActiveRequest_t /* Current request in progress */
 }
 
 func (p *SequenceState_t) ExpiryEpoch() EpochSecs {
-    if p.ActiveRequest_t != nil {
-        return p.ActiveRequest_t.ReqExpEpoch
-    } else {
-        return p.SeqExpEpoch
+    /* If current request expire early, send it; else send seq expiry */
+    if p.CurrentRequest != nil {
+        if p.CurrentRequest.ReqExpEpoch < p.SeqExpEpoch {
+            return p.CurrentRequest.ReqExpEpoch
     }
+    return p.SeqExpEpoch
 }
-
-/*
- * Action vs request -- All active requests
- *
- * NOTE: Only one outstanding request per Action
- * Hence can be keyed off by action.
- */
-type ActiveRequestsList_t map[string]*ActiveRequest_t
 
 
 /*
@@ -74,27 +75,19 @@ type Sequences_t map<string>*SequenceState_t
  * timeout:
  * Two possible candidates:
  *      1. Currently active request for currently active sequence
- *      2. All pending sequences.
+ *      2. All pending sequences, who may timeout before getting chance to execute sequence.
  */
 type SortedSequences_t []SequenceState_t
 
-func GetSortedByExpiry(lst *Sequences_t) *SortedSequences_t {
-    ret := make([]*SequenceState_t, 0, len(lst))
-
-    for _, v := range lst {
-        ret = append(ret, v)
-    }
-    sort.Slice(ret, func(i, j int) bool {
-        return ret[i].ExpiryEpoch < ret[j].ExpiryEpoch
-    }
-    return ret
-}
-
 
 type SeqHandler_t struct {
+    /* All Active requests by action name */
     activeRequests          *ActiveRequestsList_t
 
+    /* Collected sequences by anomaly */
     sequencesByAnomaly      *Sequences_t
+
+    /* collected sequences by first action */
     sequencesByFirstAction  *Sequences_t
 
     sortedSequences         *SortedSequences_t
@@ -110,8 +103,21 @@ func GetSeqHandler() {
 func InitSeqHandler() {
     seqHandler = &SeqHandler_t { make(ActiveRequestsList_t), make(Sequences_t),
                 make(Sequences_t), make(SortedSequences_t) }
+    go seqHandler.processTimeout()
 }
 
+func (p *SeqHandler_t) Close() {
+    for _, v := p.activeRequests {
+        p.AbortRequest(LoMShutdown)
+    }
+}
+
+
+func (p *SeqHandler_t) processTimeout() {
+
+
+
+func (p *SeqHandler_t) RaiseRequest(action string) error {
 
 /*
  * Called upon action registration by client or upon sequence completion
@@ -157,7 +163,6 @@ func (p *SeqHandler_t) RaiseRequest(action string) error {
                 Timeout: 0                      /* No timeout for first action in sequence */
             }
         }
-    }
 
     /* Add to client's pending Q  to send to client upon client asking for a request. */
     /* Stays in this Q until client reads it */
@@ -178,33 +183,44 @@ func (p *SeqHandler_t) DropRequest(action string) {
     } else {
         delete (p.activeRequests, action)
         if s, ok := p.sequencesByAnomaly[r.anomalyID]; ok {
-            s.Context = append(s.Context, &ActionResponseData {
+            res := &ActionResponseData {
                 Action: action,
                 AnomalyInstanceId: r.anomalyID,
-                ResultCode: -1,         /* TODO: get list of codes */
+                ResultCode: LomActionDeregistered,         /* TODO: get list of codes */
                 ResultStr: "Dropping request due to de-registration"
-            })
-            p.ProcessSequence(s)
+            }
+            p.ProcessActionResponse(res)
         }
     }
 }
 
-
-func (p *SeqHandler_t) PublisgResponse(res *ActionResponseData, 
-            seq *SequenceState_t) {
-                TODO
-    Publish this response
-    Add state if it is first action
-    re-publish first action on sequence complete
+func (p *SeqHandler_t) AddSequence(seq *SequenceState_t) {
+    p.sequencesByAnomaly[seq.AnomalyInstanceId] = seq
+    p.sequencesByFirstAction = seq.Context[0].Action
+    p.sortedSequences = append(p.sortedSequences, seq)
 }
 
 
-func (p *SeqHandler_t) Processresponse(msg *MsgSendServerResponse) {
-    /* TODO: Honor BindingActionCfg_t:Mandatory */
+func (p *SeqHandler_t) DropSequence(seq *SequenceState_t) {
+    delete (p.sequencesByAnomaly, seq.AnomalyInstanceId)
+    delete (p.sequencesByFirstAction, seq.Context[0].Action)
+    p.sortedSequences = make(Sequences_t, len(p.sequencesByAnomaly))
+    i := 0
+    for _, v := range(p.sequencesByAnomaly) {
+        p.sortedSequences[i] = v
+        i++
+    }
+}
 
-    seq := (*SequenceState_t)(nil)
-    anomalyID := ""
-    anomalyAction := ""
+
+func (p *SeqHandler_t) PublishResponse(res *ActionResponseData, 
+            seq *SequenceState_t) {
+    PublishEvent(res.ToMap(seq == nil))
+}
+
+
+func (p *SeqHandler_t) ProcessResponse(msg *MsgSendServerResponse) {
+    /* TODO: Honor BindingActionCfg_t:Mandatory */
 
     if msg.ReqType != TypeServerRequestAction {
         LogError("Unexpected response req type (%d)/(%s)",
@@ -217,24 +233,68 @@ func (p *SeqHandler_t) Processresponse(msg *MsgSendServerResponse) {
         LogError("Unexpected response res data (%T)/(%T)", data, p)
         return
     }
-    anomalyID = data.AnomalyInstanceId
+    p.ProcessActionResponse(data)
+}
 
+
+func (p *SeqHandler_t) ProcessActionResponse(data *ActionResponseData) {
+    anomalyAction := ""
+    anomalyID = ""
+    errCode := -1
+    errStr := "Unknown error"
+
+    /* Publish received response, even if stale/unexpected. */
+    /* In any case it is result posted by plugin, hence publish/record */
+    PublishResponse(data.ToMap(false))
+
+    /* Drop from active requests */
+    if r, ok := p.activeRequests[data.Action]; ok {
+        if r.InstanceId != data.InstanceId {
+            /* stale response */
+            LogError("Active req vs res instance ID mismatch (%v) (%v)", r, data)
+            return
+        }
+    } else {
+        LogError("No matching req for res (%v)", data)
+        return
+    }
+
+    /* Response matched active request */
+    delete (p.activeRequests, data.Action)
+
+    /* Get sequence */
     seq, ok := p.sequencesByAnomaly[anomalyID]
     if !ok {
         seq = nil
-        if anomalyID == data.InstanceId {
+        if data.anomalyID == data.InstanceId {
             anomalyAction = data.Action
+            /* Result from first action. Create sequence */
+        } else {
+            /* Stale response. Non-first action w/o sequence. */
+            LogError("Stale response (%v)", data)
+            return
         }
     } else {
+        if data.anomalyID == data.InstanceId {
+            /* Anomaly response creates sequence. Hence unexpected for existing seq */
+            /* Duplicate post by plugin / pluginMgr ? */
+            LogError("First action response for existing seq (%v) res(%v)", seq, data)
+            return 
+        }
+        if (seq.CurrentRequest == nil) {
+            /* Don't expect sequence with no active request */
+            LogError("Internal error. Seq with no acive request (%v) res(%v)", seq, data)
+        } else if data.InstanceId != seq.CurrentRequest.InstanceId {
+            /* Some stale response. Drop it. */
+            LogError("Response (%v) not for current req seq(%v)", data, seq)
+            return
+        } else {
+            /* reset current request */
+            seq.CurrentRequest = nil
+        }
         anomalyAction = seq.Actions[0].Name
-        seq.CurrentRequest = nil
     }
-
-    /* Drop from active requests */
-    delete (p.activeRequests, data.Action)
-
-    /* Publish received response; Add state=init, if first action */
-    PublishResponse(data.ToMap(false))
+    anomalyID = data.AnomalyInstanceId
 
     defer func() {
         /* If sequence is complete / aborted, re-publish anomaly */
@@ -243,26 +303,32 @@ func (p *SeqHandler_t) Processresponse(msg *MsgSendServerResponse) {
             return
         }
 
-        anomalyResp := data
+        anomalyResp := (*ActionResponseData)(nil)
         if seq != nil {
-            if seq.CurrentRequest != nil {
-                /* Sequence is in progress. No re-publish yet */
-                return
+            if seq.CurrentRequest == nil {
+                /* Sequence is NOT in progress. In other words complete; Re-publish Anomaly */
+                anomalyResp = seq.Context[0]
             }
+            /* Sequence is still active. */
 
-            anomalyResp = seq.Context[0]
-            if len(seq.Context) > 1 {
-                /* Copy response code from the last response */
-                lastResp := seq.Context[len(seq.Context)-1]
-                anomalyResp.ResultCode = lastResp.ResultCode
-                anomalyResp.ResultStr = lastResp.ResultStr
-            }
+        } else if anomalyID == data.InstanceId {
+            /* This is anomaly/first action. Failed to create sequence. Re-publish. */
+            anomalyResp = data
         }
-        PublishResponse(anomalyResp.ToMap(true)
-        p.RaiseRequest(anomalyResp.Action)
+
+        if anomalyResp != nil {
+            anomalyResp.ResultCode = errCode
+            anomalyResp.ResultStr = errStr
+            PublishResponse(anomalyResp.ToMap(true)
+            p.RaiseRequest(anomalyResp.Action)
+            p.DropSequence(seq)
+        }
+        sort.Slice(p.sortedSequences, func(i, j int) bool {
+            return p.sortedSequences[i].ExpiryEpoch() < p.sortedSequences[i].ExpiryEpoch()
+        }
     }()
 
-    if !ok {
+    if seq == nil {
         /*
          * No existing sequence found.
          * Two possibilities
@@ -283,68 +349,64 @@ func (p *SeqHandler_t) Processresponse(msg *MsgSendServerResponse) {
              *
              * If first action, re-publish is not done, as detection has failed.
              */
+            errCode = LomFirstActionFailed
+            errStr = "First action / Anomaly detection failed. Nothing more to do"
             return
         }
-        seq = &SequenceState_t { AnomalyInstanceId: anomalyID, CtIndex: 1 }
-        seq.SeqStartEpoch = time.Now().Unix()
         bs, err := GetConfigMgr().GetSequence(data.Action)
         if err != nil {
             /* No sequence for this action. Likely stale non-first action or config changed */
-            bs = nil
-            seq.Context = make([]ActionResponseData, 0, 1)
-        } else {
-            seq.SeqExpEpoch = seq.SeqStartEpoch + bs.Timeout
-            seq.sequence = bs
-            seq.Context = make([]ActionResponseData, 0, len(bs.Actions))
-        }
-        seq.Context = append(seq.Context, data)
-
-        if bs == nil {
-            /* No seq; Bail out. Defer will re-publish anomaly as needed */
+            errCode = LomMissingSequence
+            errStr = "No sequence found"
             return
         }
+        tnow := time.Now().Unix()
+        ctx := make([]ActionResponseData, len(bs.Actions))
+        ctx[0] = data
 
-        p.sequencesByAnomaly[anomalyID] = seq
-        p.sequencesByFirstAction[data.Action] = seq
+        seq = &SequenceState_t {
+            AnomalyInstanceId: anomalyID,
+            sequence: bs,
+            SeqStartEpoch = tnow,
+            SeqExpEpoch: tnow + bs.Timeout,
+            CtIndex: 1,
+            Context: ctx
+        }
+        p.AddSequence(seq)
+
     } else {
-        seq.Context = append(seq.Context, data)
+        seq.Context[seq.CtIndex] = data
         seq.CtIndex++
     }
 
     /* Process the sequence */
     if data.ResultCode != 0 {
         /* Need to abort the sequence */
+        errCode = data.ResultCode
+        errStr = data.ResultStr
         return
     }
 
     if seq.CtIndex >= len(seq.sequence.Actions) {
         /* WooHoo we are really complete 
+        errCode = 0
+        errStr = "Sequence complete successfully"
         return
     }
 
     nextAction = seq.Actions[seq.CtIndex]
 
-    /* Is any active request for this action */
-    resultCode := 0
+    /* validate action */
     if regF.GetActiveActionInfo(action) == nil {
-        resultCode = -1
-        ResultStr = "Action is no more registered"
+        errCode = LoMActionNotRegistered
+        errStr = fmt.Sprintf("%v", LogError("%s: %s not registered. Abort", seq.sequence.SequenceName, action))
+        return
     } else if _, ok := p.activeRequests[nextAction.Name]; ok {
-        resultCode = -1
-        ResultStr = "Action is still pending last request raised. Hence skipped"
-    }
-
-    if resultCode != 0 {
-        LogError("(%s): (%s) action in seq(%s)", ResultStr, nextAction.Name,
-                    seq.sequence.SequenceName)
-        seq.Context = append(seq.Context, &ActionResponseData {
-                        Action: nextAction.Name,
-                        AnomalyInstanceId: anomalyID,
-                        ResultCode: resultCode,  
-                        ResultStr: ResultStr,
-                    })
+        errCode = LoMActionActive
+        errStr := fmt.Sprintf("%v", LogError("%s: %s request active. Abort", seq.sequence.SequenceName, action))
         return
     }
+
 
     /* All clear. Fire request for the next action in sequence */
     req := &ServerRequestData {
@@ -366,14 +428,10 @@ func (p *SeqHandler_t) Processresponse(msg *MsgSendServerResponse) {
     }
 
     /* Track it in our active requests;  Waits here till response */
-    p.activeRequests[action] = &ActiveRequest_t {req, uuid, 0}
+    act := &ActiveRequest_t {req, anomalyID, ReqExpEpoch: time.Now().Unix() + nextAction.Timeout}
+    p.activeRequests[action] = act
 
-    seq.CurrentRequest = &ActiveRequest_t {
-        req: req,
-        anomalyID:anomalyID,
-        ReqExpEpoch: time.Now().Unix() + nextAction.Timeout 
-    }
-
+    seq.CurrentRequest = act
 }
 
 
