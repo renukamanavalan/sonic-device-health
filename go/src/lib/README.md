@@ -6,8 +6,10 @@ Summary:
     Unit tests
 
 
+**********************************************************************************************
 lomcommon:
-    Provides APIs for
+    --------------------------------------------------------------------------------------
+    Logging:
         GetLogLevel:
             Returns current log level
 
@@ -33,16 +35,60 @@ lomcommon:
         LogDebug
             Log messages with syslog.LOG_DEBUG
             
+        LogPeriodic
+            Ability to register for periodic logs
+ 
+
+        All LoM code (plugins, pluginMgr, Server, Config-Mgr, ...) uses this single set of APIs for
+        logging. This helps us provide a unified presentation of LoM logs and ability to tweak any
+        in one place for entire LoM
+
+        ConfigSupport:
+        We have few config filed in JSON format. These APIs are helpers to load and
+        fetch needed config
+
+    --------------------------------------------------------------------------------------
+    LoadConfigFiles:
+        func LoadConfigFiles(actions_fl string, bind_fl string) error
+
+        Read Global, Actions & Bind config files
+        TODO:
+            When we add one more file, make input as struct 
+            struct {
+                GlobalsConfigFile   string
+                ActionsConfigFile   string
+                BindingConfigFile   string
+                ProcsConfigFile     string
+            }
+
+        func IsStartSequenceAction(name ActionName_t) bool
+            A way to validate an action as start of sequence or not.
+
+        func GetSequence(name ActionName_t) (*BindingSequence_t, error)
+            Get complete sequence info for an action. 
+            The i/p action is expected to be the first action in sequence.
+
+        func GetActionConfig(name ActionName_t) (*ActionInfo_t, error)
+            Get config for given action as in actions.conf
+
+        func GetActionsList() map[ActionName_t]struct{IsAnomaly bool} 
+            Get list of all actions
+
+        Read global config as string, int or any
+            GetGlobalCfgStr(key string) string 
+            GetGlobalCfgInt(key string) int
+            GetGlobalCfgAny(key string) any
     
-    All LoM code (plugins, pluginMgr, Server, Config-Mgr, ...) uses this single set of APIs for
-    logging. This helps us provide a unified presentation of LoM logs and ability to tweak any
-    in one place for entire LoM
+    --------------------------------------------------------------------------------------
+    HAL - Host Acccess layer
+        Differs per platform
 
-TODO:
-    Add facility for callers to override syslog provided Writer with any. 
-    This is an *advanced* use case and hence we do, when we see a need.
+        EventPublish:
+            Use Appropriate API from right platform
+    
 
 
+**********************************************************************************************
 lomipc:
     Provides APIs for clients to use to contact Server
 
@@ -113,6 +159,7 @@ lomipc:
             Internal API for server to read any client request
 
 
+**********************************************************************************************
 Unit test:
     Exercise all the above code.
     Try to be data driven where possible
