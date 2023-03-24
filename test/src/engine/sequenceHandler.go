@@ -9,7 +9,7 @@ import (
 /*
  * Active request - Requests sent out awaiting response with or w/o timeout
  */
-type ActiveRequest_t struct {
+type activeRequest_t struct {
     req         *ServerRequestData
     anomalyID   string
     ReqExpEpoch EpochSecs   /* Expiry time. A value of 0 means no expiry */
@@ -21,7 +21,7 @@ type ActiveRequest_t struct {
  * NOTE: Only one outstanding request per Action
  * Hence can be keyed off by action.
  */
-type ActiveRequestsList_t map[string]*ActiveRequest_t
+type activeRequestsList_t map[string]*activeRequest_t
 
 
 /*
@@ -44,17 +44,18 @@ type ActiveRequestsList_t map[string]*ActiveRequest_t
  * active.
  *
  */
-type SequenceState_t struct {
+type sequenceState_t struct {
     AnomalyInstanceId       string          /* Id referred in all requests & responses for this seq */
     sequence                *BindingSequence_t /* Read from config; Cache as config may change. */
     SeqStartEpoch           EpochSecs       /* Start of the sequence */
     SeqExpEpoch             EpochSecs       /* Timepoint of expiry for sequence */
     CtIndex                 int             /* Index of action in sequence in-progress */
     Context                 []*ActionResponseData /* Ordered responses as received, so far */
-    CurrentRequest          *ActiveRequest_t /* Current request in progress */
+    CurrentRequest          *activeRequest_t /* Current request in progress */
+    ExpTimer                *OneShotEntry_t  /* One shot timer fired to watch timeout  */
 }
 
-func (p *SequenceState_t) ExpiryEpoch() EpochSecs {
+func (p *sequenceState_t) ExpiryEpoch() EpochSecs {
     /* If current request expire early, send it; else send seq expiry */
     if p.CurrentRequest != nil {
         if p.CurrentRequest.ReqExpEpoch < p.SeqExpEpoch {
@@ -69,7 +70,7 @@ func (p *SequenceState_t) ExpiryEpoch() EpochSecs {
  *
  * Sequences are keyed off of anomaly instance Id 
  */
-type Sequences_t map[string]*SequenceState_t
+type Sequences_t map[string]*sequenceState_t
 
 /*
  * timeout:
@@ -77,12 +78,12 @@ type Sequences_t map[string]*SequenceState_t
  *      1. Currently active request for currently active sequence
  *      2. All pending sequences, who may timeout before getting chance to execute sequence.
  */
-type SortedSequences_t []SequenceState_t
+type SortedSequences_t []*sequenceState_t
 
 
 type SeqHandler_t struct {
     /* All Active requests by action name */
-    activeRequests          *ActiveRequestsList_t
+    activeRequests          *activeRequestsList_t
 
     /* Collected sequences by anomaly */
     sequencesByAnomaly      *Sequences_t
@@ -102,10 +103,9 @@ func GetSeqHandler() {
 }
 
 
-func InitSeqHandler() {
-    seqHandler = &SeqHandler_t { make(ActiveRequestsList_t), make(Sequences_t),
-                make(Sequences_t), make(SortedSequences_t), make(chan int64) }
-    go seqHandler.processTimeout()
+func InitSeqHandler(chTimer chan int64) {
+    seqHandler = &SeqHandler_t { make(activeRequestsList_t), make(Sequences_t),
+                make(Sequences_t), make(SortedSequences_t), chTimer }
 }
 
 func (p *SeqHandler_t) Close() {
@@ -115,11 +115,42 @@ func (p *SeqHandler_t) Close() {
 }
 
 
+/* Called asynchronously from a one shot timer */
+func (p *SeqHandler_t) FireTimer() {
+    p.chTimer <- 0
+}
+
+
+/*
+ * Engine calls from main loop upon signal from FireTimer which is
+ * triggered from OneShotTimer fired for seq expiry.
+ * Hence only single routine calls ProcessResponse, either via
+ * response from action, timeout or de-register action.
+ */
 func (p *SeqHandler_t) processTimeout() {
-    for {
-        select {
-        case = <- p.chTimer:
-            // TODO here
+    /* Process response could update sortedsequeces */
+    for len(p.sortedSequences) > 0 {
+        seq := p.sortedSequences[0]
+        if time.Now().Unix() >= seq.ExpiryEpoch() {
+            if bs := seq.sequence; bs == nil {
+                LogError("timeout: Internal error. Seq with nil sequence (%v)", seq)
+            } else if seq.CtIndex >= len(bs.Actions) {
+                LogError("timeout: Internal error. Seq invalid ct index (%v)", seq)
+            } else {
+                /* Initiate process response */
+                p.processActionResponse(&ActionResponseData {
+                    Action: bs.Actions[seq.CtIndex].Name,
+                    AnomalyInstanceId: seq.AnomalyInstanceId,
+                    ResultCode: LoMSequenceTimeout,
+                    ResultStr: "Sequence is timed out"
+                })
+            }
+        } else {
+            break
+        }
+    }
+
+}
 
 
 /*
@@ -174,7 +205,7 @@ func (p *SeqHandler_t) RaiseRequest(action string) error {
     }
 
     /* Track it in our active requests;  Waits here till response */
-    p.activeRequests[action] = &ActiveRequest_t {req, uuid, 0}
+    p.activeRequests[action] = &activeRequest_t {req, uuid, 0}
 
 }
 
@@ -192,21 +223,24 @@ func (p *SeqHandler_t) DropRequest(action string) {
                 ResultCode: LomActionDeregistered,         /* TODO: get list of codes */
                 ResultStr: "Dropping request due to de-registration"
             }
-            p.ProcessActionResponse(res)
+            p.processActionResponse(res)
         }
     }
 }
 
-func (p *SeqHandler_t) AddSequence(seq *SequenceState_t) {
+func (p *SeqHandler_t) addSequence(seq *sequenceState_t) {
     p.sequencesByAnomaly[seq.AnomalyInstanceId] = seq
     p.sequencesByFirstAction = seq.Context[0].Action
     p.sortedSequences = append(p.sortedSequences, seq)
+    m := "Seq: " + seq.sequence.SequenceName + " timeout"
+    p.ExpTimer = AddOneShotTimer(seq.ExpiryEpoch(), m, p.FireTimer)
     /* Caller will sort it */
 }
 
 
-func (p *SeqHandler_t) DropSequence(seq *SequenceState_t) {
+func (p *SeqHandler_t) dropSequence(seq *sequenceState_t) {
     if seq != nil {
+        p.ExpTimer.SetDisable()
         delete (p.sequencesByAnomaly, seq.AnomalyInstanceId)
         delete (p.sequencesByFirstAction, seq.Context[0].Action)
         p.sortedSequences = make(Sequences_t, len(p.sequencesByAnomaly))
@@ -220,8 +254,8 @@ func (p *SeqHandler_t) DropSequence(seq *SequenceState_t) {
 }
 
 
-func (p *SeqHandler_t) PublishResponse(res *ActionResponseData, 
-            seq *SequenceState_t) {
+func (p *SeqHandler_t) publishResponse(res *ActionResponseData, 
+            seq *sequenceState_t) {
     PublishEvent(res.ToMap(seq == nil))
 }
 
@@ -240,11 +274,11 @@ func (p *SeqHandler_t) ProcessResponse(msg *MsgSendServerResponse) {
         LogError("Unexpected response res data (%T)/(%T)", data, p)
         return
     }
-    p.ProcessActionResponse(data)
+    p.processActionResponse(data)
 }
 
 
-func (p *SeqHandler_t) ProcessActionResponse(data *ActionResponseData) {
+func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
     anomalyAction := ""
     anomalyID = ""
     errCode := -1
@@ -252,7 +286,7 @@ func (p *SeqHandler_t) ProcessActionResponse(data *ActionResponseData) {
 
     /* Publish received response, even if stale/unexpected. */
     /* In any case it is result posted by plugin, hence publish/record */
-    PublishResponse(data.ToMap(false))
+    publishResponse(data.ToMap(false))
 
     /* Drop from active requests */
     if r, ok := p.activeRequests[data.Action]; ok {
@@ -326,9 +360,9 @@ func (p *SeqHandler_t) ProcessActionResponse(data *ActionResponseData) {
         if anomalyResp != nil {
             anomalyResp.ResultCode = errCode
             anomalyResp.ResultStr = errStr
-            PublishResponse(anomalyResp.ToMap(true)
+            p.publishResponse(anomalyResp.ToMap(true)
             p.RaiseRequest(anomalyResp.Action)
-            p.DropSequence(seq)
+            p.dropSequence(seq)
         }
         sort.Slice(p.sortedSequences, func(i, j int) bool {
             return p.sortedSequences[i].ExpiryEpoch() < p.sortedSequences[i].ExpiryEpoch()
@@ -371,7 +405,7 @@ func (p *SeqHandler_t) ProcessActionResponse(data *ActionResponseData) {
         ctx := make([]ActionResponseData, len(bs.Actions))
         ctx[0] = data
 
-        seq = &SequenceState_t {
+        seq = &sequenceState_t {
             AnomalyInstanceId: anomalyID,
             sequence: bs,
             SeqStartEpoch = tnow,
@@ -379,7 +413,7 @@ func (p *SeqHandler_t) ProcessActionResponse(data *ActionResponseData) {
             CtIndex: 1,
             Context: ctx
         }
-        p.AddSequence(seq)
+        p.addSequence(seq)
 
     } else {
         seq.Context[seq.CtIndex] = data
@@ -435,7 +469,7 @@ func (p *SeqHandler_t) ProcessActionResponse(data *ActionResponseData) {
     }
 
     /* Track it in our active requests;  Waits here till response */
-    act := &ActiveRequest_t {req, anomalyID, ReqExpEpoch: time.Now().Unix() + nextAction.Timeout}
+    act := &activeRequest_t {req, anomalyID, ReqExpEpoch: time.Now().Unix() + nextAction.Timeout}
     p.activeRequests[action] = act
 
     seq.CurrentRequest = act

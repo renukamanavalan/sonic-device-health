@@ -23,6 +23,7 @@ const (
     LoMActionDeregistered,
     LoMActionNotRegistered,
     LoMActionActive,
+    LoMSequenceTimeout,
     LoMShutdown,
     LoMErrorCnt
 )
@@ -37,6 +38,7 @@ var LoMResponseStr = [LoMErrorCnt-LOM_RESP_CODE_START]string {
     "Action not registered",
     "Action de-regsitered",
     "Action already active",
+    "Sequence timed out",
     "LOM system shutdown",
 }
 
@@ -94,9 +96,6 @@ func (p *serverHandler_t) processRequest(req *LoMRequestInt) {
     req.ChResponse <- res
     if res.ResultCode == 0 {
         switch req.Req.ReqType {
-        case TypeRegAction:
-            m, _ := req.ReqData.(MsgRegAction)
-            GetSeqHandler().RaiseRequest(m.Action)
         case TypeSendServerResponse:
             m, _ := req.ReqData.(MsgSendServerResponse)
             GetSeqHandler().ProcessResponse(m)
