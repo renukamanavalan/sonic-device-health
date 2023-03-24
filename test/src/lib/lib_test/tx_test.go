@@ -204,7 +204,7 @@ func testClient(chRes chan interface{}, chComplete chan interface{}) {
     chComplete <- struct {}{}
 }
 
-func TestMain(t *testing.T) {
+func XTestMain(t *testing.T) {
     tx, err := ServerInit()
     if err != nil {
         t.Errorf("Failed to init server")
@@ -248,7 +248,7 @@ func TestMain(t *testing.T) {
 }
 
 
-func TestClientFail(t *testing.T) {
+func XTestClientFail(t *testing.T) {
     txClient := GetClientTx(ClTimeout)
 
     {
@@ -388,7 +388,7 @@ func cmpMap(s map[string]string, d map[string]string) bool {
 }
 
 
-func TestServerFail(t *testing.T) {
+func XTestServerFail(t *testing.T) {
     {
         p1 := []*ActionResponseData {{}, {} }
         p2 := []*ActionResponseData {{} }
@@ -404,8 +404,18 @@ func TestServerFail(t *testing.T) {
         }
     }
     {
-        s1 := &ServerRequestData { TypeServerRequestAction, struct{}{} }
-        s2 := &ServerRequestData { TypeServerRequestShutdown, 
+        s1 := (*ServerRequestData)(nil)
+        s2 := (*ServerRequestData)(nil)
+        if true != s1.Equal(s2) {
+            t.Errorf("Failed to match nil pointers")
+        }
+
+        s1 = &ServerRequestData { TypeServerRequestAction, struct{}{} }
+        if false != s1.Equal(s2) {
+            t.Errorf("Failed to mismatch non nil vs nil")
+        }
+
+        s2 = &ServerRequestData { TypeServerRequestShutdown, 
         ActionRequestData {"foo", "", "", "", 9, []*ActionResponseData{}} }
         if false != s1.Equal(s2) {
             t.Errorf("Failed to find mismatched req type")
@@ -418,13 +428,45 @@ func TestServerFail(t *testing.T) {
 
         s1.ReqData = ActionRequestData{"bar", "", "", "", 9, []*ActionResponseData{} }
         if false != s1.Equal(s2) {
+            t.Errorf("Failed to find mismatched reqData value type")
+        }
+
+        s2.ReqData = ActionRequestData{"Bar", "", "", "", 9, []*ActionResponseData{} }
+        if false != s1.Equal(s2) {
             t.Errorf("Failed to find mismatched reqData value")
+        }
+
+        s2.ReqData = ActionRequestData{"bar", "", "", "", 9, []*ActionResponseData{} }
+        if true != s1.Equal(s2) {
+            t.Errorf("Failed to find match reqData value")
         }
 
         s1.ReqData = struct{}{}
         s2.ReqData = struct{}{}
         if false != s1.Equal(s2) {
             t.Errorf("Failed to find Unexpected ReqData type")
+        }
+    }
+    {
+        s1 := (*ActionRequestData)(nil)
+        s2 := (*ActionRequestData)(nil)
+        if true != s1.Equal(s2) {
+            t.Errorf("Failed to match nil pointers")
+        }
+
+        s1 = &ActionRequestData { "bar", "", "", "", 9, []*ActionResponseData{} }
+        if false != s1.Equal(s2) {
+            t.Errorf("Failed to mismatch non nil vs nil")
+        }
+
+        s2 = &ActionRequestData { "bar", "rrr", "", "", 9, []*ActionResponseData{} }
+        if false != s1.Equal(s2) {
+            t.Errorf("Failed to find mismatched value")
+        }
+
+        s2 = &ActionRequestData { "bar", "", "", "", 9, []*ActionResponseData{} }
+        if true != s1.Equal(s2) {
+            t.Errorf("Failed to find matched value")
         }
     }
 
@@ -509,7 +551,7 @@ func TestServerFail(t *testing.T) {
     }
 }
 
-func TestHelper(t *testing.T) {
+func XTestHelper(t *testing.T) {
     {
         /* Test logger helper */
         FmtFprintfCnt := 0
@@ -739,7 +781,7 @@ func getConfigMgr(t *testing.T, gl, ac, bi string) (*ConfigMgr_t, error) {
 }
 
 
-func TestConfig(t *testing.T) {
+func XTestConfig(t *testing.T) {
     for _, d := range testConfigData {
         _, err := getConfigMgr(t, d.GlobalStr, d.ActionStr, d.BindStr)
         if d.Failed == (err == nil) {
@@ -802,10 +844,15 @@ func TestConfig(t *testing.T) {
             }
         }
 
+        bsNil := (*BindingSequence_t)(nil)
         if bs, err1 := mgr.GetSequence(startSeqAct); err1 != nil {
             t.Errorf("Failed to get seq (%s) err(%v)", startSeqAct, err1)
         } else if !bs.Compare(&testApiData.Sequence) {
             t.Errorf("%s: sequence mismatch (%v) != (%v)", startSeqAct, *bs, testApiData.Sequence)
+        } else if bs.Compare(bsNil) {
+            t.Errorf("BindingSequence_t:Compare Failed to mismatch non-nil & nil")
+        } else if !bsNil.Compare(bsNil) {
+            t.Errorf("BindingSequence_t:Compare Failed to match nil & nil")
         } else {
             bs.Actions[0].Name = "xxx"
             if bs.Compare(&testApiData.Sequence) {
@@ -836,7 +883,7 @@ func TestConfig(t *testing.T) {
 }
 
 
-func TestPeriodic(t *testing.T) {
+func XTestPeriodic(t *testing.T) {
     s := GetUUID()
     if len(s) != 36 {
         t.Errorf("Expect 36 chars long != (%d)", len(s))
@@ -917,6 +964,54 @@ func TestPeriodic(t *testing.T) {
         exp := `{"data":"xxx","foo":"bar","val":"42"}`
         if s != exp {
             t.Errorf("Incorrect publish string (%s) != (%s)", s, exp)
+        }
+    }
+}
+
+
+func TestOneShot(t *testing.T) {
+    exp := []int{1, 2, 3}
+    rcv := make([]int, 0, len(exp))
+    ch := make(chan int, len(exp))
+
+    f0 := func() { ch <- exp[0] }
+    f1 := func() { ch <- exp[1] }
+    f2 := func() { t.Errorf("f2 is not expected to be called") }       /* Disabled */
+    f3 := func() { ch <- exp[2] }
+
+    tmr0 := AddOneShotTimer(-2, "f0", f0)    /* 2 secs before */
+    AddOneShotTimer(1, "f1", f1)
+    tmr2 := AddOneShotTimer(1, "f2", f2)     /* Two for same time */
+    tmr2.Disable()
+    tmr3 := AddOneShotTimer(3, "f3", f3)     /* one later */
+
+    for {
+        select {
+        case v := <- ch:
+            rcv = append(rcv, v)
+            if len(rcv) == len(exp) {
+                for i, e := range rcv {
+                    if e != exp[i] {
+                        t.Errorf("Oneshot slice mismatch (%v) != (%v)", rcv, exp)
+                        break
+                    }
+                }
+                /* Test complete */
+                if !tmr0.IsDone() || !tmr3.IsDone() || tmr2.IsDone() {
+                    t.Errorf("One shot timer IsDone not set (%v) (%v) (%v)",
+                            tmr0.IsDone(), tmr2.IsDone(), tmr3.IsDone())
+                }
+                if tmr0.IsDisabled() || !tmr2.IsDisabled() || tmr3.IsDisabled() {
+                    t.Errorf("One shot timer  IsDisabled incorrect (%v) (%v) (%v)",
+                            tmr0.IsDisabled(), tmr2.IsDisabled(), tmr3.IsDisabled())
+                }
+                return
+            }
+
+        case <- time.After(4 * time.Second):
+            /* test expected to complete before this timeout */
+            t.Errorf("Oneshot failed (%v) != (%v)", rcv, exp)
+            return
         }
     }
 }

@@ -9,7 +9,7 @@ import (
 )
 
 /* Action info is collected from register calls from clients */
-type ActiveActionInfo_t {
+type ActiveActionInfo_t struct {
     Action      string
     Client      string    /* Client that registered this action
     /*
@@ -18,6 +18,12 @@ type ActiveActionInfo_t {
     Timeout     int
     /* For now, Engine does not need any other config, hence not saved */
 }
+
+/*
+ * CHannels that hold read requests from client and write requests from server
+ * are generally drained quickly. Yet, have a buffer.
+ */
+const CHAN_REQ_SIZE = 10
 
 /* Info per client */
 type ActiveClientInfo_t struct {
@@ -59,8 +65,8 @@ type ActiveClientInfo_t struct {
      * RecvServerRequest.
      */
     /* Pending requests per client */
-    pendingWriteRequests chan *ServerRequestData
-    pendingReadRequests chan req *LoMRequestInt
+    pendingWriteRequests    chan *ServerRequestData     /* Server to client */
+    pendingReadRequests     chan *LoMRequestInt         /* Client's request to read req from server */
 
     /* To abort the go routine for ProcessSendRequests */
     abortCh chan interface{}
@@ -87,25 +93,24 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
     }
     listWTimeout := make([]*wait_t, 0, 5)   /* Hold client requests for read */
     listNoTimeout := make([]*wait_t, 0, 5)  /* Hold client requests for read */
-    serverRequests := make([]*ServerRequestData, 0, 10)
+    serverRequests := make([]*ServerRequestData, 0, 100)
     tout := A_DAY_IN_SECS
     
     for {
         select {
-        case clReq := <- pendingReadRequests:
+        case clReq := <- p.pendingReadRequests:
             w := &wait_t { req: clReq }
             if req.TimeoutSecs == 0 {
                 listNoTimeout = append(listNoTimeout, w)
             } else {
-                tnow = time.Now().Unix()
-                w.due = tnow + int64(req.TimeoutSecs)
+                w.due = time.Now().Unix() + int64(req.TimeoutSecs)
                 listWTimeout = append(listWTimeout, w)
                 sort.Slice(listWTimeout, func(i, j int) bool {
                     listWTimeout[i].due < listWTimeout[j].due
                 })
             }
 
-        case serReq := <- pendingWriteRequests:
+        case serReq := <- p.pendingWriteRequests:
             serverRequests = append(serverRequests, serReq)
 
         case <- time.After(time.Duration(tout) * time.Second):
@@ -117,7 +122,7 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
         }
         
         /* Here you come on client/server request or timeout */
-        while len(serverRequests) > 0 {
+        for len(serverRequests) > 0 {
             var r *LoMRequestInt = nil
             if len(listWTimeout) > 0 {
                 r = listWTimeout[0]
@@ -127,13 +132,14 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
                 listNoTimeout = listNoTimeout[1:]
             }
             if r != nil {
-                r.ChResponse <- &LoMResponse {0, "", serverRequests[0]
+                r.ChResponse <- &LoMResponse { 0, "", serverRequests[0] }
                 serverRequests = serverRequests[1:]
             } else {
                 break
             }
         }
         if len(listWTimeout) > 0 {
+            tnow := time.Now().Unix()
             if tnow >= listWTimeout[0].due {
                 tout = 0
             } else {
@@ -146,6 +152,13 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
     }
 }
 
+
+/*
+ * A go func watches, yet it may get blocked by actions like publish
+ * To ensure, notify APIs are not blocked, have a buffer.
+ * Publish API is generally pretty quick, a value of 10 is more than enough.
+ */
+const HEARTBEAT_CH_SIZE = 10
 
 /* All registrations & heartbeats from clients. */
 type ClientRegistrations_t struct {
@@ -165,9 +178,9 @@ func GetRegistrations() *ClientRegistrations_t {
 
 func InitRegistrations() *ClientRegistrations_t {
     clientRegistrations = &ClientRegistrations_t{
-                make(map[string]*ActiveActionInfo_t)
-                make(map[string]*ActiveClientInfo_t)
-                make(chan string)
+                make(map[string]*ActiveActionInfo_t),
+                make(map[string]*ActiveClientInfo_t),
+                make(chan string, HEARTBEAT_CH_SIZE),
             }
     go clientRegistrations.PublishHeartbeats()
     return clientRegistrations
@@ -181,9 +194,9 @@ func (p *ClientRegistrations_t) RegisterClient(name string) error {
     cl := &ActiveClientInfo_t {
         ClientName: name,
         Actions: make(map[string]struct{}),
-        pendingWriteRequests: make(chan *ServerRequestData),
-        pendingReadRequests: make(chan *LoMRequestInt),
-        abortCh: make(chan, interface{}) }
+        pendingWriteRequests: make(chan *ServerRequestData, CHAN_REQ_SIZE),
+        pendingReadRequests: make(chan *LoMRequestInt, CHAN_REQ_SIZE),
+        abortCh: make(chan interface{}, 2) }
                 
     go cl.ProcessSendRequests()
     p.ActiveClients[name] = cl
@@ -194,8 +207,7 @@ func (p *ClientRegistrations_t) RegisterAction(action *ActiveActionInfo_t) error
     cl, ok := p.ActiveClients[action.Client]
     if !ok {
         return LogError("%s: Missing client registration", action.Client)
-    }
-    else if r, ok1 := p.ActiveActions[action.Action]; ok1 {
+    } else if r, ok1 := p.ActiveActions[action.Action]; ok1 {
         LogError("%s/%s: Duplicate action registration (%s); De/re-register,",
                 action.Client, action.Action, r.Client)
         p.DeregisterAction(action.Action)
@@ -282,8 +294,8 @@ func (p *ClientRegistrations_t) PublishHeartbeats() {
         case <- time.After(time.Duration(hb) * time.Second):
             hb := &HBData_t {
                 Sender: "LoM",
-                Actions: make([]string, len(lst),
-                Timestamp: time.Now().Unix()
+                Actions: make([]string, len(lst)),
+                Timestamp: time.Now().Unix(),
             }
             if len(lst) > 0 {
                 /* Publish collected actions, which could be empty */
@@ -308,7 +320,7 @@ func (p *ClientRegistrations_t) PublishHeartbeats() {
 
 
 /* Request to be sent to client as response to client's recvServerRequest */
-func (p, *ClientRegistrations_t) AddServerRequest(
+func (p *ClientRegistrations_t) AddServerRequest(
             actionName string, req *ServerRequestData) error {
     if a, ok := p.ActiveActions[actName]; !ok {
         return LogError("(%s): Action is not registered yet", actionName)
@@ -322,13 +334,11 @@ func (p, *ClientRegistrations_t) AddServerRequest(
 }
 
 /* Client's request to read server request via recvServerRequest */
-func (p, *ClientRegistrations_t) SendServerRequest(req *LoMRequestInt) error {
+func (p *ClientRegistrations_t) SendServerRequest(req *LoMRequestInt) error {
     if cl, ok := p.ActiveClients[req.Client]; !ok {
         return LogError("Internal error: client(%s) not found", req.Client)
     }
     cl.pendingReadRequests <- req
     return nil
 }
-
-
 

@@ -65,11 +65,11 @@ func (p *SequenceState_t) ExpiryEpoch() EpochSecs {
 
 
 /*
- * map<anomaly id>sequence_state_t
+ * map[anomaly id]sequence_state_t
  *
  * Sequences are keyed off of anomaly instance Id 
  */
-type Sequences_t map<string>*SequenceState_t
+type Sequences_t map[string]*SequenceState_t
 
 /*
  * timeout:
@@ -91,6 +91,8 @@ type SeqHandler_t struct {
     sequencesByFirstAction  *Sequences_t
 
     sortedSequences         *SortedSequences_t
+
+    chTimer                 chan int64  /* Channel to convey earliest timeout */
 }
 
 var seqHandler *SeqHandler_t = nil
@@ -102,7 +104,7 @@ func GetSeqHandler() {
 
 func InitSeqHandler() {
     seqHandler = &SeqHandler_t { make(ActiveRequestsList_t), make(Sequences_t),
-                make(Sequences_t), make(SortedSequences_t) }
+                make(Sequences_t), make(SortedSequences_t), make(chan int64) }
     go seqHandler.processTimeout()
 }
 
@@ -114,10 +116,11 @@ func (p *SeqHandler_t) Close() {
 
 
 func (p *SeqHandler_t) processTimeout() {
+    for {
+        select {
+        case = <- p.chTimer:
+            // TODO here
 
-
-
-func (p *SeqHandler_t) RaiseRequest(action string) error {
 
 /*
  * Called upon action registration by client or upon sequence completion
@@ -198,17 +201,21 @@ func (p *SeqHandler_t) AddSequence(seq *SequenceState_t) {
     p.sequencesByAnomaly[seq.AnomalyInstanceId] = seq
     p.sequencesByFirstAction = seq.Context[0].Action
     p.sortedSequences = append(p.sortedSequences, seq)
+    /* Caller will sort it */
 }
 
 
 func (p *SeqHandler_t) DropSequence(seq *SequenceState_t) {
-    delete (p.sequencesByAnomaly, seq.AnomalyInstanceId)
-    delete (p.sequencesByFirstAction, seq.Context[0].Action)
-    p.sortedSequences = make(Sequences_t, len(p.sequencesByAnomaly))
-    i := 0
-    for _, v := range(p.sequencesByAnomaly) {
-        p.sortedSequences[i] = v
-        i++
+    if seq != nil {
+        delete (p.sequencesByAnomaly, seq.AnomalyInstanceId)
+        delete (p.sequencesByFirstAction, seq.Context[0].Action)
+        p.sortedSequences = make(Sequences_t, len(p.sequencesByAnomaly))
+        i := 0
+        for _, v := range(p.sequencesByAnomaly) {
+            p.sortedSequences[i] = v
+            i++
+        }
+        /* Caller will sort it */
     }
 }
 
@@ -325,7 +332,7 @@ func (p *SeqHandler_t) ProcessActionResponse(data *ActionResponseData) {
         }
         sort.Slice(p.sortedSequences, func(i, j int) bool {
             return p.sortedSequences[i].ExpiryEpoch() < p.sortedSequences[i].ExpiryEpoch()
-        }
+        })()
     }()
 
     if seq == nil {
@@ -417,7 +424,7 @@ func (p *SeqHandler_t) ProcessActionResponse(data *ActionResponseData) {
             AnomalyInstanceId: anomalyID,
             AnomalyKey: seq.Context[0].AnomalyKey,
             Timeout : nextAction.Timeout,
-            Context: seq.Context
+            Context: seq.Context,
         }
     }
 
@@ -435,3 +442,4 @@ func (p *SeqHandler_t) ProcessActionResponse(data *ActionResponseData) {
 }
 
 
+}])

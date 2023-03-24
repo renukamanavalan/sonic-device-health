@@ -9,11 +9,11 @@ import (
     "syscall"
 )
 
-BindingsConfFile = flag.String("b", "/etc/sonic/LoM/bindings.conf.json", 
+var BindingsConfFile = flag.String("b", "/etc/sonic/LoM/bindings.conf.json", 
             "Bindings config file")
-ActionsConfFile = flag.String("a", "/etc/sonic/LoM/actions.conf.json",
+var ActionsConfFile = flag.String("a", "/etc/sonic/LoM/actions.conf.json",
             "Actions config file")
-GlobalsConfFile = flag.String("g", "/etc/sonic/LoM/globals.conf.json",
+var GlobalsConfFile = flag.String("g", "/etc/sonic/LoM/globals.conf.json",
             "Globals config file")
 
 func readRequest(tx *LoMTransport, chAlert chan *LoMRequestInt, chAbort chan interface{}) {
@@ -31,6 +31,7 @@ func readRequest(tx *LoMTransport, chAlert chan *LoMRequestInt, chAbort chan int
                     break
                 case <- chAbort:
                     return
+                }
             } else {
                 /* Close as no more writes. This will help abort read loop below */
                 close(chAlert)
@@ -41,21 +42,6 @@ func readRequest(tx *LoMTransport, chAlert chan *LoMRequestInt, chAbort chan int
     }()
 }
 
-type oneShotTimers st5
-/* One shot timers */
-var oneShotTimers = make(map[int64][]func())
-var sortedTimers []int64
-
-
-func AddOneShotTimer(due int64, f func()) {
-    oneShotTimers[due] = append(oneShotTimers[due], f)
-    sortedTimers = append(sortedTimers, due)
-    sort.Slice(sortedTimers, func(i, j int) bool {
-        return sortedTimers[i] < sortedTimers[j]
-    })
-}
-
-func 
 
 func runLoop(tx *LoMTransport) {
     /*
@@ -65,23 +51,28 @@ func runLoop(tx *LoMTransport) {
      *      Internal timer for outstanding request's timeout processing
      */
 
-    chSignal := make(chan os.Signal)
+    chSignal := make(chan os.Signal, 3)
     chAlert := make(chan *LoMRequestInt)
+    chSeqHandler := make(chan interface{})
 
     /* Write abort is done once. It is best effort; To let send not block, make it buffered. */
     chAbort := make(chan interface{}, 1)
 
-    signal.Notify(sigs, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
+    signal.Notify(chSignal, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
 
     readRequest(tx, chAlert, chAbort)
 
     server := GetServerReqHandler()
 
+    InitSeqHandler(chSeqHandler)
 loop:
     for {
         select {
         case msg := <- chAlert:
             server.processRequest(msg)
+
+        case := <- chSeqHandler:
+            GetSeqHandler().processTimeout()
 
         case sig := <- chSignal:
             switch(sig) {
@@ -103,13 +94,12 @@ func main() {
 
     flag.Parse()    /* Parse args */
 
-    if _, err := InitConfigMgr((actionsConfFile, BindingsConfFile); err != nil {
+    if _, err := InitConfigMgr(actionsConfFile, BindingsConfFile); err != nil {
         LogPanic("Failed to read config; actions(%s) bindings(%s)", 
                 actionsConfFile, BindingsConfFile)
     } else {
         InitRegistrations()
         LogPeriodicInit()
-        InitSeqHandler()
     }
 
     tx, err := ServerInit()

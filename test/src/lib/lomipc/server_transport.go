@@ -234,6 +234,15 @@ func SlicesComp(p []*ActionResponseData, q []*ActionResponseData) bool {
 
 /* Helper to compare given requests. */
 func (r *ActionRequestData) Equal(p *ActionRequestData) bool {
+    if r == p {
+        /* Same ptr */
+        return true
+    }
+    if (r == nil) || (p == nil) {
+        LogError("Unexpected nil args self(%v) arg(%v)\n", (r == nil), (p == nil))
+        return false
+    }
+
     if ((r.Action == p.Action) &&
         (r.InstanceId == p.InstanceId) &&
         (r.AnomalyInstanceId == p.AnomalyInstanceId) &&
@@ -248,6 +257,15 @@ func (r *ActionRequestData) Equal(p *ActionRequestData) bool {
 
 /* Helper to compare given requests. */
 func (r *ServerRequestData) Equal(p *ServerRequestData) bool {
+    if r == p {
+        /* Same ptr */
+        return true
+    }
+    if (r == nil) || (p == nil) {
+        LogError("Unexpected nil args self(%v) arg(%v)\n", (r == nil), (p == nil))
+        return false
+    }
+
     if r.ReqType != p.ReqType {
         LogDebug("Differing Req types %s vs %s", ServerReqTypeToStr[r.ReqType], 
                 ServerReqTypeToStr[p.ReqType])
