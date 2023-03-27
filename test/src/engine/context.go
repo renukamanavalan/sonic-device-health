@@ -192,7 +192,7 @@ func (p *ClientRegistrations_t) RegisterClient(name string) error {
         return LogError("Expect non empty name")
     }
     if _, ok := p.activeClients[name]; ok {
-        LogError("%s: Duplicate client registration; De & re-register", name)
+        LogInfo("%s: Duplicate client registration; De & re-register", name)
         p.DeregisterClient(name)
     }
     cl := &ActiveClientInfo_t {
@@ -215,7 +215,7 @@ func (p *ClientRegistrations_t) RegisterAction(action *ActiveActionInfo_t) error
     if !ok {
         return LogError("%s: Missing client registration", action.Client)
     } else if r, ok1 := p.activeActions[action.Action]; ok1 {
-        LogError("%s/%s: Duplicate action registration (%s); De/re-register,",
+        LogInfo("%s/%s: Duplicate action registration (%s); De/re-register,",
                 action.Client, action.Action, r.Client)
         p.DeregisterAction(action.Action)
     }

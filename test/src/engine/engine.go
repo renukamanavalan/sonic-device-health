@@ -96,6 +96,7 @@ loop:
 
 
 func main() {
+    testMode := flag.Bool("t", false, "Run in test mode")
 
     {
     globalFl := flag.String("g", "/etc/sonic/LoM/globals.conf.json", "Globals config file")
@@ -107,6 +108,9 @@ func main() {
         GlobalFl: *globalFl,
         ActionsFl: *actionsFl,
         BindingsFl: *bindingsFl }
+
+    if *testMode {
+        testSetFiles(cfgFiles)
     }
         
 
@@ -121,6 +125,10 @@ func main() {
     tx, err := ServerInit()
     if err != nil {
         LogPanic("Failed to call ServerInit")
+    }
+
+    if *testMode {
+        go testRun()
     }
 
     runLoop(tx)

@@ -30,6 +30,9 @@ func PublishEvent(m map[string]string) string {
     return PublishString(s)
 }
 
+/* will be set to appropriate API */
+var PublishEventAPI func(string) = nil
+
 /*
  *  Publish string as event
  *
