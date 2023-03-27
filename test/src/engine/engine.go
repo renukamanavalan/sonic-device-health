@@ -9,14 +9,13 @@ import (
     "syscall"
 )
 
-var BindingsConfFile = flag.String("b", "/etc/sonic/LoM/bindings.conf.json", 
-            "Bindings config file")
-var ActionsConfFile = flag.String("a", "/etc/sonic/LoM/actions.conf.json",
-            "Actions config file")
-var GlobalsConfFile = flag.String("g", "/etc/sonic/LoM/globals.conf.json",
-            "Globals config file")
+
+var cfgFiles *ConfigFiles_t
 
 func readRequest(tx *LoMTransport, chAlert chan *LoMRequestInt, chAbort chan interface{}) {
+    if (tx == nil) || (chAlert == nil) || (chAbort == nil) {
+        LogPanic("Internal error: Nil args (%v)(%v)(%v)", tx, chAlert, chAbort)
+    }
 
     go func() {
         /* In forever read loop until aborted */
@@ -50,10 +49,13 @@ func runLoop(tx *LoMTransport) {
      *      request from client
      *      Internal timer for outstanding request's timeout processing
      */
+    if tx == nil {
+        LogPanic("Internal error: Nil LoMTransport")
+    }
 
     chSignal := make(chan os.Signal, 3)
-    chAlert := make(chan *LoMRequestInt)
-    chSeqHandler := make(chan interface{})
+    chAlert := make(chan *LoMRequestInt, 1)
+    chSeqHandler := make(chan int64, 2)
 
     /* Write abort is done once. It is best effort; To let send not block, make it buffered. */
     chAbort := make(chan interface{}, 1)
@@ -71,17 +73,20 @@ loop:
         case msg := <- chAlert:
             server.processRequest(msg)
 
-        case := <- chSeqHandler:
+        case <- chSeqHandler:
             GetSeqHandler().processTimeout()
 
         case sig := <- chSignal:
             switch(sig) {
             case syscall.SIGHUP, syscall.SIGINT:
-                /* Reload */
-                /* NOTE: Any currently active sequence will not be affected */
-                Bindings.Load(BindingsConfFile, ActionsConfigFile)
+                /*
+                 * Reload.
+                 * NOTE: Any currently active sequence will not be affected
+                 * On any error, continues to use last loaded values. 
+                 */
+                 InitConfigMgr(cfgFiles)
 
-            case syscall.SIG_TERM:
+            case syscall.SIGTERM:
                 chAbort <- "Aborted"
                 break loop
             }
@@ -92,15 +97,26 @@ loop:
 
 func main() {
 
+    {
+    globalFl := flag.String("g", "/etc/sonic/LoM/globals.conf.json", "Globals config file")
+    actionsFl := flag.String("a", "/etc/sonic/LoM/actions.conf.json", "Actions config file")
+    bindingsFl := flag.String("b", "/etc/sonic/LoM/bindings.conf.json", "Bindings config file")
     flag.Parse()    /* Parse args */
 
-    if _, err := InitConfigMgr(actionsConfFile, BindingsConfFile); err != nil {
-        LogPanic("Failed to read config; actions(%s) bindings(%s)", 
-                actionsConfFile, BindingsConfFile)
-    } else {
-        InitRegistrations()
-        LogPeriodicInit()
+    cfgFiles = &ConfigFiles_t {
+        GlobalFl: *globalFl,
+        ActionsFl: *actionsFl,
+        BindingsFl: *bindingsFl }
     }
+        
+
+    if _, err := InitConfigMgr(cfgFiles); err != nil {
+        LogPanic("Failed to read config; (%v)", *cfgFiles)
+    }
+   
+    chAbortLog := make(chan interface{}, 1)
+    InitRegistrations()
+    LogPeriodicInit(chAbortLog)
 
     tx, err := ServerInit()
     if err != nil {
@@ -108,6 +124,9 @@ func main() {
     }
 
     runLoop(tx)
+
+    /* Abort LogPeriodic */
+    chAbortLog <- 0
 
     LogInfo("Engine exiting...")
 }

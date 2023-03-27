@@ -313,8 +313,8 @@ type oneShotTimer_t struct {
 var oneShotTimer = oneShotTimer_t { make(chan *OneShotEntry_t, 1), false }
 
 /* Helper to call a function upon given time provided in seconds */
-func AddOneShotTimer(tout int, msg string, f func()) *OneShotEntry_t {
-    tmr := &OneShotEntry_t{ due: time.Now().Unix() + int64(tout), msg: msg, f: f }
+func AddOneShotTimer(tout int64, msg string, f func()) *OneShotEntry_t {
+    tmr := &OneShotEntry_t{ due: time.Now().Unix() + tout, msg: msg, f: f }
     oneShotTimer.ch <- tmr
     if !oneShotTimer.initOneShotTimer {
         oneShotTimer.initOneShotTimer = true

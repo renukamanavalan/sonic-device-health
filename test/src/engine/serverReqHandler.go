@@ -1,79 +1,105 @@
 package engine
 
 import (
-    "flag"
+    "fmt"
     . "lib/lomcommon"
     . "lib/lomipc"
-    "os"
-    "os/signal"
     "runtime"
-    "syscall"
 )
 
-const LoMResponseOk = 0
+type LoMResponseCode int
+
+const LoMResponseOk = LoMResponseCode(0)
+
+/* Start at high number, so as not to conflict with OS error codes */
 const LOM_RESP_CODE_START = 4096
 
+/* List of all error codes returned in LoM response */
 const (
-    LoMUnknownReqType = LOM_RESP_CODE_START,
-    LoMIncorrectReqData,
-    LoMReqFailed,
-    LoMReqTimeout,
-    LoMFirstActionFailed,
-    LoMMissingSequence,
-    LoMActionDeregistered,
-    LoMActionNotRegistered,
-    LoMActionActive,
-    LoMSequenceTimeout,
-    LoMShutdown,
+    LoMUnknownError = LoMResponseCode(LOM_RESP_CODE_START)
+    LoMUnknownReqType
+    LoMIncorrectReqData
+    LoMReqFailed
+    LoMReqTimeout
+    LoMFirstActionFailed
+    LoMMissingSequence
+    LoMActionDeregistered
+    LoMActionNotRegistered
+    LoMActionActive
+    LoMSequenceTimeout
+    LoMSequenceIncorrect
+    LoMShutdown
     LoMErrorCnt
 )
 
-var LoMResponseStr = [LoMErrorCnt-LOM_RESP_CODE_START]string {
+var LoMResponseStr = [13]string {
+    "Unknown error",
     "Unknown request",
     "Incorrect Msg type",
     "Request failed",
     "Request Timed out",
     "First Action failed",
     "First Action's sequence missing",
-    "Action not registered",
     "Action de-regsitered",
+    "Action not registered",
     "Action already active",
     "Sequence timed out",
+    "Sequence state incorrect",
     "LOM system shutdown",
 }
 
-func GetLoMResponseStr(code int) string {
-    if (code <LoMResponseOk) || (code >= LoMErrorCnt) {
+func init() {
+    if len(LoMResponseStr) != (int(LoMErrorCnt) - LOM_RESP_CODE_START) {
+        LogPanic("LoMResponseStr len(%d) != (%d - %d = %d)", len(LoMResponseStr),
+                LoMErrorCnt, LOM_RESP_CODE_START, int(LoMErrorCnt) - LOM_RESP_CODE_START)
+    }
+}
+
+func GetLoMResponseStr(code LoMResponseCode) string {
+    if (code < LOM_RESP_CODE_START) || (code >= LoMErrorCnt) {
         return "Unknown error code"
     }
-    return LoMResponseStr[code]
+    return LoMResponseStr[int(code)-LOM_RESP_CODE_START]
 }
 
 
 /* Helper to construct LoMResponse object */
-func createLomResponse(code int, msg string, data interface{})
-{
-    if (code <LoMResponseOk) || (code >= LoMErrorEnd) {
-        LogPanic("Unexpected error code (%d) range (%d to %d)",
-                code, LoMResponseOk, LoMErrorEnd)
+func createLoMResponse(code LoMResponseCode, msg string, data interface{}) *LoMResponse {
+    if (code < LOM_RESP_CODE_START) || (code >= LoMErrorCnt) {
+        LogPanic("Internal error: Unexpected error code (%d) range (%d to %d)",
+                code, LoMResponseOk, LoMErrorCnt)
     }
     s := msg
     if (len(s) == 0) && (code != LoMResponseOk) {
         /* Prefix caller name to provide context */
         if pc, _, _, ok := runtime.Caller(1); ok {
             details := runtime.FuncForPC(pc)
-            s = details.Name() + ": " + LoMResponseStr[code]
+            s = details.Name() + ": " + GetLoMResponseStr(code)
         }
     }
-    return &LoMResponse { code, s, data }
+    return &LoMResponse { int(code), s, data }
 }
 
 
 type serverHandler_t struct {
 }
 
+/*
+ * Handle each request type.
+ * Other than recvServerRequest, the rest are synchronous 
+ */
 func (p *serverHandler_t) processRequest(req *LoMRequestInt) {
-    vat res *LomResponse) := nil
+    if req == nil {
+        LogPanic("Expect non nil LoMRequestInt")
+    }
+    if (req.Req == nil) || (req.ChResponse == nil) {
+        LogPanic("Expect non nil LoMRequest (%v)", req)
+    }
+    if len(req.ChResponse) == cap(req.ChResponse) {
+        LogPanic("No room in chResponse (%d)/(%d)", len(req.ChResponse),
+                cap(req.ChResponse))
+    }
+    var res *LoMResponse = nil
 
     switch req.Req.ReqType {
     case TypeRegClient:
@@ -91,90 +117,98 @@ func (p *serverHandler_t) processRequest(req *LoMRequestInt) {
     case TypeNotifyActionHeartbeat:
         res = p.notifyHeartbeat(req.Req)
     default:
-        res = createLomResponse(LoMUnknownReqType, "", nil)
+        res = createLoMResponse(LoMUnknownReqType, "", nil)
     }
-    req.ChResponse <- res
-    if res.ResultCode == 0 {
-        switch req.Req.ReqType {
-        case TypeSendServerResponse:
-            m, _ := req.ReqData.(MsgSendServerResponse)
-            GetSeqHandler().ProcessResponse(m)
+    if res != nil {
+        req.ChResponse <- res
+        if res.ResultCode == 0 {
+            switch req.Req.ReqType {
+            case TypeSendServerResponse:
+                m, _ := req.Req.ReqData.(MsgSendServerResponse)
+                GetSeqHandler().ProcessResponse(&m)
+            }
         }
     }
+    /* nil implies that the request will be processed async. Likely RecvServerRequest */
 }
 
 
-func (p *serverHandler_t) registerClient(req *LoMRequest) *LomResponse {
+/* Methods below, don't do arg verification, as already vetted by caller processRequest */
+
+func (p *serverHandler_t) registerClient(req *LoMRequest) *LoMResponse {
     if _, ok := req.ReqData.(MsgRegClient); !ok {
-        return createLomResponse(LoMIncorrectReqData, "", nil)
+        return createLoMResponse(LoMIncorrectReqData, "", nil)
     }
     e := GetRegistrations().RegisterClient(req.Client)
     if e != nil {
-        return createLomResponse(LoMReqFailed, fmt.Sprint(e), nil)
+        return createLoMResponse(LoMReqFailed, fmt.Sprintf("%v", e), nil)
     }
-    return createLomResponse(LoMResponseOk, "", nil)
+    return createLoMResponse(LoMResponseOk, "", nil)
 }
 
 
-func (p *serverHandler_t) deregisterClient(req *LoMRequest) *LomResponse {
+func (p *serverHandler_t) deregisterClient(req *LoMRequest) *LoMResponse {
     if _, ok := req.ReqData.(MsgDeregClient); !ok {
-        return createLomResponse(LoMIncorrectReqData, "", nil)
+        return createLoMResponse(LoMIncorrectReqData, "", nil)
     }
     GetRegistrations().DeregisterClient(req.Client)
-    return createLomResponse(LoMResponseOk, "", nil)
+    return createLoMResponse(LoMResponseOk, "", nil)
 }
 
 
-func (p *serverHandler_t) registerAction(req *LoMRequest) *LomResponse {
+func (p *serverHandler_t) registerAction(req *LoMRequest) *LoMResponse {
     if m, ok := req.ReqData.(MsgRegAction); !ok {
-        return createLomResponse(LoMIncorrectReqData, "", nil)
+        return createLoMResponse(LoMIncorrectReqData, "", nil)
+    } else {
+        info := &ActiveActionInfo_t { m.Action, req.Client, 0 }
+        e := GetRegistrations().RegisterAction(info)
+        if e != nil {
+            return createLoMResponse(LoMReqFailed, fmt.Sprintf("%v", e), nil)
+        }
+        return createLoMResponse(LoMResponseOk, "", nil)
     }
-    info := &ActiveActionInfo_t { m.Action, req.Client, 0 }
-    e := GetRegistrations().RegisterAction(info)
-    if e != nil {
-        return createLomResponse(LoMReqFailed, fmt.Sprint(e), nil)
-    }
-    return createLomResponse(LoMResponseOk, "", nil)
 }
 
 
-func (p *serverHandler_t) deregisterAction(req *LoMRequest) *LomResponse {
+func (p *serverHandler_t) deregisterAction(req *LoMRequest) *LoMResponse {
     if m, ok := req.ReqData.(MsgDeregAction); !ok {
-        return createLomResponse(LoMIncorrectReqData, "", nil)
+        return createLoMResponse(LoMIncorrectReqData, "", nil)
+    } else {
+        GetRegistrations().DeregisterAction(m.Action)
+        return createLoMResponse(LoMResponseOk, "", nil)
     }
-    GetRegistrations().DeregisterAction(m.Action)
-    return createLomResponse(LoMResponseOk, "", nil)
 }
 
 
-func (p *serverHandler_t) notifyHeartbeat(req *LoMRequest) *LomResponse {
+func (p *serverHandler_t) notifyHeartbeat(req *LoMRequest) *LoMResponse {
     if m, ok := req.ReqData.(MsgNotifyHeartbeat); !ok {
-        return createLomResponse(LoMIncorrectReqData, "", nil)
+        return createLoMResponse(LoMIncorrectReqData, "", nil)
+    } else {
+        GetRegistrations().NotifyHeartbeats(m.Action, m.Timestamp)
+        return createLoMResponse(LoMResponseOk, "", nil)
     }
-    GetRegistrations().NotifyHeartbeats(m.Action, m.Timestamp)
-    return createLomResponse(LoMResponseOk, "", nil)
 }
 
 
-func (p *serverHandler_t) recvServerRequest(req *LoMRequestInt) *LomResponse {
-    if m, ok := req.Req.ReqData.(MsgRecvServerRequest); !ok {
-        return createLomResponse(LoMIncorrectReqData, "", nil)
-    }
-    if err := GetRegistrations().SendServerRequest(req); err == nil {
+func (p *serverHandler_t) recvServerRequest(req *LoMRequestInt) *LoMResponse {
+    if _, ok := req.Req.ReqData.(MsgRecvServerRequest); !ok {
+        return createLoMResponse(LoMIncorrectReqData, "", nil)
+    } else if err := GetRegistrations().PendServerRequest(req); err == nil {
         /* ClientRegistrations_t will send the request whenever available */
         return nil
     } else {
-        return createLomResponse(LoMReqFailed, fmt.Sprintf("%v", err), nil)
+        return createLoMResponse(LoMReqFailed, fmt.Sprintf("%v", err), nil)
     }
 }
 
 
-func (p *serverHandler_t) sendServerResponse(req *LoMRequest) *LomResponse {
-    if m, ok := req.ReqData.(MsgSendServerResponse); !ok {
-        return createLomResponse(LoMIncorrectReqData, "", nil)
+func (p *serverHandler_t) sendServerResponse(req *LoMRequest) *LoMResponse {
+    if _, ok := req.ReqData.(MsgSendServerResponse); !ok {
+        return createLoMResponse(LoMIncorrectReqData, "", nil)
+    } else {
+        return createLoMResponse(LoMResponseOk, "", nil)
+        /* Process response called in caller after sending response back */
     }
-    return createLomResponse(LoMResponseOk, "", sreq)
-    /* Process response called in caller after sending response back */
 }
 
 

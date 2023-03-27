@@ -1,11 +1,11 @@
 package engine
 
 import (
+    "encoding/json"
     . "lib/lomcommon"
     . "lib/lomipc"
-    "os"
-    "os/signal"
-    "syscall"
+    "sort"
+    "time"
 )
 
 /* Action info is collected from register calls from clients */
@@ -50,14 +50,14 @@ type ActiveClientInfo_t struct {
      * action. In other words this need to block
      *
      * So the handler for TypeRecvServerRequest, queues the request with client
-     * via GetRegistrations().SendServerRequest(req). This writes the request into
+     * via GetRegistrations().PendServerRequest(req). This writes the request into
      * pendingReadRequests channel. 
      *
      * Whenever a request to be raised to client (upon register action/process response/
-     * ...), that sends the request into pendingWriteRequests, as there may or may not
-     * be a read request from client pending.
+     * ...), that sends the request into pendingWriteRequests channel, as there may or may
+     * not be a read request from client pending via AddServerRequest.
      *
-     * A dedicated Go routine ProcessSendRequests watches both and do the transfer
+     * A dedicated Go routine ProcessSendRequests watches both channels and do the transfer
      * as appropriate.
      *
      * Each request from SendToServer has a request specific channel (LoMRequestInt::
@@ -73,7 +73,7 @@ type ActiveClientInfo_t struct {
 }
 
 func (p *ActiveClientInfo_t) Close() {
-    abortCh <- struct{}{}
+    p.abortCh <- struct{}{}
 }
 
 func (p *ActiveClientInfo_t) ProcessSendRequests() {
@@ -91,7 +91,8 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
         req *LoMRequestInt
         due int64 
     }
-    listWTimeout := make([]*wait_t, 0, 5)   /* Hold client requests for read */
+    /* 5 & 100 are just initial capacity. this does not block scaling up. */
+    listWTimeout := make([]*wait_t, 0, 5)   /* Hold client requests for read sorted by due */
     listNoTimeout := make([]*wait_t, 0, 5)  /* Hold client requests for read */
     serverRequests := make([]*ServerRequestData, 0, 100)
     tout := A_DAY_IN_SECS
@@ -100,13 +101,13 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
         select {
         case clReq := <- p.pendingReadRequests:
             w := &wait_t { req: clReq }
-            if req.TimeoutSecs == 0 {
+            if clReq.Req.TimeoutSecs == 0 {
                 listNoTimeout = append(listNoTimeout, w)
             } else {
-                w.due = time.Now().Unix() + int64(req.TimeoutSecs)
+                w.due = time.Now().Unix() + int64(clReq.Req.TimeoutSecs)
                 listWTimeout = append(listWTimeout, w)
                 sort.Slice(listWTimeout, func(i, j int) bool {
-                    listWTimeout[i].due < listWTimeout[j].due
+                    return listWTimeout[i].due < listWTimeout[j].due
                 })
             }
 
@@ -125,10 +126,10 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
         for len(serverRequests) > 0 {
             var r *LoMRequestInt = nil
             if len(listWTimeout) > 0 {
-                r = listWTimeout[0]
+                r = listWTimeout[0].req
                 listWTimeout = listWTimeout[1:]
             } else if len(listNoTimeout) > 0 {
-                r = listNoTimeout[0]
+                r = listNoTimeout[0].req
                 listNoTimeout = listNoTimeout[1:]
             }
             if r != nil {
@@ -187,7 +188,10 @@ func InitRegistrations() *ClientRegistrations_t {
 }
 
 func (p *ClientRegistrations_t) RegisterClient(name string) error {
-    if _, ok := p.ActiveClients[name]; ok {
+    if len(name) == 0 {
+        return LogError("Expect non empty name")
+    }
+    if _, ok := p.activeClients[name]; ok {
         LogError("%s: Duplicate client registration; De & re-register", name)
         p.DeregisterClient(name)
     }
@@ -198,16 +202,19 @@ func (p *ClientRegistrations_t) RegisterClient(name string) error {
         pendingReadRequests: make(chan *LoMRequestInt, CHAN_REQ_SIZE),
         abortCh: make(chan interface{}, 2) }
                 
+    p.activeClients[name] = cl
     go cl.ProcessSendRequests()
-    p.ActiveClients[name] = cl
     return nil
 }
 
 func (p *ClientRegistrations_t) RegisterAction(action *ActiveActionInfo_t) error {
-    cl, ok := p.ActiveClients[action.Client]
+    if action == nil {
+        return LogError("Expect non nil ActiveActionInfo_t")
+    }
+    cl, ok := p.activeClients[action.Client]
     if !ok {
         return LogError("%s: Missing client registration", action.Client)
-    } else if r, ok1 := p.ActiveActions[action.Action]; ok1 {
+    } else if r, ok1 := p.activeActions[action.Action]; ok1 {
         LogError("%s/%s: Duplicate action registration (%s); De/re-register,",
                 action.Client, action.Action, r.Client)
         p.DeregisterAction(action.Action)
@@ -223,16 +230,20 @@ func (p *ClientRegistrations_t) RegisterAction(action *ActiveActionInfo_t) error
         cl.Actions[action.Action] = struct{}{}
 
         /* Make a copy and save */
-        p.ActiveActions[action.Action] = &ActiveActionInfo_t{*action}
+        info := &ActiveActionInfo_t{}
+        *info = *action
+        p.activeActions[action.Action] = info
+        GetSeqHandler().RaiseRequest(action.Action)
         return nil
     }
-    GetSeqHandler().RaiseRequest(action.Action, true)
 }
 
 func (p *ClientRegistrations_t) GetActiveActionInfo(name string) *ActiveActionInfo_t {
-    if r, ok := p.ActiveActions[action.Action]; ok {
+    if r, ok := p.activeActions[name]; ok {
         /* return a new copy */
-        return &ActiveActionInfo_t{*r}
+        info := &ActiveActionInfo_t{}
+        *info = *r
+        return info
     } else {
         return nil
     }
@@ -240,41 +251,43 @@ func (p *ClientRegistrations_t) GetActiveActionInfo(name string) *ActiveActionIn
 
 
 func (p *ClientRegistrations_t) DeregisterClient(name string) {
-    if cl, ok := p.ActiveClients[name]; !ok {
-        return
-    }
+    if len(name) == 0 {
+        LogError("Expect non empty name")
+    } else if cl, ok := p.activeClients[name]; ok {
+        /*
+         * Delete client first to avoid removing one action at a time, during
+         * deregister of its actions.
+         */
+        cl.Close()
+        delete (p.activeClients, name)
 
-    /*
-     * Delete client first tpo avoid removing one action at a time, during
-     * deregister of its actions.
-     */
-    cl.Close()
-    delete (p.ActiveClients, name)
-
-    for k, _ := range cl.Actions {
-        p.DeregisterAction(k)
+        for k, _ := range cl.Actions {
+            p.DeregisterAction(k)
+        }
     }
 }
 
 func (p *ClientRegistrations_t) DeregisterAction(actName string) {
-    if r, ok := p.ActiveActions[actName]; !ok {
-        /* No such action */
-        return
-    } else if cl, ok := p.ActiveClients[r.Client]; ok {
-        delete (cl.Actions, actName)
+    if len(actName) == 0 {
+        LogError("Register client. Expect non empty name")
+    } else if r, ok := p.activeActions[actName]; ok {
+        if cl, ok := p.activeClients[r.Client]; ok {
+            delete (cl.Actions, actName)
+        }
+        delete (p.activeActions, actName)
+        GetSeqHandler().DropRequest(actName)
     }
-    delete (p.ActiveActions, actName)
-    GetSeqHandler().DropRequest(action.Action, true)
 }
 
 func (p *ClientRegistrations_t) NotifyHeartbeats(actName string,
-            ts EpochSecs) {
-    if r, ok := p.ActiveActions[actName]; ok {
+            ts int64) {
+    if _, ok := p.activeActions[actName]; ok {
         p.heartbeatCh <- actName
     }
 }
 
 func (p *ClientRegistrations_t) PublishHeartbeats() {
+    /* Map will help combine duplicate heartbeats into one */
     lst := make(map[string]struct{})
 
     type HBData_t struct {
@@ -322,21 +335,36 @@ func (p *ClientRegistrations_t) PublishHeartbeats() {
 /* Request to be sent to client as response to client's recvServerRequest */
 func (p *ClientRegistrations_t) AddServerRequest(
             actionName string, req *ServerRequestData) error {
-    if a, ok := p.ActiveActions[actName]; !ok {
+    if (len(actionName) == 0) || (req == nil) {
+        LogPanic("Internal error: Nil args (%v) (%v)", actionName, req)
+    }
+    if a, ok := p.activeActions[actionName]; !ok {
         return LogError("(%s): Action is not registered yet", actionName)
-    } else if cl, ok := p.ActiveClients[a.Client]; !ok {
+    } else if cl, ok := p.activeClients[a.Client]; !ok {
         return LogError("Internal error: client(%s) for action (%s) not found",
                 actionName, a.Client)
     } else {
+        if len(cl.pendingWriteRequests) >= cap(cl.pendingWriteRequests) {
+            return LogError("Internal error: pendingWriteRequests is full (%d)",
+                    len(cl.pendingWriteRequests))
+        }
         cl.pendingWriteRequests <- req
         return nil
     }
 }
 
 /* Client's request to read server request via recvServerRequest */
-func (p *ClientRegistrations_t) SendServerRequest(req *LoMRequestInt) error {
-    if cl, ok := p.ActiveClients[req.Client]; !ok {
-        return LogError("Internal error: client(%s) not found", req.Client)
+func (p *ClientRegistrations_t) PendServerRequest(req *LoMRequestInt) error {
+    if req == nil {
+        LogPanic("Internal error: Nil req")
+    }
+    cl, ok := p.activeClients[req.Req.Client]
+    if !ok {
+        return LogError("Internal error: client(%s) not found", req.Req.Client)
+    }
+    if len(cl.pendingReadRequests) >= cap(cl.pendingReadRequests) {
+        return LogError("Internal error: pendingReadRequests is full (%d)",
+                len(cl.pendingReadRequests))
     }
     cl.pendingReadRequests <- req
     return nil

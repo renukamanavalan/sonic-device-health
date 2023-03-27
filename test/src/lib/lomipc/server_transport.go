@@ -66,7 +66,7 @@ var ReqTypeToStr = map[ReqDataType]string {
 /* Server sends its request as response to TypeRecvServerRequest */ 
 type ServerReqDataType int
 const (
-    TypeServerRequestAction = iota
+    TypeServerRequestAction = ServerReqDataType(iota)
     TypeServerRequestShutdown
     TypeServerRequestCount
 )
@@ -323,7 +323,11 @@ func (tr *LoMTransport) SendToServer(req *LoMRequest, reply *LoMResponse) (err e
         }
     } ()
 
-    rpcReq := LoMRequestInt { req, make(chan interface{}) }
+    if (req == nil) || (reply == nil) {
+        return LogError("Nil args req(%v) reply(%v)", req, reply)
+    }
+
+    rpcReq := LoMRequestInt { req, make(chan interface{}, 1) }
     tr.ServerCh <- &rpcReq
 
     LogDebug("Req sent to server client(%s) type(%s). Waiting for response...",

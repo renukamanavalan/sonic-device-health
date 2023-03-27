@@ -1,10 +1,51 @@
 package engine
 
 import (
-    "encoding/json"
+    "fmt"
     . "lib/lomcommon"
     . "lib/lomipc"
+    "sort"
+    "time"
 )
+
+/*
+ * Core functionality
+ *
+ *  1.  Raise requests for all actions right upon registration, that are first 
+ *      in any sequence. This is mostly anomaly detection.
+ *  
+ *  2.  Track all active requests.
+ *  
+ *  3.  Upon response from first action create sequence, if all actions of that
+ *      sequence are registered.
+ *  
+ *  4.  Send requests with timeout to rest of the actions in sequence, provided
+ *      the response of last called is good.
+ *
+ *  5.  Upon completion of processing all actions, the sequence is removed
+ *
+ *  Note:
+ *      a.  Every action response is published with constraints.
+ *      b.  First action of the sequence is published with state='init' and upon
+ *          sequence completion, it is re-publsihed with state="complete" and
+ *          appropriate result code.
+ *
+ *  Failure scenarios:
+ *  A.  Sequence config could be missing data, like action w/o config, the sequence
+ *      config is removed, one or more actions in the sequence is marked 'disabled'
+ *      and more
+ *  
+ *  B.  An action in the sequence could have failed result_code != 0
+ *
+ *  C.  Request or sequence could have timedout
+ *
+ *  D.  Any other fatal failure ?
+ *
+ *  On any failure:
+ *      i.  Seq is processed as complete with possible error codes
+ *      ii. TODO: Honor *mandatory* flag, as call 
+ */
+
 
 /*
  * Active request - Requests sent out awaiting response with or w/o timeout
@@ -12,14 +53,26 @@ import (
 type activeRequest_t struct {
     req         *ServerRequestData
     anomalyID   string
-    ReqExpEpoch EpochSecs   /* Expiry time. A value of 0 means no expiry */
+    reqExpEpoch int64       /* Expiry time. A value of 0 means no expiry */
 }
 
 /*
  * Action vs request -- All active requests
+ *  A request may or may not have a timeout.
  *
  * NOTE: Only one outstanding request per Action
- * Hence can be keyed off by action.
+ *       Hence can be keyed off by action.
+ *
+ * NOTE: Engine may abort a sequence when its current request does not
+ *       respond within its timeout. But it does *not* remove request from
+ *       the active list, until the action/client sends the response. This
+ *       is because, it implies that the plugin/action is still busy with
+ *       last given request and we can't raise another request, as there 
+ *       can be atmost one active request per action.
+ *
+ *       In case of any fatal failure, a de-register action/client or 
+ *       re-register by client will drop the requests associated with 
+ *       de-registered actions.
  */
 type activeRequestsList_t map[string]*activeRequest_t
 
@@ -44,24 +97,49 @@ type activeRequestsList_t map[string]*activeRequest_t
  * active.
  *
  */
+
+type sequenceStatus_t int
+const (
+    sequenceStatus_pending = sequenceStatus_t(iota)
+    sequenceStatus_running
+    sequenceStatus_complete
+)
+
+
 type sequenceState_t struct {
-    AnomalyInstanceId       string          /* Id referred in all requests & responses for this seq */
+    sequenceStatus          sequenceStatus_t
+    anomalyInstanceId       string          /* Id referred in all requests & responses for this seq */
     sequence                *BindingSequence_t /* Read from config; Cache as config may change. */
-    SeqStartEpoch           EpochSecs       /* Start of the sequence */
-    SeqExpEpoch             EpochSecs       /* Timepoint of expiry for sequence */
-    CtIndex                 int             /* Index of action in sequence in-progress */
-    Context                 []*ActionResponseData /* Ordered responses as received, so far */
-    CurrentRequest          *activeRequest_t /* Current request in progress */
-    ExpTimer                *OneShotEntry_t  /* One shot timer fired to watch timeout  */
+    seqStartEpoch           int64           /* Start of the sequence */
+    seqExpEpoch             int64           /* Timepoint of expiry for sequence */
+    ctIndex                 int             /* Index of action in sequence in-progress */
+    context                 []*ActionResponseData /* Ordered responses as received, so far */
+    currentRequest          *activeRequest_t /* Current request in progress */
+    expTimer                *OneShotEntry_t  /* One shot timer fired to watch timeout  */
 }
 
-func (p *sequenceState_t) ExpiryEpoch() EpochSecs {
+func (p *sequenceState_t) ExpiryEpoch() int64 {
     /* If current request expire early, send it; else send seq expiry */
-    if p.CurrentRequest != nil {
-        if p.CurrentRequest.ReqExpEpoch < p.SeqExpEpoch {
-            return p.CurrentRequest.ReqExpEpoch
+    if p.currentRequest != nil {
+        if p.currentRequest.reqExpEpoch < p.seqExpEpoch {
+            return p.currentRequest.reqExpEpoch
+        }
     }
-    return p.SeqExpEpoch
+    return p.seqExpEpoch
+}
+
+func (p *sequenceState_t) validate() bool {
+    if ((len(p.anomalyInstanceId) == 0) ||
+            (p.sequence == nil) ||
+            (p.seqStartEpoch == 0) ||
+            (p.seqExpEpoch < p.seqStartEpoch) ||
+            (p.ctIndex < 1) ||
+            (len(p.context) == 0) ||
+            ((p.sequenceStatus == sequenceStatus_running) && (p.currentRequest == nil)) ||
+            (p.expTimer == nil)) {
+        return false
+    }
+    return true
 }
 
 
@@ -83,70 +161,81 @@ type SortedSequences_t []*sequenceState_t
 
 type SeqHandler_t struct {
     /* All Active requests by action name */
-    activeRequests          *activeRequestsList_t
+    activeRequests          activeRequestsList_t
 
     /* Collected sequences by anomaly */
-    sequencesByAnomaly      *Sequences_t
+    sequencesByAnomaly      Sequences_t
 
     /* collected sequences by first action */
-    sequencesByFirstAction  *Sequences_t
+    sequencesByFirstAction  Sequences_t
 
-    sortedSequences         *SortedSequences_t
+    sortedSequencesByDue    SortedSequences_t
+    sortedSequencesByPri    SortedSequences_t
 
     chTimer                 chan int64  /* Channel to convey earliest timeout */
+
+    currentSequence         *sequenceState_t
 }
 
 var seqHandler *SeqHandler_t = nil
 
-func GetSeqHandler() {
+func GetSeqHandler() *SeqHandler_t {
+    if seqHandler == nil {
+        LogPanic("InitSeqHandler is not done yet")
+    }
     return seqHandler
 }
 
 
 func InitSeqHandler(chTimer chan int64) {
-    seqHandler = &SeqHandler_t { make(activeRequestsList_t), make(Sequences_t),
-                make(Sequences_t), make(SortedSequences_t), chTimer }
-}
-
-func (p *SeqHandler_t) Close() {
-    for _, v := p.activeRequests {
-        p.AbortRequest(LoMShutdown)
+    if chTimer == nil {
+        LogPanic("Internal error: Nil chan")
     }
+    seqHandler = &SeqHandler_t {
+        activeRequests: make(activeRequestsList_t),
+        sequencesByAnomaly: make(Sequences_t),
+        sequencesByFirstAction: make(Sequences_t),
+        chTimer: chTimer }
 }
 
 
 /* Called asynchronously from a one shot timer */
 func (p *SeqHandler_t) FireTimer() {
-    p.chTimer <- 0
+    if len(p.chTimer) < cap(p.chTimer) {
+        p.chTimer <- 0
+    } 
+    /* Being an alert, as long as there is any outstanding, good enough */
 }
 
 
 /*
  * Engine calls from main loop upon signal from FireTimer which is
  * triggered from OneShotTimer fired for seq expiry.
- * Hence only single routine calls ProcessResponse, either via
- * response from action, timeout or de-register action.
+ * Hence only single routine calls ProcessResponse via
+ * response from action, or processTimeout via chTimer signal
+ * or dropRequest via de-register action process.
+ *
+ * The timeout could be from current active request or overall seq
+ * timeout, whichever expected to fire early.
+ *
+ * In either case, abort sequence.
+ * NOTE: The pending request, if any is *not* dropped from active requests
+ * until response arrives, as Engine is not expected to send a request to
+ * a plugin, while last req is still pending. Hence entry in active requests
+ * only cleared upon action response via client or upon de-register action
+ * by client,
  */
 func (p *SeqHandler_t) processTimeout() {
-    /* Process response could update sortedsequeces */
-    for len(p.sortedSequences) > 0 {
-        seq := p.sortedSequences[0]
+    /*
+     * Complete seq will remove from p.sortedSequencesByDue. Hence always use
+     * current first entry
+     */
+    for len(p.sortedSequencesByDue) > 0 {
+        seq := p.sortedSequencesByDue[0]
         if time.Now().Unix() >= seq.ExpiryEpoch() {
-            if bs := seq.sequence; bs == nil {
-                LogError("timeout: Internal error. Seq with nil sequence (%v)", seq)
-            } else if seq.CtIndex >= len(bs.Actions) {
-                LogError("timeout: Internal error. Seq invalid ct index (%v)", seq)
-            } else {
-                /* Initiate process response */
-                p.processActionResponse(&ActionResponseData {
-                    Action: bs.Actions[seq.CtIndex].Name,
-                    AnomalyInstanceId: seq.AnomalyInstanceId,
-                    ResultCode: LoMSequenceTimeout,
-                    ResultStr: "Sequence is timed out"
-                })
-            }
+            p.completeSequence(seq, LoMSequenceTimeout, "From Process timeout")
         } else {
-            break
+            break   /* List is sorted. Hence break */
         }
     }
 
@@ -157,9 +246,14 @@ func (p *SeqHandler_t) processTimeout() {
  * Called upon action registration by client or upon sequence completion
  *
  * Raise request, if this is first action in any configured sequence
+ *
+ * In case of mis-behaving request, PluginMgr will watch & disable the
+ * action, if it returns too frequently.
+ *
+ * Engine need not care.
  */
 func (p *SeqHandler_t) RaiseRequest(action string) error {
-    regF = GetRegistrations()
+    regF := GetRegistrations()
 
     /* Is action registered */
     if  regF.GetActiveActionInfo(action) == nil {
@@ -182,115 +276,245 @@ func (p *SeqHandler_t) RaiseRequest(action string) error {
     if s, ok := p.sequencesByFirstAction[action]; ok {
         return LogError(
                 "Internal: An active sequence is in progress ID(%s) index(%d) due(%v)seconds",
-                s.AnomalyInstanceId, s.CtIndex, time.Now.Unix() - int64(p.SeqExpEpoch))
-    }
+                s.anomalyInstanceId, s.ctIndex, time.Now().Unix() - s.seqExpEpoch)
+            }
 
     /* All clear. Fire request for the first action of a sequence */
     uuid := GetUUID()
-    /* Make request. Add to client & active */
+    /* Make request. No timeout for first action. Add to client & active */
     req := &ServerRequestData {
             TypeServerRequestAction,
             &ActionRequestData  {
                 Action: action,
                 InstanceId: uuid,
                 AnomalyInstanceId: uuid,
-                Timeout: 0                      /* No timeout for first action in sequence */
-            }
+            },
         }
 
     /* Add to client's pending Q  to send to client upon client asking for a request. */
     /* Stays in this Q until client reads it */
-    if err := regF.AddServerRequest(action, req) = nil {
+    if err := regF.AddServerRequest(action, req); err != nil {
         LogPanic("Internal error: Failed to AddServerRequest (%s)", action)
     }
 
     /* Track it in our active requests;  Waits here till response */
     p.activeRequests[action] = &activeRequest_t {req, uuid, 0}
-
+    return nil
 }
 
 
 /* Called upon action de-registration */
 func (p *SeqHandler_t) DropRequest(action string) {
-    if r, ok := p.activeRequests[action]; !ok {
-        return
-    } else {
+    if r, ok := p.activeRequests[action]; ok {
         delete (p.activeRequests, action)
         if s, ok := p.sequencesByAnomaly[r.anomalyID]; ok {
-            res := &ActionResponseData {
-                Action: action,
-                AnomalyInstanceId: r.anomalyID,
-                ResultCode: LomActionDeregistered,         /* TODO: get list of codes */
-                ResultStr: "Dropping request due to de-registration"
-            }
-            p.processActionResponse(res)
+            p.completeSequence(s, LoMActionDeregistered, "Action (" + action +") Deregistered")
         }
     }
 }
 
-func (p *SeqHandler_t) addSequence(seq *sequenceState_t) {
-    p.sequencesByAnomaly[seq.AnomalyInstanceId] = seq
-    p.sequencesByFirstAction = seq.Context[0].Action
-    p.sortedSequences = append(p.sortedSequences, seq)
-    m := "Seq: " + seq.sequence.SequenceName + " timeout"
-    p.ExpTimer = AddOneShotTimer(seq.ExpiryEpoch(), m, p.FireTimer)
-    /* Caller will sort it */
+
+/* Sort sorted sequences */
+func (p *SeqHandler_t) sortSequences() {
+    sort.Slice(p.sortedSequencesByDue, func(i, j int) bool {
+        return p.sortedSequencesByDue[i].ExpiryEpoch() < p.sortedSequencesByDue[i].ExpiryEpoch()
+    })
+
+    sort.Slice(p.sortedSequencesByPri, func(i, j int) bool {
+        return (p.sortedSequencesByPri[i].sequence.Priority <
+                        p.sortedSequencesByPri[i].sequence.Priority)
+    })
 }
 
 
+/*
+ * addSequence
+ *
+ * Add this sequence to handler.
+ * Enable timer for seq expiry.
+ * Re-create sorted sequences
+ */
+func (p *SeqHandler_t) addSequence(seq *sequenceState_t) {
+    if (seq == nil) || (len(seq.context) == 0) {
+        LogPanic("Expect atleast one context (%v)", seq)
+    }
+    p.sequencesByAnomaly[seq.anomalyInstanceId] = seq
+    p.sequencesByFirstAction[seq.context[0].Action] = seq
+    p.sortedSequencesByDue = append(p.sortedSequencesByDue, seq)
+    p.sortedSequencesByPri = append(p.sortedSequencesByPri, seq)
+    m := "Seq: " + seq.sequence.SequenceName + " timeout"
+    seq.expTimer = AddOneShotTimer(seq.ExpiryEpoch(), m, p.FireTimer)
+    p.sortSequences()
+}
+
+
+/*
+ * dropSequence
+ *
+ * Remove this sequence from handler.
+ * Disable timer.
+ * Re-create sorted sequences
+ */
 func (p *SeqHandler_t) dropSequence(seq *sequenceState_t) {
+    if (seq == nil) || (len(seq.context) == 0) {
+        LogPanic("Expect atleast one context (%v)", seq)
+    }
     if seq != nil {
-        p.ExpTimer.SetDisable()
-        delete (p.sequencesByAnomaly, seq.AnomalyInstanceId)
-        delete (p.sequencesByFirstAction, seq.Context[0].Action)
-        p.sortedSequences = make(Sequences_t, len(p.sequencesByAnomaly))
+        seq.expTimer.Disable()
+        if p.currentSequence == seq {
+            p.currentSequence = nil
+        }
+        delete (p.sequencesByAnomaly, seq.anomalyInstanceId)
+        delete (p.sequencesByFirstAction, seq.context[0].Action)
+        p.sortedSequencesByDue = make(SortedSequences_t, len(p.sequencesByAnomaly))
+        p.sortedSequencesByPri = make(SortedSequences_t, len(p.sequencesByAnomaly))
         i := 0
         for _, v := range(p.sequencesByAnomaly) {
-            p.sortedSequences[i] = v
+            p.sortedSequencesByDue[i] = v
+            p.sortedSequencesByPri[i] = v
             i++
         }
-        /* Caller will sort it */
+        p.sortSequences()
     }
 }
 
 
-func (p *SeqHandler_t) publishResponse(res *ActionResponseData, 
-            seq *sequenceState_t) {
-    PublishEvent(res.ToMap(seq == nil))
+func (p *SeqHandler_t) publishResponse(res *ActionResponseData, complete bool) {
+    if res == nil {
+        LogPanic("Expect non null ActionResponseData")
+    }
+    PublishEvent(res.ToMap(complete))
 }
 
 
 func (p *SeqHandler_t) ProcessResponse(msg *MsgSendServerResponse) {
     /* TODO: Honor BindingActionCfg_t:Mandatory */
+    if msg == nil {
+        LogPanic("Expect non null MsgSendServerResponse")
+    }
 
     if msg.ReqType != TypeServerRequestAction {
         LogError("Unexpected response req type (%d)/(%s)",
-                msg.ReqType, ServerReqTypeToStr(msg.ReqType))
+                msg.ReqType, ServerReqTypeToStr[msg.ReqType])
         return
     }
-    p := msg.ResData
-    data, ok := p.(*ActionResponseData)
-    if !ok {
-        LogError("Unexpected response res data (%T)/(%T)", data, p)
-        return
+    m := msg.ResData
+    if data, ok := m.(*ActionResponseData); !ok {
+        LogError("Unexpected response res data (%T)/(%T)", data, m)
+    } else if data == nil {
+        LogError("Nil response res data (%T)/(%T)", data, m)
+    } else {
+        p.processActionResponse(data)
     }
-    p.processActionResponse(data)
 }
 
 
+/*
+ * Called upon response received from client for an action.
+ *
+ * Validate response; publish it;
+ * validate corresponding request; Upon match, drop from active requests; else bail out.
+ *
+ * Find corresponding sequence by anomaly ID. 
+ * If not found, validate it for first action in sequence; else if found, validate
+ * against current request for this sequence. 
+ *
+ * if first action, but failed, re-publish with state as complete & skip creating
+ * sequence. Else if not first action, try resume current seq as this response could
+ * have been blocking it from running.
+ *
+ * If first action and succeeded, create a new sequence and add to pending seq list.
+ * Else if seq found, save the response in context. If response is success, call
+ * resumeSequence to kick off next request. Else call complete sequence.
+ * 
+ * For any error, the anomaly is re-published with state=complete and seq is completed,
+ * if appropriate.
+ * Try resumeNextSequence.
+ */
 func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
-    anomalyAction := ""
-    anomalyID = ""
-    errCode := -1
-    errStr := "Unknown error"
+    if data == nil {
+        LogPanic("Internal error: Nil ActionResponseData")
+    }
+    if !data.Validate() {
+        LogError("Invalid ActionResponseData (%v)", *data)
+        return
+    }
 
-    /* Publish received response, even if stale/unexpected. */
-    /* In any case it is result posted by plugin, hence publish/record */
-    publishResponse(data.ToMap(false))
+    anomalyID := data.AnomalyInstanceId
+    errCode := LoMResponseOk
+    errStr := ""
+    var err error = nil
+    seq, ok := p.sequencesByAnomaly[anomalyID]
+    if !ok {
+        seq = nil
+    } else if !seq.validate() {
+        LogPanic("Internal error. seq status incorrect (%v) res(%v)", seq, data)
+    }
 
-    /* Drop from active requests */
+    defer func() {
+        /* If sequence is complete / failed, re-publish anomaly */
+
+        if (len(errStr) == 0) && (err != nil) {
+            errStr = fmt.Sprintf("%v", err)
+        }
+
+        if seq != nil {
+            switch seq.sequenceStatus {
+            case sequenceStatus_pending:
+                /* Only possibility: Just added; Fall below to resume */
+
+            case sequenceStatus_running:
+                if errCode == LoMResponseOk {
+                    /* Sequence in progress. Nothing todo bail out */
+                    return
+                }
+                /* Complete seq with error. */
+                p.completeSequence(seq, errCode, errStr)
+
+            case sequenceStatus_complete:
+                LogPanic("Internal error. seq status incorrect (%v) res(%v)", seq, data)
+            }
+
+        } else if anomalyID == data.InstanceId {
+            /* This is anomaly/first action. Failed/skipped to create sequence. Re-publish. */
+            data.ResultCode = int(errCode)
+            data.ResultStr = errStr
+            p.publishResponse(data, true)
+            p.RaiseRequest(data.Action)
+        } else {
+            /* Stale resp; Do nothing */
+        }
+        /*
+         * Last seq is dropped or New seq got added or an action responded, which
+         * may be stale, but can allow a seq to resume.
+         * Try resume
+         */
+
+        p.resumeNextSequence()
+    }()
+
+    /*
+     * Publish received response, even if stale/unexpected.
+     * A failed first request, carry no real switch state data, yet publish
+     * as it exposes internal error/failure of plugin.
+     *
+     * In any case it is result posted by plugin, hence publish/record
+     */
+    p.publishResponse(data, false)
+
+    /* Validate & drop from active requests */
     if r, ok := p.activeRequests[data.Action]; ok {
-        if r.InstanceId != data.InstanceId {
+        if (seq != nil) && (seq.currentRequest != r) {
+            LogError("Response's req (%v) != current(%v)", r, seq.currentRequest)
+            return
+        }
+        if r.req.ReqType != TypeServerRequestAction  {
+            LogPanic("Active requests type (%v) != TypeServerRequestAction", r)
+        }
+        rd := r.req.ReqData
+        if ar, ok1 := rd.(*ActionRequestData); !ok1 {
+            LogPanic("Active requests data (%T) != ActionRequestData (%v)", rd, r)
+        } else if ar.InstanceId != data.InstanceId {
             /* stale response */
             LogError("Active req vs res instance ID mismatch (%v) (%v)", r, data)
             return
@@ -303,79 +527,33 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
     /* Response matched active request */
     delete (p.activeRequests, data.Action)
 
-    /* Get sequence */
-    seq, ok := p.sequencesByAnomaly[anomalyID]
-    if !ok {
-        seq = nil
-        if data.anomalyID == data.InstanceId {
-            anomalyAction = data.Action
+    /* check sequence */
+    if seq == nil {
+        if anomalyID == data.InstanceId {
             /* Result from first action. Create sequence */
         } else {
-            /* Stale response. Non-first action w/o sequence. */
-            LogError("Stale response (%v)", data)
+            /*
+             * Matched a valid request that engine raise. But no seq found.
+             * Possibly stale response. As non-first action, likely seq timedout.
+             * The current seq could be a pending for this request. Try resume it.
+             */
+            LogInfo("Stale response (%v)", data)
+            if p.currentSequence != nil {
+                /* Just a try; So don't track any error */
+                p.resumeSequence(p.currentSequence)
+            }
             return
         }
     } else {
-        if data.anomalyID == data.InstanceId {
+        if anomalyID == data.InstanceId {
             /* Anomaly response creates sequence. Hence unexpected for existing seq */
             /* Duplicate post by plugin / pluginMgr ? */
-            LogError("First action response for existing seq (%v) res(%v)", seq, data)
-            return 
+            LogPanic("First action response for existing seq (%v) res(%v)", seq, data)
         }
-        if (seq.CurrentRequest == nil) {
-            /* Don't expect sequence with no active request */
-            LogError("Internal error. Seq with no acive request (%v) res(%v)", seq, data)
-        } else if data.InstanceId != seq.CurrentRequest.InstanceId {
-            /* Some stale response. Drop it. */
-            LogError("Response (%v) not for current req seq(%v)", data, seq)
-            return
-        } else {
-            /* reset current request */
-            seq.CurrentRequest = nil
-        }
-        anomalyAction = seq.Actions[0].Name
     }
-    anomalyID = data.AnomalyInstanceId
-
-    defer func() {
-        /* If sequence is complete / aborted, re-publish anomaly */
-        if len(anomalyID) == 0 {
-            /* Invalid response. Nothing todo */
-            return
-        }
-
-        anomalyResp := (*ActionResponseData)(nil)
-        if seq != nil {
-            if seq.CurrentRequest == nil {
-                /* Sequence is NOT in progress. In other words complete; Re-publish Anomaly */
-                anomalyResp = seq.Context[0]
-            }
-            /* Sequence is still active. */
-
-        } else if anomalyID == data.InstanceId {
-            /* This is anomaly/first action. Failed to create sequence. Re-publish. */
-            anomalyResp = data
-        }
-
-        if anomalyResp != nil {
-            anomalyResp.ResultCode = errCode
-            anomalyResp.ResultStr = errStr
-            p.publishResponse(anomalyResp.ToMap(true)
-            p.RaiseRequest(anomalyResp.Action)
-            p.dropSequence(seq)
-        }
-        sort.Slice(p.sortedSequences, func(i, j int) bool {
-            return p.sortedSequences[i].ExpiryEpoch() < p.sortedSequences[i].ExpiryEpoch()
-        })()
-    }()
 
     if seq == nil {
-        /*
-         * No existing sequence found.
-         * Two possibilities
-         * 1. Response from first action and sequence to be built.
-         * 2. Stale response for an aborted sequence
-         */
+        /* No existing sequence found. Already validated to be first action. */
         if data.ResultCode != 0 {
             /*
              * No point in creating sequence. Call Raise request, which will succeed
@@ -390,61 +568,101 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
              *
              * If first action, re-publish is not done, as detection has failed.
              */
-            errCode = LomFirstActionFailed
+            errCode = LoMFirstActionFailed
             errStr = "First action / Anomaly detection failed. Nothing more to do"
             return
         }
         bs, err := GetConfigMgr().GetSequence(data.Action)
         if err != nil {
             /* No sequence for this action. Likely stale non-first action or config changed */
-            errCode = LomMissingSequence
+            errCode = LoMMissingSequence
             errStr = "No sequence found"
             return
         }
         tnow := time.Now().Unix()
-        ctx := make([]ActionResponseData, len(bs.Actions))
+        ctx := make([]*ActionResponseData, len(bs.Actions))
         ctx[0] = data
 
         seq = &sequenceState_t {
-            AnomalyInstanceId: anomalyID,
+            anomalyInstanceId: anomalyID,
             sequence: bs,
-            SeqStartEpoch = tnow,
-            SeqExpEpoch: tnow + bs.Timeout,
-            CtIndex: 1,
-            Context: ctx
+            seqStartEpoch: tnow,
+            seqExpEpoch: tnow + int64(bs.Timeout),
+            ctIndex: 1,
+            context: ctx,
         }
         p.addSequence(seq)
-
-    } else {
-        seq.Context[seq.CtIndex] = data
-        seq.CtIndex++
+        return
     }
+
+    /* reset current request */
+    seq.currentRequest = nil
+
+    /* Move ahead with next action */
+    seq.context[seq.ctIndex] = data
+    seq.ctIndex++
 
     /* Process the sequence */
     if data.ResultCode != 0 {
         /* Need to abort the sequence */
-        errCode = data.ResultCode
+        errCode = LoMResponseCode(data.ResultCode)
         errStr = data.ResultStr
         return
     }
 
-    if seq.CtIndex >= len(seq.sequence.Actions) {
-        /* WooHoo we are really complete 
-        errCode = 0
-        errStr = "Sequence complete successfully"
+    errCode, errStr, err = p.resumeSequence(seq)
+    if errCode == LoMActionActive {
+        /*
+         * May be a prior seq left behind an active request. We got to wait
+         * till it responds or this sequence timeout, whichever earlier.
+         */
+         errCode = LoMResponseOk
+     }
+    return
+}
+
+/*
+ * resumeSequence
+ *
+ * Validate ctIndex. Attempt to raise request per ctIndex. If failed, return
+ * appropriate error. If succeeded, add it to corresponding client's pending
+ * server requests and list of active requests. Set it as current request of
+ * this sequence.
+ */
+func (p *SeqHandler_t) resumeSequence(seq *sequenceState_t) (errCode LoMResponseCode, errStr string, err error) {
+    regF := GetRegistrations()
+
+    if seq == nil {
+        LogPanic("Internal error: Nil sequenceState_t")
+    }
+    errCode = LoMResponseOk
+    errStr = ""
+    err = nil
+
+    if seq.currentRequest != nil {
+        LogInfo("current req is active. Nothing to resume (%v)", *seq)
         return
     }
 
-    nextAction = seq.Actions[seq.CtIndex]
+    if seq.ctIndex >= len(seq.sequence.Actions) {
+        /* WooHoo we are really complete  */
+        errStr = "Sequence complete successfully"
+        seq.sequenceStatus = sequenceStatus_complete
+        return
+    }
+
+    nextAction := seq.sequence.Actions[seq.ctIndex]
 
     /* validate action */
-    if regF.GetActiveActionInfo(action) == nil {
+    if regF.GetActiveActionInfo(nextAction.Name) == nil {
         errCode = LoMActionNotRegistered
-        errStr = fmt.Sprintf("%v", LogError("%s: %s not registered. Abort", seq.sequence.SequenceName, action))
+        errStr = fmt.Sprintf("%v", LogError("%s: %s not registered. Abort", seq.sequence.SequenceName,
+                    nextAction.Name))
         return
     } else if _, ok := p.activeRequests[nextAction.Name]; ok {
         errCode = LoMActionActive
-        errStr := fmt.Sprintf("%v", LogError("%s: %s request active. Abort", seq.sequence.SequenceName, action))
+        errStr = fmt.Sprintf("%v", LogError("%s: %s request active. Abort", seq.sequence.SequenceName,
+                    nextAction.Name))
         return
     }
 
@@ -455,25 +673,117 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
         &ActionRequestData  {
             Action: nextAction.Name,
             InstanceId: GetUUID(),
-            AnomalyInstanceId: anomalyID,
-            AnomalyKey: seq.Context[0].AnomalyKey,
+            AnomalyInstanceId: seq.anomalyInstanceId,
+            AnomalyKey: seq.context[0].AnomalyKey,
             Timeout : nextAction.Timeout,
-            Context: seq.Context,
-        }
+            Context: seq.context,
+        },
     }
 
     /* Add to client's pending Q  to send to client upon client asking for a request. */
     /* Stays in this Q until client reads it */
-    if err := regF.AddServerRequest(action, req) = nil {
-        LogPanic("Internal error: Failed to AddServerRequest (%s)", action)
+    if err := regF.AddServerRequest(nextAction.Name, req); err != nil {
+        LogPanic("Internal error: Failed to AddServerRequest (%s)", nextAction.Name)
     }
 
     /* Track it in our active requests;  Waits here till response */
-    act := &activeRequest_t {req, anomalyID, ReqExpEpoch: time.Now().Unix() + nextAction.Timeout}
-    p.activeRequests[action] = act
+    tout := time.Now().Unix() + int64(nextAction.Timeout)
+    act := &activeRequest_t {req, seq.anomalyInstanceId, tout}
+    p.activeRequests[nextAction.Name] = act
 
-    seq.CurrentRequest = act
+    seq.currentRequest = act
+    return
+}
+
+/*
+ * Complete a sequence for given errCode, which can be 0 for successful completion.
+ *
+ * Re-publish anomaly; Re-raise req to anomaly; delete seq; Resume any pending sequence
+ */
+func (p *SeqHandler_t) completeSequence(seq *sequenceState_t, errCode LoMResponseCode, errStr string) {
+    if seq == nil {
+        LogPanic("Internal error: Nil sequenceState_t")
+    }
+    if seq == nil {
+        LogPanic("Expect non null seq")
+    }
+
+    /* Mark failed seq as complete */
+    seq.sequenceStatus = sequenceStatus_complete
+    anomalyResp := seq.context[0]
+
+
+    if anomalyResp == nil {
+        LogPanic("Expect non null anomaly resp seq (%v)", *seq)
+    }
+
+    anomalyResp.ResultCode = int(errCode)
+    anomalyResp.ResultStr = errStr
+
+    p.publishResponse(anomalyResp, true)
+    p.RaiseRequest(anomalyResp.Action)
+
+    p.dropSequence(seq)
 }
 
 
-}])
+/*
+ * resumeNextSequence
+ * 
+ * Upon completion of a sequence, resume next from pending by Pri
+ *
+ * Validate that there is no current running sequence. 
+ * Loop across all pending until one succeeds or list becomes empty.
+ *
+ * Call resumeSequence to resume. On success set its status as running and set it as
+ * the current sequence. On failure, call completeSequence with error code and 
+ * the looping will auto attempt next, till no more. But if failure is because the
+ * next req of this seq, leave it and try next in loop.
+ */
+
+func (p *SeqHandler_t) resumeNextSequence() {
+    errCode := LoMResponseOk
+    errStr := ""
+    var err error = nil
+
+    /* Walk until next sequence by Pri is resumed */
+    for {
+        if p.currentSequence != nil {
+            /* There is a sequence in progress */
+            if p.currentSequence.sequenceStatus != sequenceStatus_running {
+                LogPanic("Current seq is not in running state (%v)", *p.currentSequence)
+            }
+            /* Possibly blocked by next req being active. Try again */
+            return
+        }
+        if len(p.sortedSequencesByPri) == 0 {
+            /* Nothing to resume */
+            break
+        }
+
+        seq := p.sortedSequencesByPri[0]
+        if seq.sequenceStatus != sequenceStatus_pending {
+            LogPanic("Current seq is not in pending state (%v)", *p.currentSequence)
+        }
+
+        errCode, errStr, err = p.resumeSequence(seq)
+        if errCode == 0 {
+            p.currentSequence = seq
+            seq.sequenceStatus = sequenceStatus_running
+            break
+        } else if errCode != LoMActionActive {
+            if (len(errStr) == 0) && (err != nil) {
+                errStr = fmt.Sprintf("%v", err)
+            }
+            p.completeSequence(seq, errCode, errStr)
+            /* Try next sequence */
+        } else {
+            /*
+             * May be a prior seq left behind the next request of this sequence as active.
+             * We got to wait till it responds or this sequence timeout, whichever earlier.
+             */
+            /* Try next sequence */
+         }
+    }
+}
+
