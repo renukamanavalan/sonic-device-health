@@ -56,18 +56,26 @@ func init() {
 }
 
 func GetLoMResponseStr(code LoMResponseCode) string {
-    if (code < LOM_RESP_CODE_START) || (code >= LoMErrorCnt) {
+    switch  {
+    case code == LoMResponseOk:
+        return ""
+
+    case (code < LOM_RESP_CODE_START) || (code >= LoMErrorCnt):
         return "Unknown error code"
+
+    default:
+        return LoMResponseStr[int(code)-LOM_RESP_CODE_START]
     }
-    return LoMResponseStr[int(code)-LOM_RESP_CODE_START]
 }
 
 
 /* Helper to construct LoMResponse object */
-func createLoMResponse(code LoMResponseCode, msg string, data interface{}) *LoMResponse {
-    if (code < LOM_RESP_CODE_START) || (code >= LoMErrorCnt) {
-        LogPanic("Internal error: Unexpected error code (%d) range (%d to %d)",
-                code, LoMResponseOk, LoMErrorCnt)
+func createLoMResponse(code LoMResponseCode, msg string) *LoMResponse {
+    if (code != LoMResponseOk) {
+        if (code < LOM_RESP_CODE_START) || (code >= LoMErrorCnt) {
+            LogPanic("Internal error: Unexpected error code (%d) range (%d to %d)",
+                    code, LoMResponseOk, LoMErrorCnt)
+        }
     }
     s := msg
     if (len(s) == 0) && (code != LoMResponseOk) {
@@ -77,7 +85,7 @@ func createLoMResponse(code LoMResponseCode, msg string, data interface{}) *LoMR
             s = details.Name() + ": " + GetLoMResponseStr(code)
         }
     }
-    return &LoMResponse { int(code), s, data }
+    return &LoMResponse { int(code), s, MsgEmptyResp{} }
 }
 
 
@@ -117,7 +125,7 @@ func (p *serverHandler_t) processRequest(req *LoMRequestInt) {
     case TypeNotifyActionHeartbeat:
         res = p.notifyHeartbeat(req.Req)
     default:
-        res = createLoMResponse(LoMUnknownReqType, "", nil)
+        res = createLoMResponse(LoMUnknownReqType, "")
     }
     if res != nil {
         req.ChResponse <- res
@@ -137,76 +145,76 @@ func (p *serverHandler_t) processRequest(req *LoMRequestInt) {
 
 func (p *serverHandler_t) registerClient(req *LoMRequest) *LoMResponse {
     if _, ok := req.ReqData.(MsgRegClient); !ok {
-        return createLoMResponse(LoMIncorrectReqData, "", nil)
+        return createLoMResponse(LoMIncorrectReqData, "")
     }
     e := GetRegistrations().RegisterClient(req.Client)
     if e != nil {
-        return createLoMResponse(LoMReqFailed, fmt.Sprintf("%v", e), nil)
+        return createLoMResponse(LoMReqFailed, fmt.Sprintf("%v", e))
     }
-    return createLoMResponse(LoMResponseOk, "", nil)
+    return createLoMResponse(LoMResponseOk, "")
 }
 
 
 func (p *serverHandler_t) deregisterClient(req *LoMRequest) *LoMResponse {
     if _, ok := req.ReqData.(MsgDeregClient); !ok {
-        return createLoMResponse(LoMIncorrectReqData, "", nil)
+        return createLoMResponse(LoMIncorrectReqData, "")
     }
     GetRegistrations().DeregisterClient(req.Client)
-    return createLoMResponse(LoMResponseOk, "", nil)
+    return createLoMResponse(LoMResponseOk, "")
 }
 
 
 func (p *serverHandler_t) registerAction(req *LoMRequest) *LoMResponse {
     if m, ok := req.ReqData.(MsgRegAction); !ok {
-        return createLoMResponse(LoMIncorrectReqData, "", nil)
+        return createLoMResponse(LoMIncorrectReqData, "")
     } else {
         info := &ActiveActionInfo_t { m.Action, req.Client, 0 }
         e := GetRegistrations().RegisterAction(info)
         if e != nil {
-            return createLoMResponse(LoMReqFailed, fmt.Sprintf("%v", e), nil)
+            return createLoMResponse(LoMReqFailed, fmt.Sprintf("%v", e))
         }
-        return createLoMResponse(LoMResponseOk, "", nil)
+        return createLoMResponse(LoMResponseOk, "")
     }
 }
 
 
 func (p *serverHandler_t) deregisterAction(req *LoMRequest) *LoMResponse {
     if m, ok := req.ReqData.(MsgDeregAction); !ok {
-        return createLoMResponse(LoMIncorrectReqData, "", nil)
+        return createLoMResponse(LoMIncorrectReqData, "")
     } else {
         GetRegistrations().DeregisterAction(m.Action)
-        return createLoMResponse(LoMResponseOk, "", nil)
+        return createLoMResponse(LoMResponseOk, "")
     }
 }
 
 
 func (p *serverHandler_t) notifyHeartbeat(req *LoMRequest) *LoMResponse {
     if m, ok := req.ReqData.(MsgNotifyHeartbeat); !ok {
-        return createLoMResponse(LoMIncorrectReqData, "", nil)
+        return createLoMResponse(LoMIncorrectReqData, "")
     } else {
         GetRegistrations().NotifyHeartbeats(m.Action, m.Timestamp)
-        return createLoMResponse(LoMResponseOk, "", nil)
+        return createLoMResponse(LoMResponseOk, "")
     }
 }
 
 
 func (p *serverHandler_t) recvServerRequest(req *LoMRequestInt) *LoMResponse {
     if _, ok := req.Req.ReqData.(MsgRecvServerRequest); !ok {
-        return createLoMResponse(LoMIncorrectReqData, "", nil)
+        return createLoMResponse(LoMIncorrectReqData, "")
     } else if err := GetRegistrations().PendServerRequest(req); err == nil {
         /* ClientRegistrations_t will send the request whenever available */
         return nil
     } else {
-        return createLoMResponse(LoMReqFailed, fmt.Sprintf("%v", err), nil)
+        return createLoMResponse(LoMReqFailed, fmt.Sprintf("%v", err))
     }
 }
 
 
 func (p *serverHandler_t) sendServerResponse(req *LoMRequest) *LoMResponse {
     if _, ok := req.ReqData.(MsgSendServerResponse); !ok {
-        return createLoMResponse(LoMIncorrectReqData, "", nil)
+        return createLoMResponse(LoMIncorrectReqData, "")
     } else {
-        return createLoMResponse(LoMResponseOk, "", nil)
+        return createLoMResponse(LoMResponseOk, "")
         /* Process response called in caller after sending response back */
     }
 }

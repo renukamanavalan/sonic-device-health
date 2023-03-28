@@ -64,9 +64,9 @@ func SetLogLevel(lvl syslog.Priority) {
  * Return:
  *  None
  */
-func logMessage(lvl syslog.Priority, s string, a ...interface{})  {
+func LogMessage(lvl syslog.Priority, s string, a ...interface{})  {
     prefix := ""
-    if _, fl, ln, ok := runtime.Caller(1); ok {
+    if _, fl, ln, ok := runtime.Caller(2); ok {
         l := strings.Split(fl, "/")
         c := len(l)
         if c > 2 {
@@ -88,8 +88,8 @@ func logMessage(lvl syslog.Priority, s string, a ...interface{})  {
 
 /* Log this message for panic level and exit */
 func LogPanic(s string, a ...interface{})  {
-    logMessage(syslog.LOG_CRIT, s, a...)
-    logMessage(syslog.LOG_CRIT, "LoM exiting ...")
+    LogMessage(syslog.LOG_CRIT, s, a...)
+    LogMessage(syslog.LOG_CRIT, "LoM exiting ...")
     OSExit(-1)
 }
 
@@ -97,26 +97,26 @@ func LogPanic(s string, a ...interface{})  {
 /* Log this message at error level */
 func LogError(s string, a ...interface{}) error {
     e := fmt.Sprintf(s, a...)
-    logMessage(syslog.LOG_ERR, e)
+    LogMessage(syslog.LOG_ERR, e)
     return errors.New(e)
 }
 
 
 /* Log this message at warning level */
 func LogWarning(s string, a ...interface{})  {
-    logMessage(syslog.LOG_WARNING, s, a...)
+    LogMessage(syslog.LOG_WARNING, s, a...)
 }
 
 
 /* Log this message at info level */
 func LogInfo(s string, a ...interface{})  {
-    logMessage(syslog.LOG_INFO, s, a...)
+    LogMessage(syslog.LOG_INFO, s, a...)
 }
 
 
 /* Log this message at debug level */
 func LogDebug(s string, a ...interface{})  {
-    logMessage(syslog.LOG_DEBUG, s, a...)
+    LogMessage(syslog.LOG_DEBUG, s, a...)
 }
 
 var uuid_suffix = 0
@@ -283,7 +283,7 @@ func (p *LogPeriodic_t) writeLogs() bool {
 
     for _, v := range p.logPeriodicSorted {
         if now >= v.Due {
-            logMessage(v.Lvl, "periodic:%v (%s)", v.index, v.Message)
+            LogMessage(v.Lvl, "periodic:%v (%s)", v.index, v.Message)
             v.Due = now + int64(v.Period)
             v.index++
             upd = true

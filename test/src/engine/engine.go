@@ -1,6 +1,7 @@
 package engine
 
 import (
+    "bytes"
     "flag"
     . "lib/lomcommon"
     . "lib/lomipc"
@@ -43,7 +44,7 @@ func readRequest(tx *LoMTransport, chAlert chan *LoMRequestInt, chAbort chan int
 }
 
 
-func runLoop(tx *LoMTransport, chStarted chan int) {
+func runLoop(tx *LoMTransport, chTrack chan int) {
     /*
      * Wait for
      *      signal to refresh
@@ -53,6 +54,9 @@ func runLoop(tx *LoMTransport, chStarted chan int) {
     if tx == nil {
         LogPanic("Internal error: Nil LoMTransport")
     }
+
+    chAbortLog := make(chan interface{}, 1)
+    LogPeriodicInit(chAbortLog)
 
     chSignal := make(chan os.Signal, 3)
     chAlert := make(chan *LoMRequestInt, 1)
@@ -69,9 +73,7 @@ func runLoop(tx *LoMTransport, chStarted chan int) {
 
     InitSeqHandler(chSeqHandler)
 
-    if chStarted != nil {
-        chStarted <- 0
-    }
+    chTrack <- 0
 loop:
     for {
         select {
@@ -97,13 +99,14 @@ loop:
             }
         }
     }
-    if chStarted != nil {
-        chStarted <- 1
-    }
+    chTrack <- 1
+
+    /* Abort LogPeriodic */
+    chAbortLog <- 0
 } 
 
 
-func startUp(progname string, args []string, chStarted chan int) {
+func startUp(progname string, args []string, chTrack chan int) {
 
     path := ""
     {
@@ -114,7 +117,7 @@ func startUp(progname string, args []string, chStarted chan int) {
 
         flags.StringVar(&p, "path", "", "Config files path")
 
-        err = flags.Parse(args)
+        err := flags.Parse(args)
         if  err != nil {
             LogPanic("Failed to parse (%v); details(%s)", args, buf.String())
         }
@@ -139,24 +142,26 @@ func startUp(progname string, args []string, chStarted chan int) {
         LogPanic("Failed to read config; (%v)", *cfgFiles)
     }
    
-    chAbortLog := make(chan interface{}, 1)
     InitRegistrations()
-    LogPeriodicInit(chAbortLog)
-
     tx, err := ServerInit()
     if err != nil {
         LogPanic("Failed to call ServerInit")
     }
 
-    runLoop(tx, chStarted)
-
-    /* Abort LogPeriodic */
-    chAbortLog <- 0
-
-    LogInfo("Engine exiting...")
+    go runLoop(tx, chTrack)
 }
 
 func main() {
-    startUp(os.Args[0], os.Args[1:], nil)
+    ch := make(chan int, 2)  
+    startUp(os.Args[0], os.Args[1:], ch)
+
+    <- ch
+    LogDebug("Loop started")
+
+    <- ch
+    LogDebug("Loop ended")
+
+
+    LogInfo("Engine exiting...")
 }
 

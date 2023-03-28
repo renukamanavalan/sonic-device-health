@@ -19,6 +19,9 @@ type ActiveActionInfo_t struct {
     /* For now, Engine does not need any other config, hence not saved */
 }
 
+/* Any less must be defaulted to this */
+const MIN_HB_INTERVAL = 2
+
 /*
  * CHannels that hold read requests from client and write requests from server
  * are generally drained quickly. Yet, have a buffer.
@@ -299,6 +302,9 @@ func (p *ClientRegistrations_t) PublishHeartbeats() {
     for {
         /* Read inside the loop to help refresh any change */
         hb := GetConfigMgr().GetGlobalCfgInt("ENGINE_HB_INTERVAL")
+        if hb == 0 {
+            hb = MIN_HB_INTERVAL
+        }
         select {
         case a := <- p.heartbeatCh:
             lst[a] = struct{}{}

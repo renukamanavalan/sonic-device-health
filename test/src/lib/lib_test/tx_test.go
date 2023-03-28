@@ -212,8 +212,19 @@ func TestMain(t *testing.T) {
     chResult := make(chan interface{})
     chComplete := make(chan interface{})
 
+    /*
+     * Run client in separate routine.
+     * Walks testData array. On completion of each, send a signal via
+     * chRes. This helps the following for loop that simulates server
+     * to keep in sync.
+     */
     go testClient(chResult, chComplete)
 
+    /*
+     * In a loop, read a client request and send response as in
+     * testData entry per index. Go to next iteration upon client
+     * simulation signalling the completion of that index via chResult
+     */
     for i := 0; i < testCount; i++ {
         if len(chComplete) != 0 {
             t.Errorf("Server tid:%d But client complete", i)
@@ -775,7 +786,8 @@ func getConfigMgr(t *testing.T, gl, ac, bi string) (*ConfigMgr_t, error) {
     } else if flB, err := createFile("bindings", bi); err != nil {
         t.Errorf("TestConfig: Failed to create Action file")
     } else {
-        return InitConfigMgr(flG, flA, flB)
+        cfg := &ConfigFiles_t{flG, flA, flB}
+        return InitConfigMgr(cfg)
     }
     return nil, LogError("Failed to init Cfg Manager")
 }

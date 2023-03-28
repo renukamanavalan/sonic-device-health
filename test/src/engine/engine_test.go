@@ -73,6 +73,12 @@ const CLIENT_1 = "client-1"
 const CLIENT_2 = "client-2"
 
 /*
+ * During test run, test code keep this chan active. An idle channel for timeout
+ * seconds will abort the test
+ */
+var chTestHeartbeat = make(chan string)
+
+/*
  *  Actions.conf
  */
  var actions_conf = `{ "actions": [
@@ -83,6 +89,8 @@ const CLIENT_2 = "client-2"
         { "name": "Safety-chk-1", "Timeout": 7},
         { "name": "Mitigate-1", "Timeout": 8},
         { "name": "Detect-2" },
+        { "name": "Safety-chk-2", "Timeout": 1},
+        { "name": "Mitigate-2", "Timeout": 6},
         { "name": "Disabled-0", "Disable": false}
         ] }`
 
@@ -95,8 +103,8 @@ var bindings_conf = `{ "bindings": [
         "actions": [
             {"name": "Detect-0" },
             {"name": "Safety-chk-0", "sequence": 1 },
-            {"name": "Mitigate-0", "sequence": 2 },
-        ],
+            {"name": "Mitigate-0", "sequence": 2 }
+        ]
     },
     {
         "name": "bind-1", 
@@ -105,8 +113,8 @@ var bindings_conf = `{ "bindings": [
         "actions": [
             {"name": "Detect-1" },
             {"name": "Safety-chk-1", "sequence": 1 },
-            {"name": "Mitigate-1", "sequence": 2 },
-        ],
+            {"name": "Mitigate-1", "sequence": 2 }
+        ]
     },
     {
         "name": "bind-2", 
@@ -116,9 +124,9 @@ var bindings_conf = `{ "bindings": [
             {"name": "Detect-2" },
             {"name": "Safety-chk-0", "sequence": 1 },
             {"name": "Safety-chk-2", "sequence": 2 },
-            {"name": "Mitigate-2", "sequence": 3 },
-        ],
-    },
+            {"name": "Mitigate-2", "sequence": 3 }
+        ]
+    }
 ]}`
 
 
@@ -189,22 +197,27 @@ func createFile(t *testing.T, name string, s string) {
         }
         f.Close()
     }
+    chTestHeartbeat <- "createFile: " + name
 }
 
 func initServer(t *testing.T) chan int {
-    ch := make(chan int, 2)     /* Two to take start & end of loop w/o blocking*/
-    LogDebug("Waiting for server started")
+    chTestHeartbeat <- "Start: initServer"
+    defer func() {
+        chTestHeartbeat <- "End: initServer"
+    }()
 
+    ch := make(chan int, 2)     /* Two to take start & end of loop w/o blocking*/
     startUp("test", []string { "-path", CFGPATH }, ch)
+    chTestHeartbeat <- "Waiting: initServer"
 
     select {
     case <- ch:
-        return ch
+        break
 
     case <- time.After(2 * time.Second):
         t.Fatalf("initServer failed")
     }
-    return nil
+    return ch
 }
 
 type callArgs struct {
@@ -213,6 +226,11 @@ type callArgs struct {
 }
 
 func (p *callArgs) call_register_client(ti int, te *testEntry_t) {
+    chTestHeartbeat <- "Start: call_register_client"
+    defer func() {
+        chTestHeartbeat <- "End: call_register_client"
+    }()
+
     if len(te.args) != 1 {
         p.t.Fatalf("Expect only one arg len(%d)", len(te.args))
     }
@@ -229,6 +247,11 @@ func (p *callArgs) call_register_client(ti int, te *testEntry_t) {
 }
 
 func (p *callArgs) call_register_action(ti int, te *testEntry_t) {
+    chTestHeartbeat <- "Start: call_register_action"
+    defer func() {
+        chTestHeartbeat <- "End: call_register_action"
+    }()
+
     if len(te.args) != 1 {
         p.t.Fatalf("Expect only one arg len(%d)", len(te.args))
     }
@@ -244,7 +267,24 @@ func (p *callArgs) call_register_action(ti int, te *testEntry_t) {
     }
 }
 
+func terminate(t *testing.T, tout int) {
+    LogDebug("DROP: Terminate guard called tout=%d", tout)
+    for {
+        select {
+        case m := <- chTestHeartbeat:
+            LogDebug("Test HB: (%s)", m)
+
+        case <- time.After(time.Duration(tout) * time.Second):
+            LogPanic("Terminating test for no heartbeats for tout=%d", tout)
+        }
+    }
+}
+
+    
 func TestRun(t *testing.T) {
+    go terminate(t, 5)
+
+    createFile(t, "globals.conf.json", "")
     createFile(t, "actions.conf.json", actions_conf)
     createFile(t, "bindings.conf.json", bindings_conf)
 
