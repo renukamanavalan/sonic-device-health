@@ -9,12 +9,13 @@ package engine
  *      Register/de-register:
  *          1.  register empty client - Fails
  *          2.  register client CLIENT_0 - Succeeds
- *          3.  re-register client CLIENT_0 - Succeeds
+ *          3.  re-register client CLIENT_0 - fails
  *          4.  register action with empty name ("") under CLIENT_0 client - fails
  *          5.  register action "Detect-0" under CLIENT_0 client - Succeeds
  *          6.  re-register action "Detect-0" under CLIENT_0 client - Succeeds
  *          7.  register client CLIENT_1            
- *          8.  re-register action "Detect-0" under CLIENT_1 client - fails
+ *          8.  re-register action "Detect-0" under CLIENT_1 client. De-register from
+                client0 & re-register - succeeds
  *          9.  register "Safety-chk-0", "Mitigate-0", "Mitigate-2" under CLIENT_0
  *          10. register ""Detect-1", "Safety-chk-1", "Mitigate-1", "Detect-2" & "Mitigate-2" under CLIENT_1
  *          11. register "Disabled-0" nder CLIENT_0 client - fails
@@ -59,10 +60,12 @@ package engine
 
 
 import (
+    "fmt"
     . "lib/lomcommon"
     . "lib/lomipc"
     "os"
     "path/filepath"
+    "sort"
     "testing"
     "time"
 )
@@ -151,33 +154,123 @@ const (
 
 type testEntry_t struct {
     id          clientAPIID
+    clTx        string          /* Which Tx to use*/
     args        []any
     result      []any
     failed      bool            /* True if expected to fail. */
     desc        string
 }
 
+func (p *testEntry_t) toStr() string {
+    s := ""
+    switch p.id {
+    case REG_CLIENT:
+        s = "REG_CLIENT"
+    case REG_ACTION:
+        s = "REG_ACTION"
+    case DEREG_CLIENT:
+        s = "DEREG_CLIENT"
+    case DEREG_ACTION:
+        s = "DEREG_ACTION"
+    case RECV_REQ:
+        s = "RECV_REQ"
+    case SEND_RES:
+        s = "SEND_RES"
+    case SHUTDOWN:
+        s = "SHUTDOWN"
+    case NOTIFY_HB:
+        s = "NOTIFY_HB"
+    case CHK_ACTIV_REQ:
+        s = "CHK_ACTIV_REQ"
+    case CHK_REG_ACTIONS:
+        s = "CHK_REG_ACTIONS"
+    default:
+        s = fmt.Sprintf("UNK(%d)", p.id)
+    }
+    return fmt.Sprintf("%s:%s: args:(%v) res(%v) failed(%v)",
+            p.clTx, s, p.args, p.result, p.failed)
+}
 
-type testEntriesList_t  []testEntry_t
+
+type testEntriesList_t  map[int]testEntry_t
 
 var testEntriesList = testEntriesList_t {
-    {
+    0: {
         id: REG_ACTION,
+        clTx: "",
         args: []any{"xyz"},
         failed: true,
-        desc: "Call RegisterAction before register client",
+        desc: "RegisterAction: Fail as before register client",
     },
-    {
+    1: {
         id: REG_CLIENT,
+        clTx: "iX",
         args: []any{EMPTY_STR},
         failed: true,
-        desc: "Empty string for client in regclient, to fail",
+        desc: "RegisterClient: Fail for empty name",
     },
-    {
+    2: {
         id: REG_CLIENT,
+        clTx: "Bogus",
         args: []any{CLIENT_0},
         failed: false,
-        desc: "Client reg to succeed",
+        desc: "RegisterClient to succeed",
+    },
+    3: {
+        id: REG_CLIENT,
+        clTx: "Bogus",
+        args: []any{CLIENT_0},
+        failed: true,
+        desc: "register-client: Fail duplicate on same transport",
+    },
+    4: {
+        id: REG_CLIENT,
+        clTx: CLIENT_0,             /* re-reg under new Tx. So succeed" */
+        args: []any{CLIENT_0},
+        failed: false,
+        desc: "RegClient re-reg on new tx to succeed",
+    },
+    5: {
+        id: REG_ACTION,
+        clTx: CLIENT_0,
+        args: []any{""},
+        failed: true,
+        desc: "RegisterAction fail for empty name",
+    },
+    6: {
+        id: REG_ACTION,
+        clTx: CLIENT_0,
+        args: []any{"Detect-0"},
+        failed: false,
+        desc: "RegisterAction client-0/detect-0 succeeds",
+    },
+    7: {
+        id: REG_ACTION,
+        clTx: CLIENT_0,
+        args: []any{"Detect-0"},
+        failed: false,
+        desc: "Re-registerAction succeeds",
+    },
+    8: {
+        id: REG_CLIENT,
+        clTx: CLIENT_1,
+        args: []any{CLIENT_1},
+        failed: false,
+        desc: "second Client reg to succeed",
+    },
+    9: {
+        id: REG_ACTION,
+        clTx: CLIENT_1,
+        args: []any{"Detect-0"},
+        failed: false,
+        desc: "RegAction: Succeed duplicate register on different client",
+    },
+    10: {
+        id: REG_ACTION,
+        clTx: CLIENT_0,
+        args: []any{"Detect-0"},
+        failed: false,
+        desc: "Duplicate action register on different client",
     },
 }
 
@@ -206,7 +299,8 @@ func initServer(t *testing.T) chan int {
         chTestHeartbeat <- "End: initServer"
     }()
 
-    ch := make(chan int, 2)     /* Two to take start & end of loop w/o blocking*/
+    ch := make(chan int, 2)     /* Two to take start & end of loop w/o blocking */
+    
     startUp("test", []string { "-path", CFGPATH }, ch)
     chTestHeartbeat <- "Waiting: initServer"
 
@@ -222,8 +316,23 @@ func initServer(t *testing.T) chan int {
 
 type callArgs struct {
     t   *testing.T
-    tx  *ClientTx
+    lstTx   map[string]*ClientTx
 }
+
+
+func (p *callArgs) getTx(cl string) *ClientTx {
+    tx, ok := p.lstTx[cl];
+    if !ok {
+        tx = GetClientTx(0)
+        if tx != nil {
+            p.lstTx[cl] = tx
+        } else {
+            p.t.Fatalf("Failed to get client")
+        }
+    }
+    return tx
+}
+
 
 func (p *callArgs) call_register_client(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_register_client"
@@ -239,10 +348,11 @@ func (p *callArgs) call_register_client(ti int, te *testEntry_t) {
     if !ok {
         p.t.Fatalf("Expect string as arg for client name (%T)", a)
     }
-    err := p.tx.RegisterClient(clName)
+    tx := p.getTx(te.clTx)
+    err := tx.RegisterClient(clName)
     if te.failed != (err != nil) {
         p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
-                ti, *te, err)
+                ti, te.toStr(), err)
     }
 }
 
@@ -260,10 +370,11 @@ func (p *callArgs) call_register_action(ti int, te *testEntry_t) {
     if !ok {
         p.t.Fatalf("Expect string as arg for action name (%T)", a)
     }
-    err := p.tx.RegisterAction(actName)
+    tx := p.getTx(te.clTx)
+    err := tx.RegisterAction(actName)
     if te.failed != (err != nil) {
         p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
-                ti, *te, err)
+                ti, te.toStr(), err)
     }
 }
 
@@ -290,17 +401,24 @@ func TestRun(t *testing.T) {
 
     ch := initServer(t)
 
-    tx := GetClientTx(0)
-    if tx == nil {
-        t.Fatalf("Failed to get client")
+    cArgs := &callArgs{t: t, lstTx: make(map[string]*ClientTx) }
+    ordered := make([]int, len(testEntriesList))
+    {
+        i := 0
+        for t_i, _ := range testEntriesList {
+            ordered[i] = t_i
+            i++
+        }
+        sort.Ints(ordered)
     }
 
-    cArgs := &callArgs{t: t, tx: tx }
+    for _, t_i := range ordered {
+        t_e := testEntriesList[t_i]
 
-    for t_i, t_e := range testEntriesList {
         if len(ch) > 0 {
             t.Fatalf("Server loop exited")
         }
+        LogDebug ("---------------- tid: %v START (%s) ----------", t_i, t_e.desc)
         switch (t_e.id) {
         case REG_CLIENT:
             cArgs.call_register_client(t_i, &t_e)
@@ -309,6 +427,7 @@ func TestRun(t *testing.T) {
         default:
             t.Fatalf("Unhandled API ID (%v)", t_e.id)
         }
+        LogDebug ("---------------- tid: %v  END  (%s) ----------", t_i, t_e.desc)
     }
 }
 
