@@ -5,9 +5,12 @@ import (
     "fmt"
     "log"
     "log/syslog"
+    "math"
     "os"
     "os/exec"
+    "runtime"
     "sort"
+    "strings"
     "time"
 )
 
@@ -62,12 +65,21 @@ func SetLogLevel(lvl syslog.Priority) {
  *  None
  */
 func LogMessage(lvl syslog.Priority, s string, a ...interface{})  {
+    prefix := ""
+    if _, fl, ln, ok := runtime.Caller(2); ok {
+        l := strings.Split(fl, "/")
+        c := len(l)
+        if c > 2 {
+            c -= 1
+        }
+        prefix = fmt.Sprintf("%s:%d:", strings.Join(l[c-1:], "/"), ln)
+    }
     ct_lvl := GetLogLevel()
     if lvl <= ct_lvl {
-        FmtFprintf(writers[lvl], s, a...)
+        FmtFprintf(writers[lvl], prefix+s, a...)
         if ct_lvl >= syslog.LOG_DEBUG {
             /* Debug messages gets printed out to STDOUT */
-            fmt.Printf(s, a...)
+            fmt.Printf(prefix+s, a...)
             fmt.Println("")
         }
     }
@@ -281,5 +293,110 @@ func (p *LogPeriodic_t) writeLogs() bool {
     }
 
     return upd
+}
+
+
+type OneShotEntry_t struct {
+    due     int64
+    msg     string
+    f       func()
+    disable bool
+    done    bool
+}
+
+func (p *OneShotEntry_t) Disable() {
+    p.disable = true
+}
+
+func (p *OneShotEntry_t) IsDisabled() bool {
+    return p.disable
+}
+
+func (p *OneShotEntry_t) IsDone() bool {
+    return p.done
+}
+
+type oneShotTimer_t struct {
+    ch  chan *OneShotEntry_t
+    initOneShotTimer bool
+} 
+
+var oneShotTimer = oneShotTimer_t { make(chan *OneShotEntry_t, 1), false }
+
+/* Helper to call a function upon given time provided in seconds */
+func AddOneShotTimer(tout int64, msg string, f func()) *OneShotEntry_t {
+    tmr := &OneShotEntry_t{ due: time.Now().Unix() + tout, msg: msg, f: f }
+    oneShotTimer.ch <- tmr
+    if !oneShotTimer.initOneShotTimer {
+        oneShotTimer.initOneShotTimer = true
+        go oneShotTimer.runOneShotTimer()
+        LogDebug("Started oneShotTimer.runOneShotTimer")
+    }
+    /* Caller can disable and/or get status; optional */
+    return tmr
+}
+
+func callback(all map[int64][]*OneShotEntry_t) int64 {
+    nxt := int64(math.MaxInt64)
+    if len(all) > 0 {
+        tnow := time.Now().Unix()
+        done := make([]int64, len(all))
+        cnt := 0
+        for k, l := range(all) {
+            if k <= tnow {
+                for _, e := range l {
+                    if !e.disable {
+                        e.done = true
+                        e.f()
+                        LogDebug("One shot timer: (%s) fired", e.msg)
+                    } else {
+                        LogDebug("One shot timer: (%s) skipped as disabled", e.msg)
+                    }
+                }
+                done[cnt] = k
+                cnt++
+            } else {
+                drop := true
+                for _, e := range l {
+                    if !e.disable {
+                        drop = false
+                    }
+                }
+                if drop {
+                    done[cnt] = k
+                    cnt++
+                } else if nxt > k { 
+                    nxt = k
+                }
+            }
+        }
+        for i:=0; i<cnt; i++ {
+            delete(all, done[i])
+        }
+    }
+    return nxt
+}
+
+
+func (p *oneShotTimer_t) runOneShotTimer() {
+    all := make(map[int64][]*OneShotEntry_t)
+
+    for {
+        nxt := callback(all)
+        tout := A_DAY_IN_SECS
+        if nxt != math.MaxInt64 {
+            tout = nxt - time.Now().Unix()
+            if tout < 0 {
+                tout = 0
+            }
+        }
+
+        select {
+        case tmr := <- p.ch:
+            all[tmr.due] = append(all[tmr.due], tmr)
+
+        case <- time.After(time.Duration(tout) * time.Second):
+        }
+    }
 }
 

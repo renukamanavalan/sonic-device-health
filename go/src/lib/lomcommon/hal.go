@@ -3,6 +3,7 @@ package lomcommon
 import (
     "encoding/json"
     "fmt"
+    "log/syslog"
 )
 
 
@@ -30,6 +31,9 @@ func PublishEvent(m map[string]string) string {
     return PublishString(s)
 }
 
+/* will be set to appropriate API */
+var PublishEventAPI func(string) = nil
+
 /*
  *  Publish string as event
  *
@@ -44,7 +48,7 @@ func PublishEvent(m map[string]string) string {
  *
  */
 func PublishString(s string) string {
-    LogInfo(s)
+    LogMessage(syslog.LOG_INFO, s)
     // TODO: Call event publish
     return s
 }
