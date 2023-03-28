@@ -86,8 +86,8 @@ func (tx *ClientTx) RegisterClient(client string) error {
 
 /*
  * DeregisterClient
- *  Deregisters the client.
- *  Destroys the ClientTx object and after deregister with engine.
+ *  Deregisters the client with engine
+ *  Destroys the ClientTx object, irrespective of success/failure reported by engine.
  *
  * Input:
  *  none

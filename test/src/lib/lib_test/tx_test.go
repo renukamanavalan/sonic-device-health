@@ -204,7 +204,7 @@ func testClient(chRes chan interface{}, chComplete chan interface{}) {
     chComplete <- struct {}{}
 }
 
-func XTestMain(t *testing.T) {
+func TestMain(t *testing.T) {
     tx, err := ServerInit()
     if err != nil {
         t.Errorf("Failed to init server")
@@ -248,7 +248,7 @@ func XTestMain(t *testing.T) {
 }
 
 
-func XTestClientFail(t *testing.T) {
+func TestClientFail(t *testing.T) {
     txClient := GetClientTx(ClTimeout)
 
     {
@@ -388,7 +388,7 @@ func cmpMap(s map[string]string, d map[string]string) bool {
 }
 
 
-func XTestServerFail(t *testing.T) {
+func TestServerFail(t *testing.T) {
     {
         p1 := []*ActionResponseData {{}, {} }
         p2 := []*ActionResponseData {{} }
@@ -551,7 +551,7 @@ func XTestServerFail(t *testing.T) {
     }
 }
 
-func XTestHelper(t *testing.T) {
+func TestHelper(t *testing.T) {
     {
         /* Test logger helper */
         FmtFprintfCnt := 0
@@ -781,7 +781,7 @@ func getConfigMgr(t *testing.T, gl, ac, bi string) (*ConfigMgr_t, error) {
 }
 
 
-func XTestConfig(t *testing.T) {
+func TestConfig(t *testing.T) {
     for _, d := range testConfigData {
         _, err := getConfigMgr(t, d.GlobalStr, d.ActionStr, d.BindStr)
         if d.Failed == (err == nil) {
@@ -883,7 +883,7 @@ func XTestConfig(t *testing.T) {
 }
 
 
-func XTestPeriodic(t *testing.T) {
+func TestPeriodic(t *testing.T) {
     s := GetUUID()
     if len(s) != 36 {
         t.Errorf("Expect 36 chars long != (%d)", len(s))

@@ -16,7 +16,7 @@ const LOM_RESP_CODE_START = 4096
 
 /* List of all error codes returned in LoM response */
 const (
-    LoMUnknownError = LoMResponseCode(LOM_RESP_CODE_START)
+    LoMUnknownError = LoMResponseCode(iota+LOM_RESP_CODE_START)
     LoMUnknownReqType
     LoMIncorrectReqData
     LoMReqFailed

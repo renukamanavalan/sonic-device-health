@@ -6,6 +6,7 @@ import (
     . "lib/lomipc"
     "os"
     "os/signal"
+    "path/filepath"
     "syscall"
 )
 
@@ -42,7 +43,7 @@ func readRequest(tx *LoMTransport, chAlert chan *LoMRequestInt, chAbort chan int
 }
 
 
-func runLoop(tx *LoMTransport) {
+func runLoop(tx *LoMTransport, chStarted chan int) {
     /*
      * Wait for
      *      signal to refresh
@@ -67,6 +68,10 @@ func runLoop(tx *LoMTransport) {
     server := GetServerReqHandler()
 
     InitSeqHandler(chSeqHandler)
+
+    if chStarted != nil {
+        chStarted <- 0
+    }
 loop:
     for {
         select {
@@ -92,27 +97,43 @@ loop:
             }
         }
     }
+    if chStarted != nil {
+        chStarted <- 1
+    }
 } 
 
 
-func main() {
-    testMode := flag.Bool("t", false, "Run in test mode")
+func startUp(progname string, args []string, chStarted chan int) {
 
+    path := ""
     {
-    globalFl := flag.String("g", "/etc/sonic/LoM/globals.conf.json", "Globals config file")
-    actionsFl := flag.String("a", "/etc/sonic/LoM/actions.conf.json", "Actions config file")
-    bindingsFl := flag.String("b", "/etc/sonic/LoM/bindings.conf.json", "Bindings config file")
-    flag.Parse()    /* Parse args */
+        p := ""
+        flags := flag.NewFlagSet(progname, flag.ContinueOnError)
+        var buf bytes.Buffer
+        flags.SetOutput(&buf)
+
+        flags.StringVar(&p, "path", "", "Config files path")
+
+        err = flags.Parse(args)
+        if  err != nil {
+            LogPanic("Failed to parse (%v); details(%s)", args, buf.String())
+        }
+        path = p
+    }
+
+    if len(path) == 0 {
+        if p, err := os.Getwd(); err != nil {
+            LogPanic("Failed to get current working dir (%v)", err)
+        } else {
+            path = p
+        }
+    }
 
     cfgFiles = &ConfigFiles_t {
-        GlobalFl: *globalFl,
-        ActionsFl: *actionsFl,
-        BindingsFl: *bindingsFl }
-
-    if *testMode {
-        testSetFiles(cfgFiles)
+        GlobalFl: filepath.Join(path, "globals.conf.json"),
+        ActionsFl: filepath.Join(path, "actions.conf.json"),
+        BindingsFl: filepath.Join(path, "bindings.conf.json"),
     }
-        
 
     if _, err := InitConfigMgr(cfgFiles); err != nil {
         LogPanic("Failed to read config; (%v)", *cfgFiles)
@@ -127,15 +148,15 @@ func main() {
         LogPanic("Failed to call ServerInit")
     }
 
-    if *testMode {
-        go testRun()
-    }
-
-    runLoop(tx)
+    runLoop(tx, chStarted)
 
     /* Abort LogPeriodic */
     chAbortLog <- 0
 
     LogInfo("Engine exiting...")
+}
+
+func main() {
+    startUp(os.Args[0], os.Args[1:], nil)
 }
 

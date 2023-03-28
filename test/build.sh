@@ -14,6 +14,17 @@ install() {
     go install ./...
 }
 
+etest() {
+    go test $1 -coverprofile=coverprofile.out  -coverpkg engine -covermode=atomic engine
+    if [ $? -ne 0 ]; then
+        echo "Failed to run engine test"
+        exit -1
+    fi
+    go tool cover -html=coverprofile.out -o /tmp/coverage.html
+    ls -l coverprofile.out /tmp/coverage.html
+    echo "View /tmp/coverage.html in Edge"
+}
+
 test() {
     go test $1 -coverprofile=coverprofile.out  -coverpkg lib/lomipc,lib/lomcommon -covermode=atomic lib/lib_test
     if [ $? -ne 0 ]; then
@@ -56,6 +67,12 @@ elif [[ "test" == "$cmd"* ]]; then
 
 elif [[ "vtest" == "$cmd"* ]]; then
     test "-v"
+
+elif [[ "etest" == "$cmd"* ]]; then
+    etest ""
+
+elif [[ "xetest" == "$cmd"* ]]; then
+    etest "-v"
 
 else
     echo "($cmd) match None"
