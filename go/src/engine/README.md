@@ -67,8 +67,10 @@ At high level:
             
 
     9.  Sequence completion follow up:
-            a.  The first request of the sequence is re-raised
-            b.  If any pendig sequence, the one with highest pri is resumed.
+            a.  As the sequence is done, re-raise request to the first action of
+                the sequence, so anomaly detection is re-raised
+            b.  Any anomaly detected during handling of this sequence was put in pending
+                state. If any pendig sequence, the one with highest pri is resumed.
 
     9.  Active request:
             Once a request is raised to an action, it is not removed until 
