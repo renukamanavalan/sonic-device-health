@@ -297,33 +297,55 @@ func (p *LogPeriodic_t) writeLogs() bool {
 
 
 type OneShotEntry_t struct {
-    due     int64
-    msg     string
-    f       func()
-    disable bool
-    done    bool
+    due     int64       /* Time point of firing as epoch secconds */
+    msg     string      /* Just info only; Used for logging */
+    f       func()      /* Function to call upon due */
+    disable bool        /* == true, f will not be called, if set before due */
+    done    bool        /* Set to true, upon firing / calling f */
 }
 
+/* Disable it. If disabled, before fired/done, f will not be called */
 func (p *OneShotEntry_t) Disable() {
     p.disable = true
 }
 
+/* Get current status */
 func (p *OneShotEntry_t) IsDisabled() bool {
     return p.disable
 }
 
+/* Get current status */
 func (p *OneShotEntry_t) IsDone() bool {
     return p.done
 }
 
 type oneShotTimer_t struct {
-    ch  chan *OneShotEntry_t
-    initOneShotTimer bool
+    ch  chan *OneShotEntry_t    /* Caller reqs are sent to handler via this chan */
+    initOneShotTimer bool       /* True - Upon first request, initialized */
 } 
 
 var oneShotTimer = oneShotTimer_t { make(chan *OneShotEntry_t, 1), false }
 
-/* Helper to call a function upon given time provided in seconds */
+/*
+ * Helper to call a function upon given time provided in seconds, just once..
+ *
+ * Input:
+ *  tout    -   Timeout in seconds
+ *
+ *  msg     -   Only used for logging. During any debugging, this will
+ *              this will be handy
+ *
+ *  f       -   Function to call. Called as a Go routine. There is no
+ *              further restriction on the func implementation
+ *
+ *  Output:
+ *      None
+ *
+ *  Return:
+ *      An instance of OneShotEntry_t. Caller may use to disable or
+ *      and/or use other methods available to get its state
+ *      A disabled entity will not be called, when it becomes due.
+ */
 func AddOneShotTimer(tout int64, msg string, f func()) *OneShotEntry_t {
     tmr := &OneShotEntry_t{ due: time.Now().Unix() + tout, msg: msg, f: f }
     oneShotTimer.ch <- tmr
@@ -336,6 +358,11 @@ func AddOneShotTimer(tout int64, msg string, f func()) *OneShotEntry_t {
     return tmr
 }
 
+/*
+ * Call all entries that are due.
+ * Remove called/disabled. 
+ * Return the next earliest due 
+ */
 func callback(all map[int64][]*OneShotEntry_t) int64 {
     nxt := int64(math.MaxInt64)
     if len(all) > 0 {
@@ -347,7 +374,7 @@ func callback(all map[int64][]*OneShotEntry_t) int64 {
                 for _, e := range l {
                     if !e.disable {
                         e.done = true
-                        e.f()
+                        go e.f()
                         LogDebug("One shot timer: (%s) fired", e.msg)
                     } else {
                         LogDebug("One shot timer: (%s) skipped as disabled", e.msg)
@@ -378,6 +405,13 @@ func callback(all map[int64][]*OneShotEntry_t) int64 {
 }
 
 
+/*
+ * Started on first request for oneshot firing.
+ * Recceives requests via ch
+ * Fire timer to call the due entries
+ * Run forever.
+ * With no requests, it just wakes up once a day.
+ */
 func (p *oneShotTimer_t) runOneShotTimer() {
     all := make(map[int64][]*OneShotEntry_t)
 
