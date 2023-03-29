@@ -94,7 +94,7 @@ var chTestHeartbeat = make(chan string)
         { "name": "Detect-2" },
         { "name": "Safety-chk-2", "Timeout": 1},
         { "name": "Mitigate-2", "Timeout": 6},
-        { "name": "Disabled-0", "Disable": false}
+        { "name": "Disabled-0", "Disable": true}
         ] }`
 
 
@@ -192,6 +192,36 @@ func (p *testEntry_t) toStr() string {
 }
 
 
+type registrations_t map[string][]string
+var expRegistrations = registrations_t {    /* Map of client vs actions */
+    CLIENT_0: []string { "Detect-0", "Safety-chk-0", "Mitigate-0", "Mitigate-2" },
+    CLIENT_1: []string { "Detect-1", "Safety-chk-1", "Mitigate-1", "Detect-2", "Safety-chk-2" },
+}
+type activeActionsList_t map[string]ActiveActionInfo_t
+var expActiveActions = make(activeActionsList_t)
+
+func initActive() {
+    if  len(expActiveActions) > 0 {
+        return
+    }
+
+    cfg := GetConfigMgr()
+
+    for cl, v := range expRegistrations {
+        for _, a := range v {
+            if _, ok := expActiveActions[a]; ok {
+                LogPanic("Duplicate action in expRegistrations cl(%s) a(%s)", cl, a)
+            }
+            if c, e := cfg.GetActionConfig(a); e != nil {
+                LogPanic("Failed to get action config for (%s)", a)
+            } else {
+                expActiveActions[a] = ActiveActionInfo_t {
+                    Action: a, Client: cl, Timeout: c.Timeout, }
+            }
+        }
+    }
+}
+
 type testEntriesList_t  map[int]testEntry_t
 
 var testEntriesList = testEntriesList_t {
@@ -271,6 +301,75 @@ var testEntriesList = testEntriesList_t {
         args: []any{"Detect-0"},
         failed: false,
         desc: "Duplicate action register on different client",
+    },
+    11: {
+        id: REG_ACTION,
+        clTx: CLIENT_0,
+        args: []any{"Mitigate-0"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    12: {
+        id: REG_ACTION,
+        clTx: CLIENT_0,
+        args: []any{"Mitigate-2"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    13: {
+        id: REG_ACTION,
+        clTx: CLIENT_0,
+        args: []any{"Safety-chk-0"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    14: {
+        id: REG_ACTION,
+        clTx: CLIENT_1,
+        args: []any{"Detect-1"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    15: {
+        id: REG_ACTION,
+        clTx: CLIENT_1,
+        args: []any{"Safety-chk-1"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    16: {
+        id: REG_ACTION,
+        clTx: CLIENT_1,
+        args: []any{"Mitigate-1"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    17: {
+        id: REG_ACTION,
+        clTx: CLIENT_1,
+        args: []any{"Detect-2"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    18: {
+        id: REG_ACTION,
+        clTx: CLIENT_1,
+        args: []any{"Safety-chk-2"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    19: {
+        id: REG_ACTION,
+        clTx: CLIENT_1,
+        args: []any{"Disabled-0"},
+        failed: true,
+        desc: "action register fail for disabled",
+    },
+    20: {
+        id: CHK_REG_ACTIONS,
+        clTx: "",               /* Local verification */
+        args: []any{expRegistrations},
+        desc: "Verify local cache to succeed",
     },
 }
 
@@ -378,6 +477,49 @@ func (p *callArgs) call_register_action(ti int, te *testEntry_t) {
     }
 }
 
+func (p *callArgs) call_verify_registrations(ti int, te *testEntry_t) {
+    initActive()
+    reg := GetRegistrations()
+
+    exp, ok := te.args[0].(registrations_t)
+    if !ok {
+        p.t.Fatalf("%d: args is not type registrations_t (%T)", ti, te.args)
+    }
+    if len(exp) != len(reg.activeClients) {
+        p.t.Fatalf("%d: len mismatch. exp(%d) active(%d)", ti, len(exp), len(reg.activeClients))
+    }
+    for k, v := range exp {
+        info, ok := reg.activeClients[k]
+        if !ok {
+            p.t.Fatalf("%d: Missing client (%s) in active list", ti, k)
+        }
+        if len(v) != len(info.Actions) {
+            p.t.Fatalf("%d: len mismatch for client(%s) exp(%d) active(%d)", ti, 
+                    k, len(v), len(info.Actions))
+        }
+        for _, a := range v {
+            if _, ok1 := info.Actions[a]; !ok1 {
+                p.t.Fatalf("%d: Missing action. client(%s) exp(%v) active(%v)",
+                        ti, k, v, info.Actions)
+            }
+        }
+    }
+    if len(expActiveActions) != len(reg.activeActions) {
+        p.t.Fatalf("%d: len mismatch. exp(%d) active(%d)", ti,
+                len(expActiveActions), len(reg.activeActions))
+    }
+
+    for k, v := range expActiveActions {
+        if v1, ok := reg.activeActions[k]; !ok {
+            p.t.Fatalf("%d: Missing active action (%s)", ti, k)
+        } else if v != *v1 {
+            p.t.Fatalf("%d: Value mismatch (%v) != (%v)", ti, v, *v1)
+        }
+    }
+}
+            
+
+
 func terminate(t *testing.T, tout int) {
     LogDebug("DROP: Terminate guard called tout=%d", tout)
     for {
@@ -424,6 +566,8 @@ func TestRun(t *testing.T) {
             cArgs.call_register_client(t_i, &t_e)
         case REG_ACTION:
             cArgs.call_register_action(t_i, &t_e)
+        case CHK_REG_ACTIONS:
+            cArgs.call_verify_registrations(t_i, &t_e)
         default:
             t.Fatalf("Unhandled API ID (%v)", t_e.id)
         }
