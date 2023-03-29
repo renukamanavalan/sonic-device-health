@@ -23,7 +23,7 @@ package engine
  *
  *      Scenarios:
  *      Initial requests
- *          1.  Expect requests for "Detect-0", "Detect-1" & "Detect-2"
+ *          1.  Expect requests from engine for "Detect-0", "Detect-1" & "Detect-2"
  *
  *      One proper sequence
  *          2. "Detect-0" returns good. Expect "Safety-chk-0"; return good; expect"Mitigate-0"; return good
@@ -193,30 +193,43 @@ func (p *testEntry_t) toStr() string {
 
 
 type registrations_t map[string][]string
-var expRegistrations = registrations_t {    /* Map of client vs actions */
-    CLIENT_0: []string { "Detect-0", "Safety-chk-0", "Mitigate-0", "Mitigate-2" },
-    CLIENT_1: []string { "Detect-1", "Safety-chk-1", "Mitigate-1", "Detect-2", "Safety-chk-2" },
+
+/* Test scenario expectations */
+var expRegistrations = []registrations_t {
+    {    /* Map of client vs actions */
+        CLIENT_0: []string { "Detect-0", "Safety-chk-0", "Mitigate-0", "Mitigate-2" },
+        CLIENT_1: []string { "Detect-1", "Safety-chk-1", "Mitigate-1", "Detect-2", "Safety-chk-2" },
+    },
+    {    /* Map of client vs actions */
+        CLIENT_0: []string { "Detect-0", "Safety-chk-0" },
+        CLIENT_1: []string { "Detect-1", "Safety-chk-1", "Mitigate-1" },
+    },
 }
+
 type activeActionsList_t map[string]ActiveActionInfo_t
-var expActiveActions = make(activeActionsList_t)
+var expActiveActions = make([]activeActionsList_t, len(expRegistrations))
 
 func initActive() {
-    if  len(expActiveActions) > 0 {
+    if  len(expActiveActions[0]) > 0 {
         return
     }
 
     cfg := GetConfigMgr()
 
-    for cl, v := range expRegistrations {
-        for _, a := range v {
-            if _, ok := expActiveActions[a]; ok {
-                LogPanic("Duplicate action in expRegistrations cl(%s) a(%s)", cl, a)
-            }
-            if c, e := cfg.GetActionConfig(a); e != nil {
-                LogPanic("Failed to get action config for (%s)", a)
-            } else {
-                expActiveActions[a] = ActiveActionInfo_t {
-                    Action: a, Client: cl, Timeout: c.Timeout, }
+    for i, rl := range expRegistrations {
+        expActiveActions[i] = make(activeActionsList_t)
+        lst := expActiveActions[i]
+        for cl, v := range rl {
+            for _, a := range v {
+                if _, ok := lst[a]; ok {
+                    LogPanic("Duplicate action in expRegistrations[%d] cl(%s) a(%s)", i, cl, a)
+                }
+                if c, e := cfg.GetActionConfig(a); e != nil {
+                    LogPanic("Failed to get action config for (%s)", a)
+                } else {
+                    lst[a] = ActiveActionInfo_t {
+                        Action: a, Client: cl, Timeout: c.Timeout, }
+                }
             }
         }
     }
@@ -368,9 +381,64 @@ var testEntriesList = testEntriesList_t {
     20: {
         id: CHK_REG_ACTIONS,
         clTx: "",               /* Local verification */
-        args: []any{expRegistrations},
+        args: []any{0},
         desc: "Verify local cache to succeed",
     },
+    21: {
+        id: DEREG_ACTION,
+        clTx: CLIENT_1,
+        args: []any{"Detect-2"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    22: {
+        id: DEREG_ACTION,
+        clTx: CLIENT_1,
+        args: []any{"Safety-chk-2"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    23: {
+        id: DEREG_ACTION,
+        clTx: CLIENT_0,
+        args: []any{"Mitigate-0"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    24: {
+        id: DEREG_ACTION,
+        clTx: CLIENT_0,
+        args: []any{"Mitigate-2"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    25: {
+        id: CHK_REG_ACTIONS,
+        clTx: "",               /* Local verification */
+        args: []any{1},
+        desc: "Verify local cache to succeed",
+    },
+
+    /*
+    100O1: {
+        id: RECV_REQ,
+        clTx: CLIENT_0,
+        result: []any { &ActionRequestData { Action: "Detect-0"} },
+        desc: "Read server request for Detect-0",
+    },
+    22: {
+        id: RECV_REQ,
+        clTx: CLIENT_1,
+        result: []any { &ActionRequestData { Action: "Detect-1"} },
+        desc: "Read server request for Detect-1",
+    },
+    23: {
+        id: RECV_REQ,
+        clTx: CLIENT_1,
+        result: []any { &ActionRequestData { Action: "Detect-2"} },
+        desc: "Read server request for Detect-2",
+    },
+    */
 }
 
 const CFGPATH = "/tmp"
@@ -440,12 +508,12 @@ func (p *callArgs) call_register_client(ti int, te *testEntry_t) {
     }()
 
     if len(te.args) != 1 {
-        p.t.Fatalf("Expect only one arg len(%d)", len(te.args))
+        p.t.Fatalf("Test index %v: Expect only one arg len(%d)", ti, len(te.args))
     }
     a := te.args[0]
     clName, ok := a.(string)
     if !ok {
-        p.t.Fatalf("Expect string as arg for client name (%T)", a)
+        p.t.Fatalf("Test index %v: Expect string as arg for client name (%T)", ti, a)
     }
     tx := p.getTx(te.clTx)
     err := tx.RegisterClient(clName)
@@ -462,12 +530,12 @@ func (p *callArgs) call_register_action(ti int, te *testEntry_t) {
     }()
 
     if len(te.args) != 1 {
-        p.t.Fatalf("Expect only one arg len(%d)", len(te.args))
+        p.t.Fatalf("Test index %v: Expect only one arg len(%d)", ti, len(te.args))
     }
     a := te.args[0]
     actName, ok := a.(string)
     if !ok {
-        p.t.Fatalf("Expect string as arg for action name (%T)", a)
+        p.t.Fatalf("Test index %v: Expect string as arg for action name (%T)", ti, a)
     }
     tx := p.getTx(te.clTx)
     err := tx.RegisterAction(actName)
@@ -477,18 +545,163 @@ func (p *callArgs) call_register_action(ti int, te *testEntry_t) {
     }
 }
 
+func (p *callArgs) call_deregister_action(ti int, te *testEntry_t) {
+    chTestHeartbeat <- "Start: call_deregister_action"
+    defer func() {
+        chTestHeartbeat <- "End: call_deregister_action"
+    }()
+
+    if len(te.args) != 1 {
+        p.t.Fatalf("Test index %v: Expect only one arg len(%d)", ti, len(te.args))
+    }
+    a := te.args[0]
+    actName, ok := a.(string)
+    if !ok {
+        p.t.Fatalf("Test index %v: Expect string as arg for action name (%T)", ti, a)
+    }
+    tx := p.getTx(te.clTx)
+    err := tx.DeregisterAction(actName)
+    if te.failed != (err != nil) {
+        p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
+                ti, te.toStr(), err)
+    }
+}
+
+func compStr(msg, rcv, tst string) string {
+    if (len(rcv) == 0) {
+        return fmt.Sprintf("%s empty", msg)
+    }
+    if (len(tst) != 0) && (tst != rcv) {
+        return fmt.Sprintf("%s mismatch (%s) != (%s)", msg, rcv, tst)
+    }
+    return ""
+}
+
+func compActResData(rcv *ActionResponseData, tst *ActionResponseData) string {
+    if s := compStr("Action", rcv.Action, tst.Action); len(s) > 0 {
+        return s
+    }
+    if s := compStr("InstanceId", rcv.InstanceId, tst.InstanceId); len(s) > 0 {
+        return s
+    }
+    if s := compStr("AnomalyInstanceId", rcv.AnomalyInstanceId,
+            tst.AnomalyInstanceId); len(s) > 0 {
+        return s
+    }
+    if s := compStr("AnomalyKey", rcv.AnomalyKey, tst.AnomalyKey); len(s) > 0 {
+        return s
+    }
+    if s := compStr("Response", rcv.Response, tst.Response); len(s) > 0 {
+        return s
+    }
+    if (tst.ResultCode != -1) && (tst.ResultCode != rcv.ResultCode) {
+        return fmt.Sprintf("ResultCode mismatch (%d) != (%d)", rcv.ResultCode, tst.ResultCode)
+    }
+    if (len(tst.ResultStr) != 0) && (len(rcv.ResultStr) == 0) {
+        return fmt.Sprintf("Expect non empty result string")
+    }
+    return ""
+}
+
+
+func compActReqData(rcv *ActionRequestData, tst *ActionRequestData) string {
+    if s := compStr("Action", rcv.Action, tst.Action); len(s) > 0 {
+        return s
+    }
+    if s := compStr("InstanceId", rcv.InstanceId, tst.InstanceId); len(s) > 0 {
+        return s
+    }
+    if s := compStr("AnomalyInstanceId", rcv.AnomalyInstanceId,
+            tst.AnomalyInstanceId); len(s) > 0 {
+        return s
+    }
+    if (tst.Timeout != -1) && (tst.Timeout != rcv.Timeout) {
+        return fmt.Sprintf("Timeout mismatch (%d) != (%d)", rcv.Timeout, tst.Timeout)
+    }
+    if rcv.InstanceId != rcv.AnomalyInstanceId {
+        if s := compStr("AnomalyKey", rcv.AnomalyKey, tst.AnomalyKey); len(s) > 0 {
+            return s
+        }
+
+        if len(tst.Context) == 0 {
+            return fmt.Sprintf("Context: Expect non-empty")
+        }
+        if tst.Context != nil {
+            if len(tst.Context) != len(rcv.Context) {
+                return fmt.Sprintf("Context: len mismatch (%d) != (%d)",
+                        len(rcv.Context), len(tst.Context))
+            }
+            for i, t := range tst.Context {
+                if s := compActResData(rcv.Context[i], t); len(s) > 0 {
+                    return s
+                }
+            }
+        }
+    } else {
+        if len(rcv.AnomalyKey) != 0 {
+            return fmt.Sprintf("AnomalyKey: Expect empty")
+        }
+        if len(tst.Context) != 0 {
+            return fmt.Sprintf("Context: Expect empty (%d)", len(tst.Context))
+        }
+    }
+    return ""
+}
+
+
+func (p *callArgs) call_receive_req(ti int, te *testEntry_t) {
+    chTestHeartbeat <- "Start: call_receive_req"
+    defer func() {
+        chTestHeartbeat <- "End: call_receive_req"
+    }()
+
+    if len(te.result) != 1 {
+        p.t.Fatalf("test index %v: Expect only one result len(%d)", ti, len(te.args))
+    }
+    tx := p.getTx(te.clTx)
+    rcv, err := tx.RecvServerRequest()
+    if te.failed != (err != nil) {
+        p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
+                ti, te.toStr(), err)
+    }
+    if (err == nil) {
+        if rcv.ReqType != TypeServerRequestAction {
+            p.t.Fatalf("Test index %v: Mismatch ReqType rcv(%v) != exp(%v)", ti,
+                    rcv.ReqType, TypeServerRequestAction)
+        }
+        if rcvd, ok := rcv.ReqData.(ActionRequestData); !ok {
+            p.t.Fatalf("Test index %v: reqData type (%T) != *ActionRequestData",
+                    ti, rcv.ReqData)
+        } else if exp, ok:= te.result[0].(*ActionRequestData); !ok {
+            p.t.Fatalf("Test index %v: Test error result (%T) != *ActionRequestData",
+                    ti, te.result[0])
+        } else if res := compActReqData(&rcvd, exp); len(res) > 0 {
+            p.t.Fatalf("Test index %v: Data mismatch (%s) (%v)", ti, res, rcvd)
+        } else {
+            LogDebug("------- Validated (%v) ----------", rcvd)
+        }
+
+    }
+}
+
+
 func (p *callArgs) call_verify_registrations(ti int, te *testEntry_t) {
-    initActive()
     reg := GetRegistrations()
 
-    exp, ok := te.args[0].(registrations_t)
+    if len(te.args) != 1 {
+        p.t.Fatalf("test index %v: Expect 2 args. len(%d)", ti, len(te.args))
+    }
+    index, ok := te.args[0].(int)
     if !ok {
-        p.t.Fatalf("%d: args is not type registrations_t (%T)", ti, te.args)
+        p.t.Fatalf("%d: args is not type int (%T)", ti, te.args[0])
     }
-    if len(exp) != len(reg.activeClients) {
-        p.t.Fatalf("%d: len mismatch. exp(%d) active(%d)", ti, len(exp), len(reg.activeClients))
+    expReg := expRegistrations[index]
+    expAct := expActiveActions[index]
+
+    if len(expReg) != len(reg.activeClients) {
+        p.t.Fatalf("%d: len mismatch. expReg(%d) active(%d)", ti, len(expReg), len(reg.activeClients))
     }
-    for k, v := range exp {
+    for k, v := range expReg {
         info, ok := reg.activeClients[k]
         if !ok {
             p.t.Fatalf("%d: Missing client (%s) in active list", ti, k)
@@ -504,12 +717,12 @@ func (p *callArgs) call_verify_registrations(ti int, te *testEntry_t) {
             }
         }
     }
-    if len(expActiveActions) != len(reg.activeActions) {
+    if len(expAct) != len(reg.activeActions) {
         p.t.Fatalf("%d: len mismatch. exp(%d) active(%d)", ti,
-                len(expActiveActions), len(reg.activeActions))
+                len(expAct), len(reg.activeActions))
     }
 
-    for k, v := range expActiveActions {
+    for k, v := range expAct {
         if v1, ok := reg.activeActions[k]; !ok {
             p.t.Fatalf("%d: Missing active action (%s)", ti, k)
         } else if v != *v1 {
@@ -521,7 +734,6 @@ func (p *callArgs) call_verify_registrations(ti int, te *testEntry_t) {
 
 
 func terminate(t *testing.T, tout int) {
-    LogDebug("DROP: Terminate guard called tout=%d", tout)
     for {
         select {
         case m := <- chTestHeartbeat:
@@ -554,6 +766,9 @@ func TestRun(t *testing.T) {
         sort.Ints(ordered)
     }
 
+    /* Init local list for test data */
+    initActive()
+
     for _, t_i := range ordered {
         t_e := testEntriesList[t_i]
 
@@ -566,8 +781,12 @@ func TestRun(t *testing.T) {
             cArgs.call_register_client(t_i, &t_e)
         case REG_ACTION:
             cArgs.call_register_action(t_i, &t_e)
+        case DEREG_ACTION:
+            cArgs.call_deregister_action(t_i, &t_e)
         case CHK_REG_ACTIONS:
             cArgs.call_verify_registrations(t_i, &t_e)
+        case RECV_REQ:
+            cArgs.call_receive_req(t_i, &t_e)
         default:
             t.Fatalf("Unhandled API ID (%v)", t_e.id)
         }
