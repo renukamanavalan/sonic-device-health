@@ -220,7 +220,7 @@ func (p *ClientRegistrations_t) RegisterAction(action *ActiveActionInfo_t) error
     } else if r, ok1 := p.activeActions[action.Action]; ok1 {
         LogInfo("%s/%s: Duplicate action registration (%s); De/re-register,",
                 action.Client, action.Action, r.Client)
-        p.DeregisterAction(action.Action)
+        p.DeregisterAction("", action.Action)
     }
     if cfg, err := GetConfigMgr().GetActionConfig(action.Action); err != nil {
         return LogError("%s: Missing action config", action.Action)
@@ -265,20 +265,25 @@ func (p *ClientRegistrations_t) DeregisterClient(name string) {
         delete (p.activeClients, name)
 
         for k, _ := range cl.Actions {
-            p.DeregisterAction(k)
+            p.DeregisterAction(name, k)
         }
     }
 }
 
-func (p *ClientRegistrations_t) DeregisterAction(actName string) {
+func (p *ClientRegistrations_t) DeregisterAction(clName, actName string) {
     if len(actName) == 0 {
-        LogError("Register client. Expect non empty name")
+        LogError("Expect non empty name")
     } else if r, ok := p.activeActions[actName]; ok {
-        if cl, ok := p.activeClients[r.Client]; ok {
-            delete (cl.Actions, actName)
+        if (len(clName) != 0) && (clName != r.Client) {
+            LogError("Skip de-register as action(%s) client(%s) != given(%s)",
+                    actName, r.Client, clName)
+        } else {
+            if cl, ok := p.activeClients[r.Client]; ok {
+                delete (cl.Actions, actName)
+            }
+            delete (p.activeActions, actName)
+            GetSeqHandler().DropRequest(actName)
         }
-        delete (p.activeActions, actName)
-        GetSeqHandler().DropRequest(actName)
     }
 }
 

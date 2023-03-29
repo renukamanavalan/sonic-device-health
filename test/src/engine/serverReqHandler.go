@@ -182,7 +182,7 @@ func (p *serverHandler_t) deregisterAction(req *LoMRequest) *LoMResponse {
     if m, ok := req.ReqData.(MsgDeregAction); !ok {
         return createLoMResponse(LoMIncorrectReqData, "")
     } else {
-        GetRegistrations().DeregisterAction(m.Action)
+        GetRegistrations().DeregisterAction(req.Client, m.Action)
         return createLoMResponse(LoMResponseOk, "")
     }
 }
