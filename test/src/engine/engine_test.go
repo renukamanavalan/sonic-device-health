@@ -204,6 +204,11 @@ var expRegistrations = []registrations_t {
         CLIENT_0: []string { "Detect-0", "Safety-chk-0" },
         CLIENT_1: []string { "Detect-1", "Safety-chk-1", "Mitigate-1" },
     },
+    {    /* Map of client vs actions */
+        CLIENT_1: []string { "Detect-1", "Safety-chk-1", "Mitigate-1" },
+    },
+    {    /* Map of client vs actions */
+    },
 }
 
 type activeActionsList_t map[string]ActiveActionInfo_t
@@ -389,33 +394,67 @@ var testEntriesList = testEntriesList_t {
         clTx: CLIENT_1,
         args: []any{"Detect-2"},
         failed: false,
-        desc: "action register succeed",
+        desc: "action deregister succeed",
     },
     22: {
         id: DEREG_ACTION,
         clTx: CLIENT_1,
         args: []any{"Safety-chk-2"},
         failed: false,
-        desc: "action register succeed",
+        desc: "action deregister succeed",
     },
     23: {
         id: DEREG_ACTION,
         clTx: CLIENT_0,
         args: []any{"Mitigate-0"},
         failed: false,
-        desc: "action register succeed",
+        desc: "action deregister succeed",
     },
     24: {
         id: DEREG_ACTION,
         clTx: CLIENT_0,
         args: []any{"Mitigate-2"},
         failed: false,
-        desc: "action register succeed",
+        desc: "action deregister succeed",
     },
     25: {
+        id: DEREG_ACTION,
+        clTx: CLIENT_0,
+        args: []any{""},
+        desc: "action deregister succeed for empty",
+    },
+    26: {
+        id: DEREG_ACTION,
+        clTx: CLIENT_0,
+        args: []any{"XXX"},
+        desc: "action deregister succeed for non-existing",
+    },
+    27: {
         id: CHK_REG_ACTIONS,
         clTx: "",               /* Local verification */
         args: []any{1},
+        desc: "Verify local cache to succeed",
+    },
+    28: {
+        id: DEREG_CLIENT,
+        clTx: CLIENT_0,
+        desc: "action deregister client succeed",
+    },
+    29: {
+        id: CHK_REG_ACTIONS,
+        clTx: "",               /* Local verification */
+        args: []any{2},
+        desc: "Verify local cache to succeed",
+    },
+    30: {
+        id: DEREG_CLIENT,
+        clTx: CLIENT_1,
+        desc: "action deregister client succeed",
+    },
+    31: {
+        id: CHK_REG_ACTIONS,
+        clTx: "",               /* Local verification */
+        args: []any{3},
         desc: "Verify local cache to succeed",
     },
 
@@ -561,6 +600,23 @@ func (p *callArgs) call_deregister_action(ti int, te *testEntry_t) {
     }
     tx := p.getTx(te.clTx)
     err := tx.DeregisterAction(actName)
+    if te.failed != (err != nil) {
+        p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
+                ti, te.toStr(), err)
+    }
+}
+
+func (p *callArgs) call_deregister_client(ti int, te *testEntry_t) {
+    chTestHeartbeat <- "Start: call_deregister_client"
+    defer func() {
+        chTestHeartbeat <- "End: call_deregister_client"
+    }()
+
+    if te.args != nil {
+        p.t.Fatalf("Test index %v: Expect nil arg len(%d)", ti, len(te.args))
+    }
+    tx := p.getTx(te.clTx)
+    err := tx.DeregisterClient()
     if te.failed != (err != nil) {
         p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
                 ti, te.toStr(), err)
@@ -783,6 +839,8 @@ func TestRun(t *testing.T) {
             cArgs.call_register_action(t_i, &t_e)
         case DEREG_ACTION:
             cArgs.call_deregister_action(t_i, &t_e)
+        case DEREG_CLIENT:
+            cArgs.call_deregister_client(t_i, &t_e)
         case CHK_REG_ACTIONS:
             cArgs.call_verify_registrations(t_i, &t_e)
         case RECV_REQ:
