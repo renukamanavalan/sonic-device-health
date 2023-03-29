@@ -457,27 +457,108 @@ var testEntriesList = testEntriesList_t {
         args: []any{3},
         desc: "Verify local cache to succeed",
     },
-
-    /*
-    100O1: {
+    100: {
+        id: REG_CLIENT,
+        clTx: CLIENT_0,             /* re-reg under new Tx. So succeed" */
+        args: []any{CLIENT_0},
+        failed: false,
+        desc: "RegClient to succeed",
+    },
+    102: {
+        id: REG_CLIENT,
+        clTx: CLIENT_1,
+        args: []any{CLIENT_1},
+        failed: false,
+        desc: "second Client reg to succeed",
+    },
+    104: {
+        id: REG_ACTION,
+        clTx: CLIENT_0,
+        args: []any{"Detect-0"},
+        failed: false,
+        desc: "Reg Action to succeed",
+    },
+    106: {
+        id: REG_ACTION,
+        clTx: CLIENT_0,
+        args: []any{"Mitigate-0"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    108: {
+        id: REG_ACTION,
+        clTx: CLIENT_0,
+        args: []any{"Mitigate-2"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    110: {
+        id: REG_ACTION,
+        clTx: CLIENT_0,
+        args: []any{"Safety-chk-0"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    114: {
+        id: REG_ACTION,
+        clTx: CLIENT_1,
+        args: []any{"Detect-1"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    116: {
+        id: REG_ACTION,
+        clTx: CLIENT_1,
+        args: []any{"Safety-chk-1"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    118: {
+        id: REG_ACTION,
+        clTx: CLIENT_1,
+        args: []any{"Mitigate-1"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    120: {
+        id: REG_ACTION,
+        clTx: CLIENT_1,
+        args: []any{"Detect-2"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    122: {
+        id: REG_ACTION,
+        clTx: CLIENT_1,
+        args: []any{"Safety-chk-2"},
+        failed: false,
+        desc: "action register succeed",
+    },
+    124: {
+        id: CHK_REG_ACTIONS,
+        clTx: "",               /* Local verification */
+        args: []any{0},
+        desc: "Verify local cache to succeed",
+    },
+    /* Requests are expected in the same order as registration */
+    140: {
         id: RECV_REQ,
         clTx: CLIENT_0,
         result: []any { &ActionRequestData { Action: "Detect-0"} },
         desc: "Read server request for Detect-0",
     },
-    22: {
+    142: {
         id: RECV_REQ,
         clTx: CLIENT_1,
         result: []any { &ActionRequestData { Action: "Detect-1"} },
         desc: "Read server request for Detect-1",
     },
-    23: {
+    144: {
         id: RECV_REQ,
         clTx: CLIENT_1,
         result: []any { &ActionRequestData { Action: "Detect-2"} },
         desc: "Read server request for Detect-2",
     },
-    */
 }
 
 const CFGPATH = "/tmp"
