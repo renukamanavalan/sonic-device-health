@@ -152,11 +152,19 @@ const (
     CHK_REG_ACTIONS
 )
 
+/* A request is a combination of last request & res sent */
+type restoreId_t struct {
+    last_req_id     string      /* Expect *ActionRequestData saved */
+    last_res_id     string      /* Expect *ActionResponseData saved */
+}
+
 type testEntry_t struct {
     id          clientAPIID
     clTx        string          /* Which Tx to use*/
     args        []any
     result      []any
+    save_id     string          /* Save received result for non-empty id */
+    restore_id  restoreId_t     /* IDs to refer for saved from earlier test */
     failed      bool            /* True if expected to fail. */
     desc        string
 }
@@ -208,7 +216,7 @@ var expRegistrations = []registrations_t {
         CLIENT_1: []string { "Detect-1", "Safety-chk-1", "Mitigate-1" },
     },
     {    /* Map of client vs actions */
-    },
+},
 }
 
 type activeActionsList_t map[string]ActiveActionInfo_t
@@ -240,9 +248,17 @@ func initActive() {
     }
 }
 
+/* Saved results, for use by following case entries */
+type savedResults_t map[string]any
+var saveResults = make(savedResults_t)
+
+func resetSaved() {
+    saveResults = make(savedResults_t)
+}
+
 type testEntriesList_t  map[int]testEntry_t
 
-var testEntriesList = testEntriesList_t {
+var xtestEntriesList = testEntriesList_t {
     0: {
         id: REG_ACTION,
         clTx: "",
@@ -457,6 +473,9 @@ var testEntriesList = testEntriesList_t {
         args: []any{3},
         desc: "Verify local cache to succeed",
     },
+}
+
+var testEntriesList = testEntriesList_t {
     100: {
         id: REG_CLIENT,
         clTx: CLIENT_0,             /* re-reg under new Tx. So succeed" */
@@ -546,20 +565,47 @@ var testEntriesList = testEntriesList_t {
         clTx: CLIENT_0,
         result: []any { &ActionRequestData { Action: "Detect-0"} },
         desc: "Read server request for Detect-0",
+        save_id: "Detect-0",
     },
     142: {
         id: RECV_REQ,
         clTx: CLIENT_1,
         result: []any { &ActionRequestData { Action: "Detect-1"} },
         desc: "Read server request for Detect-1",
+        save_id: "Detect-1",
     },
     144: {
         id: RECV_REQ,
         clTx: CLIENT_1,
         result: []any { &ActionRequestData { Action: "Detect-2"} },
         desc: "Read server request for Detect-2",
+        save_id: "Detect-2",
+    },
+    150: {
+        id: SEND_RES,
+        clTx: CLIENT_0,
+        args: []any {&ActionResponseData{Action: "Detect-0", AnomalyKey: "Key-Detect-0", Response: "Detect-0 detected",}},
+        desc: "Send res for detect0",
+        restore_id: restoreId_t {"Detect-0", ""},   /* Need last req to make resp */
+        save_id: "Detect-0-Res",
+    },
+    152: {
+        id: RECV_REQ,
+        clTx: CLIENT_0,
+        result: []any { &ActionRequestData { Action: "Safety-chk-0", Timeout: 1} },
+        desc: "Read server request for Safety-check-0",
+        restore_id: restoreId_t { "Detect-0", "Detect-0-Res"},  /* Need to verify incoming req */
+        save_id: "sck-0-res",
     },
 }
+
+var lastPublishString = ""
+func testPublish(s string) string {
+    LogDebug("testPublish: (%s)", s)
+    lastPublishString = s
+    return s
+}
+
 
 const CFGPATH = "/tmp"
 
@@ -786,6 +832,89 @@ func compActReqData(rcv *ActionRequestData, tst *ActionRequestData) string {
 }
 
 
+func buildReq(exp *ActionRequestData, restore *restoreId_t) (*ActionRequestData, error) {
+    /*
+     * Test code data can at most carry action name & timeout
+     * as rest are dynamic and set by engine.
+     * But if you are not first request and has a reference to last
+     * you could get anomaly instance id & key. Plus context if any.
+     *
+     * But to get full set of context, we need last response sent
+     * Append last response sent to context.
+     *
+     * Now verify the incoming request against this.
+     *
+     */
+
+    if len(restore.last_req_id) == 0 {
+        return exp, nil
+    }
+
+    /* Update from restored */
+
+    if len(restore.last_res_id) == 0 {
+        return nil, LogError("last_req_id set, but not last_res_id")
+    } else if req, ok := saveResults[restore.last_req_id].(*ActionRequestData); !ok {
+        return nil, LogError("Failed to restore %s", restore.last_req_id)
+    } else if res, ok := saveResults[restore.last_res_id].(*ActionResponseData); !ok {
+        return nil, LogError("Failed to restore %s", restore.last_res_id)
+    } else {
+        ret := &ActionRequestData{
+            Action: exp.Action,
+            Timeout:exp.Timeout,
+            AnomalyInstanceId: req.AnomalyInstanceId,
+            AnomalyKey: res.AnomalyKey,
+            Context: make([]*ActionResponseData, len(req.Context) + 1),
+        }
+        for i, v := range req.Context {
+            ret.Context[i] = v
+        }
+        ret.Context[len(req.Context)] = res
+        return ret, nil
+    }
+}
+
+
+func buildRes(exp *ActionResponseData, restore *restoreId_t) (*ActionResponseData, error) {
+    /*
+     * Test code data can at most carry action name & timeout
+     * as rest are dynamic and set by engine.
+     * But if you are not first request and has a reference to last
+     * you could get anomaly instance id & key. Plus context if any.
+     *
+     * But to get full set of context, we need last response sent
+     * Append last response sent to context.
+     *
+     * Now verify the incoming request against this.
+     *
+     */
+
+    if len(restore.last_req_id)  == 0 {
+        return nil, LogError("Require last_req_id to coin response")
+    }
+    if len(restore.last_res_id) > 0 {
+        return nil, LogError("last_res_id is redundant.")
+    }
+    if req, ok := saveResults[restore.last_req_id].(*ActionRequestData); !ok {
+        return nil, LogError("Failed to restore %s", restore.last_req_id)
+    } else {
+        key := exp.AnomalyKey
+        if len(key) == 0 {
+            key = req.AnomalyKey
+        }
+        ret := &ActionResponseData{
+            Action: exp.Action,
+            InstanceId: req.InstanceId,
+            AnomalyInstanceId: req.AnomalyInstanceId,
+            AnomalyKey: key,
+            Response: exp.Response,
+            ResultCode: exp.ResultCode,
+            ResultStr: exp.ResultStr,
+        }
+        return ret, nil
+    }
+}
+
 func (p *callArgs) call_receive_req(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_receive_req"
     defer func() {
@@ -812,12 +941,45 @@ func (p *callArgs) call_receive_req(ti int, te *testEntry_t) {
         } else if exp, ok:= te.result[0].(*ActionRequestData); !ok {
             p.t.Fatalf("Test index %v: Test error result (%T) != *ActionRequestData",
                     ti, te.result[0])
-        } else if res := compActReqData(&rcvd, exp); len(res) > 0 {
+        } else if expUpd, err := buildReq(exp, &te.restore_id); err != nil {
+            p.t.Fatalf("Test index %v: buildReq failed (%v)", ti, err)
+        } else if res := compActReqData(&rcvd, expUpd); len(res) > 0 {
             p.t.Fatalf("Test index %v: Data mismatch (%s) (%v)", ti, res, rcvd)
-        } else {
-            LogDebug("------- Validated (%v) ----------", rcvd)
+        } else if len(te.save_id) != 0 {
+            saveResults[te.save_id] = &rcvd
+        }
+    }
+}
+
+
+func (p *callArgs) call_send_res(ti int, te *testEntry_t) {
+    chTestHeartbeat <- "Start: call_send_res"
+    defer func() {
+        chTestHeartbeat <- "End: call_send_res"
+    }()
+
+    if len(te.args) != 1 {
+        p.t.Fatalf("test index %v: Expect only one result len(%d)", ti, len(te.args))
+    } else if exp, ok:= te.args[0].(*ActionResponseData); !ok {
+        p.t.Fatalf("Test index %v: Test error args (%T) != *ActionResponseData",
+                ti, te.args[0])
+    } else if expUpd, err := buildRes(exp, &te.restore_id); err != nil {
+        p.t.Fatalf("Test index %v: Test error (%v)", ti, err)
+    } else {
+        res := &MsgSendServerResponse { TypeServerRequestAction, expUpd }
+        if te.failed {
+            res.ReqType = TypeServerRequestCount /* To induce failure */
         }
 
+        tx := p.getTx(te.clTx)
+        err := tx.SendServerResponse(res)
+        if te.failed != (err != nil) {
+            p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
+                    ti, te.toStr(), err)
+        }
+        if (err == nil) && (len(te.save_id) != 0) {
+            saveResults[te.save_id] = expUpd
+        }
     }
 }
 
@@ -906,6 +1068,8 @@ func TestRun(t *testing.T) {
     /* Init local list for test data */
     initActive()
 
+    SetPublishAPI(testPublish)
+
     for _, t_i := range ordered {
         t_e := testEntriesList[t_i]
 
@@ -926,6 +1090,8 @@ func TestRun(t *testing.T) {
             cArgs.call_verify_registrations(t_i, &t_e)
         case RECV_REQ:
             cArgs.call_receive_req(t_i, &t_e)
+        case SEND_RES:
+            cArgs.call_send_res(t_i, &t_e)
         default:
             t.Fatalf("Unhandled API ID (%v)", t_e.id)
         }

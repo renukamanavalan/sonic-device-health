@@ -399,12 +399,10 @@ func (p *SeqHandler_t) ProcessResponse(msg *MsgSendServerResponse) {
         return
     }
     m := msg.ResData
-    if data, ok := m.(*ActionResponseData); !ok {
-        LogError("Unexpected response res data (%T)/(%T)", data, m)
-    } else if data == nil {
-        LogError("Nil response res data (%T)/(%T)", data, m)
+    if data, ok := m.(ActionResponseData); !ok {
+        LogError("Unexpected response res data (ActionResponseData)/(%T)", m)
     } else {
-        p.processActionResponse(data)
+        p.processActionResponse(&data)
     }
 }
 
@@ -580,8 +578,8 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
             return
         }
         tnow := time.Now().Unix()
-        ctx := make([]*ActionResponseData, len(bs.Actions))
-        ctx[0] = data
+        ctx := make([]*ActionResponseData, 0, len(bs.Actions))
+        ctx = append(ctx, data)
 
         seq = &sequenceState_t {
             anomalyInstanceId: anomalyID,

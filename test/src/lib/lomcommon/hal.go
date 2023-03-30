@@ -6,6 +6,32 @@ import (
     "log/syslog"
 )
 
+/*
+ *  Publish string as event
+ *
+ *  Input:
+ *      The given string is logged & published
+ *      
+ *  Output:
+ *      None
+ *
+ *  Return:
+ *      The string that was published.
+ *
+ */
+func PublishString(s string) string {
+    LogMessage(syslog.LOG_INFO, s)
+    // TODO: Call event publish
+    return s
+}
+
+/* will be set to appropriate API */
+var publishEventAPI func(string) string = PublishString
+
+func SetPublishAPI(f func(string) string) {
+    publishEventAPI = f
+}
+
 
 /*
  *  Publish as event
@@ -28,28 +54,6 @@ func PublishEvent(m map[string]string) string {
     } else {
         s = string(b)
     }
-    return PublishString(s)
-}
-
-/* will be set to appropriate API */
-var PublishEventAPI func(string) = nil
-
-/*
- *  Publish string as event
- *
- *  Input:
- *      The given string is logged & published
- *      
- *  Output:
- *      None
- *
- *  Return:
- *      The string that was published.
- *
- */
-func PublishString(s string) string {
-    LogMessage(syslog.LOG_INFO, s)
-    // TODO: Call event publish
-    return s
+    return publishEventAPI(s)
 }
 
