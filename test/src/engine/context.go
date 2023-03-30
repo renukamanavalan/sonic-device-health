@@ -1,7 +1,6 @@
 package engine
 
 import (
-    "encoding/json"
     . "lib/lomcommon"
     . "lib/lomipc"
     "sort"
@@ -298,10 +297,13 @@ func (p *ClientRegistrations_t) PublishHeartbeats() {
     /* Map will help combine duplicate heartbeats into one */
     lst := make(map[string]struct{})
 
-    type HBData_t struct {
-        Sender      string
+    type HB_t struct {
         Actions     []string
         Timestamp   int64
+    }
+
+    type HBData_t struct {
+        LoM_Heartbeat HB_t
     }
 
     for {
@@ -316,28 +318,19 @@ func (p *ClientRegistrations_t) PublishHeartbeats() {
             /* Collect actions */
 
         case <- time.After(time.Duration(hb) * time.Second):
-            hb := &HBData_t {
-                Sender: "LoM",
-                Actions: make([]string, len(lst)),
-                Timestamp: time.Now().Unix(),
-            }
+            hb := &HBData_t { HB_t { make([]string, len(lst)), time.Now().Unix()}}
+
             if len(lst) > 0 {
                 /* Publish collected actions, which could be empty */
                 i := 0
                 for k, _ := range lst {
-                    hb.Actions[i] = k
+                    hb.LoM_Heartbeat.Actions[i] = k
                     i++
                 }
                 /* Reset collected. */
                 lst = make(map[string]struct{})
             }
-
-            /* Publish with or w/o actions, as this is LoM Heartbeat */
-            if out, err := json.Marshal(hb); err != nil {
-                LogError("Internal error: Failed to marshal HB (%s) (%v)", err, hb)
-            } else {
-                PublishString(string(out))
-            }
+            PublishEvent(hb)
         }
     }
 }

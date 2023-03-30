@@ -46,7 +46,7 @@ func SetPublishAPI(f func(string) string) {
  *      The string that was published. 
  *
  */
-func PublishEvent(m map[string]string) string {
+func PublishEvent(m any) string {
     s := ""
     if b, err := json.Marshal(m); err != nil {
         LogError("Failed to marshal map (%v)", m)

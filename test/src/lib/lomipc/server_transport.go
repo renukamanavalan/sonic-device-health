@@ -2,7 +2,6 @@ package lomipc
 
 import (
     "encoding/gob"
-    "fmt"
     . "lib/lomcommon"
     "net"
     "net/http"
@@ -157,28 +156,6 @@ type ActionResponseData struct {
     ResultCode          int
     ResultStr           string
 }
-
-/* Helper to convert ActionResponseData as Map */
-func (p *ActionResponseData) ToMap(end bool) map[string]string {
-    ret := map[string]string {
-        "action": p.Action,
-        "instanceId": p.InstanceId,
-        "anomalyInstanceId": p.AnomalyInstanceId,
-        "anomalyKey": p.AnomalyKey,
-        "response": p.Response,
-        "resultCode": fmt.Sprintf("%d", p.ResultCode),
-        "resultStr": p.ResultStr,
-    }
-    if p.InstanceId == p.AnomalyInstanceId {
-        if end {
-            ret["state"] = "complete"
-        } else {
-            ret["state"] = "init"
-        }
-    }
-    return ret
-}
-
 
 /* Helper to validate ActionResponseData */
 func (p *ActionResponseData) Validate() bool {

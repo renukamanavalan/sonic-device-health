@@ -1,7 +1,5 @@
 package engine
 
-// TODO: Publish via ch; Each req reads its own
-
 /*
  *  Mock PublishEventAPI 
  *  This test code combines unit test & functional test - Two in one shot
@@ -61,6 +59,7 @@ package engine
 
 
 import (
+    "encoding/json"
     "fmt"
     . "lib/lomcommon"
     . "lib/lomipc"
@@ -657,14 +656,20 @@ var testEntriesList = testEntriesList_t {
     160: {
         id: SEQ_COMPLETE,
         seqId: 1,
-        desc: "Verify Publish",
+        desc: "Verify seq complete",
     },
 }
 
-var lastPublishString = ""
+var publishCh = make(chan string, 10)
 func testPublish(s string) string {
+
+    /* Write to channel if there is space */
+    if len(publishCh) < cap(publishCh) {
+        publishCh <- s
+    } else {
+        LogError("ERROR: publishCh too full. Publish skipped ")
+    }
     LogDebug("testPublish: (%s)", s)
-    lastPublishString = s
     return s
 }
 
@@ -1015,6 +1020,44 @@ func (p *callArgs) call_receive_req(ti int, te *testEntry_t) {
 }
 
 
+func verifyPublish(exp *ActionResponseData, complete bool) error {
+    pubRes := pubAction_t{}
+    s := ""
+
+    for {
+        /* It is OK to block. If no data for 5 seconds, test will terminate */
+        s = <- publishCh
+
+        if err := json.Unmarshal([]byte(s), &pubRes); err != nil {
+            return LogError("Unmarshal failed (%s)", s)
+        }
+        if len(pubRes.LoM_Action.Action) != 0 {
+            /* action published */
+            break
+        }
+        /* Likely HB; Wait till action */
+    }
+    
+    if *pubRes.LoM_Action != *exp {
+        return LogError("published(%v) != exp (%v)", *pubRes.LoM_Action, exp)
+    }
+    if exp.InstanceId == exp.AnomalyInstanceId {
+        var m map[string]any
+
+        json.Unmarshal([]byte(s), &m)
+        if st, ok := m["State"]; !ok {
+            return LogError("Failed to find state (%v)", m)
+        } else if s, ok := st.(string); !ok {
+            return LogError("state val not string (%v)", m)
+        } else if !complete && (s != "init") {
+            return LogError("state val != init (%v)", m)
+        } else if complete && (s != "complete") {
+            return LogError("state val != complete (%v)", m)
+        }
+    }
+    return nil
+}
+
 func (p *callArgs) call_send_res(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_send_res"
     defer func() {
@@ -1039,9 +1082,12 @@ func (p *callArgs) call_send_res(ti int, te *testEntry_t) {
         if te.failed != (err != nil) {
             p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
                     ti, te.toStr(), err)
-        }
-        if (err == nil) {
+        } else if (err == nil) {
             saveResultAny(te.seqId, expUpd)
+                
+            if err = verifyPublish(expUpd, false); err != nil {
+                p.t.Fatalf("Test index %v: verifyPublish failed (%v)", ti, err)
+            }
         }
     }
 }
@@ -1095,6 +1141,14 @@ func (p *callArgs) call_verify_registrations(ti int, te *testEntry_t) {
             
 
 func (p *callArgs) call_seq_complete(ti int, te *testEntry_t) {
+    if rs, err := restoreResultAny(te.seqId, 1); err != nil {
+        /* Restore first response */
+        p.t.Fatalf("%d: Failed to get first res (%v)", ti, err)
+    } else if res, ok := rs.(*ActionResponseData); !ok {
+        p.t.Fatalf("%d: Restored data type (%T) != *ActionResponseData", ti, rs)
+    } else if err = verifyPublish(res, true); err != nil {
+        p.t.Fatalf("Test index %v: verifyPublish failed (%v)", ti, err)
+    }
     resetResultAny(te.seqId)
     LogDebug("saved: (%s)", printResultAny(false))
 }

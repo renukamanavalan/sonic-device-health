@@ -378,12 +378,24 @@ func (p *SeqHandler_t) dropSequence(seq *sequenceState_t) {
     }
 }
 
+type pubAction_t struct {
+    LoM_Action *ActionResponseData
+    State   string
+}
 
 func (p *SeqHandler_t) publishResponse(res *ActionResponseData, complete bool) {
     if res == nil {
         LogPanic("Expect non null ActionResponseData")
     }
-    PublishEvent(res.ToMap(complete))
+    m := pubAction_t { LoM_Action: res }
+    if res.InstanceId == res.AnomalyInstanceId {
+        if !complete {
+            m.State = "init"
+        } else {
+            m.State = "complete"
+        }
+    }
+    PublishEvent(m)
 }
 
 
@@ -646,7 +658,6 @@ func (p *SeqHandler_t) resumeSequence(seq *sequenceState_t) (errCode LoMResponse
 
     if seq.ctIndex >= len(seq.sequence.Actions) {
         /* WooHoo we are really complete  */
-        errStr = "Sequence complete successfully"
         seq.sequenceStatus = sequenceStatus_complete
         return
     }
