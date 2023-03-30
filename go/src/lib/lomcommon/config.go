@@ -8,6 +8,12 @@ import (
 )
 
 
+type ConfigFiles_t struct {
+    GlobalFl    string
+    ActionsFl   string
+    BindingsFl  string
+}
+
 const (
     Detection string = "Detection"
     SafetyCheck string = "SafetyCheck"
@@ -284,15 +290,15 @@ func (p *ConfigMgr_t) readBindingsConf(fl string) error {
 
 
 
-func (p *ConfigMgr_t) loadConfigFiles(globals_fl, actions_fl string, bind_fl string) error {
-    if err := p.globalConfig.readGlobalsConf(globals_fl); err != nil {
-        return LogError("Actions: %s: %v", actions_fl, err)
+func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
+    if err := p.globalConfig.readGlobalsConf(cfgFiles.GlobalFl); err != nil {
+        return LogError("Globals: %s: %v", cfgFiles.GlobalFl, err)
     } 
-    if err := p.readActionsConf(actions_fl); err != nil {
-        return LogError("Actions: %s: %v", actions_fl, err)
+    if err := p.readActionsConf(cfgFiles.ActionsFl); err != nil {
+        return LogError("Actions: %s: %v", cfgFiles.ActionsFl, err)
     } 
-    if err := p.readBindingsConf(bind_fl); err != nil {
-        return LogError("Bind: %s: %v", bind_fl, err)
+    if err := p.readBindingsConf(cfgFiles.BindingsFl); err != nil {
+        return LogError("Bind: %s: %v", cfgFiles.BindingsFl, err)
     } 
     return nil
 }
@@ -476,10 +482,10 @@ func GetConfigMgr() *ConfigMgr_t {
  *  ConfigMgr - Non nil instance, if successful, else nil
  *  error - Non nil on any failure, else nil
  */
-func InitConfigMgr(global_fl, actions_fl, bind_fl string) (*ConfigMgr_t, error) {
+func InitConfigMgr(p *ConfigFiles_t) (*ConfigMgr_t, error) {
     t := &ConfigMgr_t{new(GlobalConfig_t), make(ActionsConfigList_t), make(BindingsConfig_t)}
 
-    if err := t.loadConfigFiles(global_fl, actions_fl, bind_fl); err != nil {
+    if err := t.loadConfigFiles(p); err != nil {
         return nil, err
     } else {
         configMgr = t

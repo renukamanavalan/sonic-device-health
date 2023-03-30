@@ -775,7 +775,8 @@ func getConfigMgr(t *testing.T, gl, ac, bi string) (*ConfigMgr_t, error) {
     } else if flB, err := createFile("bindings", bi); err != nil {
         t.Errorf("TestConfig: Failed to create Action file")
     } else {
-        return InitConfigMgr(flG, flA, flB)
+        cfg := &ConfigFiles_t{flG, flA, flB}
+        return InitConfigMgr(cfg)
     }
     return nil, LogError("Failed to init Cfg Manager")
 }
@@ -964,6 +965,54 @@ func TestPeriodic(t *testing.T) {
         exp := `{"data":"xxx","foo":"bar","val":"42"}`
         if s != exp {
             t.Errorf("Incorrect publish string (%s) != (%s)", s, exp)
+        }
+    }
+}
+
+
+func TestOneShot(t *testing.T) {
+    exp := []int{1, 2, 3}
+    rcv := make([]int, 0, len(exp))
+    ch := make(chan int, len(exp))
+
+    f0 := func() { ch <- exp[0] }
+    f1 := func() { ch <- exp[1] }
+    f2 := func() { t.Errorf("f2 is not expected to be called") }       /* Disabled */
+    f3 := func() { ch <- exp[2] }
+
+    tmr0 := AddOneShotTimer(-2, "f0", f0)    /* 2 secs before */
+    AddOneShotTimer(1, "f1", f1)
+    tmr2 := AddOneShotTimer(1, "f2", f2)     /* Two for same time */
+    tmr2.Disable()
+    tmr3 := AddOneShotTimer(3, "f3", f3)     /* one later */
+
+    for {
+        select {
+        case v := <- ch:
+            rcv = append(rcv, v)
+            if len(rcv) == len(exp) {
+                for i, e := range rcv {
+                    if e != exp[i] {
+                        t.Errorf("Oneshot slice mismatch (%v) != (%v)", rcv, exp)
+                        break
+                    }
+                }
+                /* Test complete */
+                if !tmr0.IsDone() || !tmr3.IsDone() || tmr2.IsDone() {
+                    t.Errorf("One shot timer IsDone not set (%v) (%v) (%v)",
+                            tmr0.IsDone(), tmr2.IsDone(), tmr3.IsDone())
+                }
+                if tmr0.IsDisabled() || !tmr2.IsDisabled() || tmr3.IsDisabled() {
+                    t.Errorf("One shot timer  IsDisabled incorrect (%v) (%v) (%v)",
+                            tmr0.IsDisabled(), tmr2.IsDisabled(), tmr3.IsDisabled())
+                }
+                return
+            }
+
+        case <- time.After(4 * time.Second):
+            /* test expected to complete before this timeout */
+            t.Errorf("Oneshot failed (%v) != (%v)", rcv, exp)
+            return
         }
     }
 }
