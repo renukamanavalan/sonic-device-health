@@ -470,7 +470,9 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
                 p.completeSequence(seq, errCode, errStr)
 
             case sequenceStatus_complete:
-                LogPanic("Internal error. seq status incorrect (%v) res(%v)", seq, data)
+                /* resume sequence mark it complete upon last response. */
+                /* Complete seq with error. */
+                p.completeSequence(seq, errCode, errStr)
             }
 
         } else if anomalyID == data.InstanceId {
@@ -597,7 +599,7 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
     seq.currentRequest = nil
 
     /* Move ahead with next action */
-    seq.context[seq.ctIndex] = data
+    seq.context = append(seq.context, data)
     seq.ctIndex++
 
     /* Process the sequence */

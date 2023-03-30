@@ -1,5 +1,6 @@
 package engine
 
+// TODO: Publish via ch; Each req reads its own
 
 /*
  *  Mock PublishEventAPI 
@@ -146,25 +147,19 @@ const (
     DEREG_ACTION
     RECV_REQ
     SEND_RES
+    SEQ_COMPLETE
     SHUTDOWN
     NOTIFY_HB
     CHK_ACTIV_REQ
     CHK_REG_ACTIONS
 )
 
-/* A request is a combination of last request & res sent */
-type restoreId_t struct {
-    last_req_id     string      /* Expect *ActionRequestData saved */
-    last_res_id     string      /* Expect *ActionResponseData saved */
-}
-
 type testEntry_t struct {
     id          clientAPIID
     clTx        string          /* Which Tx to use*/
+    seqId       int             /* The context to use for save/restore results per seq */
     args        []any
     result      []any
-    save_id     string          /* Save received result for non-empty id */
-    restore_id  restoreId_t     /* IDs to refer for saved from earlier test */
     failed      bool            /* True if expected to fail. */
     desc        string
 }
@@ -248,12 +243,55 @@ func initActive() {
     }
 }
 
-/* Saved results, for use by following case entries */
-type savedResults_t map[string]any
+/*
+ * Req / Resp received/sent will need to be saved for proper
+ * verification of subsequent req/resp as these share context
+ *
+ * These APIs provide a way to save/restore/reset
+ */
+type savedResults_t map[int][]any
 var saveResults = make(savedResults_t)
 
-func resetSaved() {
-    saveResults = make(savedResults_t)
+func printResultAny(entire bool) string {
+    if !entire {
+        ret := make([]int, len(saveResults))
+        i := 0
+        for k, _ := range saveResults {
+            ret[i] = k
+            i++
+        }
+        return fmt.Sprintf("%v", ret)
+    }
+    return fmt.Sprintf("%v", saveResults)
+}
+
+func saveResultAny(seq int, data any) {
+    if _, ok := saveResults[seq]; !ok {
+        saveResults[seq] = make([]any, 0, 5) /* 5 - init size to minimize realloc */
+    }
+    saveResults[seq] = append(saveResults[seq], data)
+}
+
+func restoreResultAny(seq int, index int) (any, error) {
+    /* negative index walk back */
+    if v, ok := saveResults[seq]; !ok {
+        return nil, LogError("No saved results for seq(%d)", seq)
+    } else {
+        i := index
+        if i < 0 {
+            i = len(v) + index
+            if i < 0 {
+                return nil, LogError("Incorrect index=%d len=%d", index, len(v))
+            }
+        } else if i >= len(v) {
+            return nil, LogError("Incorrect index=%d len=%d", index, len(v))
+        }
+        return v[i], nil
+    }
+}
+
+func resetResultAny(seq int) {
+    delete(saveResults, seq)
 }
 
 type testEntriesList_t  map[int]testEntry_t
@@ -563,39 +601,63 @@ var testEntriesList = testEntriesList_t {
     140: {
         id: RECV_REQ,
         clTx: CLIENT_0,
+        seqId: 1,               /* Use non-zero, default is 0. Make it explicit */
         result: []any { &ActionRequestData { Action: "Detect-0"} },
         desc: "Read server request for Detect-0",
-        save_id: "Detect-0",
     },
     142: {
         id: RECV_REQ,
         clTx: CLIENT_1,
+        seqId: 2,
         result: []any { &ActionRequestData { Action: "Detect-1"} },
         desc: "Read server request for Detect-1",
-        save_id: "Detect-1",
     },
     144: {
         id: RECV_REQ,
         clTx: CLIENT_1,
+        seqId: 3,
         result: []any { &ActionRequestData { Action: "Detect-2"} },
         desc: "Read server request for Detect-2",
-        save_id: "Detect-2",
     },
     150: {
         id: SEND_RES,
         clTx: CLIENT_0,
+        seqId: 1,
         args: []any {&ActionResponseData{Action: "Detect-0", AnomalyKey: "Key-Detect-0", Response: "Detect-0 detected",}},
         desc: "Send res for detect0",
-        restore_id: restoreId_t {"Detect-0", ""},   /* Need last req to make resp */
-        save_id: "Detect-0-Res",
     },
     152: {
         id: RECV_REQ,
         clTx: CLIENT_0,
+        seqId: 1,
         result: []any { &ActionRequestData { Action: "Safety-chk-0", Timeout: 1} },
         desc: "Read server request for Safety-check-0",
-        restore_id: restoreId_t { "Detect-0", "Detect-0-Res"},  /* Need to verify incoming req */
-        save_id: "sck-0-res",
+    },
+    154: {
+        id: SEND_RES,
+        clTx: CLIENT_0,
+        seqId: 1,
+        args: []any {&ActionResponseData{Action: "Safety-chk-0", Response: "Safety-chk-0 passed",}},
+        desc: "Send res for safety-chk-0",
+    },
+    156: {
+        id: RECV_REQ,
+        clTx: CLIENT_0,
+        seqId: 1,
+        result: []any { &ActionRequestData { Action: "Mitigate-0", Timeout: -1} },
+        desc: "Read server request for Safety-check-0",
+    },
+    158: {
+        id: SEND_RES,
+        clTx: CLIENT_0,
+        seqId: 1,
+        args: []any {&ActionResponseData{Action: "Mitigate-0", Response: "Mitigate-0 passed",}},
+        desc: "Send res for Mitigate-0",
+    },
+    160: {
+        id: SEQ_COMPLETE,
+        seqId: 1,
+        desc: "Verify Publish",
     },
 }
 
@@ -832,7 +894,7 @@ func compActReqData(rcv *ActionRequestData, tst *ActionRequestData) string {
 }
 
 
-func buildReq(exp *ActionRequestData, restore *restoreId_t) (*ActionRequestData, error) {
+func buildReq(exp *ActionRequestData, seq int) (*ActionRequestData, error) {
     /*
      * Test code data can at most carry action name & timeout
      * as rest are dynamic and set by engine.
@@ -846,36 +908,41 @@ func buildReq(exp *ActionRequestData, restore *restoreId_t) (*ActionRequestData,
      *
      */
 
-    if len(restore.last_req_id) == 0 {
-        return exp, nil
-    }
-
     /* Update from restored */
-
-    if len(restore.last_res_id) == 0 {
-        return nil, LogError("last_req_id set, but not last_res_id")
-    } else if req, ok := saveResults[restore.last_req_id].(*ActionRequestData); !ok {
-        return nil, LogError("Failed to restore %s", restore.last_req_id)
-    } else if res, ok := saveResults[restore.last_res_id].(*ActionResponseData); !ok {
-        return nil, LogError("Failed to restore %s", restore.last_res_id)
+    if r, err := restoreResultAny(seq, -2); err == nil {
+        if req, ok := r.(*ActionRequestData); !ok {
+            return nil, LogError("Restored data type (%T) != *ActionRequestData", r)
+        } else if rs, err := restoreResultAny(seq, -1); err != nil {
+            /* Restore last response */
+            return nil, LogError("Failed to restore last res %v", err)
+        } else if res, ok := rs.(*ActionResponseData); !ok {
+            return nil, LogError("Restored data type (%T) != *ActionResponseData", rs)
+        } else {
+            ret := &ActionRequestData{
+                Action: exp.Action,
+                Timeout:exp.Timeout,
+                AnomalyInstanceId: req.AnomalyInstanceId,
+                AnomalyKey: res.AnomalyKey,
+                Context: make([]*ActionResponseData, len(req.Context) + 1),
+            }
+            for i, v := range req.Context {
+                ret.Context[i] = v
+            }
+            ret.Context[len(req.Context)] = res
+            return ret, nil
+        }
     } else {
+        /* possible if first in sequence */
         ret := &ActionRequestData{
             Action: exp.Action,
             Timeout:exp.Timeout,
-            AnomalyInstanceId: req.AnomalyInstanceId,
-            AnomalyKey: res.AnomalyKey,
-            Context: make([]*ActionResponseData, len(req.Context) + 1),
         }
-        for i, v := range req.Context {
-            ret.Context[i] = v
-        }
-        ret.Context[len(req.Context)] = res
         return ret, nil
     }
 }
 
 
-func buildRes(exp *ActionResponseData, restore *restoreId_t) (*ActionResponseData, error) {
+func buildRes(exp *ActionResponseData, seq int) (*ActionResponseData, error) {
     /*
      * Test code data can at most carry action name & timeout
      * as rest are dynamic and set by engine.
@@ -889,14 +956,10 @@ func buildRes(exp *ActionResponseData, restore *restoreId_t) (*ActionResponseDat
      *
      */
 
-    if len(restore.last_req_id)  == 0 {
-        return nil, LogError("Require last_req_id to coin response")
-    }
-    if len(restore.last_res_id) > 0 {
-        return nil, LogError("last_res_id is redundant.")
-    }
-    if req, ok := saveResults[restore.last_req_id].(*ActionRequestData); !ok {
-        return nil, LogError("Failed to restore %s", restore.last_req_id)
+    if r, err := restoreResultAny(seq, -1); err != nil {
+        return nil, LogError("Require last req to coin response (%v)", err)
+    } else if req, ok := r.(*ActionRequestData); !ok {
+        return nil, LogError("Restored data type (%T) != *ActionRequestData", r)
     } else {
         key := exp.AnomalyKey
         if len(key) == 0 {
@@ -936,17 +999,17 @@ func (p *callArgs) call_receive_req(ti int, te *testEntry_t) {
                     rcv.ReqType, TypeServerRequestAction)
         }
         if rcvd, ok := rcv.ReqData.(ActionRequestData); !ok {
-            p.t.Fatalf("Test index %v: reqData type (%T) != *ActionRequestData",
+            p.t.Fatalf("Test index %v: reqData type (%T) != ActionRequestData",
                     ti, rcv.ReqData)
         } else if exp, ok:= te.result[0].(*ActionRequestData); !ok {
             p.t.Fatalf("Test index %v: Test error result (%T) != *ActionRequestData",
                     ti, te.result[0])
-        } else if expUpd, err := buildReq(exp, &te.restore_id); err != nil {
+        } else if expUpd, err := buildReq(exp, te.seqId); err != nil {
             p.t.Fatalf("Test index %v: buildReq failed (%v)", ti, err)
         } else if res := compActReqData(&rcvd, expUpd); len(res) > 0 {
             p.t.Fatalf("Test index %v: Data mismatch (%s) (%v)", ti, res, rcvd)
-        } else if len(te.save_id) != 0 {
-            saveResults[te.save_id] = &rcvd
+        } else {
+            saveResultAny(te.seqId, &rcvd)
         }
     }
 }
@@ -963,7 +1026,7 @@ func (p *callArgs) call_send_res(ti int, te *testEntry_t) {
     } else if exp, ok:= te.args[0].(*ActionResponseData); !ok {
         p.t.Fatalf("Test index %v: Test error args (%T) != *ActionResponseData",
                 ti, te.args[0])
-    } else if expUpd, err := buildRes(exp, &te.restore_id); err != nil {
+    } else if expUpd, err := buildRes(exp, te.seqId); err != nil {
         p.t.Fatalf("Test index %v: Test error (%v)", ti, err)
     } else {
         res := &MsgSendServerResponse { TypeServerRequestAction, expUpd }
@@ -977,8 +1040,8 @@ func (p *callArgs) call_send_res(ti int, te *testEntry_t) {
             p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
                     ti, te.toStr(), err)
         }
-        if (err == nil) && (len(te.save_id) != 0) {
-            saveResults[te.save_id] = expUpd
+        if (err == nil) {
+            saveResultAny(te.seqId, expUpd)
         }
     }
 }
@@ -1031,6 +1094,10 @@ func (p *callArgs) call_verify_registrations(ti int, te *testEntry_t) {
 }
             
 
+func (p *callArgs) call_seq_complete(ti int, te *testEntry_t) {
+    resetResultAny(te.seqId)
+    LogDebug("saved: (%s)", printResultAny(false))
+}
 
 func terminate(t *testing.T, tout int) {
     for {
@@ -1092,6 +1159,8 @@ func TestRun(t *testing.T) {
             cArgs.call_receive_req(t_i, &t_e)
         case SEND_RES:
             cArgs.call_send_res(t_i, &t_e)
+        case SEQ_COMPLETE:
+            cArgs.call_seq_complete(t_i, &t_e)
         default:
             t.Fatalf("Unhandled API ID (%v)", t_e.id)
         }
