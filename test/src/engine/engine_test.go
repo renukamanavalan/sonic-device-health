@@ -552,12 +552,11 @@ func (p *callArgs) call_receive_req(ti int, te *testEntry_t) {
         p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
                 ti, te.toStr(), err)
     }
-    if (err == nil) {
+    if err == nil {
         if rcv.ReqType != TypeServerRequestAction {
             p.t.Fatalf("Test index %v: Mismatch ReqType rcv(%v) != exp(%v)", ti,
                     rcv.ReqType, TypeServerRequestAction)
-        }
-        if rcvd, ok := rcv.ReqData.(ActionRequestData); !ok {
+        } else if rcvd, ok := rcv.ReqData.(ActionRequestData); !ok {
             p.t.Fatalf("Test index %v: reqData type (%T) != ActionRequestData",
                     ti, rcv.ReqData)
         } else if exp, ok:= te.result[0].(*ActionRequestData); !ok {
@@ -728,6 +727,35 @@ func (p *callArgs) call_notify_hb(ti int, te *testEntry_t) {
     }
 }
             
+
+func (p *callArgs) call_verify_active_requests(ti int, te *testEntry_t) {
+    chTestHeartbeat <- "Start: call_verify_active_requests"
+    defer func() {
+        chTestHeartbeat <- "End: call_verify_active_requests"
+    }()
+
+    handler := GetSeqHandler()
+    exp :=  make([]string, len(te.args))
+    for i, v := range te.args {
+        if s, ok := v.(string); !ok {
+            p.t.Fatalf("%d: Test error. arg (%T) not string", ti, v)
+        } else {
+            exp[i] = s
+        }
+    }
+
+    if len(exp) != len(handler.activeRequests) {
+        p.t.Fatalf("%d: exp(%v) != active(%v)", ti, exp, handler.activeRequests)
+    } else {
+        for _, a := range exp {
+            if _, ok := handler.activeRequests[a]; !ok {
+                p.t.Fatalf("%d: active request missing for (%s)", ti, a)
+                break
+            }
+        }
+    }
+}
+            
 func margeRes(p *ActionResponseData, q *ActionResponseData) (*ActionResponseData, error) {
     p.ResultCode = q.ResultCode
     p.ResultStr = q.ResultStr
@@ -877,6 +905,8 @@ func runTestEntries(cArgs *callArgs, collPath string, lst testEntriesList_t) {
             cArgs.call_seq_complete(t_i, &t_e)
         case NOTIFY_HB:
             cArgs.call_notify_hb(t_i, &t_e)
+        case CHK_ACTIV_REQ:
+            cArgs.call_verify_active_requests(t_i, &t_e)
         default:
             cArgs.t.Fatalf("Unhandled API ID (%v)", t_e.id)
         }

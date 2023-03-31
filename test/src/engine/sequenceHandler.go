@@ -717,9 +717,6 @@ func (p *SeqHandler_t) completeSequence(seq *sequenceState_t, errCode LoMRespons
     if seq == nil {
         LogPanic("Internal error: Nil sequenceState_t")
     }
-    if seq == nil {
-        LogPanic("Expect non null seq")
-    }
 
     /* Mark failed seq as complete */
     seq.sequenceStatus = sequenceStatus_complete
@@ -734,9 +731,9 @@ func (p *SeqHandler_t) completeSequence(seq *sequenceState_t, errCode LoMRespons
     anomalyResp.ResultStr = errStr
 
     p.publishResponse(anomalyResp, true)
-    p.RaiseRequest(anomalyResp.Action)
 
     p.dropSequence(seq)
+    p.RaiseRequest(anomalyResp.Action)
 }
 
 
