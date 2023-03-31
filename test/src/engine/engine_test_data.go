@@ -65,7 +65,7 @@ type testRunList_t []testCollectionId_t
 var testRunList = testRunList_t {
     "registrations_test", 
     "seq_success",
-    // "seq_mit_fail",
+    "seq_mit_fail",
 }
 
 type registrations_t map[string][]string
@@ -341,6 +341,10 @@ func init() {
     }
 
     testCollections["registrations_cleanup"] = &testCollectionEntry_t {
+        /*
+         * This is for shared use by other collections for cleanup.
+         * Running this individually won't work, as this has de-reg only
+         */
         desc: "Post cleanup of all registrations",
         preSetup: []testCollectionId_t{},    /* none */
         testEntries: testEntriesList_t {
@@ -365,6 +369,12 @@ func init() {
     }
 
     testCollections["registrations_setup"] = &testCollectionEntry_t {
+        /*
+         * This is for shared use by other collections for setup.
+         * Running this individually would work, but leave registrations behind as 
+         * orphaned, as test code drops all transports at the end of collection
+         * run and hence these registrations are never reachable.
+         */
         desc: "Pre setup of all registrations",
         preSetup: []testCollectionId_t{},    /* none */
         testEntries: testEntriesList_t {
@@ -452,6 +462,14 @@ func init() {
                 desc: "Verify local cache to succeed",
             },
 
+        },
+        postCleanup: []testCollectionId_t{}, /* none */
+    }
+
+    testCollections["seq_success"] = &testCollectionEntry_t {
+        desc: "A successful Sequence",
+        preSetup: []testCollectionId_t{"registrations_setup"},    /* none */
+        testEntries: testEntriesList_t {
             /* Requests are expected in the same order as registration */
             140: {
                 id: RECV_REQ,
@@ -474,14 +492,6 @@ func init() {
                 result: []any { &ActionRequestData { Action: "Detect-2"} },
                 desc: "Read server request for Detect-2",
             },
-        },
-        postCleanup: []testCollectionId_t{}, /* none */
-    }
-
-    testCollections["seq_success"] = &testCollectionEntry_t {
-        desc: "A successful Sequence",
-        preSetup: []testCollectionId_t{"registrations_setup"},    /* none */
-        testEntries: testEntriesList_t {
             /* Test one full successful sequence. Detect-0 -> chk-0 -> Mit-0 */
             /* registrations_setup ha already verified initial requests received. */
             150: {
@@ -539,47 +549,69 @@ func init() {
         desc: "A failed Sequence in last action",
         preSetup: []testCollectionId_t{"registrations_setup"},    /* none */
         testEntries: testEntriesList_t {
+            /* Requests are expected in the same order as registration */
+            140: {
+                id: RECV_REQ,
+                clTx: CLIENT_0,
+                seqId: 1,               /* Use non-zero, default is 0. Make it explicit */
+                result: []any { &ActionRequestData { Action: "Detect-0"} },
+                desc: "Read server request for Detect-0",
+            },
+            142: {
+                id: RECV_REQ,
+                clTx: CLIENT_1,
+                seqId: 2,
+                result: []any { &ActionRequestData { Action: "Detect-1"} },
+                desc: "Read server request for Detect-1",
+            },
+            144: {
+                id: RECV_REQ,
+                clTx: CLIENT_1,
+                seqId: 3,
+                result: []any { &ActionRequestData { Action: "Detect-2"} },
+                desc: "Read server request for Detect-2",
+            },
             /* Test one failed sequence at last action. Detect-0 -> chk-0 -> Mit-0 (fail) */
             /* registrations_setup ha already verified initial requests received. */
             150: {
                 id: SEND_RES,
                 clTx: CLIENT_0,
-                seqId: 2,
+                seqId: 1,
                 args: []any {&ActionResponseData{Action: "Detect-0", AnomalyKey: "Key-Detect-0", Response: "Detect-0 detected",}},
                 desc: "Send res for detect0",
             },
             152: {
                 id: RECV_REQ,
                 clTx: CLIENT_0,
-                seqId: 2,
+                seqId: 1,
                 result: []any { &ActionRequestData { Action: "Safety-chk-0", Timeout: 1} },
                 desc: "Read server request for Safety-check-0",
             },
             154: {
                 id: SEND_RES,
                 clTx: CLIENT_0,
-                seqId: 2,
+                seqId: 1,
                 args: []any {&ActionResponseData{Action: "Safety-chk-0", Response: "Safety-chk-0 passed",}},
                 desc: "Send res for safety-chk-0",
             },
             156: {
                 id: RECV_REQ,
                 clTx: CLIENT_0,
-                seqId: 2,
+                seqId: 1,
                 result: []any { &ActionRequestData { Action: "Mitigate-0", Timeout: -1} },
                 desc: "Read server request for Safety-check-0",
             },
             158: {
                 id: SEND_RES,
                 clTx: CLIENT_0,
-                seqId: 2,
+                seqId: 1,
                 args: []any {&ActionResponseData{Action: "Mitigate-0", ResultCode: 120, ResultStr: "Blah Blah",}},
                 desc: "Send res for Mitigate-0",
             },
             160: {
                 id: SEQ_COMPLETE,
                 args: []any {&ActionResponseData{Action: "Mitigate-0", ResultCode: 120, ResultStr: "Blah Blah",}},
-                seqId: 2,
+                seqId: 1,
                 desc: "Verify seq complete",
             },
         },

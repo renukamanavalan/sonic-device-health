@@ -211,6 +211,10 @@ func resetResultAny(seq int) {
     delete(saveResults, seq)
 }
 
+func resetResultAll() {
+    saveResults = make(savedResults_t)
+}
+
 var publishCh = make(chan string, 10)
 func testPublish(s string) string {
 
@@ -581,7 +585,7 @@ func verifyPublish(exp *ActionResponseData, complete bool) error {
         if err := json.Unmarshal([]byte(s), &pubRes); err != nil {
             return LogError("Unmarshal failed (%s)", s)
         }
-        if len(pubRes.LoM_Action.Action) != 0 {
+        if pubRes.LoM_Action != nil {
             /* action published */
             break
         }
@@ -885,6 +889,7 @@ func runColl(cArgs *callArgs, collPath string, te *testCollectionEntry_t) {
     for _, pre := range te.preSetup {
         runColl(cArgs, collPath + "/" + string(pre), testCollections[pre])
     }
+    LogDebug ("**************** coll: %s  Run  (%s) **********", collPath, te.desc)
     runTestEntries(cArgs, collPath, te.testEntries)
     for _, post:= range te.postCleanup {
         runColl(cArgs, collPath + "/" + string(post), testCollections[post])
@@ -908,8 +913,10 @@ func TestRun(t *testing.T) {
     SetPublishAPI(testPublish)
 
     for _, collId := range testRunList {
+        /* Create new transports for a collection */
         cArgs := &callArgs{t: t, lstTx: make(map[string]*ClientTx) }
         runColl(cArgs, string(collId), testCollections[collId])
+        resetResultAll()        /* Reset all saved results */
     }
 }
 
