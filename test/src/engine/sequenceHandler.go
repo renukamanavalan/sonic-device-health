@@ -334,7 +334,7 @@ func (p *SeqHandler_t) sortSequences() {
  * Enable timer for seq expiry.
  * Re-create sorted sequences
  */
-func (p *SeqHandler_t) addSequence(seq *sequenceState_t) {
+func (p *SeqHandler_t) addSequence(seq *sequenceState_t, tout int) {
     if (seq == nil) || (len(seq.context) == 0) {
         LogPanic("Expect atleast one context (%v)", seq)
     }
@@ -343,7 +343,7 @@ func (p *SeqHandler_t) addSequence(seq *sequenceState_t) {
     p.sortedSequencesByDue = append(p.sortedSequencesByDue, seq)
     p.sortedSequencesByPri = append(p.sortedSequencesByPri, seq)
     m := "Seq: " + seq.sequence.SequenceName + " timeout"
-    seq.expTimer = AddOneShotTimer(seq.ExpiryEpoch(), m, p.FireTimer)
+    seq.expTimer = AddOneShotTimer(int64(tout), m, p.FireTimer)
     p.sortSequences()
 }
 
@@ -603,7 +603,7 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
             ctIndex: 1,
             context: ctx,
         }
-        p.addSequence(seq)
+        p.addSequence(seq, bs.Timeout)
         return
     }
 

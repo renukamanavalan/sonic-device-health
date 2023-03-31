@@ -66,6 +66,7 @@ import (
     "os"
     "path/filepath"
     "sort"
+    "strconv"
     "testing"
     "time"
 )
@@ -157,6 +158,7 @@ const (
     NOTIFY_HB
     CHK_ACTIV_REQ
     CHK_REG_ACTIONS
+    PAUSE
 )
 
 
@@ -637,7 +639,7 @@ func (p *callArgs) call_send_res(ti int, te *testEntry_t) {
                     ti, te.toStr(), err)
         } else if (err == nil) {
             saveResultAny(te.seqId, expUpd)
-                
+
             if err = verifyPublish(expUpd, false); err != nil {
                 p.t.Fatalf("Test index %v: verifyPublish failed (%v)", ti, err)
             }
@@ -691,7 +693,7 @@ func (p *callArgs) call_verify_registrations(ti int, te *testEntry_t) {
         }
     }
 }
-            
+
 
 func (p *callArgs) call_notify_hb(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_notify_hb"
@@ -726,7 +728,7 @@ func (p *callArgs) call_notify_hb(ti int, te *testEntry_t) {
         p.t.Fatalf("%d: testHeartbeat failed. (%v)", ti, err)
     }
 }
-            
+
 
 func (p *callArgs) call_verify_active_requests(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_verify_active_requests"
@@ -755,13 +757,34 @@ func (p *callArgs) call_verify_active_requests(ti int, te *testEntry_t) {
         }
     }
 }
-            
+
+
+func (p *callArgs) call_pause(ti int, te *testEntry_t) {
+    chTestHeartbeat <- "Start: call_pause"
+    defer func() {
+        chTestHeartbeat <- "End: call_pause"
+    }()
+
+    if len(te.args) != 1 {
+        p.t.Fatalf("%d: Test error. Expect one arg (%v)", ti, te.args)
+    } else if tout, ok := te.args[0].(int); (!ok || tout <= 0) {
+        p.t.Fatalf("%d: Test error. arg (%T) not int or 0 (%v)", ti, te.args[0], tout)
+    } else {
+        for tout > 0 {
+            chTestHeartbeat <- "Run: call_pause: " + strconv.Itoa(tout)
+            time.Sleep(time.Second)
+            tout--
+        }
+    }
+}
+
+
 func margeRes(p *ActionResponseData, q *ActionResponseData) (*ActionResponseData, error) {
     p.ResultCode = q.ResultCode
     p.ResultStr = q.ResultStr
     return p, nil
 }
-    
+
 func (p *callArgs) call_seq_complete(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_seq_complete"
     defer func() {
@@ -787,7 +810,6 @@ func (p *callArgs) call_seq_complete(ti int, te *testEntry_t) {
     } else if err = verifyPublish(resUpd, true); err != nil {
         p.t.Fatalf("Test index %v: verifyPublish failed (%v)", ti, err)
     }
-    resetResultAny(te.seqId)
 }
 
 func terminate(t *testing.T, tout int) {
@@ -843,12 +865,10 @@ func testHeartbeat(actions []string) error {
         m[v] = struct{}{}
     }
 
-    LogDebug("DROP: Start (%v)", actions)
     go testHeartbeatCh(m, ch)
     for {
         select {
         case err := <- ch:
-            LogDebug("DROP: End (%v)", actions)
             if len(err) != 0 {
                 return LogError(err)
             } else {
@@ -907,6 +927,8 @@ func runTestEntries(cArgs *callArgs, collPath string, lst testEntriesList_t) {
             cArgs.call_notify_hb(t_i, &t_e)
         case CHK_ACTIV_REQ:
             cArgs.call_verify_active_requests(t_i, &t_e)
+        case PAUSE:
+            cArgs.call_pause(t_i, &t_e)
         default:
             cArgs.t.Fatalf("Unhandled API ID (%v)", t_e.id)
         }
