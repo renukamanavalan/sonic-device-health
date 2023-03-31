@@ -161,7 +161,7 @@ type ActionResponseData struct {
 func (p *ActionResponseData) Validate() bool {
     if ((len(p.Action) > 0) && (len(p.InstanceId) > 0) &&
             (len(p.AnomalyInstanceId) > 0) &&
-            (len(p.AnomalyKey) > 0)) {
+            ((p.ResultCode != 0) || (len(p.AnomalyKey) > 0))) {
         return true
     } else {
         return false

@@ -67,6 +67,7 @@ var testRunList = testRunList_t {
     "seq_success",
     "seq_mit_fail",
     "seq_safety_fail",
+    "detect_fail",
 }
 
 type registrations_t map[string][]string
@@ -697,6 +698,64 @@ func init() {
             160: {
                 id: SEQ_COMPLETE,
                 args: []any {&ActionResponseData{ResultCode: 120, ResultStr: "Safe not",}},
+                seqId: 1,
+                desc: "Verify seq complete",
+            },
+            162: {
+                id: RECV_REQ,
+                clTx: CLIENT_0,
+                seqId: 4,               /* Use non-zero, default is 0. Make it explicit */
+                result: []any { &ActionRequestData { Action: "Detect-0"} },
+                desc: "Read server request for Detect-0",
+            },
+            164: {
+                /* Local engine level verification */
+                id: CHK_ACTIV_REQ,
+                args: []any {"Detect-0", "Detect-1", "Detect-2"},
+                desc: "Verify active requests only for actions in args",
+            },
+        },
+        postCleanup: []testCollectionId_t{"registrations_cleanup"}, /* none */
+    }
+
+    testCollections["detect_fail"] = &testCollectionEntry_t {
+        desc: "First/detection action fails",
+        preSetup: []testCollectionId_t{"registrations_setup"},    /* none */
+        testEntries: testEntriesList_t {
+            /* Requests are expected in the same order as registration */
+            140: {
+                id: RECV_REQ,
+                clTx: CLIENT_0,
+                seqId: 1,               /* Use non-zero, default is 0. Make it explicit */
+                result: []any { &ActionRequestData { Action: "Detect-0"} },
+                desc: "Read server request for Detect-0",
+            },
+            142: {
+                id: RECV_REQ,
+                clTx: CLIENT_1,
+                seqId: 2,
+                result: []any { &ActionRequestData { Action: "Detect-1"} },
+                desc: "Read server request for Detect-1",
+            },
+            144: {
+                id: RECV_REQ,
+                clTx: CLIENT_1,
+                seqId: 3,
+                result: []any { &ActionRequestData { Action: "Detect-2"} },
+                desc: "Read server request for Detect-2",
+            },
+            /* Test one failed sequence at last action. Detect-0 -> chk-0 -> Mit-0 (fail) */
+            /* registrations_setup ha already verified initial requests received. */
+            150: {
+                id: SEND_RES,
+                clTx: CLIENT_0,
+                seqId: 1,
+                args: []any {&ActionResponseData{Action: "Detect-0", ResultCode: 120, ResultStr: "Detect failed",}},
+                desc: "Send res for detect0",
+            },
+            160: {
+                id: SEQ_COMPLETE,
+                args: []any {&ActionResponseData{ResultCode: 120, ResultStr: "Detect failed",}},
                 seqId: 1,
                 desc: "Verify seq complete",
             },

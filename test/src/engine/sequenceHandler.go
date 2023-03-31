@@ -580,8 +580,8 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
              *
              * If first action, re-publish is not done, as detection has failed.
              */
-            errCode = LoMFirstActionFailed
-            errStr = "First action / Anomaly detection failed. Nothing more to do"
+            errCode = LoMResponseCode(data.ResultCode)
+            errStr = data.ResultStr
             return
         }
         bs, err := GetConfigMgr().GetSequence(data.Action)
