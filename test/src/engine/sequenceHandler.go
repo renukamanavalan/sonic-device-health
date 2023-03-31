@@ -614,11 +614,19 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
     seq.context = append(seq.context, data)
     seq.ctIndex++
 
+    /* Save last result */
+    errCode = LoMResponseCode(data.ResultCode)
+    errStr = data.ResultStr
+
     /* Process the sequence */
     if data.ResultCode != 0 {
         /* Need to abort the sequence */
-        errCode = LoMResponseCode(data.ResultCode)
-        errStr = data.ResultStr
+        return
+    }
+
+    if seq.ctIndex >= len(seq.sequence.Actions) {
+        /* WooHoo we are really complete  */
+        seq.sequenceStatus = sequenceStatus_complete
         return
     }
 
@@ -653,12 +661,6 @@ func (p *SeqHandler_t) resumeSequence(seq *sequenceState_t) (errCode LoMResponse
 
     if seq.currentRequest != nil {
         LogInfo("current req is active. Nothing to resume (%v)", *seq)
-        return
-    }
-
-    if seq.ctIndex >= len(seq.sequence.Actions) {
-        /* WooHoo we are really complete  */
-        seq.sequenceStatus = sequenceStatus_complete
         return
     }
 

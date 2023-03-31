@@ -76,6 +76,12 @@ const CLIENT_1 = "client-1"
 const CLIENT_2 = "client-2"
 
 /*
+ * Engine main loop sends message in this channel at start & end.
+ * Create with buffer for server loop writes.
+ */
+var EngineChTrack = make(chan int, 2)
+
+/*
  * During test run, test code keep this chan active. An idle channel for timeout
  * seconds will abort the test
  */
@@ -153,94 +159,6 @@ const (
     CHK_REG_ACTIONS
 )
 
-type testEntry_t struct {
-    id          clientAPIID
-    clTx        string          /* Which Tx to use*/
-    seqId       int             /* The context to use for save/restore results per seq */
-    args        []any
-    result      []any
-    failed      bool            /* True if expected to fail. */
-    desc        string
-}
-
-func (p *testEntry_t) toStr() string {
-    s := ""
-    switch p.id {
-    case REG_CLIENT:
-        s = "REG_CLIENT"
-    case REG_ACTION:
-        s = "REG_ACTION"
-    case DEREG_CLIENT:
-        s = "DEREG_CLIENT"
-    case DEREG_ACTION:
-        s = "DEREG_ACTION"
-    case RECV_REQ:
-        s = "RECV_REQ"
-    case SEND_RES:
-        s = "SEND_RES"
-    case SHUTDOWN:
-        s = "SHUTDOWN"
-    case NOTIFY_HB:
-        s = "NOTIFY_HB"
-    case CHK_ACTIV_REQ:
-        s = "CHK_ACTIV_REQ"
-    case CHK_REG_ACTIONS:
-        s = "CHK_REG_ACTIONS"
-    default:
-        s = fmt.Sprintf("UNK(%d)", p.id)
-    }
-    return fmt.Sprintf("%s:%s: args:(%v) res(%v) failed(%v)",
-            p.clTx, s, p.args, p.result, p.failed)
-}
-
-
-type registrations_t map[string][]string
-
-/* Test scenario expectations */
-var expRegistrations = []registrations_t {
-    {    /* Map of client vs actions */
-        CLIENT_0: []string { "Detect-0", "Safety-chk-0", "Mitigate-0", "Mitigate-2" },
-        CLIENT_1: []string { "Detect-1", "Safety-chk-1", "Mitigate-1", "Detect-2", "Safety-chk-2" },
-    },
-    {    /* Map of client vs actions */
-        CLIENT_0: []string { "Detect-0", "Safety-chk-0" },
-        CLIENT_1: []string { "Detect-1", "Safety-chk-1", "Mitigate-1" },
-    },
-    {    /* Map of client vs actions */
-        CLIENT_1: []string { "Detect-1", "Safety-chk-1", "Mitigate-1" },
-    },
-    {    /* Map of client vs actions */
-},
-}
-
-type activeActionsList_t map[string]ActiveActionInfo_t
-var expActiveActions = make([]activeActionsList_t, len(expRegistrations))
-
-func initActive() {
-    if  len(expActiveActions[0]) > 0 {
-        return
-    }
-
-    cfg := GetConfigMgr()
-
-    for i, rl := range expRegistrations {
-        expActiveActions[i] = make(activeActionsList_t)
-        lst := expActiveActions[i]
-        for cl, v := range rl {
-            for _, a := range v {
-                if _, ok := lst[a]; ok {
-                    LogPanic("Duplicate action in expRegistrations[%d] cl(%s) a(%s)", i, cl, a)
-                }
-                if c, e := cfg.GetActionConfig(a); e != nil {
-                    LogPanic("Failed to get action config for (%s)", a)
-                } else {
-                    lst[a] = ActiveActionInfo_t {
-                        Action: a, Client: cl, Timeout: c.Timeout, }
-                }
-            }
-        }
-    }
-}
 
 /*
  * Req / Resp received/sent will need to be saved for proper
@@ -293,380 +211,6 @@ func resetResultAny(seq int) {
     delete(saveResults, seq)
 }
 
-type testEntriesList_t  map[int]testEntry_t
-
-var xtestEntriesList = testEntriesList_t {
-    0: {
-        id: REG_ACTION,
-        clTx: "",
-        args: []any{"xyz"},
-        failed: true,
-        desc: "RegisterAction: Fail as before register client",
-    },
-    1: {
-        id: REG_CLIENT,
-        clTx: "iX",
-        args: []any{EMPTY_STR},
-        failed: true,
-        desc: "RegisterClient: Fail for empty name",
-    },
-    2: {
-        id: REG_CLIENT,
-        clTx: "Bogus",
-        args: []any{CLIENT_0},
-        failed: false,
-        desc: "RegisterClient to succeed",
-    },
-    3: {
-        id: REG_CLIENT,
-        clTx: "Bogus",
-        args: []any{CLIENT_0},
-        failed: true,
-        desc: "register-client: Fail duplicate on same transport",
-    },
-    4: {
-        id: REG_CLIENT,
-        clTx: CLIENT_0,             /* re-reg under new Tx. So succeed" */
-        args: []any{CLIENT_0},
-        failed: false,
-        desc: "RegClient re-reg on new tx to succeed",
-    },
-    5: {
-        id: REG_ACTION,
-        clTx: CLIENT_0,
-        args: []any{""},
-        failed: true,
-        desc: "RegisterAction fail for empty name",
-    },
-    6: {
-        id: REG_ACTION,
-        clTx: CLIENT_0,
-        args: []any{"Detect-0"},
-        failed: false,
-        desc: "RegisterAction client-0/detect-0 succeeds",
-    },
-    7: {
-        id: REG_ACTION,
-        clTx: CLIENT_0,
-        args: []any{"Detect-0"},
-        failed: false,
-        desc: "Re-registerAction succeeds",
-    },
-    8: {
-        id: REG_CLIENT,
-        clTx: CLIENT_1,
-        args: []any{CLIENT_1},
-        failed: false,
-        desc: "second Client reg to succeed",
-    },
-    9: {
-        id: REG_ACTION,
-        clTx: CLIENT_1,
-        args: []any{"Detect-0"},
-        failed: false,
-        desc: "RegAction: Succeed duplicate register on different client",
-    },
-    10: {
-        id: REG_ACTION,
-        clTx: CLIENT_0,
-        args: []any{"Detect-0"},
-        failed: false,
-        desc: "Duplicate action register on different client",
-    },
-    11: {
-        id: REG_ACTION,
-        clTx: CLIENT_0,
-        args: []any{"Mitigate-0"},
-        failed: false,
-        desc: "action register succeed",
-    },
-    12: {
-        id: REG_ACTION,
-        clTx: CLIENT_0,
-        args: []any{"Mitigate-2"},
-        failed: false,
-        desc: "action register succeed",
-    },
-    13: {
-        id: REG_ACTION,
-        clTx: CLIENT_0,
-        args: []any{"Safety-chk-0"},
-        failed: false,
-        desc: "action register succeed",
-    },
-    14: {
-        id: REG_ACTION,
-        clTx: CLIENT_1,
-        args: []any{"Detect-1"},
-        failed: false,
-        desc: "action register succeed",
-    },
-    15: {
-        id: REG_ACTION,
-        clTx: CLIENT_1,
-        args: []any{"Safety-chk-1"},
-        failed: false,
-        desc: "action register succeed",
-    },
-    16: {
-        id: REG_ACTION,
-        clTx: CLIENT_1,
-        args: []any{"Mitigate-1"},
-        failed: false,
-        desc: "action register succeed",
-    },
-    17: {
-        id: REG_ACTION,
-        clTx: CLIENT_1,
-        args: []any{"Detect-2"},
-        failed: false,
-        desc: "action register succeed",
-    },
-    18: {
-        id: REG_ACTION,
-        clTx: CLIENT_1,
-        args: []any{"Safety-chk-2"},
-        failed: false,
-        desc: "action register succeed",
-    },
-    19: {
-        id: REG_ACTION,
-        clTx: CLIENT_1,
-        args: []any{"Disabled-0"},
-        failed: true,
-        desc: "action register fail for disabled",
-    },
-    20: {
-        id: CHK_REG_ACTIONS,
-        clTx: "",               /* Local verification */
-        args: []any{0},
-        desc: "Verify local cache to succeed",
-    },
-    21: {
-        id: DEREG_ACTION,
-        clTx: CLIENT_1,
-        args: []any{"Detect-2"},
-        failed: false,
-        desc: "action deregister succeed",
-    },
-    22: {
-        id: DEREG_ACTION,
-        clTx: CLIENT_1,
-        args: []any{"Safety-chk-2"},
-        failed: false,
-        desc: "action deregister succeed",
-    },
-    23: {
-        id: DEREG_ACTION,
-        clTx: CLIENT_0,
-        args: []any{"Mitigate-0"},
-        failed: false,
-        desc: "action deregister succeed",
-    },
-    24: {
-        id: DEREG_ACTION,
-        clTx: CLIENT_0,
-        args: []any{"Mitigate-2"},
-        failed: false,
-        desc: "action deregister succeed",
-    },
-    25: {
-        id: DEREG_ACTION,
-        clTx: CLIENT_0,
-        args: []any{""},
-        desc: "action deregister succeed for empty",
-    },
-    26: {
-        id: DEREG_ACTION,
-        clTx: CLIENT_0,
-        args: []any{"XXX"},
-        desc: "action deregister succeed for non-existing",
-    },
-    27: {
-        id: CHK_REG_ACTIONS,
-        clTx: "",               /* Local verification */
-        args: []any{1},
-        desc: "Verify local cache to succeed",
-    },
-    28: {
-        id: DEREG_CLIENT,
-        clTx: CLIENT_0,
-        desc: "action deregister client succeed",
-    },
-    29: {
-        id: CHK_REG_ACTIONS,
-        clTx: "",               /* Local verification */
-        args: []any{2},
-        desc: "Verify local cache to succeed",
-    },
-    30: {
-        id: DEREG_CLIENT,
-        clTx: CLIENT_1,
-        desc: "action deregister client succeed",
-    },
-    31: {
-        id: CHK_REG_ACTIONS,
-        clTx: "",               /* Local verification */
-        args: []any{3},
-        desc: "Verify local cache to succeed",
-    },
-}
-
-var testEntriesList = testEntriesList_t {
-    100: {
-        id: REG_CLIENT,
-        clTx: CLIENT_0,             /* re-reg under new Tx. So succeed" */
-        args: []any{CLIENT_0},
-        failed: false,
-        desc: "RegClient to succeed",
-    },
-    102: {
-        id: REG_CLIENT,
-        clTx: CLIENT_1,
-        args: []any{CLIENT_1},
-        failed: false,
-        desc: "second Client reg to succeed",
-    },
-    104: {
-        id: REG_ACTION,
-        clTx: CLIENT_0,
-        args: []any{"Detect-0"},
-        failed: false,
-        desc: "Reg Action to succeed",
-    },
-    106: {
-        id: REG_ACTION,
-        clTx: CLIENT_0,
-        args: []any{"Mitigate-0"},
-        failed: false,
-        desc: "action register succeed",
-    },
-    108: {
-        id: REG_ACTION,
-        clTx: CLIENT_0,
-        args: []any{"Mitigate-2"},
-        failed: false,
-        desc: "action register succeed",
-    },
-    110: {
-        id: REG_ACTION,
-        clTx: CLIENT_0,
-        args: []any{"Safety-chk-0"},
-        failed: false,
-        desc: "action register succeed",
-    },
-    114: {
-        id: REG_ACTION,
-        clTx: CLIENT_1,
-        args: []any{"Detect-1"},
-        failed: false,
-        desc: "action register succeed",
-    },
-    116: {
-        id: REG_ACTION,
-        clTx: CLIENT_1,
-        args: []any{"Safety-chk-1"},
-        failed: false,
-        desc: "action register succeed",
-    },
-    118: {
-        id: REG_ACTION,
-        clTx: CLIENT_1,
-        args: []any{"Mitigate-1"},
-        failed: false,
-        desc: "action register succeed",
-    },
-    120: {
-        id: REG_ACTION,
-        clTx: CLIENT_1,
-        args: []any{"Detect-2"},
-        failed: false,
-        desc: "action register succeed",
-    },
-    122: {
-        id: REG_ACTION,
-        clTx: CLIENT_1,
-        args: []any{"Safety-chk-2"},
-        failed: false,
-        desc: "action register succeed",
-    },
-    124: {
-        id: CHK_REG_ACTIONS,
-        clTx: "",               /* Local verification */
-        args: []any{0},
-        desc: "Verify local cache to succeed",
-    },
-    /* Requests are expected in the same order as registration */
-    140: {
-        id: RECV_REQ,
-        clTx: CLIENT_0,
-        seqId: 1,               /* Use non-zero, default is 0. Make it explicit */
-        result: []any { &ActionRequestData { Action: "Detect-0"} },
-        desc: "Read server request for Detect-0",
-    },
-    142: {
-        id: RECV_REQ,
-        clTx: CLIENT_1,
-        seqId: 2,
-        result: []any { &ActionRequestData { Action: "Detect-1"} },
-        desc: "Read server request for Detect-1",
-    },
-    144: {
-        id: RECV_REQ,
-        clTx: CLIENT_1,
-        seqId: 3,
-        result: []any { &ActionRequestData { Action: "Detect-2"} },
-        desc: "Read server request for Detect-2",
-    },
-    150: {
-        id: SEND_RES,
-        clTx: CLIENT_0,
-        seqId: 1,
-        args: []any {&ActionResponseData{Action: "Detect-0", AnomalyKey: "Key-Detect-0", Response: "Detect-0 detected",}},
-        desc: "Send res for detect0",
-    },
-    152: {
-        id: RECV_REQ,
-        clTx: CLIENT_0,
-        seqId: 1,
-        result: []any { &ActionRequestData { Action: "Safety-chk-0", Timeout: 1} },
-        desc: "Read server request for Safety-check-0",
-    },
-    154: {
-        id: SEND_RES,
-        clTx: CLIENT_0,
-        seqId: 1,
-        args: []any {&ActionResponseData{Action: "Safety-chk-0", Response: "Safety-chk-0 passed",}},
-        desc: "Send res for safety-chk-0",
-    },
-    156: {
-        id: RECV_REQ,
-        clTx: CLIENT_0,
-        seqId: 1,
-        result: []any { &ActionRequestData { Action: "Mitigate-0", Timeout: -1} },
-        desc: "Read server request for Safety-check-0",
-    },
-    158: {
-        id: SEND_RES,
-        clTx: CLIENT_0,
-        seqId: 1,
-        args: []any {&ActionResponseData{Action: "Mitigate-0", Response: "Mitigate-0 passed",}},
-        desc: "Send res for Mitigate-0",
-    },
-    160: {
-        id: SEQ_COMPLETE,
-        seqId: 1,
-        desc: "Verify seq complete",
-    },
-    162: {
-        id: NOTIFY_HB,
-        clTx: CLIENT_0,
-        args: []any {"XYZ", "Detect-0", "Mitigate-0"},
-        result: []any {"Detect-0", "Mitigate-0"},
-        desc: "Notify heartbeats valid & invalid names",
-    },
-}
-
 var publishCh = make(chan string, 10)
 func testPublish(s string) string {
 
@@ -700,29 +244,28 @@ func createFile(t *testing.T, name string, s string) {
     chTestHeartbeat <- "createFile: " + name
 }
 
-func initServer(t *testing.T) chan int {
+func initServer(t *testing.T) {
     chTestHeartbeat <- "Start: initServer"
     defer func() {
         chTestHeartbeat <- "End: initServer"
     }()
 
-    ch := make(chan int, 2)     /* Two to take start & end of loop w/o blocking */
-    
-    startUp("test", []string { "-path", CFGPATH }, ch)
+    startUp("test", []string { "-path", CFGPATH }, EngineChTrack)
     chTestHeartbeat <- "Waiting: initServer"
 
     select {
-    case <- ch:
+    case <- EngineChTrack:
+        /* Server loop started */
         break
 
     case <- time.After(2 * time.Second):
+        /* Server loop is taking more than 2 secs to start. Abort */
         t.Fatalf("initServer failed")
     }
-    return ch
 }
 
 type callArgs struct {
-    t   *testing.T
+    t       *testing.T
     lstTx   map[string]*ClientTx
 }
 
@@ -1181,19 +724,35 @@ func (p *callArgs) call_notify_hb(ti int, te *testEntry_t) {
     }
 }
             
-
+func margeRes(p *ActionResponseData, q *ActionResponseData) (*ActionResponseData, error) {
+    p.ResultCode = q.ResultCode
+    p.ResultStr = q.ResultStr
+    return p, nil
+}
+    
 func (p *callArgs) call_seq_complete(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_seq_complete"
     defer func() {
         chTestHeartbeat <- "End: call_seq_complete"
     }()
 
+    rArgs := &ActionResponseData{}
+    if (len(te.args) > 0) {
+        if rtmp, ok := te.args[0].(*ActionResponseData); !ok {
+            p.t.Fatalf("%d: Test error. arg (%T) not *ActionResponseData", ti, te.args[0])
+            return
+        } else {
+            rArgs = rtmp
+        }
+    }
     if rs, err := restoreResultAny(te.seqId, 1); err != nil {
         /* Restore first response */
         p.t.Fatalf("%d: Failed to get first res (%v)", ti, err)
     } else if res, ok := rs.(*ActionResponseData); !ok {
         p.t.Fatalf("%d: Restored data type (%T) != *ActionResponseData", ti, rs)
-    } else if err = verifyPublish(res, true); err != nil {
+    } else if resUpd, err := margeRes(res, rArgs); err != nil {
+        p.t.Fatalf("%d: margeRes failed (%v)", ti, err)
+    } else if err = verifyPublish(resUpd, true); err != nil {
         p.t.Fatalf("Test index %v: verifyPublish failed (%v)", ti, err)
     }
     resetResultAny(te.seqId)
@@ -1276,39 +835,25 @@ func testHeartbeat(actions []string) error {
     }
 }
 
+func runTestEntries(cArgs *callArgs, collPath string, lst testEntriesList_t) {
 
-func TestRun(t *testing.T) {
-    go terminate(t, 5)
-
-    createFile(t, "globals.conf.json", "")
-    createFile(t, "actions.conf.json", actions_conf)
-    createFile(t, "bindings.conf.json", bindings_conf)
-
-    ch := initServer(t)
-
-    cArgs := &callArgs{t: t, lstTx: make(map[string]*ClientTx) }
-    ordered := make([]int, len(testEntriesList))
+    ordered := make([]int, len(lst))
     {
         i := 0
-        for t_i, _ := range testEntriesList {
+        for t_i, _ := range lst {
             ordered[i] = t_i
             i++
         }
         sort.Ints(ordered)
     }
 
-    /* Init local list for test data */
-    initActive()
-
-    SetPublishAPI(testPublish)
-
     for _, t_i := range ordered {
-        t_e := testEntriesList[t_i]
+        t_e := lst[t_i]
 
-        if len(ch) > 0 {
-            t.Fatalf("Server loop exited")
+        if len(EngineChTrack) > 0 {
+            cArgs.t.Fatalf("Server loop exited. Abort")
         }
-        LogDebug ("---------------- tid: %v START (%s) ----------", t_i, t_e.desc)
+        LogDebug ("---------------- coll: %v tid: %v START (%s) ----------", collPath, t_i, t_e.desc)
         switch (t_e.id) {
         case REG_CLIENT:
             cArgs.call_register_client(t_i, &t_e)
@@ -1329,9 +874,42 @@ func TestRun(t *testing.T) {
         case NOTIFY_HB:
             cArgs.call_notify_hb(t_i, &t_e)
         default:
-            t.Fatalf("Unhandled API ID (%v)", t_e.id)
+            cArgs.t.Fatalf("Unhandled API ID (%v)", t_e.id)
         }
-        LogDebug ("---------------- tid: %v  END  (%s) ----------", t_i, t_e.desc)
+        LogDebug ("---------------- coll: %v tid: %v  END  (%s) ----------", collPath, t_i, t_e.desc)
+    }
+}
+
+func runColl(cArgs *callArgs, collPath string, te *testCollectionEntry_t) {
+    LogDebug ("**************** coll: %s START (%s) **********", collPath, te.desc)
+    for _, pre := range te.preSetup {
+        runColl(cArgs, collPath + "/" + string(pre), testCollections[pre])
+    }
+    runTestEntries(cArgs, collPath, te.testEntries)
+    for _, post:= range te.postCleanup {
+        runColl(cArgs, collPath + "/" + string(post), testCollections[post])
+    }
+    LogDebug ("**************** coll: %s  END  (%s) **********", collPath, te.desc)
+}
+
+
+func TestRun(t *testing.T) {
+    go terminate(t, 5)
+
+    createFile(t, "globals.conf.json", "")
+    createFile(t, "actions.conf.json", actions_conf)
+    createFile(t, "bindings.conf.json", bindings_conf)
+
+    initServer(t)
+
+    /* Init local list for test data */
+    initActive()
+
+    SetPublishAPI(testPublish)
+
+    for _, collId := range testRunList {
+        cArgs := &callArgs{t: t, lstTx: make(map[string]*ClientTx) }
+        runColl(cArgs, string(collId), testCollections[collId])
     }
 }
 
