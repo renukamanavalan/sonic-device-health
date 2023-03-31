@@ -658,6 +658,13 @@ var testEntriesList = testEntriesList_t {
         seqId: 1,
         desc: "Verify seq complete",
     },
+    162: {
+        id: NOTIFY_HB,
+        clTx: CLIENT_0,
+        args: []any {"XYZ", "Detect-0", "Mitigate-0"},
+        result: []any {"Detect-0", "Mitigate-0"},
+        desc: "Notify heartbeats valid & invalid names",
+    },
 }
 
 var publishCh = make(chan string, 10)
@@ -1140,7 +1147,47 @@ func (p *callArgs) call_verify_registrations(ti int, te *testEntry_t) {
 }
             
 
+func (p *callArgs) call_notify_hb(ti int, te *testEntry_t) {
+    chTestHeartbeat <- "Start: call_notify_hb"
+    defer func() {
+        chTestHeartbeat <- "End: call_notify_hb"
+    }()
+    tx := p.getTx(te.clTx)
+
+    /* Call NotifyHeartbeat for each entry in args */
+    for _, v := range te.args {
+        if s, ok := v.(string); !ok {
+            p.t.Fatalf("%d: Test error. arg (%T) not string", ti, v)
+        } else {
+            /* For now engine ignores tstamp */
+            if err := tx.NotifyHeartbeat(s, 0); err != nil {
+                p.t.Fatalf("Test index %v: Unexpected failure (%v)", ti, err)
+                return
+            }
+        }
+    }
+
+    /* Expect actions in published HB per result only */
+    res := make([]string, len(te.result))
+    for i, v := range te.result {
+        if s, ok := v.(string); !ok {
+            p.t.Fatalf("%d: Test error. arg (%T) not string", ti, v)
+        } else {
+            res[i] = s
+        }
+    }
+    if err := testHeartbeat(res); err != nil {
+        p.t.Fatalf("%d: testHeartbeat failed. (%v)", ti, err)
+    }
+}
+            
+
 func (p *callArgs) call_seq_complete(ti int, te *testEntry_t) {
+    chTestHeartbeat <- "Start: call_seq_complete"
+    defer func() {
+        chTestHeartbeat <- "End: call_seq_complete"
+    }()
+
     if rs, err := restoreResultAny(te.seqId, 1); err != nil {
         /* Restore first response */
         p.t.Fatalf("%d: Failed to get first res (%v)", ti, err)
@@ -1150,7 +1197,6 @@ func (p *callArgs) call_seq_complete(ti int, te *testEntry_t) {
         p.t.Fatalf("Test index %v: verifyPublish failed (%v)", ti, err)
     }
     resetResultAny(te.seqId)
-    LogDebug("saved: (%s)", printResultAny(false))
 }
 
 func terminate(t *testing.T, tout int) {
@@ -1165,55 +1211,67 @@ func terminate(t *testing.T, tout int) {
     }
 }
 
-func testHeartbeatCh(exp *HBData_t, ch chan int) {
+func testHeartbeatCh(m map[string]struct{}, ch chan string) {
     hb := HBData_t{}
-    q := &exp.LoM_Heartbeat
-    for {
+    done := false
+    for !done {
         /* It is OK to block. If no data for long, test will terminate */
         s := <- publishCh
 
         if err := json.Unmarshal([]byte(s), &hb); err != nil {
-            LogError("Unmarshal failed (%s)", s)
+            ch <- "Unmarshal failed: " + s
+            return
         }
         if hb.LoM_Heartbeat.Timestamp != 0 {
             /* This is HB */
+            done = len(m) == 0  /* Do one check after m is empty */
             p := &hb.LoM_Heartbeat
-            if len(p.Actions) == len(q.Actions) {
-                i := 0
-                v := ""
-                for i, v = range p.Actions {
-                    if v != q.Actions[i] {
-                        break
-                    }
-                }
-                if i == len(p.Actions) {
-                    ch <- 0
+            for _, v := range p.Actions {
+                if _, ok := m[v]; !ok {
+                    ch <- "Unexpected action present: " + v
                     return
+                } else {
+                    /* remove reported */
+                    delete(m, v)
                 }
             }
         }
         LogDebug("Skipped: (%s)", s)
         /* Likely HB; Wait till action */
     }
+    ch <- ""
 }
 
 const HB_WAIT = 5
-func testHeartbeat(exp *HBData_t) {
-    ch := make(chan int)
+func testHeartbeat(actions []string) error {
+    ch := make(chan string)
     cnt := HB_WAIT
 
-    go testHeartbeatCh(exp, ch)
-    select {
-    case <- ch:
-        return
+    m := map[string]struct{}{}
+    for _, v := range actions {
+        m[v] = struct{}{}
+    }
 
-    case <- time.After(1 * time.Second):
-        if cnt > 0 {
-            cnt--
-            chTestHeartbeat <- "Waiting for HB"
-        } else {
-            LogError("testHeartbeat timed after %d seconds", HB_WAIT)
-            /* Don't send HB and let test terminate */
+    LogDebug("DROP: Start (%v)", actions)
+    go testHeartbeatCh(m, ch)
+    for {
+        select {
+        case err := <- ch:
+            LogDebug("DROP: End (%v)", actions)
+            if len(err) != 0 {
+                return LogError(err)
+            } else {
+                return nil
+            }
+
+        case <- time.After(1 * time.Second):
+            if cnt > 0 {
+                cnt--
+                chTestHeartbeat <- "Waiting for HB"
+            } else {
+                LogError("testHeartbeat timed after %d seconds", HB_WAIT)
+                /* Don't send HB and let test terminate with no test heartbeats. */
+            }
         }
     }
 }
@@ -1268,14 +1326,12 @@ func TestRun(t *testing.T) {
             cArgs.call_send_res(t_i, &t_e)
         case SEQ_COMPLETE:
             cArgs.call_seq_complete(t_i, &t_e)
+        case NOTIFY_HB:
+            cArgs.call_notify_hb(t_i, &t_e)
         default:
             t.Fatalf("Unhandled API ID (%v)", t_e.id)
         }
         LogDebug ("---------------- tid: %v  END  (%s) ----------", t_i, t_e.desc)
-    }
-    {
-        hb := HBData_t{HB_t{[]string{}, 0 }}
-        testHeartbeat(&hb)
     }
 }
 
