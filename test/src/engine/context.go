@@ -293,18 +293,19 @@ func (p *ClientRegistrations_t) NotifyHeartbeats(actName string,
     }
 }
 
+type HB_t struct {
+    Actions     []string
+    Timestamp   int64
+}
+
+type HBData_t struct {
+    LoM_Heartbeat HB_t
+}
+
+
 func (p *ClientRegistrations_t) PublishHeartbeats() {
     /* Map will help combine duplicate heartbeats into one */
     lst := make(map[string]struct{})
-
-    type HB_t struct {
-        Actions     []string
-        Timestamp   int64
-    }
-
-    type HBData_t struct {
-        LoM_Heartbeat HB_t
-    }
 
     for {
         /* Read inside the loop to help refresh any change */

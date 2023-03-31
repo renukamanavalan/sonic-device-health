@@ -1165,7 +1165,60 @@ func terminate(t *testing.T, tout int) {
     }
 }
 
-    
+func testHeartbeatCh(exp *HBData_t, ch chan int) {
+    hb := HBData_t{}
+    q := &exp.LoM_Heartbeat
+    for {
+        /* It is OK to block. If no data for long, test will terminate */
+        s := <- publishCh
+
+        if err := json.Unmarshal([]byte(s), &hb); err != nil {
+            LogError("Unmarshal failed (%s)", s)
+        }
+        if hb.LoM_Heartbeat.Timestamp != 0 {
+            /* This is HB */
+            p := &hb.LoM_Heartbeat
+            if len(p.Actions) == len(q.Actions) {
+                i := 0
+                v := ""
+                for i, v = range p.Actions {
+                    if v != q.Actions[i] {
+                        break
+                    }
+                }
+                if i == len(p.Actions) {
+                    ch <- 0
+                    return
+                }
+            }
+        }
+        LogDebug("Skipped: (%s)", s)
+        /* Likely HB; Wait till action */
+    }
+}
+
+const HB_WAIT = 5
+func testHeartbeat(exp *HBData_t) {
+    ch := make(chan int)
+    cnt := HB_WAIT
+
+    go testHeartbeatCh(exp, ch)
+    select {
+    case <- ch:
+        return
+
+    case <- time.After(1 * time.Second):
+        if cnt > 0 {
+            cnt--
+            chTestHeartbeat <- "Waiting for HB"
+        } else {
+            LogError("testHeartbeat timed after %d seconds", HB_WAIT)
+            /* Don't send HB and let test terminate */
+        }
+    }
+}
+
+
 func TestRun(t *testing.T) {
     go terminate(t, 5)
 
@@ -1219,6 +1272,10 @@ func TestRun(t *testing.T) {
             t.Fatalf("Unhandled API ID (%v)", t_e.id)
         }
         LogDebug ("---------------- tid: %v  END  (%s) ----------", t_i, t_e.desc)
+    }
+    {
+        hb := HBData_t{HB_t{[]string{}, 0 }}
+        testHeartbeat(&hb)
     }
 }
 
