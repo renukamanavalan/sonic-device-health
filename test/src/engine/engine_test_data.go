@@ -73,10 +73,11 @@ var testRunList = testRunList_t {
     "seq_safety_fail",
     "detect_fail",
     "sequence-timeout",
+    "sequence-block",
 }
 
 var xtestRunList = testRunList_t {
-    "sequence-timeout",
+    "sequence-block",
 }
 
 type registrations_t map[string][]string
@@ -873,6 +874,187 @@ func init() {
                 desc: "Send res for Mitigate-0",
             },
             170: {
+                /* Local engine level verification */
+                id: CHK_ACTIV_REQ,
+                args: []any {"Detect-0", "Detect-1", "Detect-2"},
+                desc: "Verify active requests only for actions in args",
+            },
+        },
+        postCleanup: []testCollectionId_t{"registrations_cleanup"}, /* none */
+    }
+
+    testCollections["sequence-block"] = &testCollectionEntry_t {
+        /*
+         * "Detect-0" returns good. Expect "Safety-chk-0"; Sleep forever; req expect to timeout
+         * "Detect-2" & "Detect-1" returns good; 
+         * Per pri, "Detect-2" seq resumes, but blocked by "Safety-chk-0". Let bind2 timeout
+         * Now bind-1 resumes and succeeds.
+         */
+        desc: "Block seq by pending actions",
+        preSetup: []testCollectionId_t{"registrations_setup"},    /* none */
+        testEntries: testEntriesList_t {
+            /* Requests are expected in the same order as registration */
+            140: {
+                id: RECV_REQ,
+                clTx: CLIENT_0,
+                seqId: 1,               /* Use non-zero, default is 0. Make it explicit */
+                result: []any { &ActionRequestData { Action: "Detect-0"} },
+                desc: "Read server request for Detect-0",
+            },
+            142: {
+                id: RECV_REQ,
+                clTx: CLIENT_1,
+                seqId: 2,
+                result: []any { &ActionRequestData { Action: "Detect-1"} },
+                desc: "Read server request for Detect-1",
+            },
+            144: {
+                id: RECV_REQ,
+                clTx: CLIENT_1,
+                seqId: 3,
+                result: []any { &ActionRequestData { Action: "Detect-2"} },
+                desc: "Read server request for Detect-2",
+            },
+            /* Let Detect-0 respond. and be stuck at  chk-0 */
+            150: {
+                id: SEND_RES,
+                clTx: CLIENT_0,
+                seqId: 1,
+                args: []any {&ActionResponseData{Action: "Detect-0", AnomalyKey: "Key-Detect-0", Response: "Detect-0 detected",}},
+                desc: "Send res for detect0",
+            },
+            /* Send responses for Detect-1 & detect-2. These will pend as Detect-0 is active */
+            158: {
+                id: SEND_RES,
+                clTx: CLIENT_1,
+                seqId: 2,
+                args: []any {&ActionResponseData{Action: "Detect-1", AnomalyKey: "Key-Detect-1", Response: "Detect-1 detected",}},
+                desc: "Send res for detect-1",
+            },
+            160: {
+                id: SEND_RES,
+                clTx: CLIENT_1,
+                seqId: 3,
+                args: []any {&ActionResponseData{Action: "Detect-2", AnomalyKey: "Key-Detect-2", Response: "Detect-2 detected",}},
+                desc: "Send res for detect-2",
+            },
+            162: {
+                id: RECV_REQ,
+                clTx: CLIENT_0,
+                seqId: 1,
+                result: []any { &ActionRequestData { Action: "Safety-chk-0", Timeout: 1} },
+                desc: "Read server request for Safety-check-0",
+            },
+            164: {
+                id : PAUSE,             /* Psuse to let bind-0 times out */
+                args: []any{3},
+                desc: "Simple sleep with heartbeats",
+            },
+            166: {                      /* Bind-0 seq completes */
+                id: SEQ_COMPLETE,
+                args: []any {&ActionResponseData{ResultCode: 4106, ResultStr: "From Process timeout",}},
+                seqId: 1,
+                desc: "Verify seq complete",
+            },
+            /* Expect bind-2 to start as has higher pri than bind-1; Expect call for chk-2 */
+            172: {
+                id: RECV_REQ,
+                clTx: CLIENT_1,
+                seqId: 3,
+                result: []any { &ActionRequestData { Action: "Safety-chk-2", Timeout: 1} },
+                desc: "Read server request for Safety-check-2",
+            },
+            174: {
+                id: SEND_RES,
+                clTx: CLIENT_1,
+                seqId: 3,
+                args: []any {&ActionResponseData{Action: "Safety-chk-2", Response: "Safety-chk-2 passed",}},
+                desc: "Send res for safety-chk-2",
+            },
+            /* Now bind-2 blocks at safety-chk-0 as it is busy */
+            176: {
+                id : PAUSE,             /* Pause to let bind-2 times out */
+                args: []any{6},
+                desc: "Simple sleep with heartbeats",
+            },
+            178: {                      /* Read pending Detect-0 for client-0 */
+                id: RECV_REQ,
+                clTx: CLIENT_0,
+                seqId: 4,               /* Use non-zero, default is 0. Make it explicit */
+                result: []any { &ActionRequestData { Action: "Detect-0"} },
+                desc: "Read server request for Detect-0",
+            },
+            180: {                      /* Expect bind-2 to complete due to timeout */
+                id: SEQ_COMPLETE,
+                args: []any {&ActionResponseData{ResultCode: 4106, ResultStr: "From Process timeout",}},
+                seqId: 3,
+                desc: "Verify seq complete",
+            },
+            /* Seq complete sends out request for Detect-2 synchronously */
+            181: {                      /* Read pending Detect-0 for client-0 */
+                id: RECV_REQ,
+                clTx: CLIENT_1,
+                seqId: 5,               /* Use non-zero, default is 0. Make it explicit */
+                result: []any { &ActionRequestData { Action: "Detect-2"} },
+                desc: "Read server request for Detect-2",
+            },
+            /* Expect bind 1 to resume. This can proceed as it does not use chk-0 */
+            182: {
+                id: RECV_REQ,
+                clTx: CLIENT_1,
+                seqId: 2,
+                result: []any { &ActionRequestData { Action: "Safety-chk-1", Timeout: 7} },
+                desc: "Read server request for Safety-check-1",
+            },
+            184: {
+                id: SEND_RES,
+                clTx: CLIENT_1,
+                seqId: 2,
+                args: []any {&ActionResponseData{Action: "Safety-chk-1", Response: "Safety-chk-1 passed",}},
+                desc: "Send res for safety-chk-1",
+            },
+            186: {
+                id: RECV_REQ,
+                clTx: CLIENT_1,
+                seqId: 2,
+                result: []any { &ActionRequestData { Action: "Mitigate-1", Timeout: -1} },
+                desc: "Read server request for Mitigate-1",
+            },
+            188: {
+                id: SEND_RES,
+                clTx: CLIENT_1,
+                seqId: 2,
+                args: []any {&ActionResponseData{Action: "Mitigate-1", Response: "Mitigate-1 passed",}},
+                desc: "Send res for Mitigate-1",
+            },
+            190: {          /* Bind 1 completes */
+                id: SEQ_COMPLETE,
+                seqId: 2,
+                desc: "Verify seq complete",
+            },
+            /* Seq complete sends out request for Detect-1 synchronously */
+            194: {                      /* Read pending Detect-1 for client-0 */
+                id: RECV_REQ,
+                clTx: CLIENT_1,
+                seqId: 6,               /* Use non-zero, default is 0. Make it explicit */
+                result: []any { &ActionRequestData { Action: "Detect-1"} },
+                desc: "Read server request for Detect-0",
+            },
+            196: {
+                /* Local engine level verification */
+                id: CHK_ACTIV_REQ,
+                args: []any {"Detect-0", "Detect-1", "Detect-2", "Safety-chk-0"},
+                desc: "Verify active requests only for actions in args",
+            },
+            /* Send res for blocked response */
+            198: {
+                id: SEND_RES,
+                clTx: CLIENT_0,
+                seqId: 1,
+                args: []any {&ActionResponseData{Action: "Safety-chk-0", Response: "Safety-chk-0 passed",}},
+                desc: "Send res for safety-chk-0",
+            },
+            200: {
                 /* Local engine level verification */
                 id: CHK_ACTIV_REQ,
                 args: []any {"Detect-0", "Detect-1", "Detect-2"},

@@ -107,35 +107,35 @@ var chTestHeartbeat = make(chan string)
 
 var bindings_conf = `{ "bindings": [
     {
-        "name": "bind-0", 
-        "priority": 0,
+        "SequenceName": "bind-0", 
+        "Priority": 0,
         "Timeout": 2,
-        "actions": [
+        "Actions": [
             {"name": "Detect-0" },
             {"name": "Safety-chk-0", "sequence": 1 },
             {"name": "Mitigate-0", "sequence": 2 }
         ]
     },
     {
-        "name": "bind-1", 
-        "priority": 1,
+        "SequenceName": "bind-1", 
+        "Priority": 1,
         "Timeout": 19,
-        "actions": [
+        "Actions": [
             {"name": "Detect-1" },
             {"name": "Safety-chk-1", "sequence": 1 },
             {"name": "Mitigate-1", "sequence": 2 }
         ]
     },
     {
-        "name": "bind-2", 
-        "priority": 0,
-        "Timeout": 1,
-        "actions": [
+        "SequenceName": "bind-2", 
+        "Priority": 0,
+        "Timeout": 8,
+        "Actions": [
             {"name": "Detect-2" },
-            {"name": "Safety-chk-0", "sequence": 1 },
-            {"name": "Safety-chk-2", "sequence": 2 },
+            {"name": "Safety-chk-2", "sequence": 1 },
+            {"name": "Safety-chk-0", "sequence": 2 },
             {"name": "Mitigate-2", "sequence": 3 }
-        ]
+            ]
     }
 ]}`
 

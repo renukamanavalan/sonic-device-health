@@ -234,6 +234,7 @@ func (p *SeqHandler_t) processTimeout() {
         seq := p.sortedSequencesByDue[0]
         if time.Now().Unix() >= seq.ExpiryEpoch() {
             p.completeSequence(seq, LoMSequenceTimeout, "From Process timeout")
+            p.resumeNextSequence()
         } else {
             break   /* List is sorted. Hence break */
         }
@@ -299,6 +300,11 @@ func (p *SeqHandler_t) RaiseRequest(action string) error {
 
     /* Track it in our active requests;  Waits here till response */
     p.activeRequests[action] = &activeRequest_t {req, uuid, 0}
+
+    /*
+     * NOTE: We only run one timer for seq timeout.
+     *  So a req coming after its timeout, *could* still get consumed.
+     */
     return nil
 }
 
@@ -309,6 +315,7 @@ func (p *SeqHandler_t) DropRequest(action string) {
         delete (p.activeRequests, action)
         if s, ok := p.sequencesByAnomaly[r.anomalyID]; ok {
             p.completeSequence(s, LoMActionDeregistered, "Action (" + action +") Deregistered")
+            p.resumeNextSequence()
         }
     }
 }
@@ -317,12 +324,13 @@ func (p *SeqHandler_t) DropRequest(action string) {
 /* Sort sorted sequences */
 func (p *SeqHandler_t) sortSequences() {
     sort.Slice(p.sortedSequencesByDue, func(i, j int) bool {
-        return p.sortedSequencesByDue[i].ExpiryEpoch() < p.sortedSequencesByDue[i].ExpiryEpoch()
+        return p.sortedSequencesByDue[i].ExpiryEpoch() <
+                        p.sortedSequencesByDue[j].ExpiryEpoch()
     })
 
     sort.Slice(p.sortedSequencesByPri, func(i, j int) bool {
         return (p.sortedSequencesByPri[i].sequence.Priority <
-                        p.sortedSequencesByPri[i].sequence.Priority)
+                        p.sortedSequencesByPri[j].sequence.Priority)
     })
 }
 
@@ -674,8 +682,8 @@ func (p *SeqHandler_t) resumeSequence(seq *sequenceState_t) (errCode LoMResponse
         return
     } else if _, ok := p.activeRequests[nextAction.Name]; ok {
         errCode = LoMActionActive
-        errStr = fmt.Sprintf("%v", LogError("%s: %s request active. Abort", seq.sequence.SequenceName,
-                    nextAction.Name))
+        errStr = fmt.Sprintf("%v", LogError("%s: %s (%s). Abort", seq.sequence.SequenceName,
+                nextAction.Name, GetLoMResponseStr(LoMActionActive)))
         return
     }
 
@@ -791,8 +799,10 @@ func (p *SeqHandler_t) resumeNextSequence() {
             /*
              * May be a prior seq left behind the next request of this sequence as active.
              * We got to wait till it responds or this sequence timeout, whichever earlier.
+             *
+             * Don;t
              */
-            /* Try next sequence */
+             break
          }
     }
 }
