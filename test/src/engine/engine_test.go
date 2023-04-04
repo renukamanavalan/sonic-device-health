@@ -77,12 +77,6 @@ const CLIENT_1 = "client-1"
 const CLIENT_2 = "client-2"
 
 /*
- * Engine main loop sends message in this channel at start & end.
- * Create with buffer for server loop writes.
- */
-var EngineChTrack = make(chan int, 2)
-
-/*
  * During test run, test code keep this chan active. An idle channel for timeout
  * seconds will abort the test
  */
@@ -91,7 +85,7 @@ var chTestHeartbeat = make(chan string)
 /*
  *  Actions.conf
  */
- var actions_conf = `{ "actions": [
+var actions_conf = `{ "actions": [
         { "name": "Detect-0" },
         { "name": "Safety-chk-0", "Timeout": 1},
         { "name": "Mitigate-0", "Timeout": 6},
@@ -250,24 +244,22 @@ func createFile(t *testing.T, name string, s string) {
     chTestHeartbeat <- "createFile: " + name
 }
 
-func initServer(t *testing.T) {
+func initServer(t *testing.T) (engine *engine_t) {
     chTestHeartbeat <- "Start: initServer"
     defer func() {
         chTestHeartbeat <- "End: initServer"
     }()
 
-    startUp("test", []string { "-path", CFGPATH }, EngineChTrack)
-    chTestHeartbeat <- "Waiting: initServer"
-
-    select {
-    case <- EngineChTrack:
-        /* Server loop started */
-        break
-
-    case <- time.After(2 * time.Second):
-        /* Server loop is taking more than 2 secs to start. Abort */
-        t.Fatalf("initServer failed")
+    engine = nil
+    if e, err := startUp("test", []string { "-path", CFGPATH }); err != nil {
+        t.Fatalf("initServer failed in startup")
+        return
+    } else {
+        engine = e
     }
+
+    chTestHeartbeat <- "Complete: initServer"
+    return
 }
 
 type callArgs struct {
@@ -276,10 +268,10 @@ type callArgs struct {
 }
 
 
-func (p *callArgs) getTx(cl string) *ClientTx {
+func (p *callArgs) getTxWithTimeout(cl string, tout int) *ClientTx {
     tx, ok := p.lstTx[cl];
     if !ok {
-        tx = GetClientTx(0)
+        tx = GetClientTx(tout)
         if tx != nil {
             p.lstTx[cl] = tx
         } else {
@@ -289,6 +281,9 @@ func (p *callArgs) getTx(cl string) *ClientTx {
     return tx
 }
 
+func (p *callArgs) getTx(cl string) *ClientTx {
+    return p.getTxWithTimeout(cl, 0)
+}
 
 func (p *callArgs) call_register_client(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_register_client"
@@ -296,7 +291,7 @@ func (p *callArgs) call_register_client(ti int, te *testEntry_t) {
         chTestHeartbeat <- "End: call_register_client"
     }()
 
-    if len(te.args) != 1 {
+    if len(te.args) < 1 {
         p.t.Fatalf("Test index %v: Expect only one arg len(%d)", ti, len(te.args))
     }
     a := te.args[0]
@@ -304,7 +299,15 @@ func (p *callArgs) call_register_client(ti int, te *testEntry_t) {
     if !ok {
         p.t.Fatalf("Test index %v: Expect string as arg for client name (%T)", ti, a)
     }
-    tx := p.getTx(te.clTx)
+    tout := 0
+    if len(te.args) > 1 {
+        if t, ok := te.args[1].(int); !ok {
+            p.t.Fatalf("Test index %v: Expect int as second arg. (%T)", ti, te.args[1])
+        } else {
+            tout = t
+        }
+    }
+    tx := p.getTxWithTimeout(te.clTx, tout)
     err := tx.RegisterClient(clName)
     if te.failed != (err != nil) {
         p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
@@ -545,9 +548,6 @@ func (p *callArgs) call_receive_req(ti int, te *testEntry_t) {
         chTestHeartbeat <- "End: call_receive_req"
     }()
 
-    if len(te.result) != 1 {
-        p.t.Fatalf("test index %v: Expect only one result len(%d)", ti, len(te.args))
-    }
     tx := p.getTx(te.clTx)
     rcv, err := tx.RecvServerRequest()
     if te.failed != (err != nil) {
@@ -555,7 +555,9 @@ func (p *callArgs) call_receive_req(ti int, te *testEntry_t) {
                 ti, te.toStr(), err)
     }
     if err == nil {
-        if rcv.ReqType != TypeServerRequestAction {
+        if len(te.result) != 1 {
+            p.t.Fatalf("test index %v: Expect only one result len(%d)", ti, len(te.args))
+        } else if rcv.ReqType != TypeServerRequestAction {
             p.t.Fatalf("Test index %v: Mismatch ReqType rcv(%v) != exp(%v)", ti,
                     rcv.ReqType, TypeServerRequestAction)
         } else if rcvd, ok := rcv.ReqData.(ActionRequestData); !ok {
@@ -812,7 +814,7 @@ func (p *callArgs) call_seq_complete(ti int, te *testEntry_t) {
     }
 }
 
-func terminate(t *testing.T, tout int) {
+func terminate(t *testing.T, tout int, chEnd chan int) {
     for {
         select {
         case m := <- chTestHeartbeat:
@@ -820,6 +822,8 @@ func terminate(t *testing.T, tout int) {
 
         case <- time.After(time.Duration(tout) * time.Second):
             LogPanic("Terminating test for no heartbeats for tout=%d", tout)
+        case <- chEnd:
+            return
         }
     }
 }
@@ -902,9 +906,6 @@ func runTestEntries(cArgs *callArgs, collPath string, lst testEntriesList_t) {
     for _, t_i := range ordered {
         t_e := lst[t_i]
 
-        if len(EngineChTrack) > 0 {
-            cArgs.t.Fatalf("Server loop exited. Abort")
-        }
         LogDebug ("---------------- coll: %v tid: %v START (%s) ----------", collPath, t_i, t_e.desc)
         switch (t_e.id) {
         case REG_CLIENT:
@@ -949,15 +950,24 @@ func runColl(cArgs *callArgs, collPath string, te *testCollectionEntry_t) {
     LogDebug ("**************** coll: %s  END  (%s) **********", collPath, te.desc)
 }
 
+var initConfigDone = false
+func initConfig(t *testing.T) {
+    if !initConfigDone {
+        createFile(t, "globals.conf.json", "")
+        createFile(t, "actions.conf.json", actions_conf)
+        createFile(t, "bindings.conf.json", bindings_conf)
+
+        initConfigDone = true
+    }
+}
+
 
 func TestRun(t *testing.T) {
-    go terminate(t, 5)
+    chEnd := make(chan int, 1)
+    go terminate(t, 5, chEnd)
 
-    createFile(t, "globals.conf.json", "")
-    createFile(t, "actions.conf.json", actions_conf)
-    createFile(t, "bindings.conf.json", bindings_conf)
-
-    initServer(t)
+    initConfig(t)
+    engine := initServer(t)
 
     /* Init local list for test data */
     initActive()
@@ -970,5 +980,7 @@ func TestRun(t *testing.T) {
         runColl(cArgs, string(collId), testCollections[collId])
         resetResultAll()        /* Reset all saved results */
     }
+    chEnd <- 0
+    engine.close()  /* Close the engine */
 }
 

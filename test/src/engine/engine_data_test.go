@@ -78,7 +78,7 @@ var testRunList = testRunList_t {
 }
 
 var xtestRunList = testRunList_t {
-    "sequence-block-action-reregister",
+    "seq_success",
 }
 
 type registrations_t map[string][]string
@@ -481,7 +481,7 @@ func init() {
 
     testCollections["seq_success"] = &testCollectionEntry_t {
         desc: "A successful Sequence",
-        preSetup: []testCollectionId_t{"registrations_setup"},    /* none */
+        preSetup: []testCollectionId_t{"registrations_setup"},
         testEntries: testEntriesList_t {
             /* Requests are expected in the same order as registration */
             140: {
@@ -568,12 +568,12 @@ func init() {
                 desc: "Verify active requests only for actions in args",
             },
         },
-        postCleanup: []testCollectionId_t{"registrations_cleanup"}, /* none */
+        postCleanup: []testCollectionId_t{"registrations_cleanup"},
     }
 
     testCollections["seq_mit_fail"] = &testCollectionEntry_t {
         desc: "A failed Sequence in last action",
-        preSetup: []testCollectionId_t{"registrations_setup"},    /* none */
+        preSetup: []testCollectionId_t{"registrations_setup"},
         testEntries: testEntriesList_t {
             /* Requests are expected in the same order as registration */
             140: {
@@ -654,12 +654,12 @@ func init() {
                 desc: "Verify active requests only for actions in args",
             },
         },
-        postCleanup: []testCollectionId_t{"registrations_cleanup"}, /* none */
+        postCleanup: []testCollectionId_t{"registrations_cleanup"},
     }
 
     testCollections["seq_safety_fail"] = &testCollectionEntry_t {
         desc: "A failed Sequence in second action",
-        preSetup: []testCollectionId_t{"registrations_setup"},    /* none */
+        preSetup: []testCollectionId_t{"registrations_setup"},
         testEntries: testEntriesList_t {
             /* Requests are expected in the same order as registration */
             140: {
@@ -726,12 +726,12 @@ func init() {
                 desc: "Verify active requests only for actions in args",
             },
         },
-        postCleanup: []testCollectionId_t{"registrations_cleanup"}, /* none */
+        postCleanup: []testCollectionId_t{"registrations_cleanup"},
     }
 
     testCollections["detect_fail"] = &testCollectionEntry_t {
         desc: "First/detection action fails",
-        preSetup: []testCollectionId_t{"registrations_setup"},    /* none */
+        preSetup: []testCollectionId_t{"registrations_setup"},
         testEntries: testEntriesList_t {
             /* Requests are expected in the same order as registration */
             140: {
@@ -784,12 +784,12 @@ func init() {
                 desc: "Verify active requests only for actions in args",
             },
         },
-        postCleanup: []testCollectionId_t{"registrations_cleanup"}, /* none */
+        postCleanup: []testCollectionId_t{"registrations_cleanup"},
     }
 
     testCollections["sequence-timeout"] = &testCollectionEntry_t {
         desc: "Let sequence timeout",
-        preSetup: []testCollectionId_t{"registrations_setup"},    /* none */
+        preSetup: []testCollectionId_t{"registrations_setup"},
         testEntries: testEntriesList_t {
             /* Requests are expected in the same order as registration */
             140: {
@@ -881,7 +881,7 @@ func init() {
                 desc: "Verify active requests only for actions in args",
             },
         },
-        postCleanup: []testCollectionId_t{"registrations_cleanup"}, /* none */
+        postCleanup: []testCollectionId_t{"registrations_cleanup"},
     }
 
     testCollections["multi-sequence-block"] = &testCollectionEntry_t {
@@ -892,7 +892,7 @@ func init() {
          * Now bind-1 resumes and succeeds.
          */
         desc: "Block seq by pending actions",
-        preSetup: []testCollectionId_t{"registrations_setup"},    /* none */
+        preSetup: []testCollectionId_t{"registrations_setup"},
         testEntries: testEntriesList_t {
             /* Requests are expected in the same order as registration */
             140: {
@@ -1062,7 +1062,7 @@ func init() {
                 desc: "Verify active requests only for actions in args",
             },
         },
-        postCleanup: []testCollectionId_t{"registrations_cleanup"}, /* none */
+        postCleanup: []testCollectionId_t{"registrations_cleanup"},
     }
 
     testCollections["sequence-block-action-reregister"] = &testCollectionEntry_t {
@@ -1074,7 +1074,7 @@ func init() {
          * "Detec-0" re-raised
          */
         desc: "Blocked req; re-register to revive.",
-        preSetup: []testCollectionId_t{"registrations_setup"},    /* none */
+        preSetup: []testCollectionId_t{"registrations_setup"},
         testEntries: testEntriesList_t {
             /* Requests are expected in the same order as registration */
             140: {
@@ -1227,6 +1227,7 @@ func init() {
                 desc: "Verify active requests only for actions in args",
             },
         },
-        postCleanup: []testCollectionId_t{"registrations_cleanup"}, /* none */
+        postCleanup: []testCollectionId_t{"registrations_cleanup"},
     }
+
 }

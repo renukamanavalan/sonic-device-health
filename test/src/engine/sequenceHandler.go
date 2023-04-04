@@ -135,8 +135,12 @@ func (p *sequenceState_t) validate() bool {
             (p.seqExpEpoch < p.seqStartEpoch) ||
             (p.ctIndex < 1) ||
             (len(p.context) == 0) ||
-            ((p.sequenceStatus == sequenceStatus_running) && (p.currentRequest == nil)) ||
             (p.expTimer == nil)) {
+        LogDebug("sequenceState_t: validate: anId:%v seq:%v epoch(%v/%v) ct(%d) ctx(%v) status(%d) cur(%v) exp(%v)",
+                len(p.anomalyInstanceId) == 0, p.sequence == nil, p.seqStartEpoch,
+                p.seqExpEpoch < p.seqStartEpoch, p.ctIndex, len(p.context) == 0, p.sequenceStatus,
+                p.currentRequest == nil, p.expTimer == nil)
+
         return false
     }
     return true
@@ -172,7 +176,7 @@ type SeqHandler_t struct {
     sortedSequencesByDue    SortedSequences_t
     sortedSequencesByPri    SortedSequences_t
 
-    chTimer                 chan int64  /* Channel to convey earliest timeout */
+    chTimer                 chan<- int64  /* Channel to convey earliest timeout */
 
     currentSequence         *sequenceState_t
 }
@@ -181,21 +185,24 @@ var seqHandler *SeqHandler_t = nil
 
 func GetSeqHandler() *SeqHandler_t {
     if seqHandler == nil {
-        LogPanic("InitSeqHandler is not done yet")
+        LogError("InitSeqHandler is not done yet")
     }
     return seqHandler
 }
 
 
-func InitSeqHandler(chTimer chan int64) {
+func InitSeqHandler(chTimer chan<- int64) {
     if chTimer == nil {
-        LogPanic("Internal error: Nil chan")
+        LogError("Internal error: Nil chan")
+    } else if seqHandler != nil {
+        LogError("Duplicate init seq handler")
+    } else {
+        seqHandler = &SeqHandler_t {
+            activeRequests: make(activeRequestsList_t),
+            sequencesByAnomaly: make(Sequences_t),
+            sequencesByFirstAction: make(Sequences_t),
+            chTimer: chTimer }
     }
-    seqHandler = &SeqHandler_t {
-        activeRequests: make(activeRequestsList_t),
-        sequencesByAnomaly: make(Sequences_t),
-        sequencesByFirstAction: make(Sequences_t),
-        chTimer: chTimer }
 }
 
 
@@ -295,7 +302,7 @@ func (p *SeqHandler_t) RaiseRequest(action string) error {
     /* Add to client's pending Q  to send to client upon client asking for a request. */
     /* Stays in this Q until client reads it */
     if err := regF.AddServerRequest(action, req); err != nil {
-        LogPanic("Internal error: Failed to AddServerRequest (%s)", action)
+        return LogError("Internal error: Failed to AddServerRequest (%s)", action)
     }
 
     /* Track it in our active requests;  Waits here till response */
@@ -344,15 +351,16 @@ func (p *SeqHandler_t) sortSequences() {
  */
 func (p *SeqHandler_t) addSequence(seq *sequenceState_t, tout int) {
     if (seq == nil) || (len(seq.context) == 0) {
-        LogPanic("Expect atleast one context (%v)", seq)
+        LogError("Expect atleast one context (%v)", seq)
+    } else {
+        p.sequencesByAnomaly[seq.anomalyInstanceId] = seq
+        p.sequencesByFirstAction[seq.context[0].Action] = seq
+        p.sortedSequencesByDue = append(p.sortedSequencesByDue, seq)
+        p.sortedSequencesByPri = append(p.sortedSequencesByPri, seq)
+        m := "Seq: " + seq.sequence.SequenceName + " timeout"
+        seq.expTimer = AddOneShotTimer(int64(tout), m, p.FireTimer)
+        p.sortSequences()
     }
-    p.sequencesByAnomaly[seq.anomalyInstanceId] = seq
-    p.sequencesByFirstAction[seq.context[0].Action] = seq
-    p.sortedSequencesByDue = append(p.sortedSequencesByDue, seq)
-    p.sortedSequencesByPri = append(p.sortedSequencesByPri, seq)
-    m := "Seq: " + seq.sequence.SequenceName + " timeout"
-    seq.expTimer = AddOneShotTimer(int64(tout), m, p.FireTimer)
-    p.sortSequences()
 }
 
 
@@ -365,9 +373,8 @@ func (p *SeqHandler_t) addSequence(seq *sequenceState_t, tout int) {
  */
 func (p *SeqHandler_t) dropSequence(seq *sequenceState_t) {
     if (seq == nil) || (len(seq.context) == 0) {
-        LogPanic("Expect atleast one context (%v)", seq)
-    }
-    if seq != nil {
+        LogError("Expect atleast one context (%v)", seq)
+    } else {
         seq.expTimer.Disable()
         if p.currentSequence == seq {
             p.currentSequence = nil
@@ -393,36 +400,35 @@ type pubAction_t struct {
 
 func (p *SeqHandler_t) publishResponse(res *ActionResponseData, complete bool) {
     if res == nil {
-        LogPanic("Expect non null ActionResponseData")
-    }
-    m := pubAction_t { LoM_Action: res }
-    if res.InstanceId == res.AnomalyInstanceId {
-        if !complete {
-            m.State = "init"
-        } else {
-            m.State = "complete"
+        LogError("Expect non null ActionResponseData")
+    } else {
+        m := pubAction_t { LoM_Action: res }
+        if res.InstanceId == res.AnomalyInstanceId {
+            if !complete {
+                m.State = "init"
+            } else {
+                m.State = "complete"
+            }
         }
+        PublishEvent(m)
     }
-    PublishEvent(m)
 }
 
 
 func (p *SeqHandler_t) ProcessResponse(msg *MsgSendServerResponse) {
     /* TODO: Honor BindingActionCfg_t:Mandatory */
     if msg == nil {
-        LogPanic("Expect non null MsgSendServerResponse")
-    }
-
-    if msg.ReqType != TypeServerRequestAction {
+        LogError("Expect non null MsgSendServerResponse")
+    } else if msg.ReqType != TypeServerRequestAction {
         LogError("Unexpected response req type (%d)/(%s)",
                 msg.ReqType, ServerReqTypeToStr[msg.ReqType])
-        return
-    }
-    m := msg.ResData
-    if data, ok := m.(ActionResponseData); !ok {
-        LogError("Unexpected response res data (ActionResponseData)/(%T)", m)
     } else {
-        p.processActionResponse(&data)
+        m := msg.ResData
+        if data, ok := m.(ActionResponseData); !ok {
+            LogError("Unexpected response res data (ActionResponseData)/(%T)", m)
+        } else {
+            p.processActionResponse(&data)
+        }
     }
 }
 
@@ -451,7 +457,8 @@ func (p *SeqHandler_t) ProcessResponse(msg *MsgSendServerResponse) {
  */
 func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
     if data == nil {
-        LogPanic("Internal error: Nil ActionResponseData")
+        LogError("Internal error: Nil ActionResponseData")
+        return
     }
     if !data.Validate() {
         LogError("Invalid ActionResponseData (%v)", *data)
@@ -466,7 +473,8 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
     if !ok {
         seq = nil
     } else if !seq.validate() {
-        LogPanic("Internal error. seq status incorrect (%v) res(%v)", seq, data)
+        LogError("Internal error. seq status incorrect (%v) res(%v)", seq, data)
+        return
     }
 
     defer func() {
@@ -529,14 +537,16 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
             return
         }
         if r.req.ReqType != TypeServerRequestAction  {
-            LogPanic("Active requests type (%v) != TypeServerRequestAction", r)
+            LogError("Active requests type (%v) != TypeServerRequestAction", r)
+            return
         }
         rd := r.req.ReqData
         if ar, ok1 := rd.(*ActionRequestData); !ok1 {
-            LogPanic("Active requests data (%T) != ActionRequestData (%v)", rd, r)
+            LogError("Active requests data (%T) != ActionRequestData (%v)", rd, r)
+            return
         } else if ar.InstanceId != data.InstanceId {
             /* stale response */
-            LogError("Active req vs res instance ID mismatch (%v) (%v)", r, data)
+            LogError("Active req vs res instance ID mismatch (%v) (%v)", ar, data)
             return
         }
     } else {
@@ -568,7 +578,8 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
         if anomalyID == data.InstanceId {
             /* Anomaly response creates sequence. Hence unexpected for existing seq */
             /* Duplicate post by plugin / pluginMgr ? */
-            LogPanic("First action response for existing seq (%v) res(%v)", seq, data)
+            LogError("First action response for existing seq (%v) res(%v)", seq, data)
+            return
         }
     }
 
@@ -660,13 +671,20 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
 func (p *SeqHandler_t) resumeSequence(seq *sequenceState_t) (errCode LoMResponseCode, errStr string, err error) {
     regF := GetRegistrations()
 
-    if seq == nil {
-        LogPanic("Internal error: Nil sequenceState_t")
-    }
     errCode = LoMResponseOk
     errStr = ""
     err = nil
 
+    if seq == nil {
+        errCode = LoMSequenceIncorrect
+        errStr = "Resume called on nil sequence"
+        return
+    }
+    if !seq.validate() {
+        errCode = LoMSequenceIncorrect
+        errStr = fmt.Sprintf("Resume called on invalid seq (%v)", *seq)
+        return
+    }
     if seq.currentRequest != nil {
         LogInfo("current req is active. Nothing to resume (%v)", *seq)
         return
@@ -704,15 +722,16 @@ func (p *SeqHandler_t) resumeSequence(seq *sequenceState_t) (errCode LoMResponse
     /* Add to client's pending Q  to send to client upon client asking for a request. */
     /* Stays in this Q until client reads it */
     if err := regF.AddServerRequest(nextAction.Name, req); err != nil {
-        LogPanic("Internal error: Failed to AddServerRequest (%s)", nextAction.Name)
+        errCode = LoMInternalError
+        errStr = fmt.Sprintf("%v", err)
+    } else {
+        /* Track it in our active requests;  Waits here till response */
+        tout := time.Now().Unix() + int64(nextAction.Timeout)
+        act := &activeRequest_t {req, seq.anomalyInstanceId, tout}
+        p.activeRequests[nextAction.Name] = act
+
+        seq.currentRequest = act
     }
-
-    /* Track it in our active requests;  Waits here till response */
-    tout := time.Now().Unix() + int64(nextAction.Timeout)
-    act := &activeRequest_t {req, seq.anomalyInstanceId, tout}
-    p.activeRequests[nextAction.Name] = act
-
-    seq.currentRequest = act
     return
 }
 
@@ -723,25 +742,26 @@ func (p *SeqHandler_t) resumeSequence(seq *sequenceState_t) (errCode LoMResponse
  */
 func (p *SeqHandler_t) completeSequence(seq *sequenceState_t, errCode LoMResponseCode, errStr string) {
     if seq == nil {
-        LogPanic("Internal error: Nil sequenceState_t")
+        LogError("Internal error: Nil sequenceState_t")
+    } else {
+
+        /* Mark failed seq as complete */
+        seq.sequenceStatus = sequenceStatus_complete
+        anomalyResp := seq.context[0]
+
+
+        if anomalyResp == nil {
+            LogError("Expect non null anomaly resp seq (%v)", *seq)
+        } else {
+            anomalyResp.ResultCode = int(errCode)
+            anomalyResp.ResultStr = errStr
+
+            p.publishResponse(anomalyResp, true)
+
+            p.dropSequence(seq)
+            p.RaiseRequest(anomalyResp.Action)
+        }
     }
-
-    /* Mark failed seq as complete */
-    seq.sequenceStatus = sequenceStatus_complete
-    anomalyResp := seq.context[0]
-
-
-    if anomalyResp == nil {
-        LogPanic("Expect non null anomaly resp seq (%v)", *seq)
-    }
-
-    anomalyResp.ResultCode = int(errCode)
-    anomalyResp.ResultStr = errStr
-
-    p.publishResponse(anomalyResp, true)
-
-    p.dropSequence(seq)
-    p.RaiseRequest(anomalyResp.Action)
 }
 
 
@@ -769,7 +789,7 @@ func (p *SeqHandler_t) resumeNextSequence() {
         if p.currentSequence != nil {
             /* There is a sequence in progress */
             if p.currentSequence.sequenceStatus != sequenceStatus_running {
-                LogPanic("Current seq is not in running state (%v)", *p.currentSequence)
+                LogError("Current seq is not in running state (%v)", *p.currentSequence)
             }
             /* Possibly blocked by next req being active. Try again */
             return
@@ -781,7 +801,8 @@ func (p *SeqHandler_t) resumeNextSequence() {
 
         seq := p.sortedSequencesByPri[0]
         if seq.sequenceStatus != sequenceStatus_pending {
-            LogPanic("Current seq is not in pending state (%v)", *p.currentSequence)
+            LogError("Current seq is not in pending state (%v)", *p.currentSequence)
+            return
         }
 
         errCode, errStr, err = p.resumeSequence(seq)

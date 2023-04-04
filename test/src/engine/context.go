@@ -141,15 +141,24 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
                 break
             }
         }
-        if len(listWTimeout) > 0 {
-            tnow := time.Now().Unix()
-            if tnow >= listWTimeout[0].due {
-                tout = 0
+
+        tnow := time.Now().Unix()
+        tout = A_DAY_IN_SECS
+        for i := 0; i < len(listWTimeout); i++ {
+            if tnow >= listWTimeout[i].due {
+                /* Fail the request */
+                r := listWTimeout[i].req
+                r.ChResponse <- &LoMResponse { int(LoMReqTimeout),
+                                GetLoMResponseStr(LoMReqTimeout), nil }
             } else {
-                tout = listWTimeout[0].due - tnow
+                /* Get tout and drop the failed ones */
+                tout = 0
+                if tnow < listWTimeout[i].due {
+                    tout = listWTimeout[i].due - tnow
+                }
+                listWTimeout = listWTimeout[i:]
+                break
             }
-        } else {
-            tout = A_DAY_IN_SECS
         }
 
     }
@@ -341,13 +350,12 @@ func (p *ClientRegistrations_t) PublishHeartbeats() {
 func (p *ClientRegistrations_t) AddServerRequest(
             actionName string, req *ServerRequestData) error {
     if (len(actionName) == 0) || (req == nil) {
-        LogPanic("Internal error: Nil args (%v) (%v)", actionName, req)
-    }
-    if a, ok := p.activeActions[actionName]; !ok {
+        return LogError("Internal error: Nil args (%v) (%v)", actionName, req)
+    } else if a, ok := p.activeActions[actionName]; !ok {
         return LogError("(%s): Action is not registered yet", actionName)
     } else if cl, ok := p.activeClients[a.Client]; !ok {
         return LogError("Internal error: client(%s) for action (%s) not found",
-                actionName, a.Client)
+                a.Client, actionName)
     } else {
         if len(cl.pendingWriteRequests) >= cap(cl.pendingWriteRequests) {
             return LogError("Internal error: pendingWriteRequests is full (%d)",
@@ -361,17 +369,15 @@ func (p *ClientRegistrations_t) AddServerRequest(
 /* Client's request to read server request via recvServerRequest */
 func (p *ClientRegistrations_t) PendServerRequest(req *LoMRequestInt) error {
     if req == nil {
-        LogPanic("Internal error: Nil req")
-    }
-    cl, ok := p.activeClients[req.Req.Client]
-    if !ok {
+        return LogError("Internal error: Nil req")
+    } else if cl, ok := p.activeClients[req.Req.Client]; !ok {
         return LogError("Internal error: client(%s) not found", req.Req.Client)
-    }
-    if len(cl.pendingReadRequests) >= cap(cl.pendingReadRequests) {
+    } else if len(cl.pendingReadRequests) >= cap(cl.pendingReadRequests) {
         return LogError("Internal error: pendingReadRequests is full (%d)",
                 len(cl.pendingReadRequests))
+    } else {
+        cl.pendingReadRequests <- req
+        return nil
     }
-    cl.pendingReadRequests <- req
-    return nil
 }
 

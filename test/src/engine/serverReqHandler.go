@@ -10,6 +10,8 @@ import (
 type LoMResponseCode int
 
 const LoMResponseOk = LoMResponseCode(0)
+const LoMResponseOkStr = ""
+const LoMResponseUnknownStr = "Error code unknown"
 
 /* Start at high number, so as not to conflict with OS error codes */
 const LOM_RESP_CODE_START = 4096
@@ -29,10 +31,11 @@ const (
     LoMSequenceTimeout
     LoMSequenceIncorrect
     LoMShutdown
+    LoMInternalError
     LoMErrorCnt
 )
 
-var LoMResponseStr = [13]string {
+var LoMResponseStr = []string {
     "Unknown error",
     "Unknown request",
     "Incorrect Msg type",
@@ -46,22 +49,29 @@ var LoMResponseStr = [13]string {
     "Sequence timed out",
     "Sequence state incorrect",
     "LOM system shutdown",
+    "LoM Internal error",
+}
+
+
+func LoMResponseValidate() (bool, string) {
+    if len(LoMResponseStr) != (int(LoMErrorCnt) - LOM_RESP_CODE_START) {
+        return false, LogPanic("LoMResponseStr len(%d) != (%d - %d = %d)", len(LoMResponseStr),
+                LoMErrorCnt, LOM_RESP_CODE_START, int(LoMErrorCnt) - LOM_RESP_CODE_START)
+    }
+    return true, ""
 }
 
 func init() {
-    if len(LoMResponseStr) != (int(LoMErrorCnt) - LOM_RESP_CODE_START) {
-        LogPanic("LoMResponseStr len(%d) != (%d - %d = %d)", len(LoMResponseStr),
-                LoMErrorCnt, LOM_RESP_CODE_START, int(LoMErrorCnt) - LOM_RESP_CODE_START)
-    }
+    LoMResponseValidate()
 }
 
 func GetLoMResponseStr(code LoMResponseCode) string {
     switch  {
     case code == LoMResponseOk:
-        return ""
+        return LoMResponseOkStr
 
     case (code < LOM_RESP_CODE_START) || (code >= LoMErrorCnt):
-        return "Unknown error code"
+        return LoMResponseUnknownStr
 
     default:
         return LoMResponseStr[int(code)-LOM_RESP_CODE_START]
@@ -73,8 +83,9 @@ func GetLoMResponseStr(code LoMResponseCode) string {
 func createLoMResponse(code LoMResponseCode, msg string) *LoMResponse {
     if (code != LoMResponseOk) {
         if (code < LOM_RESP_CODE_START) || (code >= LoMErrorCnt) {
-            LogPanic("Internal error: Unexpected error code (%d) range (%d to %d)",
+            LogError("Internal error: Unexpected error code (%d) range (%d to %d)",
                     code, LoMResponseOk, LoMErrorCnt)
+            return nil
         }
     }
     s := msg
@@ -98,46 +109,45 @@ type serverHandler_t struct {
  */
 func (p *serverHandler_t) processRequest(req *LoMRequestInt) {
     if req == nil {
-        LogPanic("Expect non nil LoMRequestInt")
-    }
-    if (req.Req == nil) || (req.ChResponse == nil) {
-        LogPanic("Expect non nil LoMRequest (%v)", req)
-    }
-    if len(req.ChResponse) == cap(req.ChResponse) {
-        LogPanic("No room in chResponse (%d)/(%d)", len(req.ChResponse),
+        LogError("Expect non nil LoMRequestInt")
+    } else if (req.Req == nil) || (req.ChResponse == nil) {
+        LogError("Expect non nil LoMRequest (%v)", req)
+    } else if len(req.ChResponse) == cap(req.ChResponse) {
+        LogError("No room in chResponse (%d)/(%d)", len(req.ChResponse),
                 cap(req.ChResponse))
-    }
-    var res *LoMResponse = nil
+    } else {
+        var res *LoMResponse = nil
 
-    switch req.Req.ReqType {
-    case TypeRegClient:
-        res = p.registerClient(req.Req)
-    case TypeDeregClient:
-        res = p.deregisterClient(req.Req)
-    case TypeRegAction:
-        res = p.registerAction(req.Req)
-    case TypeDeregAction:
-        res = p.deregisterAction(req.Req)
-    case TypeRecvServerRequest:
-        res = p.recvServerRequest(req)
-    case TypeSendServerResponse:
-        res = p.sendServerResponse(req.Req)
-    case TypeNotifyActionHeartbeat:
-        res = p.notifyHeartbeat(req.Req)
-    default:
-        res = createLoMResponse(LoMUnknownReqType, "")
-    }
-    if res != nil {
-        req.ChResponse <- res
-        if res.ResultCode == 0 {
-            switch req.Req.ReqType {
-            case TypeSendServerResponse:
-                m, _ := req.Req.ReqData.(MsgSendServerResponse)
-                GetSeqHandler().ProcessResponse(&m)
+        switch req.Req.ReqType {
+        case TypeRegClient:
+            res = p.registerClient(req.Req)
+        case TypeDeregClient:
+            res = p.deregisterClient(req.Req)
+        case TypeRegAction:
+            res = p.registerAction(req.Req)
+        case TypeDeregAction:
+            res = p.deregisterAction(req.Req)
+        case TypeRecvServerRequest:
+            res = p.recvServerRequest(req)
+        case TypeSendServerResponse:
+            res = p.sendServerResponse(req.Req)
+        case TypeNotifyActionHeartbeat:
+            res = p.notifyHeartbeat(req.Req)
+        default:
+            res = createLoMResponse(LoMUnknownReqType, "")
+        }
+        if res != nil {
+            req.ChResponse <- res
+            if res.ResultCode == 0 {
+                switch req.Req.ReqType {
+                case TypeSendServerResponse:
+                    m, _ := req.Req.ReqData.(MsgSendServerResponse)
+                    GetSeqHandler().ProcessResponse(&m)
+                }
             }
         }
+        /* nil implies that the request will be processed async. Likely RecvServerRequest */
     }
-    /* nil implies that the request will be processed async. Likely RecvServerRequest */
 }
 
 

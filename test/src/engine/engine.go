@@ -11,31 +11,45 @@ import (
     "syscall"
 )
 
+type engine_t struct {
+    tx              *LoMTransport
+
+    chTrack         chan int    /* Track engine main loop state */
+    chTerminate     chan int    /* Terminate engine */
+
+    chClientReq     chan *LoMRequestInt
+    chClReadAbort   chan interface{}
+}
 
 var cfgFiles *ConfigFiles_t
 
-func readRequest(tx *LoMTransport, chAlert chan *LoMRequestInt, chAbort chan interface{}) {
-    if (tx == nil) || (chAlert == nil) || (chAbort == nil) {
-        LogPanic("Internal error: Nil args (%v)(%v)(%v)", tx, chAlert, chAbort)
-    }
+func (p *engine_t) readRequest() {
 
     go func() {
-        /* In forever read loop until aborted */
+        defer func() {
+            /* No more writes. Hence close. Does not block reader. */
+            /* This will help abort read loop below */
+            close(p.chClientReq)
+        }()
+
+        /*
+         * In forever read loop until aborted.
+         * Send read requests via chan to main loop.
+         * Watch abort chan to quit.
+         */
         for {
-            /* Blocking read until request or error or signal in chAbort */
-            req, err := tx.ReadClientRequest(chAbort)
+            /* Blocking read until request or error or signal in chClReadAbort */
+            req, err := p.tx.ReadClientRequest(p.chClReadAbort)
 
             if req != nil {
-                /* Select can block write into chAlert, so watch chAbort too */
+                /* Select can block write into p.chClientReq, so watch chClReadAbort too */
                 select {
-                case chAlert <- req:
+                case p.chClientReq <- req:
                     break
-                case <- chAbort:
+                case <- p.chClReadAbort:
                     return
                 }
             } else {
-                /* Close as no more writes. This will help abort read loop below */
-                close(chAlert)
                 LogError("Failed to read request. err(%v)", err)
                 return
             }
@@ -44,40 +58,72 @@ func readRequest(tx *LoMTransport, chAlert chan *LoMRequestInt, chAbort chan int
 }
 
 
-func runLoop(tx *LoMTransport, chTrack chan int) {
+func (p *engine_t) runLoop() {
     /*
      * Wait for
      *      signal to refresh
      *      request from client
-     *      Internal timer for outstanding request's timeout processing
+     *      Internal timer for outstanding request's/seq's timeout processing
      */
-    if tx == nil {
-        LogPanic("Internal error: Nil LoMTransport")
-    }
 
+    /* To abort periodic log at the end of loop */
     chAbortLog := make(chan interface{}, 1)
     LogPeriodicInit(chAbortLog)
 
+    defer func() {
+        /* Indicate loop end */
+        p.chTrack <- 1
+
+        /* Abort LogPeriodic */
+        chAbortLog <- 0
+
+        if len(p.chClReadAbort) < cap(p.chClReadAbort) {
+            p.chClReadAbort <- "Aborted"
+        }
+
+        close(p.chTrack)
+        close(chAbortLog)
+        close(p.chClReadAbort)
+    }()
+
+    /* Handle signal for config update & terminate */
     chSignal := make(chan os.Signal, 3)
-    chAlert := make(chan *LoMRequestInt, 1)
-    chSeqHandler := make(chan int64, 2)
-
-    /* Write abort is done once. It is best effort; To let send not block, make it buffered. */
-    chAbort := make(chan interface{}, 1)
-
     signal.Notify(chSignal, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
 
-    readRequest(tx, chAlert, chAbort)
+    /*
+     * kick off reading client requests
+     *
+     * p.chClientReq - The read loop sends read requests via this chan to main loop.
+     * p.chClReadAbort - Way to abort the read loop.
+     */
+    p.chClientReq = make(chan *LoMRequestInt, 1)
+    p.chClReadAbort = make(chan interface{}, 2)
+    p.readRequest()
+
+    /*
+     * Initialize seq handler
+     *
+     * The seq handler is invoked for any response from clients via this 
+     * runLoop Go routine. To ensure that any timer based processing too
+     * happens in the same context, it uses this routine for any of its
+     * timer call back needs.
+     * On any async timer firing, it intimates this loop via chSeqHandler channel
+     * and the main loop invokes sequence handler.
+     *
+     * This way any logical processing by sequence handler is via the context
+     * of single Go routine only.
+     */
+    chSeqHandler := make(chan int64, 2)
+    InitSeqHandler(chSeqHandler)
 
     server := GetServerReqHandler()
 
-    InitSeqHandler(chSeqHandler)
-
-    chTrack <- 0
+    /* Intimate the start of loop */
+    p.chTrack <- 0
 loop:
     for {
         select {
-        case msg := <- chAlert:
+        case msg := <- p.chClientReq:
             server.processRequest(msg)
 
         case <- chSeqHandler:
@@ -94,19 +140,21 @@ loop:
                  InitConfigMgr(cfgFiles)
 
             case syscall.SIGTERM:
-                chAbort <- "Aborted"
                 break loop
             }
+        case <- p.chTerminate:
+            break loop
         }
     }
-    chTrack <- 1
-
-    /* Abort LogPeriodic */
-    chAbortLog <- 0
 } 
 
+func (p *engine_t) close() {
+    if len(p.chTerminate) < cap(p.chTerminate) {
+        p.chTerminate <- 1
+    }
+}
 
-func startUp(progname string, args []string, chTrack chan int) {
+func startUp(progname string, args []string) (*engine_t, error) {
 
     path := ""
     {
@@ -119,14 +167,14 @@ func startUp(progname string, args []string, chTrack chan int) {
 
         err := flags.Parse(args)
         if  err != nil {
-            LogPanic("Failed to parse (%v); details(%s)", args, buf.String())
+            return nil, LogError("Failed to parse (%v); details(%s)", args, buf.String())
         }
         path = p
     }
 
     if len(path) == 0 {
         if p, err := os.Getwd(); err != nil {
-            LogPanic("Failed to get current working dir (%v)", err)
+            return nil, LogError("Failed to get current working dir (%v)", err)
         } else {
             path = p
         }
@@ -139,26 +187,34 @@ func startUp(progname string, args []string, chTrack chan int) {
     }
 
     if _, err := InitConfigMgr(cfgFiles); err != nil {
-        LogPanic("Failed to read config; (%v)", *cfgFiles)
+        return nil, LogError("Failed to read config; (%v)", *cfgFiles)
     }
    
     InitRegistrations()
     tx, err := ServerInit()
     if err != nil {
-        LogPanic("Failed to call ServerInit")
+        return nil, LogError("Failed to call ServerInit")
     }
 
-    go runLoop(tx, chTrack)
+    chTrack := make(chan int, 2)     /* To track start/end of loop */
+    chTerminate := make(chan int, 1) /* To force terminate a loop */
+    engine := &engine_t{tx: tx, chTrack:chTrack, chTerminate: chTerminate }
+    go engine.runLoop()
+    
+    /* Wait for loop start */
+    <- chTrack
+    return engine, nil
 }
 
 func main() {
-    ch := make(chan int, 2)  
-    startUp(os.Args[0], os.Args[1:], ch)
 
-    <- ch
-    LogDebug("Loop started")
+    engine, err := startUp(os.Args[0], os.Args[1:])
+    if err != nil {
+        LogError("Engine aborting ...")
+        return
+    }
 
-    <- ch
+    <- engine.chTrack
     LogDebug("Loop ended")
 
 

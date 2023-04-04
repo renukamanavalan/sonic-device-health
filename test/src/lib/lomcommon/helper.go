@@ -21,6 +21,8 @@ var log_level = syslog.LOG_DEBUG
 var FmtFprintf = fmt.Fprintf
 var OSExit = os.Exit
 
+var UnitTestInProgress = false
+
 func init() {
 
     for i := syslog.LOG_EMERG; i <= syslog.LOG_DEBUG; i++ {
@@ -97,16 +99,30 @@ func LogMessage(lvl syslog.Priority, s string, a ...interface{}) string {
 
 
 /* Log this message for panic level and exit */
-func LogPanic(s string, a ...interface{})  {
-    LogMessage(syslog.LOG_CRIT, s, a...)
+func LogPanic(s string, a ...interface{}) string {
+    m := LogMessage(syslog.LOG_CRIT, s, a...)
     LogMessage(syslog.LOG_CRIT, "LoM exiting ...")
+    if UnitTestInProgress {
+        return m
+    }
     OSExit(-1)
+    return m
 }
 
+var lastError error = nil
+
+func GetLastError() error {
+    return lastError
+}
+
+func ResetLastError() {
+    lastError = nil
+}
 
 /* Log this message at error level */
 func LogError(s string, a ...interface{}) error {
-    return errors.New(LogMessage(syslog.LOG_ERR, s, a...))
+    lastError = errors.New(LogMessage(syslog.LOG_ERR, s, a...))
+    return lastError
 }
 
 
