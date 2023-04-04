@@ -16,18 +16,23 @@ import (
 /* Test context.go APIs for corner cases. */
 func testContext(t *testing.T) {
 
+    clientRegistrations = nil
     reg := GetRegistrations()
     {
         clientName := "Foo"
 
         defer func() {
             reg.DeregisterClient(clientName)
+            delete (reg.activeActions, "Detect-0")
         }()
 
         /* simulate clients */
         if err := reg.RegisterClient(clientName); err != nil {
             t.Fatalf("****TEST FAILED: RegisterClient faied (%v)", err)
         }
+
+        /* Simulate one action */
+        reg.activeActions["Detect-0"] = &ActiveActionInfo_t{"Detect-0", clientName, 0 }
 
         /* Test request timeout */
         /*
@@ -46,9 +51,15 @@ func testContext(t *testing.T) {
                         i, testCnt, err)
             }
         }
+        /* Add One server request */
+        req := &ServerRequestData{}
+        if err := reg.AddServerRequest("Detect-0", req); err != nil {
+            t.Fatalf("****TEST FAILED: Failed to fail for missing action's client.")
+        }
         
         /* Wait for them to return. They would return in 3 seconds */
         cnt := testCnt + 2     /* Wait 2 seconds more before aborting */ 
+        errCode := LoMResponseOk    /* Expect first req to succeed */
 
         /* Wait till all requests completes or timeout */
         for i := 0; i < testCnt; {
@@ -58,14 +69,15 @@ func testContext(t *testing.T) {
                 if res, ok := r.(*LoMResponse); !ok {
                     t.Fatalf("****TEST FAILED: PendServerRequest (%d/%d) (%T) != *LoMResponse",
                                 i, testCnt, r)
-                } else if res.ResultCode != int(LoMReqTimeout) {
+                } else if res.ResultCode != int(errCode) {
                     t.Fatalf("****TEST FAILED: PendServerRequest (%d/%d) res (%d) != (%d)",
-                            i, testCnt, res.ResultCode, LoMReqTimeout)
-                } else if res.ResultStr != GetLoMResponseStr(LoMReqTimeout) {
+                            i, testCnt, res.ResultCode, errCode)
+                } else if (errCode == LoMReqTimeout) && (res.ResultStr != GetLoMResponseStr(LoMReqTimeout)) {
                     t.Fatalf("****TEST FAILED: PendServerRequest (%d/%d) res (%s) != (%s)",
                             i, testCnt, res.ResultStr, GetLoMResponseStr(LoMReqTimeout))
                 }
                 i++
+                errCode = LoMReqTimeout
 
             case <- time.After(time.Second):
                 cnt--
@@ -125,11 +137,11 @@ func testContext(t *testing.T) {
         if err := reg.AddServerRequest("", nil); err == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for empty action")
         }
-        if err := reg.AddServerRequest(clientName_new, nil); err == nil {
+        if err := reg.AddServerRequest("xxx", nil); err == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for nil req")
         }
         req := &ServerRequestData{}
-        if err := reg.AddServerRequest(clientName_new, req); err == nil {
+        if err := reg.AddServerRequest("xxx", req); err == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for non existing action")
         }
 
