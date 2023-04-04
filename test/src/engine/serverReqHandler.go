@@ -18,21 +18,20 @@ const LOM_RESP_CODE_START = 4096
 
 /* List of all error codes returned in LoM response */
 const (
-    LoMUnknownError = LoMResponseCode(iota+LOM_RESP_CODE_START)
-    LoMUnknownReqType
-    LoMIncorrectReqData
-    LoMReqFailed
-    LoMReqTimeout
-    LoMFirstActionFailed
-    LoMMissingSequence
-    LoMActionDeregistered
-    LoMActionNotRegistered
-    LoMActionActive
-    LoMSequenceTimeout
-    LoMSequenceIncorrect
-    LoMShutdown
-    LoMInternalError
-    LoMErrorCnt
+    LoMUnknownError = LoMResponseCode(iota+LOM_RESP_CODE_START)     /* 4096 */
+    LoMUnknownReqType                                               /* 4097 */
+    LoMIncorrectReqData                                             /* 4098 */
+    LoMReqFailed                                                    /* 4099 */
+    LoMReqTimeout                                                   /* 4100 */
+    LoMFirstActionFailed                                            /* 4101 */
+    LoMMissingSequence                                              /* 4102 */
+    LoMActionDeregistered                                           /* 4103 */
+    LoMActionNotRegistered                                          /* 4104 */
+    LoMActionActive                                                 /* 4105 */
+    LoMSequenceTimeout                                              /* 4106 */
+    LoMSequenceIncorrect                                            /* 4107 */
+    LoMShutdown                                                     /* 4108 */
+
 )
 
 var LoMResponseStr = []string {
