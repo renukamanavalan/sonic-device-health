@@ -241,7 +241,6 @@ func createFile(t *testing.T, name string, s string) {
         }
         f.Close()
     }
-    chTestHeartbeat <- "createFile: " + name
 }
 
 func initServer(t *testing.T) (engine *engine_t) {

@@ -78,7 +78,6 @@ var testRunList = testRunList_t {
 }
 
 var xtestRunList = testRunList_t {
-    "seq_success",
 }
 
 type registrations_t map[string][]string

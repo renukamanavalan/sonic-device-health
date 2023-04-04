@@ -31,33 +31,34 @@ const (
     LoMSequenceTimeout                                              /* 4106 */
     LoMSequenceIncorrect                                            /* 4107 */
     LoMShutdown                                                     /* 4108 */
-
+    LoMInternalError                                                /* 4109 */
+    LoMErrorCnt                                                     /* 4110 */
 )
 
 var LoMResponseStr = []string {
-    "Unknown error",
-    "Unknown request",
-    "Incorrect Msg type",
-    "Request failed",
-    "Request Timed out",
-    "First Action failed",
-    "First Action's sequence missing",
-    "Action de-regsitered",
-    "Action not registered",
-    "Action already active",
-    "Sequence timed out",
-    "Sequence state incorrect",
-    "LOM system shutdown",
-    "LoM Internal error",
+    "Unknown error",                        /* LoMUnknownError */
+    "Unknown request",                      /* LoMUnknownReqType */
+    "Incorrect Msg type",                   /* LoMIncorrectReqData */
+    "Request failed",                       /* LoMReqFailed */
+    "Request Timed out",                    /* LoMReqTimeout */
+    "First Action failed",                  /* LoMFirstActionFailed */
+    "First Action's sequence missing",      /* LoMMissingSequence */
+    "Action de-regsitered",                 /* LoMActionDeregistered */
+    "Action not registered",                /* LoMActionNotRegistered */
+    "Action already active",                /* LoMActionActive */
+    "Sequence timed out",                   /* LoMSequenceTimeout */
+    "Sequence state incorrect",             /* LoMSequenceIncorrect */
+    "LOM system shutdown",                  /* LoMSequenceIncorrect */
+    "LoM Internal error",                   /* LoMInternalError */
 }
 
 
-func LoMResponseValidate() (bool, string) {
+func LoMResponseValidate() (bool, error) {
     if len(LoMResponseStr) != (int(LoMErrorCnt) - LOM_RESP_CODE_START) {
-        return false, LogPanic("LoMResponseStr len(%d) != (%d - %d = %d)", len(LoMResponseStr),
+        return false, LogError("LoMResponseStr len(%d) != (%d - %d = %d)", len(LoMResponseStr),
                 LoMErrorCnt, LOM_RESP_CODE_START, int(LoMErrorCnt) - LOM_RESP_CODE_START)
     }
-    return true, ""
+    return true, nil
 }
 
 func init() {

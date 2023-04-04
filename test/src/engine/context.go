@@ -98,7 +98,7 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
     listNoTimeout := make([]*wait_t, 0, 5)  /* Hold client requests for read */
     serverRequests := make([]*ServerRequestData, 0, 100)
     tout := A_DAY_IN_SECS
-    
+
     for {
         select {
         case clReq := <- p.pendingReadRequests:
@@ -184,6 +184,9 @@ var clientRegistrations *ClientRegistrations_t = nil
 
 
 func GetRegistrations() *ClientRegistrations_t {
+    if clientRegistrations == nil {
+        InitRegistrations()
+    }
     return clientRegistrations
 }
 
