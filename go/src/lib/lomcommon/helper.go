@@ -21,6 +21,8 @@ var log_level = syslog.LOG_DEBUG
 var FmtFprintf = fmt.Fprintf
 var OSExit = os.Exit
 
+var UnitTestInProgress = false
+
 func init() {
 
     for i := syslog.LOG_EMERG; i <= syslog.LOG_DEBUG; i++ {
@@ -50,6 +52,18 @@ func SetLogLevel(lvl syslog.Priority) {
     log_level = lvl
 }
 
+func getPrefix(skip int) string {
+    prefix := ""
+    if _, fl, ln, ok := runtime.Caller(skip); ok {
+        l := strings.Split(fl, "/")
+        c := len(l)
+        if c > 2 {
+            c -= 1
+        }
+        prefix = fmt.Sprintf("%s:%d:", strings.Join(l[c-1:], "/"), ln)
+    }
+    return prefix
+}
 
 /*
  * Log this message for given log level, if this level <= current log level
@@ -64,41 +78,51 @@ func SetLogLevel(lvl syslog.Priority) {
  * Return:
  *  None
  */
-func LogMessage(lvl syslog.Priority, s string, a ...interface{})  {
-    prefix := ""
-    if _, fl, ln, ok := runtime.Caller(2); ok {
-        l := strings.Split(fl, "/")
-        c := len(l)
-        if c > 2 {
-            c -= 1
-        }
-        prefix = fmt.Sprintf("%s:%d:", strings.Join(l[c-1:], "/"), ln)
-    }
+func LogMessageWithSkip(skip int, lvl syslog.Priority, s string, a ...interface{}) string {
     ct_lvl := GetLogLevel()
+    m := fmt.Sprintf(getPrefix(skip+2)+s, a...)
     if lvl <= ct_lvl {
-        FmtFprintf(writers[lvl], prefix+s, a...)
+        FmtFprintf(writers[lvl], m)
         if ct_lvl >= syslog.LOG_DEBUG {
             /* Debug messages gets printed out to STDOUT */
-            fmt.Printf(prefix+s, a...)
+            fmt.Printf(m)
             fmt.Println("")
         }
     }
+    return m
+}
+
+
+func LogMessage(lvl syslog.Priority, s string, a ...interface{}) string {
+    return LogMessageWithSkip(2, lvl, s, a...)
 }
 
 
 /* Log this message for panic level and exit */
-func LogPanic(s string, a ...interface{})  {
-    LogMessage(syslog.LOG_CRIT, s, a...)
+func LogPanic(s string, a ...interface{}) string {
+    m := LogMessage(syslog.LOG_CRIT, s, a...)
     LogMessage(syslog.LOG_CRIT, "LoM exiting ...")
+    if UnitTestInProgress {
+        return m
+    }
     OSExit(-1)
+    return m
 }
 
+var lastError error = nil
+
+func GetLastError() error {
+    return lastError
+}
+
+func ResetLastError() {
+    lastError = nil
+}
 
 /* Log this message at error level */
 func LogError(s string, a ...interface{}) error {
-    e := fmt.Sprintf(s, a...)
-    LogMessage(syslog.LOG_ERR, e)
-    return errors.New(e)
+    lastError = errors.New(LogMessage(syslog.LOG_ERR, s, a...))
+    return lastError
 }
 
 

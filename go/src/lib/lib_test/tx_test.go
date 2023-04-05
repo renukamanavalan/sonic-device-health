@@ -212,8 +212,19 @@ func TestMain(t *testing.T) {
     chResult := make(chan interface{})
     chComplete := make(chan interface{})
 
+    /*
+     * Run client in separate routine.
+     * Walks testData array. On completion of each, send a signal via
+     * chRes. This helps the following for loop that simulates server
+     * to keep in sync.
+     */
     go testClient(chResult, chComplete)
 
+    /*
+     * In a loop, read a client request and send response as in
+     * testData entry per index. Go to next iteration upon client
+     * simulation signalling the completion of that index via chResult
+     */
     for i := 0; i < testCount; i++ {
         if len(chComplete) != 0 {
             t.Errorf("Server tid:%d But client complete", i)

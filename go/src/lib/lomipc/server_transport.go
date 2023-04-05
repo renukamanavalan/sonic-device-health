@@ -2,7 +2,6 @@ package lomipc
 
 import (
     "encoding/gob"
-    "fmt"
     . "lib/lomcommon"
     "net"
     "net/http"
@@ -158,34 +157,11 @@ type ActionResponseData struct {
     ResultStr           string
 }
 
-/* Helper to convert ActionResponseData as Map */
-func (p *ActionResponseData) ToMap(end bool) map[string]string {
-    ret := map[string]string {
-        "action": p.Action,
-        "instanceId": p.InstanceId,
-        "anomalyInstanceId": p.AnomalyInstanceId,
-        "anomalyKey": p.AnomalyKey,
-        "response": p.Response,
-        "resultCode": fmt.Sprintf("%d", p.ResultCode),
-        "resultStr": p.ResultStr,
-    }
-    if p.InstanceId == p.AnomalyInstanceId {
-        if end {
-            ret["state"] = "complete"
-        } else {
-            ret["state"] = "init"
-        }
-    }
-    return ret
-}
-
-
 /* Helper to validate ActionResponseData */
 func (p *ActionResponseData) Validate() bool {
     if ((len(p.Action) > 0) && (len(p.InstanceId) > 0) &&
             (len(p.AnomalyInstanceId) > 0) &&
-            (len(p.AnomalyKey) > 0) &&
-            (len(p.Response) > 0)) {
+            ((p.ResultCode != 0) || (len(p.AnomalyKey) > 0))) {
         return true
     } else {
         return false
@@ -319,7 +295,7 @@ func (tr *LoMTransport) SendToServer(req *LoMRequest, reply *LoMResponse) (err e
                     req.Client, ReqTypeToStr[req.ReqType], err)
         } else {
             LogInfo("SUCCESS: SendToServer cl(%s) mtype(%s) result(%d)/(%s)", req.Client,
-                     ReqTypeToStr[req.ReqType], reply.ResultCode, reply.ResultStr)
+                    ReqTypeToStr[req.ReqType], reply.ResultCode, reply.ResultStr)
         }
     } ()
 
