@@ -295,7 +295,7 @@ func (tr *LoMTransport) SendToServer(req *LoMRequest, reply *LoMResponse) (err e
                     req.Client, ReqTypeToStr[req.ReqType], err)
         } else {
             LogInfo("SUCCESS: SendToServer cl(%s) mtype(%s) result(%d)/(%s)", req.Client,
-             ReqTypeToStr[req.ReqType], reply.ResultCode, reply.ResultStr)
+                    ReqTypeToStr[req.ReqType], reply.ResultCode, reply.ResultStr)
         }
     } ()
 
