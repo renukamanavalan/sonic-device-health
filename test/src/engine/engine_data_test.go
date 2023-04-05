@@ -77,9 +77,6 @@ var testRunList = testRunList_t {
     "sequence-block-action-reregister",
 }
 
-var xtestRunList = testRunList_t {
-}
-
 type registrations_t map[string][]string
 
 /* Test scenario expectations */

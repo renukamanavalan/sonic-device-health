@@ -533,24 +533,24 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
     /* Validate & drop from active requests */
     if r, ok := p.activeRequests[data.Action]; ok {
         if (seq != nil) && (seq.currentRequest != r) {
-            LogError("Response's req (%v) != current(%v)", r, seq.currentRequest)
+            err = LogError("Response's req (%v) != current(%v)", r, seq.currentRequest)
             return
         }
         if r.req.ReqType != TypeServerRequestAction  {
-            LogError("Active requests type (%v) != TypeServerRequestAction", r)
+            err = LogError("Active requests type (%v) != TypeServerRequestAction", r)
             return
         }
         rd := r.req.ReqData
         if ar, ok1 := rd.(*ActionRequestData); !ok1 {
-            LogError("Active requests data (%T) != ActionRequestData (%v)", rd, r)
+            err = LogError("Active requests data (%T) != ActionRequestData (%v)", rd, r)
             return
         } else if ar.InstanceId != data.InstanceId {
             /* stale response */
-            LogError("Active req vs res instance ID mismatch (%v) (%v)", ar, data)
+            err = LogError("Active req vs res instance ID mismatch (%v) (%v)", ar, data)
             return
         }
     } else {
-        LogError("No matching req for res (%v)", data)
+        err = LogError("No matching req for res (%v)", data)
         return
     }
 
@@ -578,7 +578,7 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
         if anomalyID == data.InstanceId {
             /* Anomaly response creates sequence. Hence unexpected for existing seq */
             /* Duplicate post by plugin / pluginMgr ? */
-            LogError("First action response for existing seq (%v) res(%v)", seq, data)
+            err = LogError("First action response for existing seq (%v) res(%v)", seq, data)
             return
         }
     }
@@ -801,7 +801,7 @@ func (p *SeqHandler_t) resumeNextSequence() {
 
         seq := p.sortedSequencesByPri[0]
         if seq.sequenceStatus != sequenceStatus_pending {
-            LogError("Current seq is not in pending state (%v)", *p.currentSequence)
+            LogError("seq is not in pending state (%v)", seq)
             return
         }
 

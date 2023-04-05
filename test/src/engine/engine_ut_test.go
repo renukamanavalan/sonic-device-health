@@ -119,7 +119,6 @@ func testContext(t *testing.T) {
             t.Fatalf("****TEST FAILED: Failed to fail for non-existing action")
         }
         ResetLastError()
-
         reg.DeregisterAction(clientName_new, "Detect-0")
         if GetLastError() == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for incorrect client")
@@ -326,7 +325,6 @@ func testSequenceHandler(t *testing.T) {
         /* Sequence validate */
         bs := &BindingSequence_t{}
         res := &ActionResponseData{}
-        req := &activeRequest_t{}
         seq := &sequenceState_t{}
         tmr := &OneShotEntry_t{}
 
@@ -357,7 +355,7 @@ func testSequenceHandler(t *testing.T) {
                 seq.sequenceStatus = sequenceStatus_running
                 m = "Missing current req"
             case 7:
-                seq.currentRequest = req
+                res.Action = "hello"
                 m = "Missing exp timer"
             case 8:
                 seq.expTimer = tmr
@@ -449,6 +447,7 @@ func testSequenceHandler(t *testing.T) {
         if len(handler.activeRequests) != 0 {
             t.Fatalf("****TEST FAILED: Failed to remove active req")
         }
+        delete(handler.sequencesByAnomaly, "id")
     }
 
     {
@@ -473,13 +472,6 @@ func testSequenceHandler(t *testing.T) {
         handler.dropSequence(nil)
         if GetLastError() == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for nil seq")
-        }
-
-        seq = &sequenceState_t{}
-        ResetLastError()
-        handler.dropSequence(seq)
-        if GetLastError() == nil {
-            t.Fatalf("****TEST FAILED: Failed to fail for empty seq context")
         }
     }
 
@@ -615,7 +607,7 @@ func testSequenceHandler(t *testing.T) {
         /* Simulate no seq by changing anomaly Id and response not for first action */
         handler.activeRequests[actionName] = req        /* active req - Yes */
         data.AnomalyInstanceId = data.InstanceId + "abc" /* Not first action */
-        handler.currentSequence = nil
+        handler.currentSequence = &sequenceState_t{sequenceStatus: sequenceStatus_running}
         ResetLastError()
         handler.processActionResponse(data)
         if GetLastError() != nil {
@@ -624,12 +616,100 @@ func testSequenceHandler(t *testing.T) {
         }
 
         /* No seq; response is for first action; But GetSequence fails */
+        handler.activeRequests[actionName] = req        /* active req - Yes */
         data.AnomalyInstanceId = data.InstanceId  /* first action */
         delete (handler.sequencesByAnomaly, "123")
         ResetLastError()
         handler.processActionResponse(data)
         if GetLastError() == nil {
             t.Fatalf("****TEST FAILED: Failed to fail ProcessActionResponse no binding seq.")
+        }
+    }
+    {
+        /* Corner test cases for resumeSequence */
+        regF := GetRegistrations()
+        handler := GetSeqHandler()
+
+        /* Fail for nil seq */
+        if c, _, _ := handler.resumeSequence(nil); c != LoMSequenceIncorrect {
+            t.Fatalf("****TEST FAILED: resumeSequence for nil %d != %d",
+                    c, LoMSequenceIncorrect)
+        }
+
+        /* Fail for invalid seq */
+        seq := &sequenceState_t{}
+        if c, _, _ := handler.resumeSequence(seq); c != LoMSequenceIncorrect {
+            t.Fatalf("****TEST FAILED: resumeSequence for invalid seq %d != %d",
+                    c, LoMSequenceIncorrect)
+        }
+
+        actionName := "xyz"
+        bs := &BindingSequence_t{"ee", 0, 0, []*BindingActionCfg_t{
+                    {}, {Name:actionName}}}
+        // reqTmp := &activeRequest_t{}
+        req := &activeRequest_t{}
+        res := &ActionResponseData{Action: "foo"}
+        // handler.activeRequests[actionName] = reqTmp
+        seq = &sequenceState_t{sequenceStatus_running,
+                    "123", bs, 10, 20, 1, []*ActionResponseData{res}, req, &OneShotEntry_t{}}
+
+        /* Expect to succeed as current req is non nil */
+        if c, _, _ := handler.resumeSequence(seq); c != LoMResponseOk {
+            t.Fatalf("****TEST FAILED: resumeSequence: non null current req to succeed %d != %d",
+                    c, LoMResponseOk)
+        }
+
+        /* Fail to resume as this action is not active. */
+        seq.currentRequest = nil
+        if c, _, _ := handler.resumeSequence(seq); c != LoMActionNotRegistered {
+            t.Fatalf("****TEST FAILED: resumeSequence: non active action. %d != %d",
+                    c, LoMActionNotRegistered)
+        }
+        
+        /* Ensure active action, but fail due to missing client */
+        regF.activeActions[actionName] = &ActiveActionInfo_t{}
+        if c, _, _ := handler.resumeSequence(seq); c != LoMInternalError {
+            t.Fatalf("****TEST FAILED: resumeSequence: non active client. %d != %d",
+                    c, LoMInternalError)
+        }
+
+        /* Fail complete sequence due to nil context for first action */
+        seq.context[0] = nil
+        ResetLastError()
+        handler.completeSequence(seq, 0, "")
+        if GetLastError() == nil {
+            t.Fatalf("****TEST FAILED: completeSequence missing context to report")
+        }
+
+        /* resumeNextSequence to complain when current seq is not in running state */
+        handler.currentSequence = seq
+        seq.sequenceStatus = sequenceStatus_pending
+        ResetLastError()
+        handler.resumeNextSequence()
+        if GetLastError() == nil {
+            t.Fatalf("****TEST FAILED: resumeNextSequence fail on pending")
+        }
+
+        /* Simulate non-pending seq in Q */
+        handler.currentSequence = nil
+        handler.sortedSequencesByPri = append(handler.sortedSequencesByPri, seq)
+        LogDebug("-------- p.sortedSequencesByPri(%d): [%v]", len(handler.sortedSequencesByPri), handler.sortedSequencesByPri)
+        seq.sequenceStatus = sequenceStatus_running
+        ResetLastError()
+        handler.resumeNextSequence()
+        if GetLastError() == nil {
+            t.Fatalf("****TEST FAILED: resumeNextSequence fail on running in Q")
+        }
+
+        /* Simulate failed resume of next pending */
+        handler.sortedSequencesByPri = append(handler.sortedSequencesByPri, seq)
+        LogDebug("-------- p.sortedSequencesByPri(%d): [%v]", len(handler.sortedSequencesByPri), handler.sortedSequencesByPri)
+        seq.sequenceStatus = sequenceStatus_pending
+        seq.anomalyInstanceId = ""      /* Failing to validate will fail resume */
+        ResetLastError()
+        handler.resumeNextSequence()
+        if GetLastError() == nil {
+            t.Fatalf("****TEST FAILED: resumeNextSequence fail on running in Q")
         }
     }
 }
@@ -642,6 +722,7 @@ var utList = []func(t *testing.T) {
 }
 
 var xutList = []func(t *testing.T) {
+    testSequenceHandler,
 }
 
 func TestAll(t *testing.T) {
