@@ -3,6 +3,7 @@ package engine
 import (
     . "lib/lomcommon"
     . "lib/lomipc"
+    "os"
     "path/filepath"
     "testing"
     "time"
@@ -715,14 +716,35 @@ func testSequenceHandler(t *testing.T) {
 }
 
 
+/* Test engine.go APIs for corner cases. */
+func testEngine(t *testing.T) {
+    if _, err := startUp("ddd", []string { "-xxx", "rrr" }); err == nil {
+        t.Fatalf("****TEST FAILED: engine::startup incorrect args")
+    }
+    if _, err := startUp("ddd", []string { "-path", "" }); err == nil {
+        t.Fatalf("****TEST FAILED: engine::startup Incorrect path")
+    }
+    if _, err := startUp("ddd", []string { "-path", "ddd" }); err == nil {
+        t.Fatalf("****TEST FAILED: engine::startup Incorrect path")
+    }
+
+    os.Args = []string{"-user=bla"}
+    ResetLastError()
+    main()
+    if GetLastError() == nil {
+         t.Fatalf("****TEST FAILED: engine: main to fail for invalid args")
+    }
+}
+
 var utList = []func(t *testing.T) {
     testContext,
     testserverReqHandler,
     testSequenceHandler,
+    testEngine,
 }
 
 var xutList = []func(t *testing.T) {
-    testSequenceHandler,
+    testEngine,
 }
 
 func TestAll(t *testing.T) {
