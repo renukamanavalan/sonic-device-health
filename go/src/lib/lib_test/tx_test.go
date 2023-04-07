@@ -18,6 +18,7 @@ package lib_test
  */
 
 import (
+    "encoding/json"
     "errors"
     "io"
     "log/syslog"
@@ -44,8 +45,16 @@ type TestServerData struct {
 }
 
 type TestData struct {
-    TestClientData
-    TestServerData
+    TestClientData                  /* Simulated client raises call per this data */
+    TestServerData                  /* TestMain code validates incoming req against */
+                                    /* TestServerData:Req and send back TestServerData:Res */
+}
+
+type TestDataForJson struct {
+    JsonReq     string              /* Req to send as string */
+    JsonRes     string              /* Expected JSON res */
+    TestServerData                  /* TestMain code validates incoming req against */
+                                    /* TestServerData:Req and send back TestServerData:Res */
 }
 
 const TEST_CL_NAME = "Foo"
@@ -64,6 +73,7 @@ var ShutReqData = ServerRequestData { TypeServerRequestShutdown, ShutdownRequest
 
 var ClTimeout = 2
 
+/* For clientAPI testing */
 var testData = []TestData {
             // Reg Client
             {   TestClientData { TypeRegClient, []string{TEST_CL_NAME }, nil, false, MsgEmptyResp{} },
@@ -121,12 +131,84 @@ var testData = []TestData {
                 TestServerData { LoMRequest {}, LoMResponse {} } },
         }
 
-var testCount = len(testData)
+/* For clientAPI via JSON testing */
+var testDataForJson = []TestDataForJson {
+            // Reg Client
+            {   `{"ReqType":1,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`,
+                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
+                TestServerData { LoMRequest { TypeRegClient, TEST_CL_NAME, ClTimeout, MsgRegClient {} },
+                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
 
+            // Reg Action - test failure
+            {   `{"ReqType":3,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
+                `{"ResultCode":1,"ResultStr":"failed by design","RespData":{}}`,
+                TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
+                        LoMResponse { 1, "failed by design", MsgEmptyResp {} } } },
+
+            // Register action
+            {   `{"ReqType":3,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
+                `{"ResultCode":1,"ResultStr":"SKIP","RespData":{}}`,
+                TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
+                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+
+            // Request for request and server sends Action request
+            {   `{"ReqType":3,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
+                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
+                TestServerData { LoMRequest { TypeRecvServerRequest, TEST_CL_NAME, ClTimeout, MsgRecvServerRequest{} },
+                        LoMResponse { 0, "Succeeded", ActReqData } } },
+
+            // Send Action response to server
+            {   `{"ReqType":5,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`,
+                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{"ReqType":0,"ReqData":{"Action":"Bar","InstanceId":"inst_1","AnomalyInstanceId":"an_inst_0","AnomalyKey":"an_key","Timeout":10,"Context":[{"Action":"Detect-0","InstanceId":"an_inst_0","AnomalyInstanceId":"an_inst_0","AnomalyKey":"an_key","Response":"res_anomaly","ResultCode":0,"ResultStr":""},{"Action":"Foo-safety","InstanceId":"inst_0","AnomalyInstanceId":"an_inst_0","AnomalyKey":"an_key","Response":"res_foo_check","ResultCode":2,"ResultStr":"some failure"}]}}}`,
+                TestServerData { LoMRequest { TypeSendServerResponse, TEST_CL_NAME, ClTimeout, ActResData },
+                        LoMResponse { 0, "Succeeded", MsgEmptyResp{} } } },
+
+            // Send Action heartbeat to server
+            {   `{"ReqType":6,"Client":"Foo","TimeoutSecs":2,"ReqData":{"ReqType":0,"ResData":{"Action":"Foo","InstanceId":"Inst-0","AnomalyInstanceId":"AN-Inst-0","AnomalyKey":"an-key","Response":"some resp","ResultCode":9,"ResultStr":"Failure Data"}}}`,
+                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
+                TestServerData { LoMRequest { TypeNotifyActionHeartbeat, TEST_CL_NAME, ClTimeout,
+                                            MsgNotifyHeartbeat { TEST_ACTION_NAME, 100 } },
+                        LoMResponse { 0, "Good", MsgEmptyResp {} } } },
+
+            // Request for request and server sends shutdown request
+            {   `{"ReqType":7,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0","Timestamp":100}}`,
+                `{"ResultCode":0,"ResultStr":"Good","RespData":{}}`,
+                TestServerData { LoMRequest { TypeRecvServerRequest, TEST_CL_NAME, ClTimeout, MsgRecvServerRequest{} },
+                        LoMResponse { 0, "Succeeded", ShutReqData } } },
+
+            // Send Dereg action
+            {   `{"ReqType":5,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`,
+                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{"ReqType":1,"ReqData":{}}}`,
+                TestServerData { LoMRequest { TypeDeregAction, TEST_CL_NAME, ClTimeout, MsgDeregAction { TEST_ACTION_NAME } },
+                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+
+            // Send Dereg client
+            {   `{"ReqType":4,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
+                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
+                TestServerData { LoMRequest { TypeDeregClient, TEST_CL_NAME, ClTimeout, MsgDeregClient {} },
+                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+
+            // Send duplicate Dereg client which is expected to fail
+            {   `{"ReqType":2,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`,
+                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
+                TestServerData { LoMRequest {}, LoMResponse {} } },
+        }
+
+
+/*
+ * This is *not* a test Function -- Note it is not exported 
+ *
+ * This is used to simulate concurrent client.
+ * It walks the testData array and simulates request per TestClientData
+ * The test code will act as server end and verify the incoming request
+ * against TestServerData:Req and send back TestServerData:Res as response
+ *
+ * As requests are synchronous, they walk in sync via channel sync.
+ */
 func testClient(chRes chan interface{}, chComplete chan interface{}) {
     txClient := GetClientTx(ClTimeout)
 
-    for i := 0; i < testCount; i++ {
+    for i := 0; i < len(testData); i++ {
         tdata := &testData[i]
         var err error
         var reqData *ServerRequestData = nil
@@ -225,7 +307,7 @@ func TestMain(t *testing.T) {
      * testData entry per index. Go to next iteration upon client
      * simulation signalling the completion of that index via chResult
      */
-    for i := 0; i < testCount; i++ {
+    for i := 0; i < len(testData); i++ {
         if len(chComplete) != 0 {
             t.Errorf("Server tid:%d But client complete", i)
         }
@@ -256,6 +338,53 @@ func TestMain(t *testing.T) {
     LogDebug("Server Complete. Waiting on client to complete...")
     <- chComplete
     LogDebug("SUCCEEDED")
+}
+
+
+func testJSONClient(t *testing.T, tx *LoMTransport, chRes, chComplete chan interface{}) {
+    for ti := 0; ti < len(testDataForJson); ti++ {
+        tdata := &testDataForJson[ti]
+        req := tdata.JsonReq
+        res := ""
+        if err := tx.LoMRPCRequest(&req, &res); err != nil {
+            t.Errorf("testJSONClient: %d: failed (%v)", ti, err)
+        }
+        if res != tdata.JsonRes {
+            t.Errorf("testJSONClient: %d: res(%s) != exp(%s)", ti, res, tdata.JsonRes)
+        }
+        chRes <- struct {}{} /* Indicate completion to server */
+    }
+    LogDebug("testJSONClient: complete")
+    chComplete <- struct {}{}
+}
+
+
+func TestJSONServer(t *testing.T) {
+    tx := GetLoMTransport()
+
+    chResult := make(chan interface{})
+    chComplete := make(chan interface{})
+
+    go testJSONClient(t, tx, chResult, chComplete)
+
+    for ti := 0; ti < len(testDataForJson); ti++ {
+        if len(chComplete) != 0 {
+            t.Errorf("Server tid:%d But client complete", ti)
+        }   
+        tdata := &testData[ti]   
+        LogDebug("JSON Server: Running: tid=%d", ti)
+
+        p, _ := tx.ReadClientRequest(chComplete)
+        if p == nil {
+            t.Errorf("ServerJson: tid:%d ReadClientRequest returned nil", ti)
+        }
+        p.ChResponse <- &tdata.Res
+        /* Wait for client to complete */
+        <- chResult
+    }
+    LogDebug("TestJSONServer complete. Waiting on client ...")
+    <- chComplete
+    LogDebug("TestJSONServer complete. SUCCESS")
 }
 
 
@@ -515,11 +644,11 @@ func TestServerFail(t *testing.T) {
         m := map[string]string {
             "action": p.Action,
             "instanceId": p.InstanceId,
-                "anomalyInstanceId": p.AnomalyInstanceId,
-                "anomalyKey": p.AnomalyKey,
-                "response": p.Response,
-                "resultCode": "77",
-                "resultStr": p.ResultStr,
+            "anomalyInstanceId": p.AnomalyInstanceId,
+            "anomalyKey": p.AnomalyKey,
+            "response": p.Response,
+            "resultCode": "77",
+            "resultStr": p.ResultStr,
             }
         if !cmpMap(p.ToMap(false), m) {
             t.Errorf("1: Failed cmp (%v) != (%v)", p.ToMap(false), m)
@@ -542,22 +671,30 @@ func TestServerFail(t *testing.T) {
             "missing Action": ActionResponseData {},
             "missing Instanceid": ActionResponseData{ Action: "foo" },
             "missing AnomalyInstanceid": ActionResponseData{ Action: "foo", InstanceId: "ddd" },
-            "missing AnomalyKey": ActionResponseData{ Action: "foo", InstanceId: "ddd",
+            "missing AnomalyKey for non anomaly": ActionResponseData{ Action: "foo", InstanceId: "ddd",
+                        AnomalyInstanceId: "eee" },
+            "missing AnomalyKey for anomaly": ActionResponseData{ Action: "foo", InstanceId: "ddd",
                         AnomalyInstanceId: "ddd" },
-            "missing Response": ActionResponseData{ Action: "foo", InstanceId: "ddd",
-                        AnomalyInstanceId: "ddd", AnomalyKey: "erere" },
             }
 
+           
+        /* Anomaly with key */
         good := ActionResponseData{ Action: "foo", InstanceId: "ddd",
                     AnomalyInstanceId: "ddd", AnomalyKey: "erere", Response: "rr" }
+        /* Failed anonaly w/o key */
+        good1 := ActionResponseData{ Action: "foo", InstanceId: "ddd",
+                    AnomalyInstanceId: "ddd", ResultCode: 77}
 
         for k, v := range lst {
             if v.Validate() != false {
-                t.Errorf("Expect to fail (%s)", k)
+                t.Errorf("Expect to fail (%s)(%v)", k, v)
             }
         }
         if good.Validate() != true {
             t.Errorf("Expect to succeed (%v)", good)
+        }
+        if good1.Validate() != true {
+            t.Errorf("Expect to succeed (%v)", good1)
         }
     }
 }

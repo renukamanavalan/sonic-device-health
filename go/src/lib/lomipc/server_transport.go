@@ -2,6 +2,7 @@ package lomipc
 
 import (
     "encoding/gob"
+    "fmt"
     . "lib/lomcommon"
     "net"
     "net/http"
@@ -40,7 +41,7 @@ import (
 /* All types of requests from client to server */
 type ReqDataType int
 const (
-    TypeNone = iota
+    TypeNone = ReqDataType(iota)
     TypeRegClient
     TypeDeregClient
     TypeRegAction
@@ -157,15 +158,40 @@ type ActionResponseData struct {
     ResultStr           string
 }
 
+/* Helper to convert ActionResponseData as Map */
+func (p *ActionResponseData) ToMap(end bool) map[string]string {
+    ret := map[string]string {
+        "action": p.Action,
+        "instanceId": p.InstanceId,
+        "anomalyInstanceId": p.AnomalyInstanceId,
+        "anomalyKey": p.AnomalyKey,
+        "response": p.Response,
+        "resultCode": fmt.Sprintf("%d", p.ResultCode),
+        "resultStr": p.ResultStr,
+    }
+    if p.InstanceId == p.AnomalyInstanceId {
+        if end {
+            ret["state"] = "complete"
+        } else {
+            ret["state"] = "init"
+        }
+    }
+    return ret
+}
+
 /* Helper to validate ActionResponseData */
 func (p *ActionResponseData) Validate() bool {
-    if ((len(p.Action) > 0) && (len(p.InstanceId) > 0) &&
-            (len(p.AnomalyInstanceId) > 0) &&
-            ((p.ResultCode != 0) || (len(p.AnomalyKey) > 0))) {
-        return true
-    } else {
+    isAnomaly := p.InstanceId == p.AnomalyInstanceId
+    isFailed := p.ResultCode != 0
+
+    if ((len(p.Action) == 0) ||
+        (len(p.InstanceId) == 0) ||
+        (len(p.AnomalyInstanceId) == 0) ||
+        (!isAnomaly && len(p.AnomalyKey) == 0) ||   /* Key could miss for failed anomaly */
+        (!isFailed && len(p.AnomalyKey) == 0)) {
         return false
     }
+    return true
 }
 
 
@@ -355,12 +381,17 @@ func init_encoding() {
     gob.Register(MsgEmptyResp{})
 }
 
-/* Init the serverside transport */
-func ServerInit() (*LoMTransport, error) {
+func GetLoMTransport() *LoMTransport {
     init_encoding()
     tr := new(LoMTransport)
     
     tr.ServerCh = make(chan interface{})
+    return tr
+}
+
+/* Init the serverside transport */
+func ServerInit() (*LoMTransport, error) {
+    tr := GetLoMTransport()
 
     rpc.Register(tr)
     rpc.HandleHTTP()
