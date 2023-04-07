@@ -158,6 +158,10 @@ lomipc:
         ReadClientRequest
             Internal API for server to read any client request
 
+    APIs for non Go clients to access via JSON strings
+        LoMRPCRequest
+            Takes Jsonified LoMRequest and receives JSONified LoMResponse
+
 
 **********************************************************************************************
 Unit test:
