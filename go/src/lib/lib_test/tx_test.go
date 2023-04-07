@@ -18,7 +18,6 @@ package lib_test
  */
 
 import (
-    "encoding/json"
     "errors"
     "io"
     "log/syslog"
