@@ -2,7 +2,7 @@ package lomipc
 
 
 import(
-    . "lib/lomcommon"
+    ."go/src/lib/lomcommon"
     "net/rpc"
 )
 

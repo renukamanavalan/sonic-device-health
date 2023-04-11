@@ -2,9 +2,9 @@
 
 # may have to set GO111MODULE=off
 
-export GOPATH=$(pwd;)
+#export GOPATH=$(pwd;)
 
-echo $GOPATH
+#echo $GOPATH
 
 # set -x
 
@@ -14,7 +14,8 @@ install() {
 }
 
 test() {
-    go test $1 -coverprofile=coverprofile.out  -coverpkg lib/lomipc,lib/lomcommon -covermode=atomic lib/lib_test
+    #go test $1 -coverprofile=coverprofile.out  -coverpkg go/src/lib/lomipc,go/src/lib/lomcommon,go/src/vendors/sonic/client/dbclient -covermode=atomic go/src/lib/lib_test,go/src/vendors/sonic/client/dbclient_test
+     go test $1 -coverprofile=coverprofile.out  -coverpkg go/src/vendors/sonic/client/dbclient -covermode=atomic go/src/vendors/sonic/client/dbclient_test
     if [ $? -ne 0 ]; then
         echo "Failed to run test"
         exit -1
