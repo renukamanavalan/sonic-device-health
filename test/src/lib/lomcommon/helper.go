@@ -21,8 +21,6 @@ var log_level = syslog.LOG_DEBUG
 var FmtFprintf = fmt.Fprintf
 var OSExit = os.Exit
 
-var UnitTestInProgress = false
-
 func init() {
 
     for i := syslog.LOG_EMERG; i <= syslog.LOG_DEBUG; i++ {
@@ -55,11 +53,24 @@ func SetLogLevel(lvl syslog.Priority) {
 func getPrefix(skip int) string {
     prefix := ""
     if _, fl, ln, ok := runtime.Caller(skip); ok {
+        /*
+         * sample fl = /home/localadmin/tools/go/caller/t.go 
+         * get last 2 elements
+         * len returns 7, counting leading slash too. l[0] is empty
+         * [ () (home) (localadmin) (tools) (go) (caller) (t.go) ]
+         */
         l := strings.Split(fl, "/")
         c := len(l)
+
+        /*
+         * go for 2 if you can to get immediate parent dir too.
+         * Note: with leading slash first is null
+         * Hence go back only if > 2, not >= 2
+         */
         if c > 2 {
-            c -= 1
+            c -= 1      /* go for 2 if you can. Note: with leading slash first is null */
         }
+        /* prefix = caller/t.go, for the example above */
         prefix = fmt.Sprintf("%s:%d:", strings.Join(l[c-1:], "/"), ln)
     }
     return prefix
@@ -99,14 +110,9 @@ func LogMessage(lvl syslog.Priority, s string, a ...interface{}) string {
 
 
 /* Log this message for panic level and exit */
-func LogPanic(s string, a ...interface{}) string {
-    m := LogMessage(syslog.LOG_CRIT, s, a...)
-    LogMessage(syslog.LOG_CRIT, "LoM exiting ...")
-    if UnitTestInProgress {
-        return m
-    }
+func LogPanic(s string, a ...interface{}) {
+    LogMessage(syslog.LOG_CRIT, s + "LoM exiting ...", a...)
     OSExit(-1)
-    return m
 }
 
 var lastError error = nil
