@@ -60,59 +60,63 @@ import (
  */
 func (tr *LoMTransport) LoMRPCRequest(reqJson *string, resJson *string) error {
     req := &LoMRequest{}
+    bData := []uint8{}
+    var err error
 
-    if err := json.Unmarshal([]byte(*reqJson), &req); err != nil {
-        return LogError("Failed to unmarshal to (%T) (%v)", req, err, req)
+    if (reqJson == nil) || (resJson == nil) {
+        return LogError("Nil args req(%v) res(%v)", reqJson, resJson)
     }
 
+    if err = json.Unmarshal([]byte(*reqJson), &req); err == nil {
+        if bData, err = json.Marshal(req.ReqData); err == nil {
+            switch (req.ReqType) {
+            case TypeRegClient:
+                req.ReqData = MsgRegClient{}
 
-    if bData, err := json.Marshal(req.ReqData); err != nil {
-        return LogError("Failed to re-marshal (%d): req.ReqData (%v)", req.ReqType, req.ReqData)
-    } else {
-        switch (req.ReqType) {
-        case TypeRegClient:
-            req.ReqData = MsgRegClient{}
+            case TypeDeregClient:
+                req.ReqData = MsgDeregClient{}
 
-        case TypeDeregClient:
-            req.ReqData = MsgDeregClient{}
+            case TypeRegAction:
+                reqData := &MsgRegAction{}
+                if err = json.Unmarshal(bData, reqData); err == nil {
+                    req.ReqData = *reqData
+                }
+            case TypeDeregAction:
+                reqData := &MsgDeregAction{}
+                if err = json.Unmarshal(bData, reqData); err == nil {
+                    req.ReqData = *reqData
+                }
 
-        case TypeRegAction:
-            d := &MsgRegAction{}
-            if err := json.Unmarshal(bData, d); err == nil {
-                req.ReqData = *d
-            }
-        case TypeDeregAction:
-            d := &MsgDeregAction{}
-            if err := json.Unmarshal(bData, d); err == nil {
-                req.ReqData = *d
-            }
+            case TypeRecvServerRequest:
+                req.ReqData = MsgRecvServerRequest{}
 
-        case TypeRecvServerRequest:
-            req.ReqData = MsgRecvServerRequest{}
-
-        case TypeSendServerResponse:
-            d := &MsgSendServerResponse{}
-            if err := json.Unmarshal(bData, d); err == nil {
-                if d.ReqType == TypeServerRequestAction {
-                    if rData, err := json.Marshal(d.ResData); err == nil {
-                        rd := &ActionResponseData{}
-                        if err := json.Unmarshal(rData, rd); err == nil {
-                            d.ResData = *rd
+            case TypeSendServerResponse:
+                reqData := &MsgSendServerResponse{}
+                if err = json.Unmarshal(bData, reqData); err == nil {
+                    if reqData.ReqType == TypeServerRequestAction {
+                        if bData, err = json.Marshal(reqData.ResData); err == nil {
+                            rd := &ActionResponseData{}
+                            if err = json.Unmarshal(bData, rd); err == nil {
+                                reqData.ResData = *rd
+                            }
                         }
                     }
+                    req.ReqData = *reqData
                 }
-                req.ReqData = *d
-            }
 
-        case TypeNotifyActionHeartbeat:
-            d := &MsgNotifyHeartbeat{}
-            if err := json.Unmarshal(bData, d); err == nil {
-                req.ReqData = *d
-            }
+            case TypeNotifyActionHeartbeat:
+                reqData := &MsgNotifyHeartbeat{}
+                if err = json.Unmarshal(bData, reqData); err == nil {
+                    req.ReqData = *reqData
+                }
 
-        default:
-            return LogError("Failed: Unknown ReqType(%d)", req.ReqType)
+            default:
+                err = LogError("Failed: Unknown ReqType(%d)", req.ReqType)
+            }
         }
+    }
+    if err != nil {
+        return LogError("Failed to parse. err(%v) req(%v)", err, *reqJson)
     }
 
     res := &LoMResponse{}
