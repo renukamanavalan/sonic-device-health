@@ -1,5 +1,23 @@
 package engine
 
+/*
+ * This file maintains test i/p data.
+ *
+ * A test_entry is defined
+ * A testcollection is defined as 
+ *      {
+ *          pre-setup collection, 
+ *          Set of test entries to run as collection
+ *          post-cleanup collection, 
+ *      }
+ *
+ *  Each collection is a functional test covers a scope
+ *  Each collection is tagged with a description too.
+ *
+ *  testRunList - Has the list of keys of collections
+ *  engine_test:TestRun executes every collection
+ *
+ */
 import (
     "fmt"
     . "lib/lomcommon"

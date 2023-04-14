@@ -4,7 +4,11 @@ package engine
  *  Mock PublishEventAPI 
  *  This test code combines unit test & functional test - Two in one shot
  *
- *  Scenarios:
+ *  Sample Scenarios created by test collections:
+ *  NOTE:   Take this as example only. I wrote this at the start of the test as how
+ *          I wanted to shape up. So final collections much better revised.
+ *          Still this is useful to get the basic insight.
+ *
  *      Register/de-register:
  *          1.  register empty client - Fails
  *          2.  register client CLIENT_0 - Succeeds
@@ -211,6 +215,7 @@ func resetResultAll() {
     saveResults = make(savedResults_t)
 }
 
+/* Mock publish fn given to engine for any publish calls */
 var publishCh = make(chan string, 10)
 func testPublish(s string) string {
 
@@ -227,6 +232,7 @@ func testPublish(s string) string {
 
 const CFGPATH = "/tmp"
 
+/* Helper API */
 func createFile(t *testing.T, name string, s string) {
     fl := filepath.Join(CFGPATH, name)
 
@@ -243,6 +249,11 @@ func createFile(t *testing.T, name string, s string) {
     }
 }
 
+/*
+ * Starts the engine
+ *
+ * Engine starts RPC listeners
+ */
 func initServer(t *testing.T) (engine *engine_t) {
     chTestHeartbeat <- "Start: initServer"
     defer func() {
@@ -261,6 +272,10 @@ func initServer(t *testing.T) (engine *engine_t) {
     return
 }
 
+/*
+ * Holder of client transport & test instance. All wrapper APIs are
+ * methods on this object.
+ */
 type callArgs struct {
     t       *testing.T
     lstTx   map[string]*ClientTx
@@ -284,6 +299,13 @@ func (p *callArgs) getTx(cl string) *ClientTx {
     return p.getTxWithTimeout(cl, 0)
 }
 
+/*
+ * Implementation for clientAPIID - REG_CLIENT
+ *
+ * Invoke tx.RegisterClient as requested in collection.
+ *
+ * Refer test collection for sample usage.
+ */
 func (p *callArgs) call_register_client(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_register_client"
     defer func() {
@@ -314,6 +336,13 @@ func (p *callArgs) call_register_client(ti int, te *testEntry_t) {
     }
 }
 
+/*
+ * Implementation for clientAPIID - REG_ACTION
+ *
+ * Invoke tx.RegisterAction as requested in collection.
+ *
+ * Refer test collection for sample usage.
+ */
 func (p *callArgs) call_register_action(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_register_action"
     defer func() {
@@ -336,6 +365,13 @@ func (p *callArgs) call_register_action(ti int, te *testEntry_t) {
     }
 }
 
+/*
+ * Implementation for clientAPIID - DEREG_ACTION
+ *
+ * Invoke tx.DeregisterAction as requested in collection.
+ *
+ * Refer test collection for sample usage.
+ */
 func (p *callArgs) call_deregister_action(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_deregister_action"
     defer func() {
@@ -358,6 +394,13 @@ func (p *callArgs) call_deregister_action(ti int, te *testEntry_t) {
     }
 }
 
+/*
+ * Implementation for clientAPIID - DEREG_CLIENT
+ *
+ * Invoke tx.DeregisterClient as requested in collection.
+ *
+ * Refer test collection for sample usage.
+ */
 func (p *callArgs) call_deregister_client(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_deregister_client"
     defer func() {
@@ -375,6 +418,7 @@ func (p *callArgs) call_deregister_client(ti int, te *testEntry_t) {
     }
 }
 
+/* Helper API */
 func compStr(msg, rcv, tst string) string {
     if (len(rcv) == 0) {
         return fmt.Sprintf("%s empty", msg)
@@ -385,6 +429,7 @@ func compStr(msg, rcv, tst string) string {
     return ""
 }
 
+/* Helper API */
 func compActResData(rcv *ActionResponseData, tst *ActionResponseData) string {
     if s := compStr("Action", rcv.Action, tst.Action); len(s) > 0 {
         return s
@@ -412,6 +457,7 @@ func compActResData(rcv *ActionResponseData, tst *ActionResponseData) string {
 }
 
 
+/* Helper API */
 func compActReqData(rcv *ActionRequestData, tst *ActionRequestData) string {
     if s := compStr("Action", rcv.Action, tst.Action); len(s) > 0 {
         return s
@@ -456,7 +502,7 @@ func compActReqData(rcv *ActionRequestData, tst *ActionRequestData) string {
     return ""
 }
 
-
+/* Helper API */
 func buildReq(exp *ActionRequestData, seq int) (*ActionRequestData, error) {
     /*
      * Test code data can at most carry action name & timeout
@@ -505,6 +551,7 @@ func buildReq(exp *ActionRequestData, seq int) (*ActionRequestData, error) {
 }
 
 
+/* Helper API */
 func buildRes(exp *ActionResponseData, seq int) (*ActionResponseData, error) {
     /*
      * Test code data can at most carry action name & timeout
@@ -541,6 +588,16 @@ func buildRes(exp *ActionResponseData, seq int) (*ActionResponseData, error) {
     }
 }
 
+/*
+ * Implementation for clientAPIID - RECV_REQ
+ *
+ * Invoke tx.RecvServerRequest and verify against expected from test entry.
+ * Saves rcvd data in local sequence which could be needed for verifications.
+ * For e.g. we need to know anomaly & instance-id to verify/construct future
+ * responses/requests.
+ *
+ * Refer test collection for sample usage.
+ */
 func (p *callArgs) call_receive_req(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_receive_req"
     defer func() {
@@ -576,6 +633,13 @@ func (p *callArgs) call_receive_req(ti int, te *testEntry_t) {
 }
 
 
+/*
+ * Internal helper API to verify engine publishing against expected.
+ * Receives the engine publishing via local channel through mock publish fn.
+ * Wait till LomAction & verify.
+ * No worries about wait forever as test will be terminated if it takes
+ * too long.
+ */
 func verifyPublish(exp *ActionResponseData, complete bool) error {
     pubRes := pubAction_t{}
     s := ""
@@ -614,6 +678,14 @@ func verifyPublish(exp *ActionResponseData, complete bool) error {
     return nil
 }
 
+/*
+ * Implementation for clientAPIID - SEND_RES
+ *
+ * Invoke tx.SendServerResponse. Save expected result in cache and also
+ * verify that engine publish o/p matches.
+ *
+ * Refer test collection for sample usage.
+ */
 func (p *callArgs) call_send_res(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_send_res"
     defer func() {
@@ -649,6 +721,12 @@ func (p *callArgs) call_send_res(ti int, te *testEntry_t) {
 }
 
 
+/*
+ * Implementation for clientAPIID - CHK_REG_ACTIONS
+ *
+ * Internal engine state verifications for expected active actions.
+ * Refer test collection for sample usage.
+ */
 func (p *callArgs) call_verify_registrations(ti int, te *testEntry_t) {
     reg := GetRegistrations()
 
@@ -696,6 +774,12 @@ func (p *callArgs) call_verify_registrations(ti int, te *testEntry_t) {
 }
 
 
+/*
+ * Implementation for clientAPIID - NOTIFY_HB
+ *
+ * Call tx.NotifyHeartbeat for each in test entry.
+ * As engine resp async, call testHeartbeat to verify
+ */
 func (p *callArgs) call_notify_hb(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_notify_hb"
     defer func() {
@@ -725,12 +809,19 @@ func (p *callArgs) call_notify_hb(ti int, te *testEntry_t) {
             res[i] = s
         }
     }
+    /* Engine publishes heartbeat asynchronously at its own HB loop */
     if err := testHeartbeat(res); err != nil {
         p.t.Fatalf("%d: testHeartbeat failed. (%v)", ti, err)
     }
 }
 
 
+/*
+ * Implementation for clientAPIID - CHK_ACTIV_REQ
+ *
+ * Internal engine state verifications for expected active requests.
+ * Refer test collection for sample usage.
+ */
 func (p *callArgs) call_verify_active_requests(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_verify_active_requests"
     defer func() {
@@ -760,6 +851,11 @@ func (p *callArgs) call_verify_active_requests(ti int, te *testEntry_t) {
 }
 
 
+/*
+ * A helper just to introduce pause time where needed.
+ * It literally sleeps with test heartbeats.
+ * Look at test collection to see where & when pause is needed.
+ */
 func (p *callArgs) call_pause(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_pause"
     defer func() {
@@ -780,12 +876,20 @@ func (p *callArgs) call_pause(ti int, te *testEntry_t) {
 }
 
 
+/* Simple helper to construct first action's final resp */
 func margeRes(p *ActionResponseData, q *ActionResponseData) (*ActionResponseData, error) {
     p.ResultCode = q.ResultCode
     p.ResultStr = q.ResultStr
     return p, nil
 }
 
+/*
+ * Implementation for clientAPIID - SEQ_COMPLETE
+ *
+ * first received result + test i/p == Last publish result.
+ * Refer test collection for sample usage.
+ */
+/* Verify seq complete publish o/p */
 func (p *callArgs) call_seq_complete(ti int, te *testEntry_t) {
     chTestHeartbeat <- "Start: call_seq_complete"
     defer func() {
@@ -801,6 +905,11 @@ func (p *callArgs) call_seq_complete(ti int, te *testEntry_t) {
             rArgs = rtmp
         }
     }
+    /*
+     * All results from a seq are saved. Get first res, which is anomaly's
+     * Merge it with expected res codes ... from test entry
+     * verify the last publish which is anomaly re-published against this
+     */
     if rs, err := restoreResultAny(te.seqId, 1); err != nil {
         /* Restore first response */
         p.t.Fatalf("%d: Failed to get first res (%v)", ti, err)
@@ -813,6 +922,11 @@ func (p *callArgs) call_seq_complete(ti int, te *testEntry_t) {
     }
 }
 
+/*
+ * All test runs are watched via chTestHeartbeat. 
+ * Every test is expected to keep this channel alive.
+ * An idle channel for too long is watched and terminated
+ */
 func terminate(t *testing.T, tout int, chEnd chan int) {
     for {
         select {
@@ -827,6 +941,16 @@ func terminate(t *testing.T, tout int, chEnd chan int) {
     }
 }
 
+/*
+ * Local publishAPI which engine made to call for any publishing
+ * send engine's publisings via publishCh. Listen to it until
+ * all expected actions are reported or on error.
+ *
+ * No worries about blocked for ever in cases of bug in engine.
+ * Test's terminate will abort.
+ *
+ * For details refer comments in caller function - testHeartbeat
+ */
 func testHeartbeatCh(m map[string]struct{}, ch chan string) {
     hb := HBData_t{}
     done := false
@@ -858,17 +982,37 @@ func testHeartbeatCh(m map[string]struct{}, ch chan string) {
     ch <- ""
 }
 
+/*
+ * The test calls couple of NotifyHeartbeat.
+ *
+ * Engine collects them and send the collected list in its own HB.
+ * The list is transient and gets cleared upon engine sending HB.
+ * So the test sent notify for multiple actions could come in one / two
+ * engine heartbeats.
+ * 
+ * Kick off testHeartbeatCh to receive engine HBs and remove from expected
+ * list. Return when list become empty or on error.
+ *
+ * This routine waits for that to return within HB_WAIT period.
+ * Till HB_WAIT period, it keeps chTestHeartbeat (channel to watch for
+ * test timeout) happy. After HB_WAIT it does not update chTestHeartbeat
+ * allowing terminate to abort the testing.
+ */
 const HB_WAIT = 5
 func testHeartbeat(actions []string) error {
     ch := make(chan string)
     cnt := HB_WAIT
 
+    /* Collect expected actions as key in map to help locate easy */
     m := map[string]struct{}{}
     for _, v := range actions {
         m[v] = struct{}{}
     }
 
+    /* Run until all expected actions reported or on error */
     go testHeartbeatCh(m, ch)
+
+    /* Return on error or completion. Stop sending test HB after HB_WAIT */
     for {
         select {
         case err := <- ch:
@@ -890,6 +1034,12 @@ func testHeartbeat(actions []string) error {
     }
 }
 
+/*
+ * Run individual test entry
+ * Use the callArgs to use the right transport.
+ * Call appropriate API per type, which is merely a wrapper for clientTransport
+ * API. It takes data from test entry and pass to the corresponding client API as args.
+ */
 func runTestEntries(cArgs *callArgs, collPath string, lst testEntriesList_t) {
 
     ordered := make([]int, len(lst))
@@ -936,6 +1086,10 @@ func runTestEntries(cArgs *callArgs, collPath string, lst testEntriesList_t) {
     }
 }
 
+/*
+ * Run a single collection, in the order pre, <this coll> & post
+ * Pre & Post are by themselves list of collections, which can be empty
+ */
 func runColl(cArgs *callArgs, collPath string, te *testCollectionEntry_t) {
     LogDebug ("**************** coll: %s START (%s) **********", collPath, te.desc)
     for _, pre := range te.preSetup {
@@ -949,6 +1103,7 @@ func runColl(cArgs *callArgs, collPath string, te *testCollectionEntry_t) {
     LogDebug ("**************** coll: %s  END  (%s) **********", collPath, te.desc)
 }
 
+/* Creates the conf files as per data in this code */
 var initConfigDone = false
 func initConfig(t *testing.T) {
     if !initConfigDone {
@@ -961,6 +1116,16 @@ func initConfig(t *testing.T) {
 }
 
 
+/*
+ * Executes all test collections
+ * 
+ * initServer starts the engine and terminated only the end.
+ * engine starts listening for client connections.
+ *
+ * For each collection, a new client transport is created via CallArgs
+ *
+ * The terminate helps abort the entire test run when any test blocks for too long.
+ */
 func TestRun(t *testing.T) {
     chEnd := make(chan int, 1)
     go terminate(t, 5, chEnd)
