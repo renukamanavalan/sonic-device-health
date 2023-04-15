@@ -7,6 +7,33 @@
 # refer as <module name>.<attr name>
 #
 
+REQ_CONTEXT             = "context"
+REQ_ACTION              = "Action"
+REQ_ANOMALY_INSTANCE_ID = "AnomalyInstanceId"
+REQ_ANOMALY_KEY         = "AnomalyKey"
+REQ_INSTANCE_ID         = "InstanceId"
+REQ_RESP_DATA           = "RespData"
+REQ_RESPONSE            = "Response"
+REQ_RESULT_CODE         = "ResultCode"
+REQ_RESULT_STR          = "ResultStr"
+REQ_TIMESTAMP           = "Timestamp"
+
+
+class Type(Enum):
+    TypeRegClient = auto()
+    TypeDeregClient = auto()
+    TypeRegAction = auto()
+    TypeDeregAction = auto()
+    TypeRecvServerRequest = auto()
+    TypeSendServerResponse = auto()
+    TypeNotifyActionHeartbeat = auto()
+
+class Type(Enum):
+    TypeServerRequestNone = auto()
+    TypeServerRequestAction = auto()
+    TypeServerRequestShutdown = auto()
+
+
 # requests
 # These are between clib client & server, hence mocked here.
 REQ_REGISTER_CLIENT = "register_client"
@@ -25,17 +52,10 @@ REQ_ACTION_TYPE_SHUTDOWN = "shutdown"
 
 REQ_CLIENT_NAME = "client_name"
 REQ_ACTION_NAME = "action_name"
-REQ_INSTANCE_ID = "instance_id"
-REQ_ANOMALY_INSTANCE_ID = "anomaly_instance_id"
-REQ_ANOMALY_KEY = "anomaly_key"
-REQ_CONTEXT = "context"
-REQ_TIMEOUT = "timeout"
 REQ_HEARTBEAT_INTERVAL = "heartbeat_interval"
 REQ_PAUSE = "action_pause"
 
 REQ_ACTION_DATA = "action_data"
-REQ_RESULT_CODE = "result_code"
-REQ_RESULT_STR = "result_str"
 
 REQ_MITIGATION_STATE = "state" 
 REQ_MITIGATION_STATE_INIT = "init"

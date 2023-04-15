@@ -40,6 +40,9 @@ import (
  */
 
 
+/*
+ * NOTE: Any change in Go lib must reflect in libs of non-go client libs
+ */
 const (
     RPC_HTTP_PORT = 1234
     RPC_JSON_PORT = 1235
@@ -73,7 +76,8 @@ var ReqTypeToStr = map[ReqDataType]string {
 /* Server sends its request as response to TypeRecvServerRequest */ 
 type ServerReqDataType int
 const (
-    TypeServerRequestAction = ServerReqDataType(iota)
+    TypeServerRequestNone = ServerReqDataType(iota)
+    TypeServerRequestAction
     TypeServerRequestShutdown
     TypeServerRequestCount
 )
