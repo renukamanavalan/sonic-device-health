@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/go-redis/redis v6.15.9+incompatible
-	github.com/stretchr/testify v1.5.1 // Used for mocking and assertions in UTs
+	github.com/stretchr/testify v1.7.0 // Used for mocking and assertions in UTs
 )
 
 require (
@@ -13,5 +13,13 @@ require (
 	github.com/onsi/gomega v1.27.6 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/objx v0.1.0 // indirect
-	gopkg.in/yaml.v2 v2.3.0 // indirect
+)
+
+require github.com/alicebob/miniredis v2.5.0+incompatible
+
+require (
+	github.com/alicebob/gopher-json v0.0.0-20230218143504-906a9b012302 // indirect
+	github.com/gomodule/redigo v1.8.9 // indirect
+	github.com/yuin/gopher-lua v1.1.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

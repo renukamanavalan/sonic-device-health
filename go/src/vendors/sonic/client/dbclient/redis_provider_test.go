@@ -3,7 +3,8 @@ package dbclient
 import (
 	"errors"
 	"testing"
-
+        
+	"github.com/alicebob/miniredis"
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 )
@@ -161,4 +162,39 @@ func Test_GetRedisConnectionForDatabase_ReturnsConnectionSuccessfuly(t *testing.
 	if !(redisClient1 == redisClient2) {
 		t.Errorf("RedisClient1 and RedisClient2 is expected point to same redis client.")
 	}
+}
+
+/* Test hmGetFunction and hGetAllFunction function */
+func Test_hmGetFunction_hGetAllFunction(t *testing.T) {
+
+	redisServer := mockRedis()
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: redisServer.Addr(),
+	})
+
+	value := map[string]interface{}{"a": "1", "b": "2", "c": "3"}
+	redisClient.HMSet("abc", value)
+
+	args := []string{"a", "b"}
+	result, err := hmGetFunction(redisClient, "abc", args)
+	assert := assert.New(t)
+	assert.NotEqual(nil, result, "result expected to be non nil")
+	assert.Equal(nil, err, "err expected to be nil")
+	assert.Equal("1", result[0].(string), "result[0] is exptected to be 1")
+	assert.Equal("2", result[1].(string), "result[1] is exptected to be 2")
+
+	resultMap, error := hGetAllFunction(redisClient, "abc")
+	assert.NotEqual(nil, resultMap, "resultMap expected to be non nil")
+	assert.Equal(nil, error, "error expected to be nil")
+	assert.Equal("1", resultMap["a"], "resultMap[a] is exptected to be 1")
+	assert.Equal("2", resultMap["b"], "resultMap[b] is exptected to be 2")
+	assert.Equal("3", resultMap["c"], "resultMap[c] is exptected to be 2")
+}
+
+func mockRedis() *miniredis.Miniredis {
+	server, err := miniredis.Run()
+	if err != nil {
+		panic(err)
+	}
+	return server
 }
