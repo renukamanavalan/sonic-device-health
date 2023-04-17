@@ -1,0 +1,68 @@
+Sending build context to Docker daemon  1.205MB
+Step 1/17 : FROM lom-bullseye:1234
+ ---> 8b40af275bc6
+Step 2/17 : ARG user
+ ---> Running in 2e0bc4f04f7e
+Removing intermediate container 2e0bc4f04f7e
+ ---> b46cd63fb06b
+Step 3/17 : ARG uid
+ ---> Running in a8beaebd3901
+Removing intermediate container a8beaebd3901
+ ---> 54af8d9c3659
+Step 4/17 : ARG guid
+ ---> Running in 44b61d6222b3
+Removing intermediate container 44b61d6222b3
+ ---> 9830a7f63aab
+Step 5/17 : ARG hostname
+ ---> Running in 48d02b299c14
+Removing intermediate container 48d02b299c14
+ ---> 3a67799f66dc
+Step 6/17 : ENV BUILD_HOSTNAME $hostname
+ ---> Running in dffdfa6ed161
+Removing intermediate container dffdfa6ed161
+ ---> 025c6fd788eb
+Step 7/17 : ENV USER $user
+ ---> Running in 4eacf98ab908
+Removing intermediate container 4eacf98ab908
+ ---> d850d3626dd1
+Step 8/17 : RUN groupadd -f -r -g $guid g$user
+ ---> Running in c5a2af9a2283
+Removing intermediate container c5a2af9a2283
+ ---> a61c47b35727
+Step 9/17 : RUN useradd $user -l -u $uid -g $guid -d /var/$user -m -s /bin/bash
+ ---> Running in 42acd0687419
+Removing intermediate container 42acd0687419
+ ---> d42296de2c71
+Step 10/17 : RUN gpasswd -a $user docker
+ ---> Running in f18f992128c2
+Adding user localadmin to group docker
+Removing intermediate container f18f992128c2
+ ---> 239cbeb5ac63
+Step 11/17 : RUN su $user -c "git config --global user.name $user"
+ ---> Running in 7b10ff65590d
+Removing intermediate container 7b10ff65590d
+ ---> c3b4d2c82e2a
+Step 12/17 : RUN su $user -c "git config --global user.email $user@contoso.com"
+ ---> Running in e16cf45081ec
+Removing intermediate container e16cf45081ec
+ ---> f6c8f3a00975
+Step 13/17 : COPY sonic-jenkins-id_rsa.pub /var/$user/.ssh/authorized_keys2
+ ---> a2342083e739
+Step 14/17 : RUN chown $user /var/$user/.ssh -R
+ ---> Running in 5b5f65fc16e9
+Removing intermediate container 5b5f65fc16e9
+ ---> ec420eec2888
+Step 15/17 : RUN chmod go= /var/$user/.ssh -R
+ ---> Running in 9076db469199
+Removing intermediate container 9076db469199
+ ---> 7453a10e814d
+Step 16/17 : RUN echo "$user ALL=(ALL) NOPASSWD:ALL" >>/etc/sudoers
+ ---> Running in 04e100eca158
+Removing intermediate container 04e100eca158
+ ---> 3762671df15c
+Step 17/17 : USER $user
+ ---> Running in c6fa827cd241
+Removing intermediate container c6fa827cd241
+ ---> ed84ee13b7fa
+Successfully built ed84ee13b7fa
+Successfully tagged lom-bullseye-admin:1234
