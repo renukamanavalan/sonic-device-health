@@ -93,6 +93,7 @@ type LoMRequest struct {
     ReqType     ReqDataType     /* Type of request */
     Client      string          /* The client sending this request */
     TimeoutSecs int             /* Timeout - Honored in long running requests */
+                                /* == 0 implies no timeout */
     ReqData     interface{}     /* Data specific to request type */
 }
 

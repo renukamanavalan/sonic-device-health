@@ -1,5 +1,7 @@
 #! /usr/bin/env python3
 
+from enum import auto, IntEnum
+
 # Shared global definitions are held here
 # This could be updated by any module
 # To ensure to get the final value, import module 
@@ -19,7 +21,7 @@ REQ_RESULT_STR          = "ResultStr"
 REQ_TIMESTAMP           = "Timestamp"
 
 
-class Type(Enum):
+class TypeLoMReq(IntEnum):
     TypeRegClient = auto()
     TypeDeregClient = auto()
     TypeRegAction = auto()
@@ -28,7 +30,7 @@ class Type(Enum):
     TypeSendServerResponse = auto()
     TypeNotifyActionHeartbeat = auto()
 
-class Type(Enum):
+class TypeServerReq(IntEnum):
     TypeServerRequestNone = auto()
     TypeServerRequestAction = auto()
     TypeServerRequestShutdown = auto()
