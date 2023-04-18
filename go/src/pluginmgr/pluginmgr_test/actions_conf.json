@@ -1,0 +1,35 @@
+{
+	"link_flap": {
+		"Name": "link_flap",
+        "Type": "Detection",
+        "Timeout": 0,
+		"HeartbeatInt": 2,
+		"Disable": false,
+        "Mimic": "true",
+        "ActionKnobs" : {
+            "min" : 80
+        }
+	},
+	"link_safety": {
+		"Name": "link_safety",
+        "Type": "Safety",
+        "Timeout": 60,
+		"HeartbeatInt": 0,
+		"Disable": false,
+        "Mimic": "true",
+        "ActionKnobs" : {
+            "lock_timeout" : 10
+        }
+	},
+	"link_down": {
+		"Name": "link_down",
+        "Type": "Safety",
+        "Timeout": 60,
+		"HeartbeatInt": 0,
+		"Disable": false,
+        "Mimic": "true",
+        "ActionKnobs" : {
+            "repeat" : false
+        }
+	}
+}

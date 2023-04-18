@@ -1,13 +1,13 @@
 package lomipc
 
 import (
-    "encoding/gob"
-    "fmt"
-    . "lib/lomcommon"
-    "net"
-    "net/http"
-    "net/rpc"
-    "reflect"
+	"encoding/gob"
+	"fmt"
+	. "go/src/lib/lomcommon"
+	"net"
+	"net/http"
+	"net/rpc"
+	"reflect"
 )
 
 /*
@@ -122,8 +122,8 @@ type MsgRecvServerRequest struct {  /* For TypeRecvServerRequest */
 }
 
 type MsgSendServerResponse struct { /* For TypeSendServerResponse */
-    ReqType             ServerReqDataType
-    ResData             interface {}
+	ReqType ServerReqDataType
+	ResData interface{} /* ActionResponseData */
 }
 
 type MsgNotifyHeartbeat struct {    /* For TypeNotifyActionHeartbeat */
