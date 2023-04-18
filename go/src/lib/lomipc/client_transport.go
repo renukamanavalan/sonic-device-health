@@ -1,9 +1,8 @@
 package lomipc
 
-
-import(
-    . "lib/lomcommon"
-    "net/rpc"
+import (
+	. "go/src/lib/lomcommon"
+	"net/rpc"
 )
 
 const server_address = "localhost"
@@ -86,7 +85,6 @@ func (tx *ClientTx) RegisterClient(client string) error {
     LogInfo("Registered client (%s)", client)
     return nil
 }
-
 
 /*
  * DeregisterClient
