@@ -11,7 +11,7 @@ import (
  *
  *  Input:
  *      The given string is logged & published
- *      
+ *
  *  Output:
  *      None
  *
@@ -20,9 +20,9 @@ import (
  *
  */
 func PublishString(s string) string {
-    LogMessage(syslog.LOG_INFO, s)
-    // TODO: Call event publish
-    return s
+	LogMessage(syslog.LOG_INFO, s)
+	// TODO: Call event publish
+	return s
 }
 
 /* will be set to appropriate API */
