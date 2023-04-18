@@ -1,9 +1,8 @@
 package lomipc
 
-
-import(
-    . "lib/lomcommon"
-    "net/rpc"
+import (
+	. "gocode/src/lib/lomcommon"
+	"net/rpc"
 )
 
 const server_address = "localhost"
@@ -12,20 +11,20 @@ var RPCDialHttp = rpc.DialHTTP
 
 /* Client Transport object that has methods needed by clients */
 type ClientTx struct {
-    clientRpc   *rpc.Client
-    clientName  string
-    timeoutSecs int
+	clientRpc   *rpc.Client
+	clientName  string
+	timeoutSecs int
 }
 
 func GetClientTx(tout int) *ClientTx {
-    return &ClientTx{nil, "", tout}
+	return &ClientTx{nil, "", tout}
 }
 
 func txCallClient(tx *ClientTx, serviceMethod string, args any, reply any) error {
-    if tx.clientRpc == nil {
-        return LogError("txCallClient: No Transport; Need to register first")
-    }
-    return tx.clientRpc.Call(serviceMethod, args, reply)
+	if tx.clientRpc == nil {
+		return LogError("txCallClient: No Transport; Need to register first")
+	}
+	return tx.clientRpc.Call(serviceMethod, args, reply)
 }
 
 var ClientCall = txCallClient
@@ -78,15 +77,14 @@ func (tx *ClientTx) RegisterClient(client string) error {
                 reply.ResultCode, reply.ResultStr)
     }
 
-    res := reply.RespData
-    if x, ok := res.(MsgEmptyResp); !ok {
-        return LogError("RegisterClient: Expect empty resp. (%T) (%v)", x, x)
-    }
+	res := reply.RespData
+	if x, ok := res.(MsgEmptyResp); !ok {
+		return LogError("RegisterClient: Expect empty resp. (%T) (%v)", x, x)
+	}
 
-    LogInfo("Registered client (%s)", client)
-    return nil
+	LogInfo("Registered client (%s)", client)
+	return nil
 }
-
 
 /*
  * DeregisterClient
@@ -104,10 +102,10 @@ func (tx *ClientTx) RegisterClient(client string) error {
  *  Appropriate error object on failure
  */
 func (tx *ClientTx) DeregisterClient() error {
-    defer func() {
-        tx.clientRpc = nil
-        tx.clientName = ""
-    }()
+	defer func() {
+		tx.clientRpc = nil
+		tx.clientName = ""
+	}()
 
     req := &LoMRequest { TypeDeregClient, tx.clientName, tx.timeoutSecs, MsgDeregClient{} }
     reply := &LoMResponse{}
@@ -121,15 +119,14 @@ func (tx *ClientTx) DeregisterClient() error {
                 reply.ResultCode, reply.ResultStr)
     }
 
-    res := reply.RespData
-    if x, ok := res.(MsgEmptyResp); !ok {
-        return LogError("DeegisterClient: Expect empty resp. (%T) (%v)", x, x)
-    }
+	res := reply.RespData
+	if x, ok := res.(MsgEmptyResp); !ok {
+		return LogError("DeegisterClient: Expect empty resp. (%T) (%v)", x, x)
+	}
 
-    LogInfo("Deregistered client (%s)", tx.clientName)
-    return nil
+	LogInfo("Deregistered client (%s)", tx.clientName)
+	return nil
 }
-
 
 /*
  * RegisterAction
@@ -161,15 +158,14 @@ func (tx *ClientTx) RegisterAction(action string) error {
                 action, reply.ResultCode, reply.ResultStr)
     }
 
-    res := reply.RespData
-    if x, ok := res.(MsgEmptyResp); !ok {
-        return LogError("RegisterAction: Expect empty resp. (%T) (%v)", x, x)
-    }
+	res := reply.RespData
+	if x, ok := res.(MsgEmptyResp); !ok {
+		return LogError("RegisterAction: Expect empty resp. (%T) (%v)", x, x)
+	}
 
-    LogInfo("Registered action (%s/%s)", tx.clientName, action)
-    return nil
+	LogInfo("Registered action (%s/%s)", tx.clientName, action)
+	return nil
 }
-
 
 /*
  * DeregisterAction
@@ -201,13 +197,13 @@ func (tx *ClientTx) DeregisterAction(action string) error {
                 action, reply.ResultCode, reply.ResultStr)
     }
 
-    res := reply.RespData
-    if x, ok := res.(MsgEmptyResp); !ok {
-        return LogError("DeegisterAction: Expect empty resp. (%T) (%v)", x, x)
-    }
+	res := reply.RespData
+	if x, ok := res.(MsgEmptyResp); !ok {
+		return LogError("DeegisterAction: Expect empty resp. (%T) (%v)", x, x)
+	}
 
-    LogInfo("Deregistered action (%s/%s)", tx.clientName, action)
-    return nil
+	LogInfo("Deregistered action (%s/%s)", tx.clientName, action)
+	return nil
 }
 
 /*
@@ -240,15 +236,15 @@ func (tx *ClientTx) RecvServerRequest() (*ServerRequestData, error) {
                 reply.ResultCode, reply.ResultStr)
     }
 
-    p := reply.RespData
-    res, ok := p.(ServerRequestData)
-    if !ok {
-        return nil, LogError("RecvServerRequest: RespData (%T) != *ActionRequestData", res)
-    }
+	p := reply.RespData
+	res, ok := p.(ServerRequestData)
+	if !ok {
+		return nil, LogError("RecvServerRequest: RespData (%T) != *ActionRequestData", res)
+	}
 
-    LogInfo("RecvServerRequest: succeeded (%s/%s)", tx.clientName,
-                    ServerReqTypeToStr[res.ReqType])
-    return &res, nil
+	LogInfo("RecvServerRequest: succeeded (%s/%s)", tx.clientName,
+		ServerReqTypeToStr[res.ReqType])
+	return &res, nil
 }
 
 /*
@@ -279,16 +275,15 @@ func (tx *ClientTx) SendServerResponse(res *MsgSendServerResponse) error {
                 reply.ResultCode, reply.ResultStr)
     }
 
-    resD := reply.RespData
-    if x, ok := resD.(MsgEmptyResp); !ok {
-        return LogError("SendServerResponse: Expect empty resp. (%T) (%v)", x, x)
-    }
+	resD := reply.RespData
+	if x, ok := resD.(MsgEmptyResp); !ok {
+		return LogError("SendServerResponse: Expect empty resp. (%T) (%v)", x, x)
+	}
 
-    LogInfo("SendServerResponse: succeeded (%s/%s)", tx.clientName, ServerReqTypeToStr[res.ReqType])
-    return nil
+	LogInfo("SendServerResponse: succeeded (%s/%s)", tx.clientName, ServerReqTypeToStr[res.ReqType])
+	return nil
 
 }
-
 
 /*
  * NotifyHeartbeat
@@ -321,13 +316,11 @@ func (tx *ClientTx) NotifyHeartbeat(action string, tstamp int64) error {
                 action, reply.ResultCode, reply.ResultStr)
     }
 
-    res := reply.RespData
-    if x, ok := res.(MsgEmptyResp); !ok {
-        return LogError("NotifyHeartbeat: Expect empty resp. (%T) (%v)", x, x)
-    }
+	res := reply.RespData
+	if x, ok := res.(MsgEmptyResp); !ok {
+		return LogError("NotifyHeartbeat: Expect empty resp. (%T) (%v)", x, x)
+	}
 
-    LogInfo("Notified heartbeat from action (%s/%s)", tx.clientName, action)
-    return nil
+	LogInfo("Notified heartbeat from action (%s/%s)", tx.clientName, action)
+	return nil
 }
-
-

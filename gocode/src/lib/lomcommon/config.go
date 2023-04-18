@@ -1,23 +1,26 @@
 package lomcommon
 
 import (
-    "encoding/json"
-    "io"
-    "os"
-    "sort"
+	"encoding/json"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"sort"
 )
 
-
 type ConfigFiles_t struct {
-    GlobalFl    string
-    ActionsFl   string
-    BindingsFl  string
+	GlobalFl   string
+	ActionsFl  string
+	BindingsFl string
+	ProcsFl    string
 }
 
 const (
-    Detection string = "Detection"
-    SafetyCheck string = "SafetyCheck"
-    Mitigation string = "Mitigation"
+	Detection   string = "Detection"
+	SafetyCheck string = "SafetyCheck"
+	Mitigation  string = "Mitigation"
 )
 
 /*
@@ -25,55 +28,54 @@ const (
  * For example, converting from string to int is pre-done
  */
 type GlobalConfig_t struct {
-    strings map[string]string
-    ints    map[string]int
-    anyVal  map[string]any
+	strings map[string]string
+	ints    map[string]int
+	anyVal  map[string]any
 }
-
 
 /*
  * NOTE: This will be deprecated soon.
  * Guideline: conf should have a value for every entry
  */
 func (p *GlobalConfig_t) setDefaults() {
-    p.strings = make(map[string]string)
-    p.ints = make(map[string]int)
-    p.anyVal = make(map[string]any)
+	p.strings = make(map[string]string)
+	p.ints = make(map[string]int)
+	p.anyVal = make(map[string]any)
 
-    p.ints["MAX_SEQ_TIMEOUT_SECS"] = 120
-    p.ints["MIN_PERIODIC_LOG_PERIOD_SECS"] = 15
-    p.ints["ENGINE_HB_INTERVAL_SECS"] = 10
+	p.ints["MAX_SEQ_TIMEOUT_SECS"] = 120
+	p.ints["MIN_PERIODIC_LOG_PERIOD_SECS"] = 15
+	p.ints["ENGINE_HB_INTERVAL_SECS"] = 10
 }
 
 func (p *GlobalConfig_t) readGlobalsConf(fl string) error {
-    p.setDefaults()
+	p.setDefaults()
 
-    v := make(map[string]any)
+	v := make(map[string]any)
 
-    jsonFile, err := os.Open(fl)
-    if err != nil {
-        LogError("Failed to open (%s) (%v)", fl, err)
-        return err
-    }
+	jsonFile, err := os.Open(fl)
+	if err != nil {
+		LogError("Failed to open (%s) (%v)", fl, err)
+		return err
+	}
 
-    defer jsonFile.Close()
+	defer jsonFile.Close()
 
-    if byteValue, err := io.ReadAll(jsonFile); err != nil {
-        return LogError("Failed to read (%s) (%v)", jsonFile, err)
-    } else if err := json.Unmarshal(byteValue, &v); err != nil {
-        return LogError("Failed to parse (%s) (%v)", jsonFile, err)
-    } else {
-        for k, v := range v {
-            p.anyVal[k] = v
-            if s, ok := v.(string); ok {
-                p.strings[k] = s
-            } else if f, ok := v.(float64); ok {
-                p.ints[k] = int(f)
-            }
+	if byteValue, err := io.ReadAll(jsonFile); err != nil {
+		return LogError("Failed to read (%v) (%v)", jsonFile, err)
+	} else if err := json.Unmarshal(byteValue, &v); err != nil {
+		return LogError("Failed to parse (%v) (%v)", jsonFile, err)
+	} else {
+		for k, v := range v {
+			p.anyVal[k] = v
+			if s, ok := v.(string); ok {
+				p.strings[k] = s
+			} else if f, ok := v.(float64); ok {
+				p.ints[k] = int(f)
+			}
 
-        }
-        return nil
-    }
+		}
+		return nil
+	}
 }
 
 /*
@@ -82,7 +84,7 @@ func (p *GlobalConfig_t) readGlobalsConf(fl string) error {
  * is returned.
  *
  * Input:
- *  key: Config key. 
+ *  key: Config key.
  *
  * Output:
  *  None
@@ -91,7 +93,7 @@ func (p *GlobalConfig_t) readGlobalsConf(fl string) error {
  *  o/p as string
  */
 func (p *GlobalConfig_t) GetValStr(key string) string {
-    return p.strings[key]
+	return p.strings[key]
 }
 
 /*
@@ -100,7 +102,7 @@ func (p *GlobalConfig_t) GetValStr(key string) string {
  * is returned.
  *
  * Input:
- *  key: Config key. 
+ *  key: Config key.
  *
  * Output:
  *  None
@@ -109,7 +111,7 @@ func (p *GlobalConfig_t) GetValStr(key string) string {
  *  o/p as int
  */
 func (p *GlobalConfig_t) GetValInt(key string) int {
-    return p.ints[key]
+	return p.ints[key]
 }
 
 /*
@@ -118,7 +120,7 @@ func (p *GlobalConfig_t) GetValInt(key string) int {
  * is returned.
  *
  * Input:
- *  key: Config key. 
+ *  key: Config key.
  *
  * Output:
  *  None
@@ -127,56 +129,68 @@ func (p *GlobalConfig_t) GetValInt(key string) int {
  *  o/p as any
  */
 func (p *GlobalConfig_t) GetValAny(key string) any {
-    return p.anyVal[key]
+	return p.anyVal[key]
 }
 
+// To-Do : Goutham. Add/delete other fields
+// Proc conf file params
+type ProcConfig_t struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Path    string `json:"path"`
+}
+
+var ProcID string = "proc_0" // default proc id
 
 /* Action config as read from actions.conf.json */
 type ActionCfg_t struct {
-    Name            string
-    Type            string
-    Timeout         int     /* Timeout recommended for this action */
-    HeartbeatInt    int     /* Heartbeat interval */
-    Disable         bool    /* true - Disabled */
-    Mimic           bool    /* true - Run but don't write/update device */
-    ActionKnobs     string  /* Json String with action specific knobs */
+	Name         string
+	Type         string
+	Timeout      int    /* Timeout recommended for this action */
+	HeartbeatInt int    /* Heartbeat interval */
+	Disable      bool   /* true - Disabled */
+	Mimic        bool   /* true - Run but don't write/update device */
+	ActionKnobs  string /* Json String with action specific knobs */
 }
 
 /* Map with action name */
-type ActionsConfigList_t  map[string]ActionCfg_t
+type ActionsConfigList_t map[string]ActionCfg_t
+
+/* Map with action name for a particular proc ID */
+type ProcConfigList_t map[string]ProcConfig_t
 
 /* Action entry in sequence from binding sequence config */
 type BindingActionCfg_t struct {
-    Name        string
-    Mandatory   bool    /* Once sequence kicked off, mandatory to call this */
-    /*
-     * Timeout to use while in this sequence
-     * <= 0 - means no timeout set.
-     * >0   - timeout in seconds
-     *
-     */
-    Timeout     int     /* Timeout to use while in this sequence */
-    Sequence    int     /* Sequence index */
+	Name      string
+	Mandatory bool /* Once sequence kicked off, mandatory to call this */
+	/*
+	 * Timeout to use while in this sequence
+	 * <= 0 - means no timeout set.
+	 * >0   - timeout in seconds
+	 *
+	 */
+	Timeout  int /* Timeout to use while in this sequence */
+	Sequence int /* Sequence index */
 }
 
 /* Entire single binding sequence */
 type BindingSequence_t struct {
-    SequenceName    string
-    Timeout         int     /*  >0   - timeout in seconds; else no timeout */
-    Priority        int
-    Actions         []*BindingActionCfg_t
+	SequenceName string
+	Timeout      int /*  >0   - timeout in seconds; else no timeout */
+	Priority     int
+	Actions      []*BindingActionCfg_t
 }
 
 /* Helper to compare two sequences. Return true on match, else false */
 func (s *BindingSequence_t) Compare(d *BindingSequence_t) bool {
-    if s == d {
-        /* Same ptr */
-        return true
-    }
-    if (s == nil) || (d == nil) {
-        LogError("Unexpected nil args self(%v) arg(%v)\n", (s == nil), (d == nil))
-        return false
-    }
+	if s == d {
+		/* Same ptr */
+		return true
+	}
+	if (s == nil) || (d == nil) {
+		LogError("Unexpected nil args self(%v) arg(%v)\n", (s == nil), (d == nil))
+		return false
+	}
 
     if ((s.SequenceName != d.SequenceName) ||
             (s.Timeout != d.Timeout) ||
@@ -191,64 +205,96 @@ func (s *BindingSequence_t) Compare(d *BindingSequence_t) bool {
     }
     return true
 }
-        
+
 /* Binding sequence. Key = Name of first action. Value: Ordered actions first to last. */
 type BindingsConfig_t map[string]BindingSequence_t
 
-
 /* ConfigMgr - A single stop for all configs */
 type ConfigMgr_t struct {
-    globalConfig    *GlobalConfig_t
-    actionsConfig   ActionsConfigList_t
-    bindingsConfig  BindingsConfig_t
+	GlobalConfig   *GlobalConfig_t
+	ActionsConfig  ActionsConfigList_t
+	BindingsConfig BindingsConfig_t
+	ProcsConfig    ProcConfigList_t
 }
-
 
 func (p *ConfigMgr_t) readActionsConf(fl string) error {
-    actions := struct {
-        Actions []ActionCfg_t
-    }{}
+	actions := struct {
+		Actions []ActionCfg_t
+	}{}
 
-    jsonFile, err := os.Open(fl)
-    if err != nil {
-        return err
-    }
+	jsonFile, err := os.Open(fl)
+	if err != nil {
+		return err
+	}
 
-    defer jsonFile.Close()
+	defer jsonFile.Close()
 
-    if byteValue, err := io.ReadAll(jsonFile); err != nil {
-        return err
-    } else if err := json.Unmarshal(byteValue, &actions); err != nil {
-        return err
-    } else {
-        for _, a := range actions.Actions {
-            p.actionsConfig[a.Name] = a
-        }
-        return nil
-    }
+	if byteValue, err := io.ReadAll(jsonFile); err != nil {
+		return err
+	} else if err := json.Unmarshal(byteValue, &actions); err != nil {
+		return err
+	} else {
+		for _, a := range actions.Actions {
+			p.ActionsConfig[a.Name] = a
+		}
+		return nil
+	}
 }
 
+/*
+ * Read procs config file & store config params to ConfigMgr_t.Procsconfig
+ *
+ * Input:
+ *  filename - File name. e.g. actions_conf.json
+ *  vprocID - ProcId, passed as program arguments. Default is proc_0
+ *
+ * Output:
+ *  none -
+ *
+ * Return:
+ *  error - error message or nil on success
+ */
+func (p *ConfigMgr_t) readProcsConf(filename string, vprocID string) error {
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+
+	var jsonData map[string]ProcConfigList_t
+	err = json.Unmarshal(data, &jsonData)
+	if err != nil {
+		return err
+	}
+
+	procData, ok := jsonData[vprocID]
+	if !ok {
+		return LogError("Failed to get config for proc (%s)", vprocID)
+	}
+	p.ProcsConfig = procData
+
+	return nil
+}
 
 func (p *ConfigMgr_t) readBindingsConf(fl string) error {
-    bindings := struct {
-        Bindings []BindingSequence_t
-    }{}
+	bindings := struct {
+		Bindings []BindingSequence_t
+	}{}
 
-    jsonFile, err := os.Open(fl)
-    if err != nil {
-        return err
-    }
-    
-    defer jsonFile.Close()
-    
-    if byteValue, err := io.ReadAll(jsonFile); err != nil {
-        return err
-    } else if err := json.Unmarshal(byteValue, &bindings); err != nil {
-        return err
-    } else {
-        for _, b := range bindings.Bindings {
-            seq := 0
-            firstAction := string("")
+	jsonFile, err := os.Open(fl)
+	if err != nil {
+		return err
+	}
+
+	defer jsonFile.Close()
+
+	if byteValue, err := io.ReadAll(jsonFile); err != nil {
+		return err
+	} else if err := json.Unmarshal(byteValue, &bindings); err != nil {
+		return err
+	} else {
+		for _, b := range bindings.Bindings {
+			seq := 0
+			firstAction := string("")
 
             for i, a := range b.Actions {
                 actInfo, ok := p.actionsConfig[a.Name]
@@ -288,19 +334,28 @@ func (p *ConfigMgr_t) readBindingsConf(fl string) error {
     }
 }
 
-
-
 func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
-    if err := p.globalConfig.readGlobalsConf(cfgFiles.GlobalFl); err != nil {
-        return LogError("Globals: %s: %v", cfgFiles.GlobalFl, err)
-    } 
-    if err := p.readActionsConf(cfgFiles.ActionsFl); err != nil {
-        return LogError("Actions: %s: %v", cfgFiles.ActionsFl, err)
-    } 
-    if err := p.readBindingsConf(cfgFiles.BindingsFl); err != nil {
-        return LogError("Bind: %s: %v", cfgFiles.BindingsFl, err)
-    } 
-    return nil
+	if cfgFiles.GlobalFl != "" {
+		if err := p.GlobalConfig.readGlobalsConf(cfgFiles.GlobalFl); err != nil {
+			return LogError("Globals: %s: %v", cfgFiles.GlobalFl, err)
+		}
+	}
+	if cfgFiles.ActionsFl != "" {
+		if err := p.readActionsConf(cfgFiles.ActionsFl); err != nil {
+			return LogError("Actions: %s: %v", cfgFiles.ActionsFl, err)
+		}
+	}
+	if cfgFiles.BindingsFl != "" {
+		if err := p.readBindingsConf(cfgFiles.BindingsFl); err != nil {
+			return LogError("Bind: %s: %v", cfgFiles.BindingsFl, err)
+		}
+	}
+	if cfgFiles.ProcsFl != "" {
+		if err := p.readProcsConf(cfgFiles.ProcsFl, ProcID); err != nil {
+			return LogError("Procs: %s: %v", cfgFiles.ProcsFl, err)
+		}
+	}
+	return nil
 }
 
 /*
@@ -309,7 +364,7 @@ func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
  * is returned.
  *
  * Input:
- *  key: Config key. 
+ *  key: Config key.
  *
  * Output:
  *  None
@@ -318,7 +373,7 @@ func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
  *  o/p as string
  */
 func (p *ConfigMgr_t) GetGlobalCfgStr(key string) string {
-    return p.globalConfig.GetValStr(key)
+	return p.GlobalConfig.GetValStr(key)
 }
 
 /*
@@ -327,7 +382,7 @@ func (p *ConfigMgr_t) GetGlobalCfgStr(key string) string {
  * is returned.
  *
  * Input:
- *  key: Config key. 
+ *  key: Config key.
  *
  * Output:
  *  None
@@ -336,7 +391,7 @@ func (p *ConfigMgr_t) GetGlobalCfgStr(key string) string {
  *  o/p as int
  */
 func (p *ConfigMgr_t) GetGlobalCfgInt(key string) int {
-    return p.globalConfig.GetValInt(key)
+	return p.GlobalConfig.GetValInt(key)
 }
 
 /*
@@ -345,7 +400,7 @@ func (p *ConfigMgr_t) GetGlobalCfgInt(key string) int {
  * is returned.
  *
  * Input:
- *  key: Config key. 
+ *  key: Config key.
  *
  * Output:
  *  None
@@ -354,9 +409,8 @@ func (p *ConfigMgr_t) GetGlobalCfgInt(key string) int {
  *  o/p as any
  */
 func (p *ConfigMgr_t) GetGlobalCfgAny(key string) any {
-    return p.globalConfig.GetValAny(key)
+	return p.GlobalConfig.GetValAny(key)
 }
-
 
 /*
  * IsStartSequenceAction
@@ -409,14 +463,13 @@ func (p *ConfigMgr_t) GetSequence(name string) (*BindingSequence_t, error) {
     return ret, nil
 }
 
-
 /*
  * GetActionConfig
  *  Return config as read from actions.conf for the given action.
  *  Else null with non nil error.
  *
  * Input:
- *  name - Name of the action 
+ *  name - Name of the action
  *
  * Output:
  *  None
@@ -426,11 +479,11 @@ func (p *ConfigMgr_t) GetSequence(name string) (*BindingSequence_t, error) {
  *  error - If not in actions config, return non nil error, else nil
  */
 func (p *ConfigMgr_t) GetActionConfig(name string) (*ActionCfg_t, error) {
-    actInfo, ok := p.actionsConfig[name]
-    if !ok {
-        return nil, LogError("Failed to get conf for action (%s)", name)
-    }
-    return &actInfo, nil
+	actInfo, ok := p.ActionsConfig[name]
+	if !ok {
+		return nil, LogError("Failed to get conf for action (%s)", name)
+	}
+	return &actInfo, nil
 }
 
 /*
@@ -448,24 +501,22 @@ func (p *ConfigMgr_t) GetActionConfig(name string) (*ActionCfg_t, error) {
  * Return:
  *  List of all actions with a flag for each.
  */
-func (p *ConfigMgr_t) GetActionsList() map[string]struct{IsAnomaly bool} {
+func (p *ConfigMgr_t) GetActionsList() map[string]struct{ IsAnomaly bool } {
 
-    ret := make(map[string]struct{IsAnomaly bool})
+	ret := make(map[string]struct{ IsAnomaly bool })
 
-    for k, _ := range p.actionsConfig {
-        _, ok := p.bindingsConfig[k]
-        ret[k] = struct{IsAnomaly bool} { ok }
-    }
-    return ret
+	for k, _ := range p.ActionsConfig {
+		_, ok := p.BindingsConfig[k]
+		ret[k] = struct{ IsAnomaly bool }{ok}
+	}
+	return ret
 }
-
 
 var configMgr *ConfigMgr_t = nil
 
 func GetConfigMgr() *ConfigMgr_t {
-    return configMgr
+	return configMgr
 }
-
 
 /*
  * Initialize config or re-refresh config from files.
@@ -483,14 +534,42 @@ func GetConfigMgr() *ConfigMgr_t {
  *  error - Non nil on any failure, else nil
  */
 func InitConfigMgr(p *ConfigFiles_t) (*ConfigMgr_t, error) {
-    t := &ConfigMgr_t{new(GlobalConfig_t), make(ActionsConfigList_t), make(BindingsConfig_t)}
+	t := &ConfigMgr_t{new(GlobalConfig_t), make(ActionsConfigList_t), make(BindingsConfig_t), make(ProcConfigList_t)}
 
-    if err := t.loadConfigFiles(p); err != nil {
-        return nil, err
-    } else {
-        configMgr = t
-        return t, nil
-    }
+	if err := t.loadConfigFiles(p); err != nil {
+		return nil, err
+	} else {
+		configMgr = t
+		return t, nil
+	}
 }
 
+/*
+ * Validate the absolute path of config file
+ *
+ * Input:
+ *  location - Config file location. e.g. LOM_CONF_LOCATION
+ *  filename - File name. e.g. actions_conf.json
+ *
+ * Output:
+ *  none -
+ *
+ * Return:
+ *  string - Absolute Path if successful
+ *  error - error message or nil on success
+ */
+func ValidateConfigFile(location string, filename string) (string, error) {
+	// Create absolute path for config file
+	configFile := filepath.Join(location, filename)
 
+	// Validate config file path
+	if info, err := os.Stat(configFile); os.IsNotExist(err) {
+		return "", fmt.Errorf("config file %s does not exist: %v", configFile, err)
+	} else if err != nil {
+		return "", fmt.Errorf("error checking config file %s: %v", configFile, err)
+	} else if info.IsDir() {
+		return "", fmt.Errorf("config file %s is a directory", configFile)
+	}
+
+	return configFile, nil
+}
