@@ -162,6 +162,7 @@ lomipc:
         LoMRPCRequest
             Takes Jsonified LoMRequest and receives JSONified LoMResponse
 
+
 **********************************************************************************************
 Unit test:
     Exercise all the above code.
