@@ -3,8 +3,8 @@ package engine
 import (
     "bytes"
     "flag"
-    . "lib/lomcommon"
-    . "lib/lomipc"
+    . "lom/src/lib/lomcommon"
+    . "lom/src/lib/lomipc"
     "os"
     "os/signal"
     "path/filepath"

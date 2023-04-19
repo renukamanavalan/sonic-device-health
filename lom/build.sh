@@ -2,36 +2,48 @@
 
 # may have to set GO111MODULE=off
 
-# export GO111MODULE=off
-export GOPATH=$(pwd;)
-
-echo $GOPATH
-
 # set -x
 
+export GO111MODULE=on
+export GO=/usr/local/go/bin/go
+
+# Define output directory
+OUTPUT_DIR=$(realpath ./bin)
+
+# Set GOBIN to output directory
+export GOBIN=$OUTPUT_DIR
+
+# Install any dependencies specified in go.mod
+${GO} mod download -x
+${GO} version
+
 install() {
-    echo "run install"
-    go install ./...
+    echo "Installing to $OUTPUT_DIR"
+    rm -rf $OUTPUT_DIR
+    mkdir -p $OUTPUT_DIR
+    ${GO} install ./...
+    echo "Build completed successfully."
 }
 
 etest() {
-    go test $1 -coverprofile=coverprofile.out  -coverpkg engine -covermode=atomic engine
+    ${GO} test $1 -coverprofile=coverprofile.out  -coverpkg engine -covermode=atomic engine
     if [ $? -ne 0 ]; then
         echo "Failed to run engine test"
         exit -1
     fi
-    go tool cover -html=coverprofile.out -o /tmp/coverage.html
+    ${GO} tool cover -html=coverprofile.out -o /tmp/coverage.html
     ls -l coverprofile.out /tmp/coverage.html
     echo "View /tmp/coverage.html in Edge"
 }
 
 test() {
-    go test $1 -coverprofile=coverprofile.out  -coverpkg lib/lomipc,lib/lomcommon -covermode=atomic lib/lib_test
+    ${GO} test $1 -coverprofile=coverprofile.out  -coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon -covermode=atomic ./src/lib/lib_test
+    echo $?
     if [ $? -ne 0 ]; then
         echo "Failed to run test"
         exit -1
     fi
-    go tool cover -html=coverprofile.out -o /tmp/coverage.html
+    ${GO} tool cover -html=coverprofile.out -o /tmp/coverage.html
     ls -l coverprofile.out /tmp/coverage.html
     echo "View /tmp/coverage.html in Edge"
 }
@@ -73,9 +85,7 @@ elif [[ "etest" == "$cmd"* ]]; then
 
 elif [[ "xetest" == "$cmd"* ]]; then
     etest "-v"
-
 else
-    echo "($cmd) match None"
     echo "install / test / clean"
 fi
 

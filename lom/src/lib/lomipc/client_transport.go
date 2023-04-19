@@ -2,7 +2,7 @@ package lomipc
 
 
 import(
-    . "lib/lomcommon"
+    . "lom/src/lib/lomcommon"
     "net/rpc"
     "strconv"
 )

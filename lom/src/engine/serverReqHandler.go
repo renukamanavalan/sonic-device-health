@@ -2,8 +2,8 @@ package engine
 
 import (
     "fmt"
-    . "lib/lomcommon"
-    . "lib/lomipc"
+    . "lom/src/lib/lomcommon"
+    . "lom/src/lib/lomipc"
     "runtime"
 )
 

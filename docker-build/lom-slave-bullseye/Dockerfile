@@ -353,13 +353,9 @@ RUN sudo augtool --autosave "set /files/etc/dpkg/dpkg.cfg/force-confold"
 # For linux build
 RUN apt-get -y build-dep linux
 
-# For gobgp and telemetry build
-RUN apt-get install -y golang-1.15 && ln -s /usr/lib/go-1.15 /usr/local/go
-RUN wget -O golang-go.deb 'https://sonicstorage.blob.core.windows.net/public/fips/bullseye/0.1/amd64/golang-1.15-go_1.15.15-1~deb11u4%2Bfips_amd64.deb' \
- && wget -O golang-src.deb 'https://sonicstorage.blob.core.windows.net/public/fips/bullseye/0.1/amd64/golang-1.15-src_1.15.15-1~deb11u4%2Bfips_amd64.deb' \
- && dpkg -i golang-go.deb golang-src.deb \
- && ln -sf /usr/lib/go-1.15 /usr/local/go \
- && rm golang-go.deb golang-src.deb
+# Install golang
+RUN wget -O golang-go.tar.gz https://go.dev/dl/go1.20.3.linux-amd64.tar.gz
+RUN tar -C /usr/local -xzf golang-go.tar.gz
 
 RUN pip3 install --upgrade pip
 RUN apt-get purge -y python3-pip python3-yaml
