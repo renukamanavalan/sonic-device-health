@@ -50,6 +50,31 @@ func SetLogLevel(lvl syslog.Priority) {
     log_level = lvl
 }
 
+func getPrefix(skip int) string {
+    prefix := ""
+    if _, fl, ln, ok := runtime.Caller(skip); ok {
+        /*
+         * sample fl = /home/localadmin/tools/go/caller/t.go 
+         * get last 2 elements
+         * len returns 7, counting leading slash too. l[0] is empty
+         * [ () (home) (localadmin) (tools) (go) (caller) (t.go) ]
+         */
+        l := strings.Split(fl, "/")
+        c := len(l)
+
+        /*
+         * go for 2 if you can to get immediate parent dir too.
+         * Note: with leading slash first is null
+         * Hence go back only if > 2, not >= 2
+         */
+        if c > 2 {
+            c -= 1      /* go for 2 if you can. Note: with leading slash first is null */
+        }
+        /* prefix = caller/t.go, for the example above */
+        prefix = fmt.Sprintf("%s:%d:", strings.Join(l[c-1:], "/"), ln)
+    }
+    return prefix
+}
 
 /*
  * Log this message for given log level, if this level <= current log level
@@ -64,41 +89,46 @@ func SetLogLevel(lvl syslog.Priority) {
  * Return:
  *  None
  */
-func LogMessage(lvl syslog.Priority, s string, a ...interface{})  {
-    prefix := ""
-    if _, fl, ln, ok := runtime.Caller(2); ok {
-        l := strings.Split(fl, "/")
-        c := len(l)
-        if c > 2 {
-            c -= 1
-        }
-        prefix = fmt.Sprintf("%s:%d:", strings.Join(l[c-1:], "/"), ln)
-    }
+func LogMessageWithSkip(skip int, lvl syslog.Priority, s string, a ...interface{}) string {
     ct_lvl := GetLogLevel()
+    m := fmt.Sprintf(getPrefix(skip+2)+s, a...)
     if lvl <= ct_lvl {
-        FmtFprintf(writers[lvl], prefix+s, a...)
+        FmtFprintf(writers[lvl], m)
         if ct_lvl >= syslog.LOG_DEBUG {
             /* Debug messages gets printed out to STDOUT */
-            fmt.Printf(prefix+s, a...)
+            fmt.Printf(m)
             fmt.Println("")
         }
     }
+    return m
+}
+
+
+func LogMessage(lvl syslog.Priority, s string, a ...interface{}) string {
+    return LogMessageWithSkip(2, lvl, s, a...)
 }
 
 
 /* Log this message for panic level and exit */
-func LogPanic(s string, a ...interface{})  {
-    LogMessage(syslog.LOG_CRIT, s, a...)
-    LogMessage(syslog.LOG_CRIT, "LoM exiting ...")
+func LogPanic(s string, a ...interface{}) {
+    LogMessage(syslog.LOG_CRIT, s + "LoM exiting ...", a...)
     OSExit(-1)
 }
 
+var lastError error = nil
+
+func GetLastError() error {
+    return lastError
+}
+
+func ResetLastError() {
+    lastError = nil
+}
 
 /* Log this message at error level */
 func LogError(s string, a ...interface{}) error {
-    e := fmt.Sprintf(s, a...)
-    LogMessage(syslog.LOG_ERR, e)
-    return errors.New(e)
+    lastError = errors.New(LogMessage(syslog.LOG_ERR, s, a...))
+    return lastError
 }
 
 

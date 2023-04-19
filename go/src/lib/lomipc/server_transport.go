@@ -41,7 +41,7 @@ import (
 /* All types of requests from client to server */
 type ReqDataType int
 const (
-    TypeNone = iota
+    TypeNone = ReqDataType(iota)
     TypeRegClient
     TypeDeregClient
     TypeRegAction
@@ -179,17 +179,19 @@ func (p *ActionResponseData) ToMap(end bool) map[string]string {
     return ret
 }
 
-
 /* Helper to validate ActionResponseData */
 func (p *ActionResponseData) Validate() bool {
-    if ((len(p.Action) > 0) && (len(p.InstanceId) > 0) &&
-            (len(p.AnomalyInstanceId) > 0) &&
-            (len(p.AnomalyKey) > 0) &&
-            (len(p.Response) > 0)) {
-        return true
-    } else {
+    isAnomaly := p.InstanceId == p.AnomalyInstanceId
+    isFailed := p.ResultCode != 0
+
+    if ((len(p.Action) == 0) ||
+        (len(p.InstanceId) == 0) ||
+        (len(p.AnomalyInstanceId) == 0) ||
+        (!isAnomaly && len(p.AnomalyKey) == 0) ||   /* Key could miss for failed anomaly */
+        (!isFailed && len(p.AnomalyKey) == 0)) {
         return false
     }
+    return true
 }
 
 
@@ -319,7 +321,7 @@ func (tr *LoMTransport) SendToServer(req *LoMRequest, reply *LoMResponse) (err e
                     req.Client, ReqTypeToStr[req.ReqType], err)
         } else {
             LogInfo("SUCCESS: SendToServer cl(%s) mtype(%s) result(%d)/(%s)", req.Client,
-                     ReqTypeToStr[req.ReqType], reply.ResultCode, reply.ResultStr)
+                    ReqTypeToStr[req.ReqType], reply.ResultCode, reply.ResultStr)
         }
     } ()
 
@@ -379,12 +381,17 @@ func init_encoding() {
     gob.Register(MsgEmptyResp{})
 }
 
-/* Init the serverside transport */
-func ServerInit() (*LoMTransport, error) {
+func GetLoMTransport() *LoMTransport {
     init_encoding()
     tr := new(LoMTransport)
     
     tr.ServerCh = make(chan interface{})
+    return tr
+}
+
+/* Init the serverside transport */
+func ServerInit() (*LoMTransport, error) {
+    tr := GetLoMTransport()
 
     rpc.Register(tr)
     rpc.HandleHTTP()
