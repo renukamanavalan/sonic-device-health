@@ -3,7 +3,8 @@ package dbclient
 
 import (
 	"strconv"
-	. "go/src/lib/lomcommon"
+	"fmt"
+	"errors"
 )
 
 const (
@@ -23,6 +24,8 @@ type CounterRepository struct {
 	RedisProvider RedisProviderInterface
 }
 
+type InterfaceCountersMap map[string]map[string]uint64
+
 /* Cache for storing interface to Oid mapping */
 var interfaceToOidMapping map[string]string
 
@@ -30,15 +33,15 @@ var interfaceToOidMapping map[string]string
 Returns interface counters for all interfaces on the Sonic device.
 First it gets all oids for interfaces and then gets counters for each interface by performing redis hmGet calls.
 */
-func (counterRepository *CounterRepository) GetInterfaceCounters() (map[string]map[string]uint64, error) {
+func (counterRepository *CounterRepository) GetInterfaceCounters() (InterfaceCountersMap, error) {
 
-	var interfaceCountersMap = make(map[string]map[string]uint64)
+	var interfaceCountersMap = make(InterfaceCountersMap)
         var err error
 
 	if interfaceToOidMapping == nil {
 	   interfaceToOidMapping, err = counterRepository.RedisProvider.HGetAll(COUNTER_DB_ID, counters_port_name_map_redis_key)
 	   if err != nil {
-       		return nil, LogError("HGetAll Failed. err: (%v)", err)
+       		return nil, errors.New(fmt.Sprintf("HGetAll Failed. err: (%v)", err))
            }
         }
 
@@ -49,22 +52,22 @@ func (counterRepository *CounterRepository) GetInterfaceCounters() (map[string]m
 		result, err := counterRepository.RedisProvider.HmGet(COUNTER_DB_ID, interfaceCountersKey, fields)
 
 		if err != nil {
-			return nil, LogError("HmGet for key (%s) failed. err:(%v)", interfaceCountersKey, err)
+			return nil, errors.New(fmt.Sprintf("HmGet for key (%s) failed. err:(%v)", interfaceCountersKey, err))
 		}
 
 		ifInErrors, err := strconv.ParseUint(result[0].(string), atoi_base, uint_bit_size)
 		if err != nil {
-			return nil, LogError("IfInErrors counter ParseUint conversion failed for key (%s). err: (%v)", interfaceCountersKey, err)
+			return nil, errors.New(fmt.Sprintf("IfInErrors counter ParseUint conversion failed for key (%s). err: (%v)", interfaceCountersKey, err))
 		}
 
 		inUnicastPackets, err := strconv.ParseUint(result[1].(string), atoi_base, uint_bit_size)
 		if err != nil {
-			return nil, LogError("InUnicastPackets counter ParseUint conversion failed for key (%s). err: (%v)", interfaceCountersKey, err)
+			return nil, errors.New(fmt.Sprintf("InUnicastPackets counter ParseUint conversion failed for key (%s). err: (%v)", interfaceCountersKey, err))
 		}
 
 		outUnicastPackets, err := strconv.ParseUint(result[2].(string), atoi_base, uint_bit_size)
 		if err != nil {
-			return nil, LogError("OutUnicastPackets counter ParseUint conversion failed for key (%s). err: (%v)", interfaceCountersKey, err)
+			return nil, errors.New(fmt.Sprintf("OutUnicastPackets counter ParseUint conversion failed for key (%s). err: (%v)", interfaceCountersKey, err))
 		}
 
 		var interfaceCounters = map[string]uint64{if_in_errors_counter_key: ifInErrors, in_unicast_packets_counter_key: inUnicastPackets, out_unicast_packets_counter_key: outUnicastPackets}

@@ -1,7 +1,8 @@
 package dbclient
 
 import (
-        . "go/src/lib/lomcommon"
+	"fmt"
+	"errors"
 	"github.com/go-redis/redis"
 )
 
@@ -23,7 +24,7 @@ If multiple go routines call this at same time, the last client will be stored.
 */
 func GetRedisConnectionForDatabase(databaseIdentifier int) (*redis.Client, error) {
 	if !validateDbIdentifier(databaseIdentifier) {
-		return nil, LogError("invalid databaseIdentifier (%d)", databaseIdentifier)
+		return nil, errors.New(fmt.Sprintf("invalid databaseIdentifier (%d)", databaseIdentifier))
 	}
 
 	redisClient, ok := dbToRedisClientMapping[databaseIdentifier]
@@ -39,7 +40,7 @@ func GetRedisConnectionForDatabase(databaseIdentifier int) (*redis.Client, error
 	})
 
 	if client == nil {
-		return nil, LogError("client expected to be non nil for databaseIdentifier (%d)", databaseIdentifier)
+		return nil, errors.New(fmt.Sprintf("client expected to be non nil for databaseIdentifier (%d)", databaseIdentifier))
 	}
 
 	dbToRedisClientMapping[databaseIdentifier] = client
