@@ -27,3 +27,5 @@ RUN chmod go= /var/$user/.ssh -R
 RUN echo "$user ALL=(ALL) NOPASSWD:ALL" >>/etc/sudoers
 
 USER $user
+
+CMD /usr/local/bin/lom_start.sh

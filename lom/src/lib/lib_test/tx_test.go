@@ -1045,7 +1045,7 @@ func TestConfig(t *testing.T) {
 func TestPeriodic(t *testing.T) {
     s := GetUUID()
     if len(s) != 36 {
-        t.Errorf("Expect 36 chars long != (%d)", len(s))
+        t.Errorf("Expect 36 chars long != (%d) (%s)", len(s), s)
     }
 
     UUID_BIN = "xxx"

@@ -5,6 +5,8 @@ MAINTAINER gulv@microsoft.com
 COPY ["no-check-valid-until", "/etc/apt/apt.conf.d/"]
 COPY ["apt-multiple-retries", "/etc/apt/apt.conf.d/"]
 COPY ["sources.list.amd64", "/etc/apt/sources.list"]
+COPY ["rsyslog.conf", "/etc/"]
+COPY ["lom_start.sh", "/usr/local/bin/"]
 
 ## Make apt-get non-interactive
 ENV DEBIAN_FRONTEND=noninteractive
@@ -54,6 +56,7 @@ RUN apt-get update && apt-get install -y \
         libzmq5 \
         libzmq3-dev \
         uuid-dev \
+        uuid-runtime \
         jq \
         cron \
 # For quagga build
@@ -469,3 +472,4 @@ RUN apt install -y python-is-python3
 RUN post_run_buildinfo lom-slave-bullseye 
 
 RUN post_run_cleanup lom-slave-bullseye 
+
