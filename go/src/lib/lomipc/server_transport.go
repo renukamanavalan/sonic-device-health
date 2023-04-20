@@ -3,7 +3,7 @@ package lomipc
 import (
     "encoding/gob"
     "fmt"
-    . "lib/lomcommon"
+    ."go/src/lib/lomcommon"
     "net"
     "net/http"
     "net/rpc"
