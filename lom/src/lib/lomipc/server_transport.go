@@ -3,7 +3,7 @@ package lomipc
 import (
     "encoding/gob"
     "fmt"
-    . "lib/lomcommon"
+    . "lom/src/lib/lomcommon"
     "net"
     "net/http"
     "net/rpc"
@@ -52,13 +52,13 @@ const (
 type ReqDataType int
 const (
     TypeNone = ReqDataType(iota)
-    TypeRegClient
-    TypeDeregClient
-    TypeRegAction
-    TypeDeregAction
-    TypeRecvServerRequest
-    TypeSendServerResponse
-    TypeNotifyActionHeartbeat
+    TypeRegClient                           /* 1 */
+    TypeDeregClient                         /* 2 */
+    TypeRegAction                           /* 3 */
+    TypeDeregAction                         /* 4 */
+    TypeRecvServerRequest                   /* 5 */
+    TypeSendServerResponse                  /* 6 */
+    TypeNotifyActionHeartbeat               /* 7 */
     TypeCount
 )
 

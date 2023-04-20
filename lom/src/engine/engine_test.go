@@ -65,8 +65,8 @@ package engine
 import (
     "encoding/json"
     "fmt"
-    . "lib/lomcommon"
-    . "lib/lomipc"
+    . "lom/src/lib/lomcommon"
+    . "lom/src/lib/lomipc"
     "os"
     "path/filepath"
     "sort"

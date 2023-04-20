@@ -1,8 +1,8 @@
 package engine
 
 import (
-    . "lib/lomcommon"
-    . "lib/lomipc"
+    . "lom/src/lib/lomcommon"
+    . "lom/src/lib/lomipc"
     "os"
     "path/filepath"
     "testing"
