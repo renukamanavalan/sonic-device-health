@@ -2,6 +2,7 @@ GO := /usr/local/go/bin/go
 INSTALL := /usr/bin/install
 
 BUILD_DIR := build
+LIB_DIR := $(BUILD_DIR)/lib
 BIN_DIR := $(BUILD_DIR)/bin
 TEST_DIR := $(BUILD_DIR)/test
 
@@ -12,6 +13,9 @@ export GO111MODULE=on
 SRC_FILES=$(shell find . -name '*.go' | grep -v '_test.go' | grep -v '/tests/')
 TEST_FILES=$(wildcard *_test.go)
 
+CMN_C_LIB_FILES=src/lib/clib/lom_clib.go
+CMN_C_LIB=$(BUILD_DIR)/lib/cmn_c_lib.so
+
 # Binaries used in LoM system
 ENGINE_BIN := $(BIN_DIR)/LoMEngine
 
@@ -20,8 +24,13 @@ ENGINE_BIN := $(BIN_DIR)/LoMEngine
 LIB_TEST = $(TEST_DIR)/LibTested
 ENGINE_TEST = $(TEST_DIR)/EngineTested
 
-all: $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST)
+all: $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST)
+lib: $(CMN_C_LIB)
 
+$(CMN_C_LIB): $(SRC_FILES)
+	mkdir -p $(LIB_DIR)
+	$(GO) build -buildmode=c-shared -o $@ $(CMN_C_LIB_FILES)
+	$(info "Built $(CMN_C_LIB)")
 
 $(ENGINE_BIN): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(BIN_DIR)
