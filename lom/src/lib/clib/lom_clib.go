@@ -5,6 +5,7 @@ import (
     "encoding/json"
     "fmt"
     . "lom/src/lib/lomcommon"
+    . "lom/src/lib/lomipc"
 )
 
 
@@ -14,11 +15,11 @@ import (
  * A simple wrapper to corresponding APIs
  */
 
-//export TestStr
-func TestStr(pathPtr *C.char) {
-    path := C.GoString(pathPtr)
-    fmt.Printf("TestStr(%s) called\n", path)
-}
+/*
+ * ----------------------------------------------------------------
+ * Config get APIs
+ * ----------------------------------------------------------------
+ */
 
 //export InitConfigPathForC
 func InitConfigPathForC(pathPtr *C.char) int {
@@ -104,6 +105,116 @@ func GetProcsConfig(namePtr *C.char) *C.char {
     return C.CString(ret)
 }
 
+
+/*
+ * ----------------------------------------------------------------
+ * Engine client side APIs
+ *
+ * All APIs return JSON string as o/p
+ *
+ *  {
+ *      "retCode":  <int>       // return value. 0 implies success
+ *      "retStr":   <string>    // Human readable string
+ *      "response": <string>    // JSONified o/p of the API, if any. 
+ *                              // Response expected only for receive server req
+ *  }
+ *
+ * ----------------------------------------------------------------
+ */
+
+var clientSessTx *ClientTx
+
+type RetResponse struct {
+    ResultCode  int
+    ResultStr   string
+    RespData    interface{}
+}
+
+var UnkRetStr = `{"ResultCode":-1,"ResultStr":"Unknown error","RespData":null}`
+
+func (p *RetResponse) String() string {
+    if out, err := json.Marshal(p); err != nil {
+        LogError("Internal Code Error in JSON Marshal (%v) (%v)", err, *p)
+        return UnkRetStr
+    } else {
+        return string(out)
+    }
+}
+
+func GetRetResponseWithData(err error, respData interface{}) string {
+    if err != nil {
+        return (&RetResponse{-1, fmt.Sprintf("%v", err), respData}).String()
+    } else {
+        return (&RetResponse{0, "", respData}).String()
+    }
+}
+
+func GetRetResponse(err error) string {
+    return GetRetResponseWithData(err, nil)
+}
+
+
+//export RegisterClientC
+func RegisterClientC(namePtr *C.char) *C.char {
+    name:= C.GoString(namePtr)
+
+    clientSessTx = GetClientTx(0)
+    ret := GetRetResponse(clientSessTx.RegisterClient(name))
+    return C.CString(ret)
+}
+
+//export DeregisterClientC
+func DeregisterClientC() *C.char {
+    return C.CString(GetRetResponse(clientSessTx.DeregisterClient()))
+}
+
+//export RegisterActionC
+func RegisterActionC(namePtr *C.char) *C.char {
+    name:= C.GoString(namePtr)
+
+    return C.CString(GetRetResponse(clientSessTx.RegisterAction(name)))
+}
+
+//export DeregisterActionC
+func DeregisterActionC(namePtr *C.char) *C.char {
+    name:= C.GoString(namePtr)
+
+    return C.CString(GetRetResponse(clientSessTx.DeregisterAction(name)))
+}
+
+//export RecvServerRequestC
+func RecvServerRequestC() *C.char {
+    req, err := clientSessTx.RecvServerRequest()
+    return C.CString(GetRetResponseWithData(err, req))
+}
+
+//export SendServerResponseC
+func SendServerResponseC(respPtr *C.char) *C.char {
+    respStr := C.GoString(respPtr)
+    var err error
+    bData := []uint8{}
+
+    resData := &MsgSendServerResponse{}
+    if err = json.Unmarshal([]byte(respStr), resData); err == nil {
+        if resData.ReqType == TypeServerRequestAction {
+            if bData, err = json.Marshal(resData.ResData); err == nil {
+                rd := &ActionResponseData{}
+                if err = json.Unmarshal(bData, rd); err == nil {
+                    resData.ResData = *rd
+                }
+            }
+        }
+    }
+    ret := GetRetResponse(clientSessTx.SendServerResponse(resData))
+    return C.CString(ret)
+}
+
+//export NotifyHeartbeatC
+func NotifyHeartbeatC(namePtr *C.char, tstamp C.longlong) *C.char {
+    name:= C.GoString(namePtr)
+
+    return C.CString(GetRetResponse(clientSessTx.NotifyHeartbeat(name, int64(tstamp))))
+}
 
 func main() {
 }
