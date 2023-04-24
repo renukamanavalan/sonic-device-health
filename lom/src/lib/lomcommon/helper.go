@@ -51,7 +51,9 @@ func SetLogLevel(lvl syslog.Priority) {
 }
 
 func getPrefix(skip int) string {
-    prefix := ""
+    t := time.Now()
+    prefix := fmt.Sprintf("%02d:%02d:%02d: ", t.Hour(), t.Minute(), t.Second())
+
     if _, fl, ln, ok := runtime.Caller(skip); ok {
         /*
          * sample fl = /home/localadmin/tools/go/caller/t.go 
@@ -71,7 +73,7 @@ func getPrefix(skip int) string {
             c -= 1      /* go for 2 if you can. Note: with leading slash first is null */
         }
         /* prefix = caller/t.go, for the example above */
-        prefix = fmt.Sprintf("%s:%d:", strings.Join(l[c-1:], "/"), ln)
+        prefix = prefix + fmt.Sprintf("%s:%d:", strings.Join(l[c-1:], "/"), ln)
     }
     return prefix
 }

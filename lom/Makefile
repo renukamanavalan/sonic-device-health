@@ -7,6 +7,8 @@ BIN_DIR := $(BUILD_DIR)/bin
 TEST_DIR := $(BUILD_DIR)/test
 
 # Set to -v for verbose o/p. May set it in Env before calling Make
+# export TEST_FLAG=-v in shell before calling make or
+# TEST_FLAG=-v make all
 
 export GO111MODULE=on
 

@@ -9,6 +9,13 @@ import (
 )
 
 
+const (
+    /* Global constants */
+    ENGINE_HB_INTERVAL_SECS = "ENGINE_HB_INTERVAL_SECS"
+    MAX_SEQ_TIMEOUT_SECS = "MAX_SEQ_TIMEOUT_SECS"
+    MIN_PERIODIC_LOG_PERIOD_SECS = "MIN_PERIODIC_LOG_PERIOD_SECS"
+)
+
 type ConfigFiles_t struct {
     GlobalFl    string
     ActionsFl   string
