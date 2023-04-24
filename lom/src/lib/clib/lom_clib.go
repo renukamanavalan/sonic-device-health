@@ -15,6 +15,9 @@ import (
  * A simple wrapper to corresponding APIs
  */
 
+func TestCall() {
+}
+
 /*
  * ----------------------------------------------------------------
  * Config get APIs
@@ -22,24 +25,24 @@ import (
  */
 
 //export InitConfigPathForC
-func InitConfigPathForC(pathPtr *C.char) int {
+func InitConfigPathForC(pathPtr *C.char) C.int {
     path := C.GoString(pathPtr)
     if err := InitConfigPath(path); err != nil {
         LogError("Failed to init config for path(%s) err(%v)", path, err)
-        return -1
+        return C.int(-1)
     }
-    return 0
+    return C.int(0)
 }
 
-//export GetGlobalCfgStr
-func GetGlobalCfgStr(keyPtr *C.char) *C.char {
+//export GetGlobalCfgStrC
+func GetGlobalCfgStrC(keyPtr *C.char) *C.char {
     key := C.GoString(keyPtr)
     ret := fmt.Sprintf("%v", GetConfigMgr().GetGlobalCfgAny(key))
     return C.CString(ret)
 }
 
-//export GetGlobalCfgInt
-func GetGlobalCfgInt(keyPtr *C.char) C.int {
+//export GetGlobalCfgIntC
+func GetGlobalCfgIntC(keyPtr *C.char) C.int {
     key := C.GoString(keyPtr)
     val := GetConfigMgr().GetGlobalCfgAny(key)
     iVal, ok := val.(int) 
@@ -49,8 +52,8 @@ func GetGlobalCfgInt(keyPtr *C.char) C.int {
     return C.int(iVal)     /* Defaults to 0 on failed conversion */
 }
 
-//export GetSequenceAsJson
-func GetSequenceAsJson(namePtr *C.char) *C.char {
+//export GetSequenceAsJsonC
+func GetSequenceAsJsonC(namePtr *C.char) *C.char {
     name:= C.GoString(namePtr)
     ret := ""
     if v, err := GetConfigMgr().GetSequence(name); err != nil {
@@ -63,8 +66,8 @@ func GetSequenceAsJson(namePtr *C.char) *C.char {
     return C.CString(ret)
 }
 
-//export GetActionConfigAsJson
-func GetActionConfigAsJson(namePtr *C.char) *C.char {
+//export GetActionConfigAsJsonC
+func GetActionConfigAsJsonC(namePtr *C.char) *C.char {
     name:= C.GoString(namePtr)
     ret := ""
     if v, err := GetConfigMgr().GetActionConfig(name); err != nil {
@@ -77,8 +80,8 @@ func GetActionConfigAsJson(namePtr *C.char) *C.char {
     return C.CString(ret)
 }
 
-//export GetActionsListAsJson
-func GetActionsListAsJson() *C.char {
+//export GetActionsListAsJsonC
+func GetActionsListAsJsonC() *C.char {
     ret := ""
     v := GetConfigMgr().GetActionsList()
 
@@ -90,8 +93,8 @@ func GetActionsListAsJson() *C.char {
     return C.CString(ret)
 }
 
-//export GetProcsConfig
-func GetProcsConfig(namePtr *C.char) *C.char {
+//export GetProcsConfigC
+func GetProcsConfigC(namePtr *C.char) *C.char {
     name:= C.GoString(namePtr)
     ret := ""
 
@@ -122,7 +125,7 @@ func GetProcsConfig(namePtr *C.char) *C.char {
  * ----------------------------------------------------------------
  */
 
-var clientSessTx *ClientTx
+var clientSessTx = GetClientTx(0)
 
 type RetResponse struct {
     ResultCode  int
@@ -158,7 +161,6 @@ func GetRetResponse(err error) string {
 func RegisterClientC(namePtr *C.char) *C.char {
     name:= C.GoString(namePtr)
 
-    clientSessTx = GetClientTx(0)
     ret := GetRetResponse(clientSessTx.RegisterClient(name))
     return C.CString(ret)
 }
