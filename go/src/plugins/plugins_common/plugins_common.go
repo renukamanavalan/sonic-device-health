@@ -8,47 +8,25 @@ import (
 
 // Plugin interface is implemented by all plugins and is used by plugin manager to call plugin methods
 type Plugin interface {
-	Request(hbchan chan PluginHeartBeat, request *lomipc.ActionRequestData) *lomipc.ActionResponseData
 	Init(plugindata PluginData) error
+	Request(hbchan chan PluginHeartBeat, request *lomipc.ActionRequestData) *lomipc.ActionResponseData
 	Shutdown() error
 	GetPluginID() PluginId
-
-	CommonPluginMethods
 }
 
-// CommonPluginMethods has common methods that are used by plugin manager to manage plugins. Methods remain same for all plugins
-type CommonPluginMethods interface {
-	GetMetadata() PluginMetadata
-	SetMetadata(metadata PluginMetadata)
-	GetPluginStage() PluginStage
-	SetPluginStage(stage PluginStage)
-}
-
+// TODO: Goutham : Clean up unnecessary fields
 // PluginStage indicates the current stage of plugin. Based on  this value plugin manager decisions. For e.g.  whether to accept requests from engine or not
 type PluginStage int
-
 const (
 	PluginStageUnknown PluginStage = iota // default value
 	PluginStageLoadingStarted
 	PluginStageLoadingError
 	PluginStageLoadingSuccess
-	PluginStageInitStarted
-	PluginStageInitFailure
-	PluginStageInitSuccess
-	PluginStageServerRegistrationStarted
-	PluginStageServerRegistrationSuccess // only accepts requests from engine at this stage
-	PluginStageServerRegistrationFailed
-	PluginStageServerDeRegistrationStarted
-	PluginStageServerDeRegistrationSuccess
-	PluginStageServerDeRegistrationFailed
 	PluginStageRequestStarted
 	PluginStageRequestStartedHB // for long running
 	PluginStageRequestError
 	PluginStageRequestSuccess
 	PluginStageRequestRunning
-	PluginStageShutdownStarted
-	PluginStageShutdownSuccess
-	PluginStageShutdownError
 )
 
 // sent from plugin to plugin manager via heartbeat channel
@@ -71,12 +49,32 @@ type PluginData struct {
 	// ... Additional fields
 }
 
+// IPluginMetadata has common methods that are used by plugin manager to manage plugins. Data remain same for all plugins
+type IPluginMetadata interface {
+	GetPluginStage() PluginStage
+	SetPluginStage(stage PluginStage)
+}
+
 // Holds all data specific to plugin, run time info, etc
 type PluginMetadata struct {
 	Plugindata  PluginData
 	StartedTime time.Time
 	Pluginstage PluginStage // indicate the current plugin stage
+	mu	sync.Mutex
 	PluginId
-	sync.Mutex
 	// ... other common metadata fields
 }
+
+func (gpl *PluginMetadata) GetPluginStage() PluginStage {
+	gpl.mu.Lock()
+	defer gpl.mu.Unlock()
+	return gpl.Pluginstage
+}
+
+func (gpl *PluginMetadata) SetPluginStage(stage PluginStage) {
+	gpl.mu.Lock()
+	defer gpl.mu.Unlock()
+	gpl.Pluginstage = stage
+}
+
+// TODO: Goutham : Add more common methods here

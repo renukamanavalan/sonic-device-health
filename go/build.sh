@@ -64,7 +64,6 @@ clean() {
     echo "run clean"
     rm -rf bin/*
     rm -rf pkg/*
-    rm -rf bin/*
     rm -f coverprofile*.out
 }
 
