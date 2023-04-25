@@ -120,9 +120,11 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
                     return listWithTimeout[i].due < listWithTimeout[j].due
                 })
             }
+            LogDebug("received: clReq (%v)", clReq)
 
         case serReq := <- p.pendingWriteRequests:
             serverRequests = append(serverRequests, serReq)
+            LogDebug("received: serReq (%v)", serReq)
 
         case <- time.After(time.Duration(toutSecs) * time.Second):
             /* bail out */
@@ -159,7 +161,7 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
                 r.ChResponse <- &LoMResponse { int(LoMReqTimeout),
                                 GetLoMResponseStr(LoMReqTimeout), nil }
             } else {
-                /* Get toutSecs and drop the failed ones */
+                /* Get toutSecs and drop the responded timedout ones */
                 toutSecs = 0
                 if tnow < listWithTimeout[i].due {
                     toutSecs = listWithTimeout[i].due - tnow
@@ -168,7 +170,8 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
                 break
             }
         }
-
+        LogDebug("Pend client:(%d/%d) pend Server(%d)", len(listNoTimeout),
+                len(listWithTimeout), len(serverRequests))
     }
 }
 
@@ -255,7 +258,7 @@ func (p *ClientRegistrations_t) RegisterAction(actionInfo *ActiveActionInfo_t) e
         info := &ActiveActionInfo_t{}
         *info = *actionInfo
         p.activeActions[actionInfo.Action] = info
-        GetSeqHandler().RaiseRequest(actionInfo.Action)
+        GetSeqHandler().RaiseRequestForFirstAction(actionInfo.Action)
         return nil
     }
 }
@@ -324,7 +327,7 @@ type HBData_t struct {
 
 
 func (p *ClientRegistrations_t) PublishHeartbeats() {
-    /* Map will help combine duplicate heartbeats into one */
+    /* Collection of unique action names that touched HB */
     lst := make(map[string]struct{})
 
     for {
@@ -334,8 +337,8 @@ func (p *ClientRegistrations_t) PublishHeartbeats() {
             hb = MIN_HB_INTERVAL_SECS
         }
         select {
-        case a := <- p.heartbeatCh:
-            lst[a] = struct{}{}
+        case actionName := <- p.heartbeatCh:
+            lst[actionName] = struct{}{}
             /* Collect actions */
 
         case <- time.After(time.Duration(hb) * time.Second):
@@ -368,7 +371,7 @@ func (p *ClientRegistrations_t) AddServerRequest(
         return LogError("Internal error: client(%s) for action (%s) not found",
                 a.Client, actionName)
     } else {
-        if len(cl.pendingWriteRequests) >= cap(cl.pendingWriteRequests) {
+        if len(cl.pendingWriteRequests) == cap(cl.pendingWriteRequests) {
             return LogError("Internal error: pendingWriteRequests is full (%d)",
                     len(cl.pendingWriteRequests))
         }
@@ -383,7 +386,7 @@ func (p *ClientRegistrations_t) PendServerRequest(req *LoMRequestInt) error {
         return LogError("Internal error: Nil req")
     } else if cl, ok := p.activeClients[req.Req.Client]; !ok {
         return LogError("Internal error: client(%s) not found", req.Req.Client)
-    } else if len(cl.pendingReadRequests) >= cap(cl.pendingReadRequests) {
+    } else if len(cl.pendingReadRequests) == cap(cl.pendingReadRequests) {
         return LogError("Internal error: pendingReadRequests is full (%d)",
                 len(cl.pendingReadRequests))
     } else {

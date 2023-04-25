@@ -16,6 +16,12 @@ const (
     MIN_PERIODIC_LOG_PERIOD_SECS = "MIN_PERIODIC_LOG_PERIOD_SECS"
 )
 
+const (
+    GLOBALS_CONF_FILE = "globals.conf.json"
+    ACTIONS_CONF_FILE = "actions.conf.json"
+    BINDINGS_CONF_FILE = "bindings.conf.json"
+)
+
 type ConfigFiles_t struct {
     GlobalFl    string
     ActionsFl   string
@@ -519,9 +525,9 @@ func InitConfigPath(path string) error {
         }
     }
     cfgFiles := &ConfigFiles_t {
-        GlobalFl: filepath.Join(cfgPath, "globals.conf.json"),
-        ActionsFl: filepath.Join(cfgPath, "actions.conf.json"),
-        BindingsFl: filepath.Join(cfgPath, "bindings.conf.json"),
+        GlobalFl: filepath.Join(cfgPath, GLOBALS_CONF_FILE),
+        ActionsFl: filepath.Join(cfgPath, ACTIONS_CONF_FILE),
+        BindingsFl: filepath.Join(cfgPath, BINDINGS_CONF_FILE),
     }
 
     _, err := InitConfigMgr(cfgFiles)

@@ -405,7 +405,7 @@ func testSequenceHandler(t *testing.T) {
         handler := GetSeqHandler()
 
         /* Non existing active action */
-        if err := handler.RaiseRequest("bar"); err == nil {
+        if err := handler.RaiseRequestForFirstAction("bar"); err == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for non-existing action")
         }
 
@@ -414,20 +414,20 @@ func testSequenceHandler(t *testing.T) {
 
         /* Pre-existing active request */
         handler.activeRequests["Detect-0"] = &activeRequest_t{}
-        if err := handler.RaiseRequest("Detect-0"); err == nil {
+        if err := handler.RaiseRequestForFirstAction("Detect-0"); err == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for pre-existing req")
         }
         delete(handler.activeRequests, "Detect-0")
 
         /* Pre-existing sequence for this action */
         handler.sequencesByFirstAction["Detect-0"] = &sequenceState_t{}
-        if err := handler.RaiseRequest("Detect-0"); err == nil {
+        if err := handler.RaiseRequestForFirstAction("Detect-0"); err == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for pre-existing seq")
         }
         delete(handler.sequencesByFirstAction, "Detect-0")
 
         /* Fail AddServerRequst due to missing active client */
-        if err := handler.RaiseRequest("Detect-0"); err == nil {
+        if err := handler.RaiseRequestForFirstAction("Detect-0"); err == nil {
             t.Fatalf("****TEST FAILED: Failed to AddServerRequest for inactive client")
         }
     }

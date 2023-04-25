@@ -22,6 +22,10 @@ type engine_t struct {
 
 var cfgPath = ""
 
+/*
+ * Read client requests via engine Lib API and route it to 
+ * engine's main loop.
+ */
 func (p *engine_t) readRequest() {
 
     go func() {
@@ -136,7 +140,7 @@ loop:
                  * NOTE: Any currently active sequence will not be affected
                  * On any error, continues to use last loaded values. 
                  */
-                 InitConfigPath(cfgPath)
+                InitConfigPath(cfgPath)
 
             case syscall.SIGTERM:
                 break loop
@@ -155,6 +159,7 @@ func (p *engine_t) close() {
 
 func startUp(progname string, args []string) (*engine_t, error) {
 
+    /* Parse args for path */
     {
         p := ""
         flags := flag.NewFlagSet(progname, flag.ContinueOnError)
@@ -170,10 +175,12 @@ func startUp(progname string, args []string) (*engine_t, error) {
         cfgPath = p
     }
 
+    /* Init/Load config */
     if err := InitConfigPath(cfgPath); err != nil {
         return nil, LogError("Failed to read config; (%s)", cfgPath)
     }
    
+    /* Init engine context that saves all client registrations */
     InitRegistrations()
     tx, err := ServerInit()
     if err != nil {
