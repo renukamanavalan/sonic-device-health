@@ -87,6 +87,11 @@ const CLIENT_2 = "client-2"
 var chTestHeartbeat = make(chan string)
 
 /*
+ * Globals.conf
+ */
+var globals_conf = `{"ENGINE_HB_INTERVAL_SECS" : 3 }`
+
+/*
  *  Actions.conf
  */
 var actions_conf = `{ "actions": [
@@ -788,7 +793,7 @@ func (p *callArgs) call_notify_hb(ti int, te *testEntry_t) {
     tx := p.getTx(te.clTx)
 
     /* Call NotifyHeartbeat for each entry in args */
-    for _, v := range te.args {
+    for i, v := range te.args {
         if s, ok := v.(string); !ok {
             p.t.Fatalf("%d: Test error. arg (%T) not string", ti, v)
         } else {
@@ -798,6 +803,7 @@ func (p *callArgs) call_notify_hb(ti int, te *testEntry_t) {
                 return
             }
         }
+        chTestHeartbeat <- fmt.Sprintf("call_notify_hb ti=%d i=%d", ti, i)
     }
 
     /* Expect actions in published HB per result only */
@@ -942,6 +948,10 @@ func terminate(t *testing.T, tout int, chEnd chan int) {
 }
 
 /*
+ * Engine collects all actions reported and include the actions
+ * list in its next HB publish message. Wait till all actions are
+ * received and possibly one more HB from engine.
+ *
  * Local publishAPI which engine made to call for any publishing
  * send engine's publisings via publishCh. Listen to it until
  * all expected actions are reported or on error.
@@ -975,9 +985,11 @@ func testHeartbeatCh(m map[string]struct{}, ch chan string) {
                     delete(m, v)
                 }
             }
+            LogDebug("Processed HB: (%s)", s)
+        } else {
+            LogDebug("Skipped non HB: (%s)", s)
+            /* Likely notHB; Wait till action */
         }
-        LogDebug("Skipped: (%s)", s)
-        /* Likely HB; Wait till action */
     }
     ch <- ""
 }
@@ -998,7 +1010,7 @@ func testHeartbeatCh(m map[string]struct{}, ch chan string) {
  * test timeout) happy. After HB_WAIT it does not update chTestHeartbeat
  * allowing terminate to abort the testing.
  */
-const HB_WAIT = 5
+const HB_WAIT = 10
 func testHeartbeat(actions []string) error {
     ch := make(chan string)
     cnt := HB_WAIT
@@ -1025,7 +1037,7 @@ func testHeartbeat(actions []string) error {
         case <- time.After(1 * time.Second):
             if cnt > 0 {
                 cnt--
-                chTestHeartbeat <- "Waiting for HB"
+                chTestHeartbeat <- fmt.Sprintf("Waiting for HB %d/%d", cnt, HB_WAIT)
             } else {
                 LogError("testHeartbeat timed after %d seconds", HB_WAIT)
                 /* Don't send HB and let test terminate with no test heartbeats. */
@@ -1107,7 +1119,7 @@ func runColl(cArgs *callArgs, collPath string, te *testCollectionEntry_t) {
 var initConfigDone = false
 func initConfig(t *testing.T) {
     if !initConfigDone {
-        createFile(t, "globals.conf.json", "")
+        createFile(t, "globals.conf.json", globals_conf)
         createFile(t, "actions.conf.json", actions_conf)
         createFile(t, "bindings.conf.json", bindings_conf)
 

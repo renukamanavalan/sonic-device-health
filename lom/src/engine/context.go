@@ -6,6 +6,14 @@ import (
     "sort"
     "time"
 )
+/*
+ * Maintains current engine context as all active clients, their registrations,
+ * outstanding requests for client to read/write.
+ *
+ * All clients requests from clients are processed here.
+ *
+ * Manage incoming heartbeats
+ */
 
 /* Action info is collected from register calls from clients */
 type ActiveActionInfo_t struct {
@@ -19,7 +27,7 @@ type ActiveActionInfo_t struct {
 }
 
 /* Any less must be defaulted to this */
-const MIN_HB_INTERVAL = 2
+const MIN_HB_INTERVAL_SECS = 2
 
 /*
  * CHannels that hold read requests from client and write requests from server
@@ -94,10 +102,10 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
         due int64 
     }
     /* 5 & 100 are just initial capacity. this does not block scaling up. */
-    listWTimeout := make([]*wait_t, 0, 5)   /* Hold client requests for read sorted by due */
+    listWithTimeout := make([]*wait_t, 0, 5)   /* Hold client requests for read sorted by due */
     listNoTimeout := make([]*wait_t, 0, 5)  /* Hold client requests for read */
     serverRequests := make([]*ServerRequestData, 0, 100)
-    tout := A_DAY_IN_SECS
+    toutSecs := A_DAY_IN_SECS
 
     for {
         select {
@@ -107,16 +115,16 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
                 listNoTimeout = append(listNoTimeout, w)
             } else {
                 w.due = time.Now().Unix() + int64(clReq.Req.TimeoutSecs)
-                listWTimeout = append(listWTimeout, w)
-                sort.Slice(listWTimeout, func(i, j int) bool {
-                    return listWTimeout[i].due < listWTimeout[j].due
+                listWithTimeout = append(listWithTimeout, w)
+                sort.Slice(listWithTimeout, func(i, j int) bool {
+                    return listWithTimeout[i].due < listWithTimeout[j].due
                 })
             }
 
         case serReq := <- p.pendingWriteRequests:
             serverRequests = append(serverRequests, serReq)
 
-        case <- time.After(time.Duration(tout) * time.Second):
+        case <- time.After(time.Duration(toutSecs) * time.Second):
             /* bail out */
 
         case <- p.abortCh:
@@ -127,9 +135,9 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
         /* Here you come on client/server request or timeout */
         for len(serverRequests) > 0 {
             var r *LoMRequestInt = nil
-            if len(listWTimeout) > 0 {
-                r = listWTimeout[0].req
-                listWTimeout = listWTimeout[1:]
+            if len(listWithTimeout) > 0 {
+                r = listWithTimeout[0].req
+                listWithTimeout = listWithTimeout[1:]
             } else if len(listNoTimeout) > 0 {
                 r = listNoTimeout[0].req
                 listNoTimeout = listNoTimeout[1:]
@@ -143,20 +151,20 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
         }
 
         tnow := time.Now().Unix()
-        tout = A_DAY_IN_SECS
-        for i := 0; i < len(listWTimeout); i++ {
-            if tnow >= listWTimeout[i].due {
+        toutSecs = A_DAY_IN_SECS
+        for i := 0; i < len(listWithTimeout); i++ {
+            if tnow >= listWithTimeout[i].due {
                 /* Fail the request */
-                r := listWTimeout[i].req
+                r := listWithTimeout[i].req
                 r.ChResponse <- &LoMResponse { int(LoMReqTimeout),
                                 GetLoMResponseStr(LoMReqTimeout), nil }
             } else {
-                /* Get tout and drop the failed ones */
-                tout = 0
-                if tnow < listWTimeout[i].due {
-                    tout = listWTimeout[i].due - tnow
+                /* Get toutSecs and drop the failed ones */
+                toutSecs = 0
+                if tnow < listWithTimeout[i].due {
+                    toutSecs = listWithTimeout[i].due - tnow
                 }
-                listWTimeout = listWTimeout[i:]
+                listWithTimeout = listWithTimeout[i:]
                 break
             }
         }
@@ -172,11 +180,11 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
  */
 const HEARTBEAT_CH_SIZE = 10
 
-/* All registrations & heartbeats from clients. */
+/* Cache of all registrations & heartbeats from clients. */
 type ClientRegistrations_t struct {
     activeActions   map[string]*ActiveActionInfo_t
     activeClients   map[string]*ActiveClientInfo_t
-    heartbeatCh     chan string     /* Action name */
+    heartbeatCh     chan string     /* Writes name of Action sending HB */
 }
 
 /* Initialized object; But not exported */
@@ -221,33 +229,33 @@ func (p *ClientRegistrations_t) RegisterClient(name string) error {
     return nil
 }
 
-func (p *ClientRegistrations_t) RegisterAction(action *ActiveActionInfo_t) error {
-    if action == nil {
+func (p *ClientRegistrations_t) RegisterAction(actionInfo *ActiveActionInfo_t) error {
+    if actionInfo == nil {
         return LogError("Expect non nil ActiveActionInfo_t")
     }
-    cl, ok := p.activeClients[action.Client]
+    cl, ok := p.activeClients[actionInfo.Client]
     if !ok {
-        return LogError("%s: Missing client registration", action.Client)
-    } else if r, ok1 := p.activeActions[action.Action]; ok1 {
+        return LogError("%s: Missing client registration", actionInfo.Client)
+    } else if r, ok1 := p.activeActions[actionInfo.Action]; ok1 {
         LogInfo("%s/%s: Duplicate action registration (%s); De/re-register,",
-                action.Client, action.Action, r.Client)
-        p.DeregisterAction("", action.Action)
+                actionInfo.Client, actionInfo.Action, r.Client)
+        p.DeregisterAction("", actionInfo.Action)
     }
-    if cfg, err := GetConfigMgr().GetActionConfig(action.Action); err != nil {
-        return LogError("%s: Missing action config", action.Action)
+    if cfg, err := GetConfigMgr().GetActionConfig(actionInfo.Action); err != nil {
+        return LogError("%s: Missing action config", actionInfo.Action)
     } else if cfg.Disable {
-        return LogError("%s: is disabled in config", action.Action)
+        return LogError("%s: is disabled in config", actionInfo.Action)
     } else {
-        if action.Timeout == 0 {
-            action.Timeout = cfg.Timeout
+        if actionInfo.Timeout == 0 {
+            actionInfo.Timeout = cfg.Timeout
         }
-        cl.Actions[action.Action] = struct{}{}
+        cl.Actions[actionInfo.Action] = struct{}{}
 
         /* Make a copy and save */
         info := &ActiveActionInfo_t{}
-        *info = *action
-        p.activeActions[action.Action] = info
-        GetSeqHandler().RaiseRequest(action.Action)
+        *info = *actionInfo
+        p.activeActions[actionInfo.Action] = info
+        GetSeqHandler().RaiseRequest(actionInfo.Action)
         return nil
     }
 }
@@ -321,9 +329,9 @@ func (p *ClientRegistrations_t) PublishHeartbeats() {
 
     for {
         /* Read inside the loop to help refresh any change */
-        hb := GetConfigMgr().GetGlobalCfgInt("ENGINE_HB_INTERVAL")
+        hb := GetConfigMgr().GetGlobalCfgInt(ENGINE_HB_INTERVAL_SECS)
         if hb == 0 {
-            hb = MIN_HB_INTERVAL
+            hb = MIN_HB_INTERVAL_SECS
         }
         select {
         case a := <- p.heartbeatCh:

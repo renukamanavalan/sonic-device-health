@@ -19,13 +19,15 @@ import (
  *  3.  Upon response from first action create sequence, if all actions of that
  *      sequence are registered.
  *  
+ *  TODO: timeout should be given to all actions except first, irrespective 
+ *        of result
  *  4.  Send requests with timeout to rest of the actions in sequence, provided
  *      the response of last called is good.
  *
  *  5.  Upon completion of processing all actions, the sequence is removed
  *
  *  Note:
- *      a.  Every action response is published with constraints.
+ *      a.  Every action response is published, even if stale.
  *      b.  First action of the sequence is published with state='init' and upon
  *          sequence completion, it is re-publsihed with state="complete" and
  *          appropriate result code.
@@ -285,7 +287,7 @@ func (p *SeqHandler_t) RaiseRequest(action string) error {
         return LogError(
                 "Internal: An active sequence is in progress ID(%s) index(%d) due(%v)seconds",
                 s.anomalyInstanceId, s.ctIndex, time.Now().Unix() - s.seqExpEpoch)
-            }
+    }
 
     /* All clear. Fire request for the first action of a sequence */
     uuid := GetUUID()

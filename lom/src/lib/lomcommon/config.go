@@ -4,9 +4,17 @@ import (
     "encoding/json"
     "io"
     "os"
+    "path/filepath"
     "sort"
 )
 
+
+const (
+    /* Global constants */
+    ENGINE_HB_INTERVAL_SECS = "ENGINE_HB_INTERVAL_SECS"
+    MAX_SEQ_TIMEOUT_SECS = "MAX_SEQ_TIMEOUT_SECS"
+    MIN_PERIODIC_LOG_PERIOD_SECS = "MIN_PERIODIC_LOG_PERIOD_SECS"
+)
 
 type ConfigFiles_t struct {
     GlobalFl    string
@@ -433,6 +441,13 @@ func (p *ConfigMgr_t) GetActionConfig(name string) (*ActionCfg_t, error) {
     return &actInfo, nil
 }
 
+/* TODO: Goutham's PR has this */
+type ProcCfg_t struct {}
+func (p *ConfigMgr_t) GetProcConfig(name string) (*ProcCfg_t, error) {
+    return nil, LogError("TODO: Yet to implement")
+}
+
+
 /*
  * GetActionsList
  *  Return list of all actions from config, with a flag indicating if that
@@ -493,4 +508,23 @@ func InitConfigMgr(p *ConfigFiles_t) (*ConfigMgr_t, error) {
     }
 }
 
+
+func InitConfigPath(path string) error {
+    cfgPath := path
+    if len(path) == 0 {
+        if p, err := os.Getwd(); err != nil {
+            return LogError("Failed to get current working dir (%v)", err)
+        } else {
+            cfgPath = p
+        }
+    }
+    cfgFiles := &ConfigFiles_t {
+        GlobalFl: filepath.Join(cfgPath, "globals.conf.json"),
+        ActionsFl: filepath.Join(cfgPath, "actions.conf.json"),
+        BindingsFl: filepath.Join(cfgPath, "bindings.conf.json"),
+    }
+
+    _, err := InitConfigMgr(cfgFiles)
+    return err
+}
 

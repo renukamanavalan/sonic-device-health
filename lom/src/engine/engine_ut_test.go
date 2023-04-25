@@ -4,7 +4,6 @@ import (
     . "lom/src/lib/lomcommon"
     . "lom/src/lib/lomipc"
     "os"
-    "path/filepath"
     "testing"
     "time"
 )
@@ -749,12 +748,8 @@ var xutList = []func(t *testing.T) {
 
 func TestAll(t *testing.T) {
     initConfig(t)
-    cfgFiles = &ConfigFiles_t {
-        GlobalFl: filepath.Join(CFGPATH, "globals.conf.json"),
-        ActionsFl: filepath.Join(CFGPATH, "actions.conf.json"),
-        BindingsFl: filepath.Join(CFGPATH, "bindings.conf.json"),
-    }
-    if _, err := InitConfigMgr(cfgFiles); err != nil {
+    cfgPath = CFGPATH
+    if err := InitConfigPath(cfgPath); err != nil {
         t.Fatalf("Failed to init configMgr")
     }
 
