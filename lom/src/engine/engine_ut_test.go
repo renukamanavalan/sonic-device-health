@@ -4,7 +4,6 @@ import (
     . "lom/src/lib/lomcommon"
     . "lom/src/lib/lomipc"
     "os"
-    "path/filepath"
     "testing"
     "time"
 )
@@ -406,7 +405,7 @@ func testSequenceHandler(t *testing.T) {
         handler := GetSeqHandler()
 
         /* Non existing active action */
-        if err := handler.RaiseRequest("bar"); err == nil {
+        if err := handler.RaiseRequestForFirstAction("bar"); err == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for non-existing action")
         }
 
@@ -415,20 +414,20 @@ func testSequenceHandler(t *testing.T) {
 
         /* Pre-existing active request */
         handler.activeRequests["Detect-0"] = &activeRequest_t{}
-        if err := handler.RaiseRequest("Detect-0"); err == nil {
+        if err := handler.RaiseRequestForFirstAction("Detect-0"); err == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for pre-existing req")
         }
         delete(handler.activeRequests, "Detect-0")
 
         /* Pre-existing sequence for this action */
         handler.sequencesByFirstAction["Detect-0"] = &sequenceState_t{}
-        if err := handler.RaiseRequest("Detect-0"); err == nil {
+        if err := handler.RaiseRequestForFirstAction("Detect-0"); err == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for pre-existing seq")
         }
         delete(handler.sequencesByFirstAction, "Detect-0")
 
         /* Fail AddServerRequst due to missing active client */
-        if err := handler.RaiseRequest("Detect-0"); err == nil {
+        if err := handler.RaiseRequestForFirstAction("Detect-0"); err == nil {
             t.Fatalf("****TEST FAILED: Failed to AddServerRequest for inactive client")
         }
     }
@@ -749,12 +748,8 @@ var xutList = []func(t *testing.T) {
 
 func TestAll(t *testing.T) {
     initConfig(t)
-    cfgFiles = &ConfigFiles_t {
-        GlobalFl: filepath.Join(CFGPATH, "globals.conf.json"),
-        ActionsFl: filepath.Join(CFGPATH, "actions.conf.json"),
-        BindingsFl: filepath.Join(CFGPATH, "bindings.conf.json"),
-    }
-    if _, err := InitConfigMgr(cfgFiles); err != nil {
+    cfgPath = CFGPATH
+    if err := InitConfigPath(cfgPath); err != nil {
         t.Fatalf("Failed to init configMgr")
     }
 

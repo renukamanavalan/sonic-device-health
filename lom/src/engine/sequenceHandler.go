@@ -48,6 +48,10 @@ import (
  *      ii. TODO: Honor *mandatory* flag, as call 
  */
 
+const (
+    ANOMALY_PUB_STATUS_INIT     = "init"
+    ANOMALY_PUB_STATUS_COMPLETE = "complete"
+)
 
 /*
  * Active request - Requests sent out awaiting response with or w/o timeout
@@ -76,7 +80,7 @@ type activeRequest_t struct {
  *       re-register by client will drop the requests associated with 
  *       de-registered actions.
  */
-type activeRequestsList_t map[string]*activeRequest_t
+type activeRequestsMap_t map[string]*activeRequest_t
 
 
 /*
@@ -167,7 +171,7 @@ type SortedSequences_t []*sequenceState_t
 
 type SeqHandler_t struct {
     /* All Active requests by action name */
-    activeRequests          activeRequestsList_t
+    activeRequests          activeRequestsMap_t
 
     /* Collected sequences by anomaly */
     sequencesByAnomaly      Sequences_t
@@ -200,7 +204,7 @@ func InitSeqHandler(chTimer chan<- int64) {
         LogError("Duplicate init seq handler")
     } else {
         seqHandler = &SeqHandler_t {
-            activeRequests: make(activeRequestsList_t),
+            activeRequests: make(activeRequestsMap_t),
             sequencesByAnomaly: make(Sequences_t),
             sequencesByFirstAction: make(Sequences_t),
             chTimer: chTimer }
@@ -262,7 +266,7 @@ func (p *SeqHandler_t) processTimeout() {
  *
  * Engine need not care.
  */
-func (p *SeqHandler_t) RaiseRequest(action string) error {
+func (p *SeqHandler_t) RaiseRequestForFirstAction(action string) error {
     regF := GetRegistrations()
 
     /* Is action registered */
@@ -285,7 +289,7 @@ func (p *SeqHandler_t) RaiseRequest(action string) error {
     /* Is there an active/pending sequence for this action */
     if s, ok := p.sequencesByFirstAction[action]; ok {
         return LogError(
-                "Internal: An active sequence is in progress ID(%s) index(%d) due(%v)seconds",
+                "Internal: An active/pending sequence is in progress ID(%s) index(%d) due(%v)seconds",
                 s.anomalyInstanceId, s.ctIndex, time.Now().Unix() - s.seqExpEpoch)
     }
 
@@ -386,9 +390,9 @@ func (p *SeqHandler_t) dropSequence(seq *sequenceState_t) {
         p.sortedSequencesByDue = make(SortedSequences_t, len(p.sequencesByAnomaly))
         p.sortedSequencesByPri = make(SortedSequences_t, len(p.sequencesByAnomaly))
         i := 0
-        for _, v := range(p.sequencesByAnomaly) {
-            p.sortedSequencesByDue[i] = v
-            p.sortedSequencesByPri[i] = v
+        for _, seq= range(p.sequencesByAnomaly) {
+            p.sortedSequencesByDue[i] = seq
+            p.sortedSequencesByPri[i] = seq
             i++
         }
         p.sortSequences()
@@ -407,9 +411,9 @@ func (p *SeqHandler_t) publishResponse(res *ActionResponseData, complete bool) {
         m := pubAction_t { LoM_Action: res }
         if res.InstanceId == res.AnomalyInstanceId {
             if !complete {
-                m.State = "init"
+                m.State = ANOMALY_PUB_STATUS_INIT
             } else {
-                m.State = "complete"
+                m.State = ANOMALY_PUB_STATUS_COMPLETE
             }
         }
         PublishEvent(m)
@@ -432,6 +436,29 @@ func (p *SeqHandler_t) ProcessResponse(msg *MsgSendServerResponse) {
             p.processActionResponse(&data)
         }
     }
+}
+
+
+/* Validate & drop from active requests */
+func (p *SeqHandler_t) validate_with_active(action string, seq *sequenceState_t) error {
+    if r, ok := p.activeRequests[action]; ok {
+        if (seq != nil) && (seq.currentRequest != r) {
+            return LogError("Response's req (%v) != current(%v)", r, seq.currentRequest)
+        }
+        if r.req.ReqType != TypeServerRequestAction  {
+            return LogError("Active requests type (%v) != TypeServerRequestAction", r)
+        }
+        rd := r.req.ReqData
+        if ar, ok1 := rd.(*ActionRequestData); !ok1 {
+            return LogError("Active requests data (%T) != ActionRequestData (%v)", rd, r)
+        } else if ar.InstanceId != data.InstanceId {
+            /* stale response */
+            return LogError("Active req vs res instance ID mismatch (%v) (%v)", ar, data)
+        }
+    } else {
+        return LogError("No matching req for res (%v)", data)
+    }
+    return nil
 }
 
 
@@ -510,7 +537,7 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
             data.ResultCode = int(errCode)
             data.ResultStr = errStr
             p.publishResponse(data, true)
-            p.RaiseRequest(data.Action)
+            p.RaiseRequestForFirstAction(data.Action)
         } else {
             /* Stale resp; Do nothing */
         }
@@ -533,26 +560,7 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
     p.publishResponse(data, false)
 
     /* Validate & drop from active requests */
-    if r, ok := p.activeRequests[data.Action]; ok {
-        if (seq != nil) && (seq.currentRequest != r) {
-            err = LogError("Response's req (%v) != current(%v)", r, seq.currentRequest)
-            return
-        }
-        if r.req.ReqType != TypeServerRequestAction  {
-            err = LogError("Active requests type (%v) != TypeServerRequestAction", r)
-            return
-        }
-        rd := r.req.ReqData
-        if ar, ok1 := rd.(*ActionRequestData); !ok1 {
-            err = LogError("Active requests data (%T) != ActionRequestData (%v)", rd, r)
-            return
-        } else if ar.InstanceId != data.InstanceId {
-            /* stale response */
-            err = LogError("Active req vs res instance ID mismatch (%v) (%v)", ar, data)
-            return
-        }
-    } else {
-        err = LogError("No matching req for res (%v)", data)
+    if err = validate_with_active(data.Action, seq); err != nil {
         return
     }
 
@@ -761,7 +769,7 @@ func (p *SeqHandler_t) completeSequence(seq *sequenceState_t, errCode LoMRespons
             p.publishResponse(anomalyResp, true)
 
             p.dropSequence(seq)
-            p.RaiseRequest(anomalyResp.Action)
+            p.RaiseRequestForFirstAction(anomalyResp.Action)
         }
     }
 }

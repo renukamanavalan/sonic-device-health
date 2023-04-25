@@ -7,7 +7,6 @@ import (
     . "lom/src/lib/lomipc"
     "os"
     "os/signal"
-    "path/filepath"
     "syscall"
 )
 
@@ -21,8 +20,12 @@ type engine_t struct {
     chClReadAbort   chan interface{}
 }
 
-var cfgFiles *ConfigFiles_t
+var cfgPath = ""
 
+/*
+ * Read client requests via engine Lib API and route it to 
+ * engine's main loop.
+ */
 func (p *engine_t) readRequest() {
 
     go func() {
@@ -137,7 +140,7 @@ loop:
                  * NOTE: Any currently active sequence will not be affected
                  * On any error, continues to use last loaded values. 
                  */
-                 InitConfigMgr(cfgFiles)
+                InitConfigPath(cfgPath)
 
             case syscall.SIGTERM:
                 break loop
@@ -156,7 +159,7 @@ func (p *engine_t) close() {
 
 func startUp(progname string, args []string) (*engine_t, error) {
 
-    path := ""
+    /* Parse args for path */
     {
         p := ""
         flags := flag.NewFlagSet(progname, flag.ContinueOnError)
@@ -169,27 +172,15 @@ func startUp(progname string, args []string) (*engine_t, error) {
         if  err != nil {
             return nil, LogError("Failed to parse (%v); details(%s)", args, buf.String())
         }
-        path = p
+        cfgPath = p
     }
 
-    if len(path) == 0 {
-        if p, err := os.Getwd(); err != nil {
-            return nil, LogError("Failed to get current working dir (%v)", err)
-        } else {
-            path = p
-        }
-    }
-
-    cfgFiles = &ConfigFiles_t {
-        GlobalFl: filepath.Join(path, "globals.conf.json"),
-        ActionsFl: filepath.Join(path, "actions.conf.json"),
-        BindingsFl: filepath.Join(path, "bindings.conf.json"),
-    }
-
-    if _, err := InitConfigMgr(cfgFiles); err != nil {
-        return nil, LogError("Failed to read config; (%v)", *cfgFiles)
+    /* Init/Load config */
+    if err := InitConfigPath(cfgPath); err != nil {
+        return nil, LogError("Failed to read config; (%s)", cfgPath)
     }
    
+    /* Init engine context that saves all client registrations */
     InitRegistrations()
     tx, err := ServerInit()
     if err != nil {
