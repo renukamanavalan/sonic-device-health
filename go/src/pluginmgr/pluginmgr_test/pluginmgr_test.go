@@ -67,11 +67,13 @@ func (m *mockFunction) exec(vv ...interface{}) {
 
 			// Check that the goroutine is running
 			time.Sleep(10 * time.Millisecond) // Wait for the goroutine to start
-			assert.True(t, mygoroutinetracker.IsRunning("test_goroutine"))
+			running, _ := mygoroutinetracker.IsRunning("test_goroutine")
+			assert.True(t, running)
 
 			// Check that the goroutine is no longer running after waiting for it
 			mygoroutinetracker.Wait("test_goroutine")
-			assert.False(t, mygoroutinetracker.IsRunning("test_goroutine"))
+			running, _ = mygoroutinetracker.IsRunning("test_goroutine")
+			assert.False(t, running)
 
 			// Check that the function exec() was called as per previous expectation
 			mockFunc.AssertExpectations(t)
@@ -83,13 +85,13 @@ func (m *mockFunction) exec(vv ...interface{}) {
 			mygoroutinetracker.Start("test_goroutine2", mockFunc.exec, 1000)
 
 			// Attempting to start a goroutine with the same name
-			assert.PanicsWithValue(t, "Cannot start goroutine. Name \"test_goroutine2\" already exists", func() {
+			assert.PanicsWithValue(t, "Cannot start goroutine, \"test_goroutine2\" as its active", func() {
 				mygoroutinetracker.Start("test_goroutine2", mockFunc.exec)
 			})
 
 			mygoroutinetracker.Wait("test_goroutine2")
-
-			assert.False(t, mygoroutinetracker.IsRunning("test_goroutine2"))
+			running, _ := mygoroutinetracker.IsRunning("test_goroutine2")
+			assert.False(t, running)
 
 			mockFunc.AssertExpectations(t)
 		})
@@ -110,11 +112,13 @@ func (m *mockFunction) exec(vv ...interface{}) {
 
 			// Check that both goroutines are running
 			time.Sleep(10 * time.Millisecond) // Wait for the goroutines to start
-			assert.True(t, mygoroutinetracker.IsRunning("test_goroutine3"))
-			assert.True(t, mygoroutinetracker.IsRunning("test_goroutine4"))
+			running, _ := mygoroutinetracker.IsRunning("test_goroutine3")
+			assert.True(t, running)
+			running, _ = mygoroutinetracker.IsRunning("test_goroutine4")
+			assert.True(t, running)
 
 			// Check that List returns both names
-			infos := mygoroutinetracker.InfoList()
+			infos := mygoroutinetracker.InfoList(nil)
 			var names []string
 			for _, info := range infos {
 				if gi, ok := info.(lomcommon.GoroutineInfo); ok {
@@ -127,8 +131,11 @@ func (m *mockFunction) exec(vv ...interface{}) {
 
 			// Check that both goroutines are no longer running after waiting for them
 			wg.Wait()
-			assert.False(t, mygoroutinetracker.IsRunning("test_goroutine3"))
-			assert.False(t, mygoroutinetracker.IsRunning("test_goroutine4"))
+			time.Sleep(10 * time.Millisecond) // Wait for the goroutines to finish
+			running, _ = mygoroutinetracker.IsRunning("test_goroutine3")
+			assert.False(t, running)
+			running, _ = mygoroutinetracker.IsRunning("test_goroutine4")
+			assert.False(t, running)
 
 			mockFunc2.AssertExpectations(t)
 			mockFunc1.AssertExpectations(t)
@@ -142,7 +149,7 @@ func (m *mockFunction) exec(vv ...interface{}) {
 			mygoroutinetracker.Start("test_goroutine5", mockFunc.exec, 1000, &wg)
 
 			funcgetstartedtime := func() string {
-				infos := mygoroutinetracker.InfoList()
+				infos := mygoroutinetracker.InfoList(nil)
 				for _, info := range infos {
 					if gi, ok := info.(lomcommon.GoroutineInfo); ok {
 						if gi.Name == "test_goroutine5" {
@@ -155,26 +162,29 @@ func (m *mockFunction) exec(vv ...interface{}) {
 
 			// Check that the goroutine is running
 			time.Sleep(10 * time.Millisecond) // Wait for the goroutine to start
-			assert.True(t, mygoroutinetracker.IsRunning("test_goroutine5"))
+			running, _ := mygoroutinetracker.IsRunning("test_goroutine5")
+			assert.True(t, running)
 
 			gottime, _ := mygoroutinetracker.GetTimeStarted("test_goroutine5")
 			assert.Equal(t, funcgetstartedtime(), gottime)
 
 			// Check that the goroutine is no longer running after waiting for it
 			wg.Wait()
-			assert.False(t, mygoroutinetracker.IsRunning("test_goroutine5"))
+			running, _ = mygoroutinetracker.IsRunning("test_goroutine5")
+			assert.False(t, running)
 
-			// check the time must be ""
-			gottime, _ = mygoroutinetracker.GetTimeStarted("test_goroutine5")
-			assert.Equal(t, "", gottime)
+			// Now get the time for a goroutine which is not running. 
+			gottime, err := mygoroutinetracker.GetTimeStarted("test_goroutine5")
+			assert.Nil(t, err)
+			assert.Equal(t, funcgetstartedtime(), gottime)
 
 			// Now get the time for unknown goroutine
-			gottime, _ = mygoroutinetracker.GetTimeStarted("dummy_goroutine")
+			gottime, err = mygoroutinetracker.GetTimeStarted("dummy_goroutine")
+			assert.NotNil(t, err)
 			assert.Equal(t, "", gottime)
 
 			mockFunc.AssertExpectations(t)
 		})
-
 }
 
 type MyStruct struct {
@@ -255,8 +265,12 @@ func TestReadProcsConf(t *testing.T) {
 		}
 
 		assert.Nil(t, err)
-		assert.Equal(t, "link_crc", configMgr.ProcsConfig["link_crc"].Name)
-		assert.Equal(t, "02.00.1", configMgr.ProcsConfig["link_flap"].Version)
+		config,_ := configMgr.GetProcsConfig("proc_0")
+		assert.Equal(t, "link_crc", config["link_crc"].Name)
+		assert.Equal(t, "02.00.1", config["link_flap"].Version)
+
+		//assert.Equal(t, "link_crc", configMgr.ProcsConfig["link_crc"].Name)
+		//assert.Equal(t, "02.00.1", configMgr.ProcsConfig["link_flap"].Version)
 	})
 
 	t.Run("readFile_error", func(t *testing.T) {
@@ -297,18 +311,24 @@ func TestReadProcsConf(t *testing.T) {
 		configMgr, err := lomcommon.InitConfigMgr(configFiles)
 
 		assert.Nil(t, err)
-		assert.NotEqual(t, "link_crc", configMgr.ProcsConfig["link_crc_c"].Name)
-		assert.NotEqual(t, "dummy_path", configMgr.ProcsConfig["link_crc"].Path)
+		config,_ := configMgr.GetProcsConfig("proc_0")
+		assert.NotEqual(t, "link_crc_c", config["link_crc_c"].Name)
+		assert.NotEqual(t, "dummy_path", config["link_crc"].Path)
+
+		//assert.NotEqual(t, "link_crc", configMgr.ProcsConfig["link_crc_c"].Name)
+		//assert.NotEqual(t, "dummy_path", configMgr.ProcsConfig["link_crc"].Path)
 	})
 
 	t.Run("proc ID invalid", func(t *testing.T) {
 		configFiles := &lomcommon.ConfigFiles_t{}
 		configFiles.ProcsFl = "./proc_conf.json"
 		lomcommon.ProcID = "proc_3"
-		_, err := lomcommon.InitConfigMgr(configFiles)
 
-		assert.NotNil(t, err)
-		assert.Regexp(t, regexp.MustCompile(`.*Failed to get config for proc \(\w+\)`), err.Error())
+		configMgr, err := lomcommon.InitConfigMgr(configFiles)
+		assert.Nil(t, err)
+
+		_,err = configMgr.GetProcsConfig(lomcommon.ProcID)
+		assert.Regexp(t, regexp.MustCompile(`.*Failed to get config for proc ID \(proc_3\)`), err.Error())
 	})
 }
 
@@ -354,7 +374,7 @@ func TestGetEnvVarString(t *testing.T) {
 	}
 
 	// Call the LoadEnvironemntVariables function
-	lomcommon.LoadEnvironemntVariables()
+	lomcommon.LoadEnvironmentVariables()
 
 	// Call the GetEnvVarString function
 	value, exists := lomcommon.GetEnvVarString("ENV_session_id")
@@ -370,11 +390,11 @@ func TestGetEnvVarString(t *testing.T) {
 	assert.Equal(t, "", value)
 	assert.False(t, exists)
 
-	// Call the GetEnvVarString function with a key that has no corresponding value in the environment
+	// Call the GetEnvVarString function with a key that has no corresponding value in the environment. Match with default path
 	value, exists = lomcommon.GetEnvVarString("ENV_lom_conf_location")
 
 	// Assert that the value and exists variables are correct
-	assert.Equal(t, "", value)
+	assert.Equal(t, "path/to/conf", value)
 	assert.True(t, exists)
 }
 
@@ -388,7 +408,7 @@ func TestGetEnvVarInteger(t *testing.T) {
 		panic("Session ID integer conversion failed")
 	}
 
-	lomcommon.LoadEnvironemntVariables()
+	lomcommon.LoadEnvironmentVariables()
 
 	value, exists := lomcommon.GetEnvVarInteger("ENV_session_id") // in int
 
@@ -420,7 +440,7 @@ func TestGetEnvVarFloat(t *testing.T) {
 		panic("Session ID float conversion failed")
 	}
 
-	lomcommon.LoadEnvironemntVariables()
+	lomcommon.LoadEnvironmentVariables()
 
 	value, exists := lomcommon.GetEnvVarFloat("ENV_session_id")
 
@@ -447,7 +467,7 @@ func TestGetEnvVaAny(t *testing.T) {
 	if !exists {
 		panic("Session ID not found")
 	}
-	lomcommon.LoadEnvironemntVariables()
+	lomcommon.LoadEnvironmentVariables()
 
 	value, exists := lomcommon.GetEnvVarAny("ENV_session_id")
 
@@ -461,11 +481,11 @@ func TestGetEnvVaAny(t *testing.T) {
 	assert.Equal(t, "", value)
 	assert.False(t, exists)
 
-	// Call the GetEnvVarAny function with a key that has no corresponding value in the environment
+	// Call the GetEnvVarAny function with a key that has no corresponding value in the environment. Match with default path
 	value, exists = lomcommon.GetEnvVarAny("ENV_lom_conf_location")
 
 	// Assert that the value and exists variables are correct
-	assert.Equal(t, "", value)
+	assert.Equal(t, "path/to/conf", value)
 	assert.True(t, exists)
 }
 

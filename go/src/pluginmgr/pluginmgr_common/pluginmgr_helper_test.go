@@ -18,6 +18,7 @@ import (
 	"os"
 	"syscall"
 	"log/syslog"
+	"io/ioutil"
 )
 
 // ------------------------------------------ Plugins -------------------------------------------------------------//
@@ -93,23 +94,6 @@ func (m *MockPlugin) GetPluginID() plugins_common.PluginId {
 	return args.Get(0).(plugins_common.PluginId)
 }
 
-func (m *MockPlugin) GetMetadata() plugins_common.PluginMetadata {
-	args := m.Called()
-	return args.Get(0).(plugins_common.PluginMetadata)
-}
-
-func (m *MockPlugin) SetMetadata(metadata plugins_common.PluginMetadata) {
-	m.Called(metadata)
-}
-
-func (m *MockPlugin) GetPluginStage() plugins_common.PluginStage {
-	args := m.Called()
-	return args.Get(0).(plugins_common.PluginStage)
-}
-
-func (m *MockPlugin) SetPluginStage(stage plugins_common.PluginStage) {
-	m.Called(stage)
-}
 
 // Test Run() function
 func TestNewPluginManager(t *testing.T) {
@@ -131,10 +115,10 @@ func TestRun_RecvServerRequestError_ReturnError(t *testing.T) {
 	mockClient.On("RecvServerRequest").Return(nil, errors.New("error")) // pass nil as first argument
 	mockClient.On("RegisterClient", mock.Anything).Return(nil)          // pass anything as first argument
 
-	pluginManager, err := NewPluginManager(mockClient)
+	pluginManager, _ := NewPluginManager(mockClient)
 
 	// Execution of run
-	err = pluginManager.Run(nil)
+	err := pluginManager.run()
 
 	// Verification
 	assert.EqualError(t, err, "error")
@@ -151,7 +135,7 @@ func TestRun_RecvServerRequestError_ReturnError2(t *testing.T) {
 	pluginManager, _ := NewPluginManager(mockClient)
 
 	// Execution of run
-	_ = pluginManager.Run(nil)
+	_ = pluginManager.run()
 
 	// Verification
 	str := "pluginmgr_common/pluginmgr_helper.go:127:Error RecvServerRequest() : nil"
@@ -173,19 +157,18 @@ func TestRun_ActionRequestPluginNotFound_LogError(t *testing.T) {
 	
 	mockClient.On("RegisterClient", mock.Anything).Return(nil) // pass anything as first argument
 
-	pluginManager, err := NewPluginManager(mockClient)
+	pluginManager, _ := NewPluginManager(mockClient)
 
 	// Execution
-	stop := make(chan struct{})
 	go func() {
-		time.Sleep(1 * time.Second)
-		close(stop)
+		time.Sleep(10 * time.Millisecond)
+		pluginManager.stopch <- struct{}{}
 	}()
-	err = pluginManager.Run(stop)
+	err := pluginManager.run()
 
 	// Verification
 	assert.NoError(t, err)
-	mockClient.AssertCalled(t, "RegisterClient", "")
+	mockClient.AssertCalled(t, "RegisterClient", mock.Anything)
 	mockClient.AssertExpectations(t)
 }
 
@@ -208,15 +191,16 @@ func TestRun_ActionRequestPluginFound_LogNotice(t *testing.T) {
 		plugins: map[string]plugins_common.Plugin{
 			"plugin": mockPlugin,
 		},
+		stopch:     make(chan struct{}),
 	}
 
 	// Execution
-	stop := make(chan struct{})
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		close(stop)
+		fmt.Println("")
+		pluginManager.stopch <- struct{}{}
 	}()
-	err := pluginManager.Run(stop)
+	err := pluginManager.run()
 
 	// Verification
 	assert.NoError(t, err)
@@ -357,7 +341,7 @@ func TestRun_AddPlugin1(t *testing.T) {
     isDynamic := true
 
 	// Execute
-    err := pluginManager.AddPlugin(pluginName, pluginVersion, isDynamic)
+    err := pluginManager.addPlugin(pluginName, pluginVersion, isDynamic)
 
     // Verify
     assert.Error(t, err)
@@ -381,21 +365,73 @@ func TestRun_AddPlugin2(t *testing.T) {
     pluginName := "plugin"
     pluginVersion := "v1.0.0"
     isDynamic := true
-
-	pt := &lomcommon.ConfigMgr_t{new(lomcommon.GlobalConfig_t), make(lomcommon.ActionsConfigList_t), make(lomcommon.BindingsConfig_t), make(lomcommon.ProcConfigList_t)}
-	pt.ActionsConfig["dummy_plugin"] = lomcommon.ActionCfg_t{
-		Name:         "dummy_action",
-		Type:         "dummy_type",
-		Timeout:      10,
-		HeartbeatInt: 5,
-		Disable:      false,
-		Mimic:        false,
-		ActionKnobs:  "ActionKnobs_test",
+/*
+	testDataActions := []byte(`{
+		"link_flap": {
+			"Name": "link_flap",
+			"Type": "Detection",
+			"Timeout": 0,
+			"HeartbeatInt": 2,
+			"Disable": false,
+			"Mimic": "true",
+			"ActionKnobs": {
+				"min": 80
+			}
+		},
+		"dummy_action": {
+			"Name": "dummy_action",
+			"Type": "dummy_type",
+			"Timeout": 10,
+			"HeartbeatInt": 5,
+			"Disable": false,
+			"Mimic": "false",
+			"ActionKnobs": {
+				"repeat": false
+			}
+		}
+	}`)
+	*/
+	
+	testDataActions := []byte(`{
+		"Actions": [
+			{
+				"Name": "link_flap",
+				"Type": "Detection",
+				"Timeout": 0,
+				"HeartbeatInt": 2,
+				"Disable": false,
+				"Mimic": true,
+				"ActionKnobs": "test actions"
+			},
+			{
+				"Name": "dummy_action",
+				"Type": "dummy_type",
+				"Timeout": 10,
+				"HeartbeatInt": 5,
+				"Disable": false,
+				"Mimic": false,
+				"ActionKnobs": "test actions"
+			}
+		]
+	}`)
+	
+	// create the file
+	err := ioutil.WriteFile("/tmp/testdata_actions.json", testDataActions, 0644)
+	if err != nil {
+		panic(err)
 	}
+	
+	configFiles := &lomcommon.ConfigFiles_t{}
+	configFiles.ActionsFl = "/tmp/testdata_actions.json"
+	pt, err := lomcommon.InitConfigMgr(configFiles)
+	if err != nil {
+		t.Errorf("Error in InitConfigMgr: %v", err)
+	}
+
 	configMgr = pt
 
 	// Execute
-    err := pluginManager.AddPlugin(pluginName, pluginVersion, isDynamic)
+    err = pluginManager.addPlugin(pluginName, pluginVersion, isDynamic)
 
     // Verify
     assert.Error(t, err)
