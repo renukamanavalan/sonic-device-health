@@ -30,9 +30,8 @@ func (p *engine_t) readRequest() {
 
     go func() {
         defer func() {
-            /* No more writes. Hence close. Does not block reader. */
-            /* This will help abort read loop below */
-            close(p.chClientReq)
+            /* No more client requests to read. So trigger engine close */
+            p.close()
         }()
 
         /*
@@ -83,10 +82,6 @@ func (p *engine_t) runLoop() {
         if len(p.chClReadAbort) < cap(p.chClReadAbort) {
             p.chClReadAbort <- "Aborted"
         }
-
-        close(p.chTrack)
-        close(chAbortLog)
-        close(p.chClReadAbort)
     }()
 
     /* Handle signal for config update & terminate */
