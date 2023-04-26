@@ -440,8 +440,8 @@ func (p *SeqHandler_t) ProcessResponse(msg *MsgSendServerResponse) {
 
 
 /* Validate & drop from active requests */
-func (p *SeqHandler_t) validate_with_active(action string, seq *sequenceState_t) error {
-    if r, ok := p.activeRequests[action]; ok {
+func (p *SeqHandler_t) validate_with_active(data *ActionResponseData, seq *sequenceState_t) error {
+    if r, ok := p.activeRequests[data.Action]; ok {
         if (seq != nil) && (seq.currentRequest != r) {
             return LogError("Response's req (%v) != current(%v)", r, seq.currentRequest)
         }
@@ -560,7 +560,7 @@ func (p *SeqHandler_t) processActionResponse(data *ActionResponseData) {
     p.publishResponse(data, false)
 
     /* Validate & drop from active requests */
-    if err = validate_with_active(data.Action, seq); err != nil {
+    if err = p.validate_with_active(data, seq); err != nil {
         return
     }
 

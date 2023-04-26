@@ -332,16 +332,16 @@ func (p *ClientRegistrations_t) PublishHeartbeats() {
 
     for {
         /* Read inside the loop to help refresh any change */
-        hb := GetConfigMgr().GetGlobalCfgInt(ENGINE_HB_INTERVAL_SECS)
-        if hb == 0 {
-            hb = MIN_HB_INTERVAL_SECS
+        hbInterval := GetConfigMgr().GetGlobalCfgInt(ENGINE_HB_INTERVAL_SECS)
+        if hbInterval == 0 {
+            hbInterval = MIN_HB_INTERVAL_SECS
         }
         select {
         case actionName := <- p.heartbeatCh:
             lst[actionName] = struct{}{}
             /* Collect actions */
 
-        case <- time.After(time.Duration(hb) * time.Second):
+        case <- time.After(time.Duration(hbInterval) * time.Second):
             hb := &HBData_t { HB_t { make([]string, len(lst)), time.Now().Unix()}}
 
             if len(lst) > 0 {
