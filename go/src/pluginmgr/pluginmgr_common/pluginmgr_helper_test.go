@@ -1,24 +1,24 @@
 package pluginmgr_common
 
 import (
-	"go/src/lib/lomipc"
 	"go/src/lib/lomcommon"
+	"go/src/lib/lomipc"
 	"go/src/plugins/plugins_common"
 
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/assert"
 	"errors"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	//"os/signal"
 	//"flag"
-	"testing"
-	"regexp"
 	"fmt"
-	"sync"
-	"time"
-	"os"
-	"syscall"
-	"log/syslog"
 	"io/ioutil"
+	"log/syslog"
+	"os"
+	"regexp"
+	"sync"
+	"syscall"
+	"testing"
+	"time"
 )
 
 // ------------------------------------------ Plugins -------------------------------------------------------------//
@@ -94,7 +94,6 @@ func (m *MockPlugin) GetPluginID() plugins_common.PluginId {
 	return args.Get(0).(plugins_common.PluginId)
 }
 
-
 // Test Run() function
 func TestNewPluginManager(t *testing.T) {
 	// Setup
@@ -139,8 +138,8 @@ func TestRun_RecvServerRequestError_ReturnError2(t *testing.T) {
 
 	// Verification
 	str := "pluginmgr_common/pluginmgr_helper.go:127:Error RecvServerRequest() : nil"
-    rx := regexp.MustCompile(`^pluginmgr_common/pluginmgr_helper\.go:\d+:Error RecvServerRequest\(\) : nil$`)
-    assert.Regexp(t, rx, str)
+	rx := regexp.MustCompile(`^pluginmgr_common/pluginmgr_helper\.go:\d+:Error RecvServerRequest\(\) : nil$`)
+	assert.Regexp(t, rx, str)
 	mockClient.AssertExpectations(t)
 }
 
@@ -154,7 +153,7 @@ func TestRun_ActionRequestPluginNotFound_LogError(t *testing.T) {
 			Action: "nonexistent_plugin", // invalid plugin name
 		},
 	}, nil)
-	
+
 	mockClient.On("RegisterClient", mock.Anything).Return(nil) // pass anything as first argument
 
 	pluginManager, _ := NewPluginManager(mockClient)
@@ -191,7 +190,7 @@ func TestRun_ActionRequestPluginFound_LogNotice(t *testing.T) {
 		plugins: map[string]plugins_common.Plugin{
 			"plugin": mockPlugin,
 		},
-		stopch:     make(chan struct{}),
+		stopch: make(chan struct{}),
 	}
 
 	// Execution
@@ -207,7 +206,7 @@ func TestRun_ActionRequestPluginFound_LogNotice(t *testing.T) {
 	mockClient.AssertExpectations(t)
 }
 
-//------------------------------------ TestSetupSyslogSignals -----------------------------------------------//
+// ------------------------------------ TestSetupSyslogSignals -----------------------------------------------//
 // Test for the `SetupSyslogSignals` function
 func TestSetupSyslogSignals(t *testing.T) {
 
@@ -295,7 +294,7 @@ func TestSetupSyslogSignals(t *testing.T) {
 
 	// Check that the log level has been updated
 	newLevel = lomcommon.GetLogLevel()
-	if newLevel != initialLevel - 1{
+	if newLevel != initialLevel-1 {
 		t.Errorf("log level not updated as expected: initialLevel=%v, newLevel=%v", initialLevel, newLevel)
 	}
 }
@@ -307,7 +306,7 @@ func TestParseArguments_CustomValues(t *testing.T) {
 	oldArgs := os.Args
 	defer func() { os.Args = oldArgs }()
 
-	args   :=  []string{"-proc_id=proc_1", "-syslog_level=3"}
+	args := []string{"-proc_id=proc_1", "-syslog_level=3"}
 	// Set command line arguments for this test case
 	os.Args = append([]string{"test_prog"}, args...)
 
@@ -332,21 +331,21 @@ func TestRun_AddPlugin1(t *testing.T) {
 		plugins: map[string]plugins_common.Plugin{
 			"plugin": mockPlugin,
 		},
-		mu:        sync.Mutex{},
+		mu: sync.Mutex{},
 	}
 
 	// Define test data
-    pluginName := "plugin"
-    pluginVersion := "v1.0.0"
-    isDynamic := true
+	pluginName := "plugin"
+	pluginVersion := "v1.0.0"
+	isDynamic := true
 
 	// Execute
-    err := pluginManager.addPlugin(pluginName, pluginVersion, isDynamic)
+	err := pluginManager.addPlugin(pluginName, pluginVersion, isDynamic)
 
-    // Verify
-    assert.Error(t, err)
+	// Verify
+	assert.Error(t, err)
 	assert.Regexp(t, regexp.MustCompile(fmt.Sprintf("plugin with name %s and version %s is already loaded", pluginName, pluginVersion)), err.Error())
-    mockClient.AssertExpectations(t)
+	mockClient.AssertExpectations(t)
 }
 
 // AddPlugin :  2.Get plugin specific details from actions config file and add any additional info to pass to plugin's init() call
@@ -358,40 +357,40 @@ func TestRun_AddPlugin2(t *testing.T) {
 
 	pluginManager := PluginManager{
 		clientTx: mockClient,
-		mu:        sync.Mutex{},
+		mu:       sync.Mutex{},
 	}
 
 	// Define test data
-    pluginName := "plugin"
-    pluginVersion := "v1.0.0"
-    isDynamic := true
-/*
-	testDataActions := []byte(`{
-		"link_flap": {
-			"Name": "link_flap",
-			"Type": "Detection",
-			"Timeout": 0,
-			"HeartbeatInt": 2,
-			"Disable": false,
-			"Mimic": "true",
-			"ActionKnobs": {
-				"min": 80
+	pluginName := "plugin"
+	pluginVersion := "v1.0.0"
+	isDynamic := true
+	/*
+		testDataActions := []byte(`{
+			"link_flap": {
+				"Name": "link_flap",
+				"Type": "Detection",
+				"Timeout": 0,
+				"HeartbeatInt": 2,
+				"Disable": false,
+				"Mimic": "true",
+				"ActionKnobs": {
+					"min": 80
+				}
+			},
+			"dummy_action": {
+				"Name": "dummy_action",
+				"Type": "dummy_type",
+				"Timeout": 10,
+				"HeartbeatInt": 5,
+				"Disable": false,
+				"Mimic": "false",
+				"ActionKnobs": {
+					"repeat": false
+				}
 			}
-		},
-		"dummy_action": {
-			"Name": "dummy_action",
-			"Type": "dummy_type",
-			"Timeout": 10,
-			"HeartbeatInt": 5,
-			"Disable": false,
-			"Mimic": "false",
-			"ActionKnobs": {
-				"repeat": false
-			}
-		}
-	}`)
+		}`)
 	*/
-	
+
 	testDataActions := []byte(`{
 		"Actions": [
 			{
@@ -414,13 +413,13 @@ func TestRun_AddPlugin2(t *testing.T) {
 			}
 		]
 	}`)
-	
+
 	// create the file
 	err := ioutil.WriteFile("/tmp/testdata_actions.json", testDataActions, 0644)
 	if err != nil {
 		panic(err)
 	}
-	
+
 	configFiles := &lomcommon.ConfigFiles_t{}
 	configFiles.ActionsFl = "/tmp/testdata_actions.json"
 	pt, err := lomcommon.InitConfigMgr(configFiles)
@@ -431,11 +430,11 @@ func TestRun_AddPlugin2(t *testing.T) {
 	configMgr = pt
 
 	// Execute
-    err = pluginManager.addPlugin(pluginName, pluginVersion, isDynamic)
+	err = pluginManager.addPlugin(pluginName, pluginVersion, isDynamic)
 
-    // Verify
-    assert.Error(t, err)
+	// Verify
+	assert.Error(t, err)
 	expectedErrMsg := "plugin " + pluginName + " not found in actions config file"
 	assert.Regexp(t, regexp.MustCompile(expectedErrMsg), err.Error())
-    mockClient.AssertExpectations(t)
+	mockClient.AssertExpectations(t)
 }
