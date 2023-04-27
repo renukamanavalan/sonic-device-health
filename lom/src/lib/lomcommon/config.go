@@ -503,6 +503,13 @@ func (p *ConfigMgr_t) GetActionConfig(name string) (*ActionCfg_t, error) {
     return &actInfo, nil
 }
 
+/* TODO: Goutham's PR has this */
+type ProcCfg_t struct {}
+func (p *ConfigMgr_t) GetProcConfig(name string) (*ProcCfg_t, error) {
+    return nil, LogError("TODO: Yet to implement")
+}
+
+
 /*
  * GetActionsList
  *  Return list of all actions from config, with a flag indicating if that
