@@ -18,6 +18,24 @@ import (
 func TestCall() {
 }
 
+var LoMInitialized = 0
+var LoMRunMode = 0
+
+/*
+ * ----------------------------------------------------------------
+ * State get APIs
+ * ----------------------------------------------------------------
+ */
+//export IsLoMInitializedC
+func IsLOMInitializedC() C.int {
+    return LoMInitialized
+}
+
+//export GetLoMRunModeC
+func GetLoMRunModeC() C.int {
+    return LoMRunMode
+}
+
 /*
  * ----------------------------------------------------------------
  * Config get APIs
@@ -31,6 +49,8 @@ func InitConfigPathForC(pathPtr *C.char) C.int {
         LogError("Failed to init config for path(%s) err(%v)", path, err)
         return C.int(-1)
     }
+    LoMRunMode = int(GetLoMRunMode())
+    LoMInitialized = 1
     return C.int(0)
 }
 
@@ -93,6 +113,7 @@ func GetActionsListAsJsonC() *C.char {
     return C.CString(ret)
 }
 
+/*
 //export GetProcsConfigC
 func GetProcsConfigC(namePtr *C.char) *C.char {
     name:= C.GoString(namePtr)
@@ -107,6 +128,9 @@ func GetProcsConfigC(namePtr *C.char) *C.char {
     }
     return C.CString(ret)
 }
+*/
+
+//export 
 
 
 /*

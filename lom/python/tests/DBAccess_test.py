@@ -1,8 +1,9 @@
 #! /usr/bin/env python3
 import threading
 import sys
-sys.path.append("../hal/sonic")
-sys.path.append("../common")
+sys.path.append("../src/hal")
+sys.path.append("../src/hal/sonic")
+sys.path.append("../src/common")
 
 import DBServer
 import ClientDBAccess

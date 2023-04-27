@@ -27,7 +27,8 @@ LIB_TEST = $(TEST_DIR)/LibTested
 ENGINE_TEST = $(TEST_DIR)/EngineTested
 
 all: $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST)
-lib: $(CMN_C_LIB)
+xall: $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST)
+zlib: $(LIB_TEST)
 
 $(CMN_C_LIB): $(SRC_FILES)
 	mkdir -p $(LIB_DIR)
