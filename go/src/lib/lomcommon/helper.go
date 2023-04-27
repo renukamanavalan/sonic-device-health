@@ -12,7 +12,6 @@ import (
 	"reflect"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -54,6 +53,12 @@ func SetLogLevel(lvl syslog.Priority) {
     log_level = lvl
 }
 
+// setprefix is used to set a prefix for all log messages
+var apprefix string
+func SetPrefix(p string) {
+    apprefix = p
+}
+
 func getPrefix(skip int) string {
     prefix := ""
     if _, fl, ln, ok := runtime.Caller(skip); ok {
@@ -77,7 +82,12 @@ func getPrefix(skip int) string {
         /* prefix = caller/t.go, for the example above */
         prefix = fmt.Sprintf("%s:%d:", strings.Join(l[c-1:], "/"), ln)
     }
-    return prefix
+
+    if apprefix == "" {
+        return prefix
+    }
+    
+    return apprefix + ":" + prefix
 }
 
 /*
@@ -153,11 +163,6 @@ func LogDebug(s string, a ...interface{})  {
     LogMessage(syslog.LOG_DEBUG, s, a...)
 }
 
-/* Log this message at notice level */
-func LogNotice(s string, a ...interface{}) {
-	LogMessage(syslog.LOG_NOTICE, s, a...)
-}
-
 /**********************************************************************/
 /* Log Periodic 													  */
 /**********************************************************************/
@@ -193,7 +198,7 @@ type LogPeriodicEntry_t struct {
      */
 }
 
-type LogPeriodicEntryInt_t struct {
+type logPeriodicEntryInt_t struct {
     LogPeriodicEntry_t
     Due     int64           /* Next due epoch time point */
     index   uint64          /* Add a sequential index to the message */
@@ -206,8 +211,8 @@ type logPeriodic_t struct {
     /* Channel to communicate to logging routine */
     logCh               chan *LogPeriodicEntry_t
 
-    logPeriodicList     map[string]*LogPeriodicEntryInt_t
-    logPeriodicSorted   []*LogPeriodicEntryInt_t
+    logPeriodicList     map[string]*logPeriodicEntryInt_t
+    logPeriodicSorted   []*logPeriodicEntryInt_t
 
     /* TODO: Any entry after logging repeatedly at set period 
      * for a day or two, reduce the period to every hour
@@ -233,7 +238,7 @@ func GetlogPeriodic() *logPeriodic_t{
 func logPeriodicInit(chAbort chan interface{}) {
     logPeriodic = &logPeriodic_t {
         logCh: make( chan *LogPeriodicEntry_t),
-        logPeriodicList: make(map[string]*LogPeriodicEntryInt_t),
+        logPeriodicList: make(map[string]*logPeriodicEntryInt_t),
         logPeriodicSorted: nil,
     }
 
@@ -319,7 +324,7 @@ func (p *logPeriodic_t) update(l *LogPeriodicEntry_t) bool {
     v, ok := p.logPeriodicList[l.ID]
     if len(l.Message) > 0 {
         if !ok || ((*v).LogPeriodicEntry_t != *l) {
-            p.logPeriodicList[l.ID] = &LogPeriodicEntryInt_t{*l, 0, 0} /* Set Due immediate */
+            p.logPeriodicList[l.ID] = &logPeriodicEntryInt_t{*l, 0, 0} /* Set Due immediate */
             upd = true
         }
     } else if ok {
@@ -327,7 +332,7 @@ func (p *logPeriodic_t) update(l *LogPeriodicEntry_t) bool {
         upd = true
     }
     if upd {
-        p.logPeriodicSorted = make([]*LogPeriodicEntryInt_t, len(p.logPeriodicList))
+        p.logPeriodicSorted = make([]*logPeriodicEntryInt_t, len(p.logPeriodicList))
 
         i := 0
         for _, v := range p.logPeriodicList {
@@ -395,10 +400,6 @@ func RemovePeriodicLogEntry(ID string) {
 
 func UpdatePeriodicLogTime(id string, newPeriod int) error {
 	return GetlogPeriodic().updatePeriod(id, newPeriod)
-}
-
-func DurationToSeconds(tduration time.Duration) int {
-	return int(tduration.Seconds())
 }
 
 /*************************************************************************************************/
@@ -542,7 +543,6 @@ func (p *oneShotTimer_t) runOneShotTimer() {
         }
     }
 }
-
 /****************************End Oneshor timer************************************************/
 
 /*************************************************************************************************/
@@ -867,16 +867,11 @@ func main() {
 /* Read Environment variables																	 */
 /*************************************************************************************************/
 
-// TODO: Goutham : Cleanup unnecessary ENV variables and corerct default path
 // variable name , system env variable name, default value
 const EnvMapDefinitionsStr = `{
-    "ENV_session_id": {
-        "env": "XDG_SESSION_ID",
-        "default": "default_session_id"
-    },
     "ENV_lom_conf_location": {
         "env": "LOM_CONF_LOCATION",
-        "default": "path/to/conf"
+        "default": ""
     }
 }`
 
@@ -899,34 +894,10 @@ func LoadEnvironmentVariables() {
 }
 
 func GetEnvVarString(envname string) (string, bool) {
+    if len(envMap) == 0 {
+        LoadEnvironmentVariables()
+    }
 	value, exists := envMap[envname]
 	return value, exists
 }
-
-func GetEnvVarInteger(envname string) (int, bool) {
-	intVal, err := strconv.Atoi(envMap[envname])
-	if err != nil {
-		return 0, false
-	}
-	return intVal, true
-}
-
-func GetEnvVarFloat(envname string) (float64, bool) {
-	floatVal, err := strconv.ParseFloat(envMap[envname], 64)
-	if err != nil {
-		return 0.0, false
-	}
-	return floatVal, true
-}
-
-func GetEnvVarAny(envname string) (interface{}, bool) {
-	value, exists := envMap[envname]
-	return value, exists
-}
-
-func GetEnvVarFromOS(key string) (string, bool) {
-	value, exists := os.LookupEnv(key)
-	return value, exists
-}
-
 /********************** End read Environemnt Variable ********************************/

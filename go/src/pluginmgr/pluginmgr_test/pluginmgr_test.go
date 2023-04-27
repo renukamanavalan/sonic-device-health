@@ -51,140 +51,140 @@ func (m *mockFunction) exec(vv ...interface{}) {
 	}
 }
 
-	func TestGoroutineTracker(t *testing.T) {
-		mygoroutinetracker := lomcommon.NewGoroutineTracker()
-		wg := sync.WaitGroup{}
+func TestGoroutineTracker(t *testing.T) {
+	mygoroutinetracker := lomcommon.NewGoroutineTracker()
+	wg := sync.WaitGroup{}
 
-		t.Run("Test - Start and Wait", func(t *testing.T) {
-			//create mock object
-			mockFunc := &mockFunction{}
+	t.Run("Test - Start and Wait", func(t *testing.T) {
+		//create mock object
+		mockFunc := &mockFunction{}
 
-			// set expectation
-			mockFunc.On("exec").Once()
+		// set expectation
+		mockFunc.On("exec").Once()
 
-			// call mockFunc.exec in goroutine, name of goroutine is "test_goroutine" & function called is "exec"
-			mygoroutinetracker.Start("test_goroutine", mockFunc.exec, 1000)
+		// call mockFunc.exec in goroutine, name of goroutine is "test_goroutine" & function called is "exec"
+		mygoroutinetracker.Start("test_goroutine", mockFunc.exec, 1000)
 
-			// Check that the goroutine is running
-			time.Sleep(10 * time.Millisecond) // Wait for the goroutine to start
-			running, _ := mygoroutinetracker.IsRunning("test_goroutine")
-			assert.True(t, running)
+		// Check that the goroutine is running
+		time.Sleep(10 * time.Millisecond) // Wait for the goroutine to start
+		running, _ := mygoroutinetracker.IsRunning("test_goroutine")
+		assert.True(t, running)
 
-			// Check that the goroutine is no longer running after waiting for it
-			mygoroutinetracker.Wait("test_goroutine")
-			running, _ = mygoroutinetracker.IsRunning("test_goroutine")
-			assert.False(t, running)
+		// Check that the goroutine is no longer running after waiting for it
+		mygoroutinetracker.Wait("test_goroutine")
+		running, _ = mygoroutinetracker.IsRunning("test_goroutine")
+		assert.False(t, running)
 
-			// Check that the function exec() was called as per previous expectation
-			mockFunc.AssertExpectations(t)
+		// Check that the function exec() was called as per previous expectation
+		mockFunc.AssertExpectations(t)
+	})
+
+	t.Run("Test - Start goroutine with existing name", func(t *testing.T) {
+		mockFunc := &mockFunction{}
+		mockFunc.On("exec").Once()
+		mygoroutinetracker.Start("test_goroutine2", mockFunc.exec, 1000)
+
+		// Attempting to start a goroutine with the same name
+		assert.PanicsWithValue(t, "Cannot start goroutine, \"test_goroutine2\" as its active", func() {
+			mygoroutinetracker.Start("test_goroutine2", mockFunc.exec)
 		})
 
-		t.Run("Test - Start goroutine with existing name", func(t *testing.T) {
-			mockFunc := &mockFunction{}
-			mockFunc.On("exec").Once()
-			mygoroutinetracker.Start("test_goroutine2", mockFunc.exec, 1000)
+		mygoroutinetracker.Wait("test_goroutine2")
+		running, _ := mygoroutinetracker.IsRunning("test_goroutine2")
+		assert.False(t, running)
 
-			// Attempting to start a goroutine with the same name
-			assert.PanicsWithValue(t, "Cannot start goroutine, \"test_goroutine2\" as its active", func() {
-				mygoroutinetracker.Start("test_goroutine2", mockFunc.exec)
-			})
+		mockFunc.AssertExpectations(t)
+	})
 
-			mygoroutinetracker.Wait("test_goroutine2")
-			running, _ := mygoroutinetracker.IsRunning("test_goroutine2")
-			assert.False(t, running)
+	t.Run("Test - List goroutines statistics", func(t *testing.T) {
+		mockFunc1 := &mockFunction{}
+		mockFunc2 := &mockFunction{}
 
-			mockFunc.AssertExpectations(t)
-		})
+		// Wait for both goroutines to complete
+		wg.Add(2)
 
-		t.Run("Test - List goroutines statistics", func(t *testing.T) {
-			mockFunc1 := &mockFunction{}
-			mockFunc2 := &mockFunction{}
+		// Start two goroutines with different names
+		mockFunc1.On("exec").Once()
+		mygoroutinetracker.Start("test_goroutine3", mockFunc1.exec, 1000, &wg)
 
-			// Wait for both goroutines to complete
-			wg.Add(2)
+		mockFunc2.On("exec").Once()
+		mygoroutinetracker.Start("test_goroutine4", mockFunc2.exec, 1000, &wg)
 
-			// Start two goroutines with different names
-			mockFunc1.On("exec").Once()
-			mygoroutinetracker.Start("test_goroutine3", mockFunc1.exec, 1000, &wg)
+		// Check that both goroutines are running
+		time.Sleep(10 * time.Millisecond) // Wait for the goroutines to start
+		running, _ := mygoroutinetracker.IsRunning("test_goroutine3")
+		assert.True(t, running)
+		running, _ = mygoroutinetracker.IsRunning("test_goroutine4")
+		assert.True(t, running)
 
-			mockFunc2.On("exec").Once()
-			mygoroutinetracker.Start("test_goroutine4", mockFunc2.exec, 1000, &wg)
+		// Check that List returns both names
+		infos := mygoroutinetracker.InfoList(nil)
+		var names []string
+		for _, info := range infos {
+			if gi, ok := info.(lomcommon.GoroutineInfo); ok {
+				if gi.Status == lomcommon.GoroutineStatusRunning {
+					names = append(names, gi.Name)
+				}
+			}
+		}
+		assert.ElementsMatch(t, []string{"test_goroutine3", "test_goroutine4"}, names)
 
-			// Check that both goroutines are running
-			time.Sleep(10 * time.Millisecond) // Wait for the goroutines to start
-			running, _ := mygoroutinetracker.IsRunning("test_goroutine3")
-			assert.True(t, running)
-			running, _ = mygoroutinetracker.IsRunning("test_goroutine4")
-			assert.True(t, running)
+		// Check that both goroutines are no longer running after waiting for them
+		wg.Wait()
+		time.Sleep(10 * time.Millisecond) // Wait for the goroutines to finish
+		running, _ = mygoroutinetracker.IsRunning("test_goroutine3")
+		assert.False(t, running)
+		running, _ = mygoroutinetracker.IsRunning("test_goroutine4")
+		assert.False(t, running)
 
-			// Check that List returns both names
+		mockFunc2.AssertExpectations(t)
+		mockFunc1.AssertExpectations(t)
+	})
+
+	t.Run("Test - STart Time", func(t *testing.T) {
+		mockFunc := &mockFunction{}
+		mockFunc.On("exec").Once()
+
+		wg.Add(1)
+		mygoroutinetracker.Start("test_goroutine5", mockFunc.exec, 1000, &wg)
+
+		funcgetstartedtime := func() string {
 			infos := mygoroutinetracker.InfoList(nil)
-			var names []string
 			for _, info := range infos {
 				if gi, ok := info.(lomcommon.GoroutineInfo); ok {
-					if gi.Status == lomcommon.GoroutineStatusRunning {
-						names = append(names, gi.Name)
+					if gi.Name == "test_goroutine5" {
+						return gi.StartTime.String()
 					}
 				}
 			}
-			assert.ElementsMatch(t, []string{"test_goroutine3", "test_goroutine4"}, names)
+			return ""
+		}
 
-			// Check that both goroutines are no longer running after waiting for them
-			wg.Wait()
-			time.Sleep(10 * time.Millisecond) // Wait for the goroutines to finish
-			running, _ = mygoroutinetracker.IsRunning("test_goroutine3")
-			assert.False(t, running)
-			running, _ = mygoroutinetracker.IsRunning("test_goroutine4")
-			assert.False(t, running)
+		// Check that the goroutine is running
+		time.Sleep(10 * time.Millisecond) // Wait for the goroutine to start
+		running, _ := mygoroutinetracker.IsRunning("test_goroutine5")
+		assert.True(t, running)
 
-			mockFunc2.AssertExpectations(t)
-			mockFunc1.AssertExpectations(t)
-		})
+		gottime, _ := mygoroutinetracker.GetTimeStarted("test_goroutine5")
+		assert.Equal(t, funcgetstartedtime(), gottime)
 
-		t.Run("Test - STart Time", func(t *testing.T) {
-			mockFunc := &mockFunction{}
-			mockFunc.On("exec").Once()
+		// Check that the goroutine is no longer running after waiting for it
+		wg.Wait()
+		running, _ = mygoroutinetracker.IsRunning("test_goroutine5")
+		assert.False(t, running)
 
-			wg.Add(1)
-			mygoroutinetracker.Start("test_goroutine5", mockFunc.exec, 1000, &wg)
+		// Now get the time for a goroutine which is not running.
+		gottime, err := mygoroutinetracker.GetTimeStarted("test_goroutine5")
+		assert.Nil(t, err)
+		assert.Equal(t, funcgetstartedtime(), gottime)
 
-			funcgetstartedtime := func() string {
-				infos := mygoroutinetracker.InfoList(nil)
-				for _, info := range infos {
-					if gi, ok := info.(lomcommon.GoroutineInfo); ok {
-						if gi.Name == "test_goroutine5" {
-							return gi.StartTime.String()
-						}
-					}
-				}
-				return ""
-			}
+		// Now get the time for unknown goroutine
+		gottime, err = mygoroutinetracker.GetTimeStarted("dummy_goroutine")
+		assert.NotNil(t, err)
+		assert.Equal(t, "", gottime)
 
-			// Check that the goroutine is running
-			time.Sleep(10 * time.Millisecond) // Wait for the goroutine to start
-			running, _ := mygoroutinetracker.IsRunning("test_goroutine5")
-			assert.True(t, running)
-
-			gottime, _ := mygoroutinetracker.GetTimeStarted("test_goroutine5")
-			assert.Equal(t, funcgetstartedtime(), gottime)
-
-			// Check that the goroutine is no longer running after waiting for it
-			wg.Wait()
-			running, _ = mygoroutinetracker.IsRunning("test_goroutine5")
-			assert.False(t, running)
-
-			// Now get the time for a goroutine which is not running. 
-			gottime, err := mygoroutinetracker.GetTimeStarted("test_goroutine5")
-			assert.Nil(t, err)
-			assert.Equal(t, funcgetstartedtime(), gottime)
-
-			// Now get the time for unknown goroutine
-			gottime, err = mygoroutinetracker.GetTimeStarted("dummy_goroutine")
-			assert.NotNil(t, err)
-			assert.Equal(t, "", gottime)
-
-			mockFunc.AssertExpectations(t)
-		})
+		mockFunc.AssertExpectations(t)
+	})
 }
 
 type MyStruct struct {
@@ -196,7 +196,7 @@ func (s *MyStruct) Print() {
 }
 
 func (s *MyStruct) PrintArg(a int, b int) {
-	fmt.Printf("Testing with args .......... %d %d", a,b)
+	fmt.Printf("Testing with args .......... %d %d", a, b)
 }
 
 func TestGoroutine2(t *testing.T) {
@@ -207,8 +207,8 @@ func TestGoroutine2(t *testing.T) {
 		panic("Error creating goroutine tracker")
 	}
 	//ms := &MyStruct{"hello"}
-	goroutinetracker.Start("test", func (a int, b int) { fmt.Printf("1111111111111111 %d %d", a,b) }, 10, 20)
-	goroutinetracker.Start("test1", func () { fmt.Printf("1111111111111111") })
+	goroutinetracker.Start("test", func(a int, b int) { fmt.Printf("1111111111111111 %d %d", a, b) }, 10, 20)
+	goroutinetracker.Start("test1", func() { fmt.Printf("1111111111111111") })
 	var ptr = &MyStruct{"hello"}
 	goroutinetracker.Start("test3", ptr.Print)
 	goroutinetracker.Start("test4", ptr.PrintArg, 10, 20)
@@ -220,6 +220,7 @@ func TestGoroutine2(t *testing.T) {
 	//goroutinetracker.Start("test8", ptr.PrintArg)
 
 }
+
 //------------------------------------------ End of Test GoroutineTracker ------------------------------------------//
 
 //------------------------------------------ config.go -------------------------------------------------------------//
@@ -265,7 +266,7 @@ func TestReadProcsConf(t *testing.T) {
 		}
 
 		assert.Nil(t, err)
-		config,_ := configMgr.GetProcsConfig("proc_0")
+		config, _ := configMgr.GetProcsConfig("proc_0")
 		assert.Equal(t, "link_crc", config["link_crc"].Name)
 		assert.Equal(t, "02.00.1", config["link_flap"].Version)
 
@@ -311,7 +312,7 @@ func TestReadProcsConf(t *testing.T) {
 		configMgr, err := lomcommon.InitConfigMgr(configFiles)
 
 		assert.Nil(t, err)
-		config,_ := configMgr.GetProcsConfig("proc_0")
+		config, _ := configMgr.GetProcsConfig("proc_0")
 		assert.NotEqual(t, "link_crc_c", config["link_crc_c"].Name)
 		assert.NotEqual(t, "dummy_path", config["link_crc"].Path)
 
@@ -327,7 +328,7 @@ func TestReadProcsConf(t *testing.T) {
 		configMgr, err := lomcommon.InitConfigMgr(configFiles)
 		assert.Nil(t, err)
 
-		_,err = configMgr.GetProcsConfig(lomcommon.ProcID)
+		_, err = configMgr.GetProcsConfig(lomcommon.ProcID)
 		assert.Regexp(t, regexp.MustCompile(`.*Failed to get config for proc ID \(proc_3\)`), err.Error())
 	})
 }

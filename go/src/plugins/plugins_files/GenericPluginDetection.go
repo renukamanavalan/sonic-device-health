@@ -16,9 +16,9 @@ func (gpl *GenericPluginDetection) Init(pluginConfig plugins_common.PluginData) 
 	return nil
 }
 
-func (gpl *GenericPluginDetection) Request(hbchan chan plugins_common.PluginHeartBeat, request *lomipc.ActionRequestData) (*lomipc.ActionResponseData, error) {
+func (gpl *GenericPluginDetection) Request(hbchan chan plugins_common.PluginHeartBeat, request *lomipc.ActionRequestData) *lomipc.ActionResponseData {
 	// ... implementation
-	return nil,nil
+	return nil
 }
 
 func (gpl *GenericPluginDetection) Shutdown() error {

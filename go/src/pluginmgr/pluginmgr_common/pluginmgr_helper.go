@@ -11,8 +11,6 @@ import (
 	"log/syslog"
 	"os"
 	"os/signal"
-	"strings"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -23,51 +21,30 @@ import (
 
 // Plugin Manager global variables
 var (
-	LOMConfFilesLocation string                      = ""
-	goroutinetracker     *lomcommon.GoroutineTracker = nil
-	configMgr            *lomcommon.ConfigMgr_t      = nil
+	goroutinetracker *lomcommon.GoroutineTracker = nil
+	ProcID           string                      = ""
+	pluginMgr        *PluginManager              = nil
 )
 
+// TODO: Goutham : Move this to global_conf.json
 // Constants for plugin manager with default values
 const (
-	GOLIB_TIMEOUT_DEFAULT                         = 1000 * time.Millisecond /* Default GoLIB API timeouts */
-	PLUGIN_INIT_PERIODIC_FALLBACK_TIMEOUT_DEFAULT = 3600 * time.Second      /* Default Periodic logging long timeout */
-	PLUGIN_INIT_PERIODIC_TIMEOUT_DEFAULT          = 300 * time.Second       /* Default periodic logging short timeout */
-	PLUGIN_INIT_CALL_TIMEOUT_DEFAULT              = 60 * time.Second
+	GOLIB_TIMEOUT_DEFAULT                         = 0 * time.Millisecond /* Default GoLIB API timeouts */
+	PLUGIN_INIT_PERIODIC_FALLBACK_TIMEOUT_DEFAULT = 3600 * time.Second   /* Default Periodic logging long timeout */
+	PLUGIN_INIT_PERIODIC_TIMEOUT_DEFAULT          = 300 * time.Second    /* Default periodic logging short timeout */
 	PLUGIN_LOADING_TIMEOUT_DEFAULT                = 30 * time.Second
-	APP_NAME_DEAULT                               = "plugin_mgr"
-	ACTIONS_CONF_DEFAULT                          = "actions_conf.json"
-	PROC_CONF_DEFAULT                             = "proc_conf.json"
+	APP_NAME_DEAULT                               = "plgMgr"
 )
-
-/*
-This struct used to store & track periodic logging timer statistics.
-
-Looking at this structure gives info about status of periodic timer, its active or not,
-period of timer, context name where this timer is started etc. Useful in debugging
-*/
-type TimerData struct {
-	contextname string    // plugis name or any context where this timer is started
-	uid         string    // timer uuid
-	status      bool      // ON/OFF
-	period      int       // in seconds
-	stopChannel chan bool // stop signal to stop timer
-}
 
 // Plugin Manager interface to be implemented by plugin manager
 type IPluginManager interface {
 	run(chan struct{}) error
 	shutdown() error
-	addPlugin(pluginName string, pluginVersion string, isDynamic bool) error
+	addPlugin(pluginName string, pluginVersion string) error
 	registerActionWithEngine(pluginName string) error
 	deRegisterActionWithEngine(pluginName string) error
-	printTimerData() string
-	addPeriodicLogNotice(ID string, message string, period int, context string)
-	setPeriodicTimerData(contextname string, uid string, period int)
-	removePeriodicLogEntry(ID string)
-	updatePeriod(ID string, period int)
 	addPeriodicLogWithTimeouts(ID string, message string, shortTimeout time.Duration, longTimeout time.Duration, context string) chan bool
-	loadPlugins(pluginName string, pluginVersion string, isDynamic bool) error 
+	loadPlugin(pluginName string, pluginVersion string) error
 	getPlugin(plgname string) (plugins_common.Plugin, bool)
 	getPluginMetadata(plgname string) (plugins_common.IPluginMetadata, bool)
 }
@@ -87,50 +64,41 @@ type PluginManager struct {
 	clientTx IClientTx
 	plugins  map[string]plugins_common.Plugin /* map : pluginname -> Plugin struct Object(at go/src/plugins/plugins_common)
 	e.g. "linkflapdetection" -->  {linkFlapDetection object} */
-	pluginMetadata   map[string]plugins_common.IPluginMetadata /* map : pluginname -> PluginMetadata struct Object(at go/src/plugins/plugins_common) */
-	clientRegistered  bool
-	mu        sync.Mutex
-	timerData map[string]TimerData /* map : "periodic timer ID" -> {TimerData struct object } */
-	stopch chan struct{} /* channel used to stop listening on golib for server events */
-						//TODO: Goutham : replace this with global stop channel
+	pluginMetadata map[string]plugins_common.IPluginMetadata /* map : pluginname -> PluginMetadata struct Object(at go/src/plugins/plugins_common) */
+	stopch         chan struct{}                             /* channel used to stop listening on golib for server events */
+	//TODO: Goutham : replace this with global stop channel
 }
 
-// InitPluginManager : Initialize plugin manager
+// InitPluginManager : Initialize plugin manager & register with server
 func NewPluginManager(clientTx IClientTx) (*PluginManager, error) {
-	pm := &PluginManager{
-		clientTx:   clientTx,
-		plugins:    make(map[string]plugins_common.Plugin),
-		pluginMetadata:   make(map[string]plugins_common.IPluginMetadata),
-		mu:         sync.Mutex{},
-		timerData:  make(map[string]TimerData),
-		stopch:     make(chan struct{}),
+	if pluginMgr != nil {
+		return pluginMgr, errors.New("client already registered")
 	}
 
-	if pm.clientRegistered {
-		return nil, errors.New("client already registered")
+	pluginMgr = &PluginManager{
+		clientTx:       clientTx,
+		plugins:        make(map[string]plugins_common.Plugin),
+		pluginMetadata: make(map[string]plugins_common.IPluginMetadata),
+		stopch:         make(chan struct{}),
 	}
 
-	if err := pm.clientTx.RegisterClient(APP_NAME_DEAULT+lomcommon.ProcID+lomcommon.GetUUID()); err != nil {
+	if err := pluginMgr.clientTx.RegisterClient(ProcID); err != nil {
 		return nil, err
 	}
 
-	pm.clientRegistered = true
-
-	return pm, nil
+	return pluginMgr, nil
 }
 
-func (plmgr *PluginManager) getPlugin(plgname string) (plugins_common.Plugin, bool){
-	plmgr.mu.Lock()
+// getPluginManager : Get plugin manager object
+func (plmgr *PluginManager) getPlugin(plgname string) (plugins_common.Plugin, bool) {
 	plugin, ok := plmgr.plugins[plgname]
-	plmgr.mu.Unlock()
-	return plugin,ok
+	return plugin, ok
 }
 
-func (plmgr *PluginManager) getPluginMetadata(plgname string) (plugins_common.IPluginMetadata, bool){
-	plmgr.mu.Lock()
-	plugin, ok := plmgr.pluginMetadata[plgname]
-	plmgr.mu.Unlock()
-	return plugin,ok
+// getPluginMetadata : Get plugin metadata object
+func (plmgr *PluginManager) getPluginMetadata(plgname string) (plugins_common.IPluginMetadata, bool) {
+	pluginmetadata, ok := plmgr.pluginMetadata[plgname]
+	return pluginmetadata, ok
 }
 
 /*
@@ -149,7 +117,7 @@ func (plmgr *PluginManager) run() error {
 	for {
 		select {
 		case <-plmgr.stopch:
-			lomcommon.LogNotice("Stopping plugin manager run loop")
+			lomcommon.LogInfo("Stopping plugin manager run loop")
 			return nil
 		default:
 			serverReq, err := plmgr.clientTx.RecvServerRequest()
@@ -168,13 +136,13 @@ func (plmgr *PluginManager) run() error {
 					lomcommon.LogError("Error in parsing ActionRequestData")
 					continue
 				}
-								
-				plugin, ok := plmgr.getPlugin(actionReq.Action)				
+
+				plugin, ok := plmgr.getPlugin(actionReq.Action)
 				if !ok {
 					lomcommon.LogError("Plugin %s not found", actionReq.Action)
 					continue
 				}
-				lomcommon.LogNotice("Received action request for plugin %s", plugin.GetPluginID())
+				lomcommon.LogInfo("Received action request for plugin %s", plugin.GetPluginID())
 
 				/* TODO: Goutham : Handle Request, Do error checks, pass HeartBEat channel, handle timeouts, handle heartbeats etc
 				goroutinetracker.Start("plg_mgr_Run_Action_"+actionReq.Action+"_"+lomcommon.GetUUID(),
@@ -188,7 +156,7 @@ func (plmgr *PluginManager) run() error {
 					})
 				*/
 			case lomipc.TypeServerRequestShutdown:
-				// TODO: Goutham : handle shutdown, spawn goroutin here
+				// TODO: Goutham : handle shutdown, haqndle synchronously, do not listen on responses from plugins, send deregister with server
 			default:
 				lomcommon.LogError("Unknown server request type")
 			}
@@ -203,7 +171,7 @@ func (plmgr *PluginManager) shutdown() error {
 		return err
 	}
 	plmgr.stopch <- struct{}{}
-	lomcommon.LogNotice("Plugin Manager shutdown")
+	lomcommon.LogInfo("Plugin Manager shutdown")
 	return nil
 }
 
@@ -214,7 +182,6 @@ func (plmgr *PluginManager) shutdown() error {
  * Input:
  *  pluginname - plugin name
  *  pluginVersion - plugin version
- *  isDynamic - true if plugin is dynamic, false if plugin is static
  *
  * Output:
  *  none -
@@ -222,100 +189,101 @@ func (plmgr *PluginManager) shutdown() error {
  * Return:
  *  error - error message or nil on success
  */
-func (plmgr *PluginManager) addPlugin(pluginName string, pluginVersion string, isDynamic bool) error {
+func (plmgr *PluginManager) addPlugin(pluginName string, pluginVersion string) error {
+	retMsg := ""
+
+	defer func() {
+		if retMsg != "" {
+			plmgr.AddPeriodicLogWithTimeouts("Plgmgr_AddPlugin_"+lomcommon.GetUUID()+"_"+pluginName,
+				retMsg, PLUGIN_INIT_PERIODIC_TIMEOUT_DEFAULT, PLUGIN_INIT_PERIODIC_FALLBACK_TIMEOUT_DEFAULT, "")
+		}
+	}()
+
 	// 1.Check if plugin is already loaded
 	if _, ok := plmgr.getPlugin(pluginName); ok {
-		return lomcommon.LogError("plugin with name %s and version %s is already loaded", pluginName, pluginVersion)
+		retMsg = fmt.Sprintf("plugin with name %s and version %s is already loaded", pluginName, pluginVersion)
+		return lomcommon.LogError(retMsg)
 	}
 
 	// 2.Get plugin specific details from actions config file and add any additional info to pass to plugin's init() call
 	var pluginData plugins_common.PluginData
-	actionCfg, err := configMgr.GetActionConfig(pluginName)
+	actionCfg, err := lomcommon.GetConfigMgr().GetActionConfig(pluginName)
 	if err == nil {
-		pluginData.Timeout = actionCfg.Timeout
-		pluginData.HeartbeatInt = actionCfg.HeartbeatInt
+		pluginData.HeartbeatInt = actionCfg.HeartbeatInt // TODO: Goutham : Add more fields here
 		pluginData.ActionKnobs = actionCfg.ActionKnobs
 	} else {
-		return lomcommon.LogError("plugin %s not found in actions config file", pluginName)
+		retMsg = fmt.Sprintf("plugin %s not found in actions config file", pluginName)
+		return lomcommon.LogError(retMsg)
 	}
 
 	// 3.Check if plugin disabled flag is set or not in the actions config file.
 	if actionCfg.Disable {
-		msg := fmt.Sprintf("plugin %s is disabled", pluginName)
-		lomcommon.LogWarning(msg)
-		return errors.New(msg)
+		retMsg = fmt.Sprintf("plugin %s is disabled", pluginName)
+		lomcommon.LogWarning(retMsg)
+		return errors.New(retMsg)
 	}
 
 	// 4.Create new plugin instance
 	pluginID := plugins_common.PluginId{Name: pluginName, Version: pluginVersion}
-	plugin, pluginmetadata , err := CreatePluginInstance(pluginID, pluginData) // returns Plugin interface pointing to new plugin struct
+	plugin, pluginmetadata, err := CreatePluginInstance(pluginID, pluginData) // returns Plugin interface pointing to new plugin struct
 	if err != nil {
-		return err
+		retMsg = fmt.Sprintf("Error creating plugin instance for %s %s: %s", pluginName, pluginVersion, err)
+		return lomcommon.LogError(retMsg)
 	}
-	
+
 	// 5.Check if plugin name and version from proc_conf.json file matches the values in static plugin. If not log periodic log
 	if id := plugin.GetPluginID(); id.Name != pluginName || id.Version != pluginVersion {
-		plmgr.AddPeriodicLogWithTimeouts("Plg_mgr_AddPlugin_"+lomcommon.GetUUID()+"_"+pluginName,
-			fmt.Sprintf("Plugin ID does not match provided arguments: got %s %s, expected %s %s", id.Name, id.Version, pluginName, pluginVersion),
-			PLUGIN_INIT_PERIODIC_TIMEOUT_DEFAULT, PLUGIN_INIT_PERIODIC_FALLBACK_TIMEOUT_DEFAULT, "")
-		return errors.New("")
+		retMsg = fmt.Sprintf("Plugin ID does not match provided arguments: got %s %s, expected %s %s", id.Name, id.Version, pluginName, pluginVersion)
+		return lomcommon.LogError(retMsg)
 	}
 
-	// 6.Add plugin to plugin manager
-	plmgr.mu.Lock()
-	plmgr.plugins[pluginName] = plugin
-	plmgr.pluginMetadata[pluginName] = pluginmetadata
-	plmgr.mu.Unlock()
-
-	// 7. call plugin's init() call synchronously
+	// 6. call plugin's init() call synchronously
 	err = plugin.Init(pluginData)
 	if err != nil {
 		//delete(plmgr.plugins, pluginName) // TODO: Goutham : verify Is this needed instead?
 		//delete(plmgr.pluginMetadata, pluginName) // TODO: Goutham : verify Is this needed instead.
-		return lomcommon.LogError("plugin %s init failed: %v", pluginName, err)
+		retMsg = fmt.Sprintf("plugin %s init failed: %v", pluginName, err)
+		return lomcommon.LogError(retMsg)
 	}
 
-	// 8. call plugin's registerAction() call synchronously
+	// 7. call plugin's registerAction() call synchronously
 	err = plmgr.registerActionWithEngine(pluginName)
 	if err != nil {
 		//delete(plmgr.plugins, pluginName) // TODO: Goutham : verify Is this needed instead?
-		//delete(plmgr.pluginMetadata, pluginName) // TODO: Goutham : verify Is this needed instead. 
-		return lomcommon.LogError("plugin %s registerAction failed: %v", pluginName, err)
+		//delete(plmgr.pluginMetadata, pluginName) // TODO: Goutham : verify Is this needed instead.
+		retMsg = fmt.Sprintf("plugin %s registerAction failed: %v", pluginName, err)
+		return lomcommon.LogError(retMsg)
 	}
+
+	// 8.Add plugin to plugin manager's map
+	plmgr.plugins[pluginName] = plugin
+	plmgr.pluginMetadata[pluginName] = pluginmetadata
 
 	return nil
 }
 
-func (plmgr *PluginManager) loadPlugins(pluginName string, pluginVersion string, isDynamic bool) error {
-    // Create a channel to receive the result of AddPlugin()
-    resultChan := make(chan error)
+func (plmgr *PluginManager) loadPlugin(pluginName string, pluginVersion string) error {
+	// Create a channel to receive the result of AddPlugin()
+	resultChan := make(chan error)
 
-    // Create a goroutine to execute AddPlugin
-    go func() {
-        resultChan <- plmgr.addPlugin(pluginName, pluginVersion, isDynamic)
-    }()
-
-	goroutinetracker.Start("plg_mgr_LoadPlugins"+pluginName, func() { 
-		resultChan <- plmgr.addPlugin(pluginName, pluginVersion, isDynamic)
+	goroutinetracker.Start("plg_mgr_LoadPlugin"+pluginName, func() {
+		resultChan <- plmgr.addPlugin(pluginName, pluginVersion)
 	})
 
-    // Wait for either the result or the timeout
-    select {
-    case err := <-resultChan:
-        // AddPlugin completed within the timeout
-        return err
-    case <-time.After(PLUGIN_LOADING_TIMEOUT_DEFAULT):
-        // AddPlugin timed out
+	// Wait for either the result or the timeout
+	select {
+	case err := <-resultChan:
+		// AddPlugin completed within the timeout
+		return err
+	case <-time.After(PLUGIN_LOADING_TIMEOUT_DEFAULT):
+		// AddPlugin timed out
 		lomcommon.LogPanic("Registering plugin took too long pluginname : %s version : %s\n", pluginName, pluginVersion) // exits program
-    }
+	}
 	return nil
 }
 
 // RegisterActionWithEngine : Register plugin with engine
 func (plmgr *PluginManager) registerActionWithEngine(pluginName string) error {
-	plmgr.mu.Lock()
-	defer plmgr.mu.Unlock()
-
 	if err := plmgr.clientTx.RegisterAction(pluginName); err != nil {
 		//delete(plmgr.plugins, pluginName) // TODO: Goutham : verify Is this needed instead. Can't we store failed plugins ?
 		//delete(plmgr.pluginMetadata, pluginName) // TODO: Goutham : verify Is this needed instead. Can't we store failed plugins ?
@@ -327,9 +295,6 @@ func (plmgr *PluginManager) registerActionWithEngine(pluginName string) error {
 
 // DeRegisterActionWithEngine : DeRegister plugin with engine
 func (plmgr *PluginManager) deRegisterActionWithEngine(pluginName string) error {
-	plmgr.mu.Lock()
-	defer plmgr.mu.Unlock()
-
 	if err := plmgr.clientTx.DeregisterAction(pluginName); err != nil {
 		//delete(plmgr.plugins, pluginName) // TODO: Goutham : , Is this needed instead. Can't we store failed plugins ?
 		//delete(plmgr.pluginMetadata, pluginName) // TODO: Goutham : verify Is this needed instead. Can't we store failed plugins ?
@@ -341,81 +306,7 @@ func (plmgr *PluginManager) deRegisterActionWithEngine(pluginName string) error 
 	return nil
 }
 
-// Print periodic timer data. Used for debugging purposes
-func (plmgr *PluginManager) printTimerData() string {
-	plmgr.mu.Lock()
-	defer plmgr.mu.Unlock()
-
-	var b strings.Builder
-	b.WriteString("Timer Data:\n")
-
-	for key, value := range plmgr.timerData {
-		b.WriteString(fmt.Sprintf("  uid: %s\n", key))
-		b.WriteString(fmt.Sprintf("  contextname: %s\n", value.contextname))
-		b.WriteString(fmt.Sprintf("  status: %t\n", value.status))
-		b.WriteString(fmt.Sprintf("  period: %d\n", value.period))
-		b.WriteString("\n")
-	}
-
-	return b.String()
-}
-
-// Period in sec
-// Helper function on top of periodic log framework along with storing the ID & other info for tracking purposes
-func (plmgr *PluginManager) addPeriodicLogNotice(ID string, message string, period int, context string) {
-	lomcommon.AddPeriodicLogNotice(ID, message, period)  // call lomcommon framework
-	plmgr.setPeriodicTimerData(context, ID, period, nil) // Store this info for tracking purpose
-}
-
-// Period in sec
-// Interal API to store periodic log entries for tracking purposes
-func (plmgr *PluginManager) setPeriodicTimerData(contextname string, uid string, period int, stopchannel chan bool) {
-	plmgr.mu.Lock()
-	defer plmgr.mu.Unlock()
-	timerData, ok := plmgr.timerData[uid]
-	if !ok {
-		timerData = TimerData{} // If ID do not exist, create new
-	}
-	timerData.contextname = contextname
-	timerData.uid = uid
-	timerData.status = true // activate
-	timerData.period = period
-	if stopchannel == nil {
-		timerData.stopChannel = make(chan bool)
-	}
-	plmgr.timerData[uid] = timerData
-}
-
-// Period in sec
-// Drop peridic log for ID
-func (plmgr *PluginManager) removePeriodicLogEntry(ID string) {
-	plmgr.mu.Lock()
-	defer plmgr.mu.Unlock()
-	timerData, ok := plmgr.timerData[ID]
-	//Return if ID is not there or timer is inactive
-	if !ok || !timerData.status {
-		return
-	}
-	timerData.status = false
-	plmgr.timerData[ID] = timerData
-	// TODO: Goutham : verify, Check if its better to delete this ID entry from map and drain channel ?
-	lomcommon.RemovePeriodicLogEntry(ID)
-}
-
-// Period in sec
-// Update period of existing periodic log ID
-func (plmgr *PluginManager) updatePeriod(ID string, period int) {
-	plmgr.mu.Lock()
-	defer plmgr.mu.Unlock()
-	timerData, ok := plmgr.timerData[ID]
-	if !ok {
-		return
-	}
-	timerData.period = period
-	plmgr.timerData[ID] = timerData
-	lomcommon.UpdatePeriodicLogTime(ID, period)
-}
-
+// TODO: Goutham : Add this function in lomcommon framework
 // If requirement is to add periodic log entry with shorttime and then falback to longtime, use this function.
 func (plmgr *PluginManager) AddPeriodicLogWithTimeouts(ID string, message string, shortTimeout time.Duration,
 	longTimeout time.Duration, context string) chan bool {
@@ -424,17 +315,16 @@ func (plmgr *PluginManager) AddPeriodicLogWithTimeouts(ID string, message string
 
 	goroutinetracker.Start("AddPeriodicLogWithTimeouts"+ID+lomcommon.GetUUID(), func() {
 		// First add periodic log witj short timeout
-		lomcommon.AddPeriodicLogNotice(ID, message, lomcommon.DurationToSeconds(shortTimeout)) // call lomcommon framework
-		plmgr.setPeriodicTimerData(context, ID, lomcommon.DurationToSeconds(shortTimeout), stopchannel)
+		lomcommon.AddPeriodicLogInfo(ID, message, int(shortTimeout.Seconds())) // call lomcommon framework
 
 		// Wait for the short timeout to expire or for stop signal
 		select {
 		case <-time.After(shortTimeout):
 			// after short timeout expiry, update timer to longtimeout
-			plmgr.updatePeriod(ID, lomcommon.DurationToSeconds(longTimeout))
+			lomcommon.UpdatePeriodicLogTime(ID, int(longTimeout.Seconds()))
 			break
 		case <-stopchannel:
-			plmgr.removePeriodicLogEntry(ID)
+			lomcommon.RemovePeriodicLogEntry(ID)
 			return
 		}
 
@@ -442,7 +332,7 @@ func (plmgr *PluginManager) AddPeriodicLogWithTimeouts(ID string, message string
 		<-stopchannel
 
 		// Stop signal received, remove the periodic log entry
-		plmgr.removePeriodicLogEntry(ID)
+		lomcommon.RemovePeriodicLogEntry(ID)
 	})
 
 	return stopchannel
@@ -476,7 +366,7 @@ func CreatePluginInstance(pluginID plugins_common.PluginId, pluginData plugins_c
 			Plugindata:  pluginData,
 			StartedTime: time.Now(),
 			Pluginstage: plugins_common.PluginStageUnknown,
-			PluginId:    pluginID,			
+			PluginId:    pluginID,
 		}
 		return plugin, pluginmetadata, nil
 	/*case "LinkFlapPluginDetection":
@@ -495,34 +385,10 @@ func CreatePluginInstance(pluginID plugins_common.PluginId, pluginData plugins_c
 	}
 }
 
-// setup UNIX signals to change syslog level on running program
-func SetupSyslogSignals() error {
+// setup UNIX signals
+func SetupSignals() error {
 	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGUSR1, syscall.SIGUSR2)
-
-	logFun := func() {
-		// Log a message with the new syslog level
-		var logMessage string = "Changed syslog level to "
-		log_level := lomcommon.GetLogLevel()
-		switch log_level {
-		case syslog.LOG_EMERG:
-			lomcommon.LogMessage(log_level, logMessage+"EMERG")
-		case syslog.LOG_ALERT:
-			lomcommon.LogMessage(log_level, logMessage+"ALERT")
-		case syslog.LOG_CRIT:
-			lomcommon.LogMessage(log_level, logMessage+"CRIT")
-		case syslog.LOG_ERR:
-			lomcommon.LogMessage(log_level, logMessage+"ERR")
-		case syslog.LOG_WARNING:
-			lomcommon.LogMessage(log_level, logMessage+"WARNING")
-		case syslog.LOG_NOTICE:
-			lomcommon.LogMessage(log_level, logMessage+"NOTICE")
-		case syslog.LOG_INFO:
-			lomcommon.LogMessage(log_level, logMessage+"INFO")
-		case syslog.LOG_DEBUG:
-			lomcommon.LogMessage(log_level, logMessage+"DEBUG")
-		}
-	}
+	signal.Notify(signalChan, syscall.SIGTERM)
 
 	goroutinetracker.Start("HandleSyslogSignal"+lomcommon.GetUUID(),
 		func() error {
@@ -530,19 +396,10 @@ func SetupSyslogSignals() error {
 				// Wait for a signal to be received
 				val, ok := <-signalChan
 				if ok {
-					// Update the syslog level based on the received signal
-					log_level := lomcommon.GetLogLevel()
 					switch val {
-					case syscall.SIGUSR1:
-						if log_level < syslog.LOG_DEBUG {
-							lomcommon.SetLogLevel(log_level + 1)
-							logFun()
-						}
-					case syscall.SIGUSR2:
-						if log_level > syslog.LOG_EMERG {
-							lomcommon.SetLogLevel(log_level - 1)
-							logFun()
-						}
+					case syscall.SIGTERM:
+						lomcommon.LogWarning("Received SIGTERM signal. Exiting plugin mgr:%s", ProcID)
+						os.Exit(0)
 					}
 				}
 			}
@@ -560,13 +417,13 @@ func ParseArguments() {
 
 	// Define the command line flags
 	flag.StringVar(&ProcIDFlag, "proc_id", "proc_0", "Proc ID number")
-	flag.IntVar(&syslogLevelFlag, "syslog_level", 5, "Syslog level")
+	flag.IntVar(&syslogLevelFlag, "syslog_level", 7, "Syslog level")
 
 	// Parse the command line arguments
 	flag.Parse()
 
 	// assign to variables which can be accessed from process
-	lomcommon.ProcID = ProcIDFlag
+	ProcID = ProcIDFlag
 	lomcommon.SetLogLevel(syslog.Priority(syslogLevelFlag))
 
 	fmt.Printf("Program Arguments : proc ID : %s, Syslog Level : %d\n", ProcIDFlag, syslogLevelFlag)
@@ -584,41 +441,35 @@ func StartPluginManager() error {
 	if err != nil {
 		return lomcommon.LogError("Error creating Plugin Manager: %v", err)
 	}
-	lomcommon.LogNotice("Plugin Manager created successfully")
+	lomcommon.LogInfo("Plugin Manager created successfully")
 
 	/* For a particular proc_X, read each plugin name and its parameters from proc_conf.json file &
 	   Setup each plugin */
-	procInfo, err := configMgr.GetProcsConfig(lomcommon.ProcID)
+	procInfo, err := lomcommon.GetConfigMgr().GetProcsConfig(ProcID)
 	if err != nil {
-		return lomcommon.LogError("Error getting proc config for proc %s: %v", lomcommon.ProcID, err)
+		return lomcommon.LogError("Error getting proc config for proc %s: %v", ProcID, err)
 	}
+
+	// TODO: Goutham : Note : Dynamic Plugins is not supported in V1 release. So no code is implemented for dynamic plugins
 	for pluginname, plconfig := range procInfo {
-		// check for path empty to determine if plugin must be loaded from dynamic path or not
-		isDynamic := false
-		if plconfig.Path == "" {
-			lomcommon.LogNotice("Plugin %s path is empty. Found dynamic plugin", pluginname)
-			isDynamic = true
-		}
-		
-		// TODO: Goutham : Note : Dynamic Plugins is not supported in V1 release. So no code is implemented
-		lomcommon.LogNotice("Initializing plugin %s version %s isDynamic : %d", pluginname, plconfig.Version, isDynamic)
+		lomcommon.LogInfo("Initializing plugin %s version %s", pluginname, plconfig.Version)
 		vpluginManager.pluginMetadata[pluginname].SetPluginStage(plugins_common.PluginStageLoadingStarted)
-		errv := vpluginManager.loadPlugins(pluginname, plconfig.Version, isDynamic)
+		errv := vpluginManager.loadPlugin(pluginname, plconfig.Version)
 		if errv != nil {
 			vpluginManager.pluginMetadata[pluginname].SetPluginStage(plugins_common.PluginStageLoadingError)
-			lomcommon.LogError("Error Initializing plugin %s version %s isDynamic : %d: %v", pluginname, plconfig.Version, isDynamic, errv)
+			lomcommon.LogError("Error Initializing plugin %s version %s : %v", pluginname, plconfig.Version, errv)
 		} else {
 			vpluginManager.pluginMetadata[pluginname].SetPluginStage(plugins_common.PluginStageLoadingSuccess)
-			lomcommon.LogNotice("plugin %s version %s isDynamic : %d successfully Initializing", pluginname, plconfig.Version, isDynamic)
+			lomcommon.LogInfo("plugin %s version %s successfully Initializing", pluginname, plconfig.Version)
 		}
 	}
 
 	goroutinetracker.Start("StartPluginManager"+lomcommon.GetUUID(),
-			vpluginManager.run())
+		vpluginManager.run())
 
 	goroutinetracker.WaitAll(0)
 
-	// Should never reach here
+	// Reaches herer only when plugin manager is stopped
 
 	return nil
 }
@@ -629,41 +480,20 @@ func SetupPluginManager() error {
 	//parse program arguments & assign values to program variables. Hree proc_X value is read
 	ParseArguments()
 
+	// setup application prefix for logging
+	lomcommon.SetPrefix(APP_NAME_DEAULT + ProcID)
+
 	//syslog level change from UNIX signals
-	err := SetupSyslogSignals()
+	err := SetupSignals()
 	if err != nil {
-		return lomcommon.LogError("Error setting up syslog signals: %v", err)
+		return lomcommon.LogError("Error setting up signals: %v", err)
 	}
 
-	//Read environmnet variables from system
-	lomcommon.LoadEnvironmentVariables()
-
-	// Check for ENV variable LOM_CONF_LOCATION
-	if val, ok := lomcommon.GetEnvVarString("ENV_lom_conf_location"); ok && val != "" {
-		LOMConfFilesLocation = val
-	} else {
-		return lomcommon.LogError("Error getting lom conf location from ENV")
-	}
-
-	//Get config files and validate them
-	configFiles := &lomcommon.ConfigFiles_t{}
-	if val, ok := lomcommon.ValidateConfigFile(LOMConfFilesLocation, ACTIONS_CONF_DEFAULT); ok != nil {
-		return lomcommon.LogError("Error validating config file: %v", ACTIONS_CONF_DEFAULT)
-	} else {
-		configFiles.ActionsFl = val
-	}
-	if val, ok := lomcommon.ValidateConfigFile(LOMConfFilesLocation, PROC_CONF_DEFAULT); ok != nil {
-		return lomcommon.LogError("Error validating config file: %v", PROC_CONF_DEFAULT)
-	} else {
-		configFiles.ProcsFl = val
-	}
-
-	// Call InitConfigMgr to initialize the config manager. This will read config files for attributes
-	t, err := lomcommon.InitConfigMgr(configFiles)
+	// Initialize the config manager. This will read ENV config path location and  will read config files for attributes from there
+	err = lomcommon.InitConfigPath("")
 	if err != nil {
 		lomcommon.LogError("Error initializing config manager: %s", err)
 	}
-	configMgr = t
 
 	// Create Goroutine Tracker which will be used to track all goroutines in the process
 	goroutinetracker = lomcommon.NewGoroutineTracker()
@@ -673,4 +503,3 @@ func SetupPluginManager() error {
 
 	return nil
 }
-

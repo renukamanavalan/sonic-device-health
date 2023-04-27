@@ -7,8 +7,10 @@ import (
 )
 
 func main() {
-	lomcommon.SetLogLevel(syslog.LOG_NOTICE)
-	lomcommon.LogMessage(syslog.LOG_NOTICE, "plugin_mgr : Starting Plugin Manager")
+	// setup logging
+	lomcommon.SetLogLevel(syslog.LOG_INFO)
+
+	lomcommon.LogInfo("plugin_mgr : Starting Plugin Manager")
 
 	if err := pluginmgr_common.SetupPluginManager(); err != nil {
 		lomcommon.LogPanic("plugin_mgr : SetupPluginManager failed") // exits
@@ -17,5 +19,5 @@ func main() {
 		lomcommon.LogPanic("plugin_mgr : StartPluginManager failed") // exits
 	}
 
-	lomcommon.LogMessage(syslog.LOG_NOTICE, "plugin_mgr : Exiting plugin manager")
+	lomcommon.LogInfo("plugin_mgr : Exiting plugin manager")
 }

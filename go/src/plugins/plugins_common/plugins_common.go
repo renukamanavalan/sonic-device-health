@@ -2,7 +2,6 @@ package plugins_common
 
 import (
 	"go/src/lib/lomipc"
-	"sync"
 	"time"
 )
 
@@ -17,6 +16,7 @@ type Plugin interface {
 // TODO: Goutham : Clean up unnecessary fields
 // PluginStage indicates the current stage of plugin. Based on  this value plugin manager decisions. For e.g.  whether to accept requests from engine or not
 type PluginStage int
+
 const (
 	PluginStageUnknown PluginStage = iota // default value
 	PluginStageLoadingStarted
@@ -60,20 +60,15 @@ type PluginMetadata struct {
 	Plugindata  PluginData
 	StartedTime time.Time
 	Pluginstage PluginStage // indicate the current plugin stage
-	mu	sync.Mutex
 	PluginId
 	// ... other common metadata fields
 }
 
 func (gpl *PluginMetadata) GetPluginStage() PluginStage {
-	gpl.mu.Lock()
-	defer gpl.mu.Unlock()
 	return gpl.Pluginstage
 }
 
 func (gpl *PluginMetadata) SetPluginStage(stage PluginStage) {
-	gpl.mu.Lock()
-	defer gpl.mu.Unlock()
 	gpl.Pluginstage = stage
 }
 
