@@ -11,6 +11,7 @@ import (
     "runtime"
     "sort"
     "strings"
+    "sync"
     "time"
 )
 
@@ -150,6 +151,100 @@ func LogInfo(s string, a ...interface{})  {
 func LogDebug(s string, a ...interface{})  {
     LogMessage(syslog.LOG_DEBUG, s, a...)
 }
+
+/*
+ * System Shutdown
+ *
+ */
+type sysShutdown_t struct {
+    ch          chan int
+    wg          *sync.WaitGroup
+    shutdown    bool
+}
+
+func (p *sysShutdown_t) register(caller string) <-chan int {
+    if !p.shutdown {
+        LogDebug("sysShutdown_t:Register by (%s)", caller)
+        p.wg.Add(1)
+        return p.ch
+    } else {
+        LogError("Failed to register (%s) as shutdown in progress", caller)
+        return nil
+    }
+}
+
+func (p *sysShutdown_t) deregister(caller string) {
+    LogDebug("sysShutdown_t:Deregister by (%s)", caller)
+    p.wg.Done()
+}
+
+func (p *sysShutdown_t) doShutdown(toutSecs int) {
+    if p.shutdown {
+        LogError("Shutdown already in progress")
+        return
+    }
+    p.shutdown = true
+
+    /* Send alert as many possible */
+    for len(p.ch) < cap(p.ch) {
+        /*
+         * max writes == Buffer size + count of waiting routines
+         * Note: A routine just reads once
+         */
+        p.ch <- 0
+    }
+
+    /* Buffer of 1 is useful in case of timeout, as there will not be any reader */
+    chEnd := make(chan int, 1)
+
+    go func() {
+        /* Wait until all go down & indicate */
+        p.wg.Wait()
+        chEnd <- 0      /* write will not block */
+    }()
+
+    /* Waited forever or given period */
+    WaitedSecs := 0
+    for {
+        select {
+        case <- chEnd:
+            LogDebug("All routines terminated")
+            return
+
+        case <- time.After(time.Second):
+            /* This helps in cases the count of waiting is more than ch capacity */
+            if len(p.ch) < cap(p.ch) {
+                p.ch <- 0   
+            }
+            WaitedSecs++
+            if (toutSecs > 0) && (WaitedSecs >= toutSecs) {
+                LogError("Not all routines terminated. toutSecs(%d)", toutSecs)
+                return
+            }
+            LogDebug("Waiting for go routines termination waited (%d) secs", WaitedSecs)
+        }
+    }
+}
+
+var sysShutdown *sysShutdown_t
+
+func init() {
+    /* 20 - Just some initial capacity. */
+    sysShutdown = &sysShutdown_t{make(chan int, 20), new(sync.WaitGroup), false}
+}
+
+func RegisterForSysShutdown(caller string) <-chan int {
+    return sysShutdown.register(caller)
+}
+
+func DeregisterForSysShutdown(caller string) {
+    sysShutdown.deregister(caller)
+}
+
+func DoSysShutdown(toutSecs int) {
+    sysShutdown.doShutdown(toutSecs)
+}
+
 
 var uuid_suffix = 0
 var UUID_BIN = "uuidgen"

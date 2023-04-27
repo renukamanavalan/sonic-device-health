@@ -21,12 +21,14 @@ package lib_test
 import (
     "encoding/json"
     "errors"
+    "fmt"
     "io"
     "log/syslog"
     "net/rpc"
     . "lom/src/lib/lomcommon"
     . "lom/src/lib/lomipc"
     "os"
+    "path/filepath"
     "strconv"
     "testing"
     "time"
@@ -355,6 +357,20 @@ func testJSONClient(t *testing.T, tx *LoMTransport, chRes, chComplete chan inter
             LogDebug("res:(%v)", res)
         }
         chRes <- struct {}{} /* Indicate completion to server */
+    }
+    {
+        /* Failure cases */
+        req := `{"ReqType":1999,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`
+        res := ""
+        if err := tx.LoMRPCRequest(nil, &res); err == nil { 
+            t.Errorf("ERR: testJSONClient: not failing for nil req")
+        }
+        if err := tx.LoMRPCRequest(&req, nil); err == nil { 
+            t.Errorf("ERR: testJSONClient: not failing for nil res")
+        }
+        if err := tx.LoMRPCRequest(&req, &res); err == nil { 
+            t.Errorf("ERR: testJSONClient: not failing for invalid req type")
+        }
     }
     LogDebug("testJSONClient: complete")
     chComplete <- struct {}{}
@@ -767,6 +783,7 @@ type ConfigData_t struct {
     ActionStr   string
     BindStr     string
     Failed      bool
+    testMode    bool
     Reason      string
 }
 
@@ -776,6 +793,7 @@ var testConfigData = []ConfigData_t {
             "",
             "",
             true,
+            false,
             "Missing global file",
         },
         {
@@ -783,6 +801,7 @@ var testConfigData = []ConfigData_t {
             "",
             "",
             true,
+            false,
             "Missing actions file",
         },
         {
@@ -790,6 +809,7 @@ var testConfigData = []ConfigData_t {
             "{}",
             "",
             true,
+            false,
             "Missing bindings file",
         },
         {
@@ -797,6 +817,7 @@ var testConfigData = []ConfigData_t {
             "",
             "",
             true,
+            false,
             "Invalid global Json data",
         },
         {
@@ -804,6 +825,7 @@ var testConfigData = []ConfigData_t {
             "eee",
             "",
             true,
+            false,
             "Invalid actions Json data",
         },
         {
@@ -811,6 +833,7 @@ var testConfigData = []ConfigData_t {
             "{}",
             "eee",
             true,
+            false,
             "Invalid bindings Json data",
         },
         {
@@ -818,6 +841,7 @@ var testConfigData = []ConfigData_t {
             `{ "actions": [ { "name": "xxx" } ] }`,
             `{ "bindings": [ { "name": "Test", "actions": [ {"name": "YYY"} ] } ] }`,
             true,
+            false,
             "Action name YYY not in actions",
         },
         {
@@ -825,6 +849,7 @@ var testConfigData = []ConfigData_t {
             `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
             `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 0 }, {"name": "yyy"}] } ] }`,
             true,
+            false,
             "Duplicate sequence",
         },
         {
@@ -832,6 +857,7 @@ var testConfigData = []ConfigData_t {
             `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
             `{ "bindings": [ { "name": "Test", "actions": [ ] } ] }`,
             true,
+            false,
             "No actions in sequence",
         },
         {
@@ -839,6 +865,15 @@ var testConfigData = []ConfigData_t {
             `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
             `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
             false,
+            false,
+            "",
+        },
+        {
+            `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
+            `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+            `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
+            false,
+            true,
             "",
         },
     }
@@ -915,7 +950,7 @@ func createFile(name string, s string) (string, error) {
     if len(s) == 0 {
         return "", nil
     }
-    fl = "/tmp/" + name + ".json"
+    fl = "/tmp/" + name
     if f, err := os.Create(fl); err != nil {
         return "", err
     } else {
@@ -925,32 +960,100 @@ func createFile(name string, s string) (string, error) {
     }
 }
 
-func getConfigMgr(t *testing.T, gl, ac, bi string) (*ConfigMgr_t, error) {
-    if flG, err := createFile("globals", gl); err != nil {
+func getConfigMgr(t *testing.T, gl, ac, bi string, testMode bool) (*ConfigMgr_t, error) {
+    if flG, err := createFile(GLOBALS_CONF_FILE, gl); err != nil {
         t.Errorf("TestConfig: Failed to create Global file")
-    } else if flA, err := createFile("actions", ac); err != nil {
+    } else if _, err := createFile(ACTIONS_CONF_FILE, ac); err != nil {
         t.Errorf("TestConfig: Failed to create Action file")
-    } else if flB, err := createFile("bindings", bi); err != nil {
-        t.Errorf("TestConfig: Failed to create Action file")
+    } else if _, err := createFile(BINDINGS_CONF_FILE, bi); err != nil {
+        t.Errorf("TestConfig: Failed to create Binding file")
     } else {
-        cfg := &ConfigFiles_t{flG, flA, flB}
-        return InitConfigMgr(cfg)
+        if testMode {
+            if _, err := createFile(LOM_TESTMODE_NAME, "zz"); err != nil {
+                t.Errorf("TestConfig: Failed to create TestMode (%s) file", LOM_TESTMODE_NAME)
+            }
+        }
+        if err := InitConfigPath(filepath.Dir(flG)); err != nil {
+            return nil, err
+        } else {
+            return GetConfigMgr(), nil
+        }
     }
     return nil, LogError("Failed to init Cfg Manager")
 }
 
+func cleanConfigFiles() {
+    for _, v := range []string { GLOBALS_CONF_FILE, ACTIONS_CONF_FILE,
+                    BINDINGS_CONF_FILE, LOM_TESTMODE_NAME } {
+        fl := filepath.Join("/tmp/", v)
+        if _, err := os.Stat(fl); err == nil {
+            os.Remove(fl)
+        }
+    }
+}
+
 
 func TestConfig(t *testing.T) {
-    for _, d := range testConfigData {
-        _, err := getConfigMgr(t, d.GlobalStr, d.ActionStr, d.BindStr)
+    for ti, d := range testConfigData {
+        ResetLoMMode()
+        ctTestMode := GetLoMRunMode()
+        if ctTestMode != LoMRunMode_NotSet {
+            t.Errorf("%d: Expect run mode NotSet(%d) != ct(%d)", ti, LoMRunMode_NotSet, ctTestMode)
+        }
+        _, err := getConfigMgr(t, d.GlobalStr, d.ActionStr, d.BindStr, d.testMode)
         if d.Failed == (err == nil) {
-            t.Errorf("Expect to fail(%v) but result:(%v): (%s)",
-                    d.Failed, err, d.Reason)
+            t.Errorf("%d: Expect to fail(%v) but result:(%v): (%s)",
+                    ti, d.Failed, err, d.Reason)
+        }
+        LogDebug("err=(%v)", err)
+        if !d.Failed {
+            expTestMode := LoMRunMode_Prod
+            if d.testMode {
+                expTestMode = LoMRunMode_Test
+            }
+            ctTestMode = GetLoMRunMode()
+            if expTestMode != ctTestMode {
+                t.Errorf("%d: mode mismatch exp(%d) != ct(%d) d.testMode(%v)", ti, expTestMode, ctTestMode, d.testMode)
+            }
+        }
+        cleanConfigFiles()
+    }
+    {
+        {
+            lst := []struct{
+                    val string
+                    mode LoMRunMode_t
+                } {{"yes", LoMRunMode_Test }, {"xyz", LoMRunMode_Prod}}
+
+            for i, v := range lst {
+                ResetLoMMode()
+                os.Setenv(LOM_TESTMODE_NAME, v.val)
+                ctMode := GetLoMRunMode()
+                if ctMode != v.mode {
+                    t.Errorf("%d: mode mismatch exp(%d) != ct(%d)", i, v.mode, ctMode)
+                }
+            }
+            os.Unsetenv(LOM_TESTMODE_NAME)
+        }
+        {
+            ResetLoMMode()
+            for i, v := range []struct {
+                    mode    LoMRunMode_t
+                    fail    bool
+                } { {LoMRunMode_NotSet, true},
+                    {LoMRunMode_Test, false},
+                    {LoMRunMode_Prod, true}} {
+                if err := SetLoMRunMode(v.mode); (err != nil) != v.fail {
+                    t.Errorf("%d: Expect to fail(%v) err(%v)", i, v.fail, err)
+                }
+                LogDebug("---------- i=%d v=(%v) -------------", i, v)
+            }
+            ResetLoMMode()
         }
     }
 
     {
-        mgr, err := getConfigMgr(t, testApiData.GlobalStr, testApiData.ActionStr, testApiData.BindStr)
+        mgr, err := getConfigMgr(t, testApiData.GlobalStr, testApiData.ActionStr, testApiData.BindStr, false)
         if err != nil {
             t.Errorf("Unexpected error: (%v) (%v)", err,mgr == nil)
         }
@@ -1053,7 +1156,7 @@ func TestPeriodic(t *testing.T) {
     if len(s) == 36 {
         t.Errorf("Expect custom string not 36. (%d) (%s)", len(s), s)
     }
-    _, err := getConfigMgr(t, `{ "MIN_PERIODIC_LOG_PERIOD_SECS": 1 }`,"{}", "{}")
+    _, err := getConfigMgr(t, `{ "MIN_PERIODIC_LOG_PERIOD_SECS": 1 }`,"{}", "{}", false)
     if err != nil {
         t.Errorf("Unexpected error: (%v)", err)
     }
@@ -1119,10 +1222,21 @@ func TestPeriodic(t *testing.T) {
             "val": "42",
             "data": "xxx",
         }  
+        SetPublishAPI(PublishString)
         s := PublishEvent(m)
         exp := `{"data":"xxx","foo":"bar","val":"42"}`
         if s != exp {
             t.Errorf("Incorrect publish string (%s) != (%s)", s, exp)
+        }
+    }
+    {
+        err := LogError("Blah Blah")
+        if e := GetLastError(); e != err {
+            t.Errorf("GetLastError mismatch read(%v) != exp(%v)", e, err)
+        }
+        ResetLastError()
+        if e := GetLastError(); e != nil {
+            t.Errorf("GetLastError not nil after reset. read(%v)", e)
         }
     }
 }
@@ -1175,4 +1289,69 @@ func TestOneShot(t *testing.T) {
     }
 }
 
+func TestShutdown(t *testing.T) {
+    cnt := 3
+    chStarted := make(chan int, cnt)
+    chDone := make(chan int, cnt+1)
+    
+    /*
+     * start cnt routines; Each register; Then indicate their start via chStarted
+     * Wait for signal from shutdown.
+     * On Signal, indicate their exit via chDone and *then* de-register
+     * Last de-register will make DoSysShutdown exit immediately
+     * So call de-register at the end.
+     */
+    for i := 0; i < cnt; i++ {
+
+        go func(index int) {
+            s := fmt.Sprintf("ShutTestClient_%d", index)
+            // LogDebug("Started %s", s)
+            ch := RegisterForSysShutdown(s)
+            chStarted <- 0
+            <- ch    /* Wait for signal to exit */
+            if p := RegisterForSysShutdown("xyx"); p != nil {
+                t.Errorf("Expect register to fail after shutdown started")
+            }
+            if index == 0 {
+                /* Induce some delay */
+                time.Sleep(3 * time.Second)
+            }
+            chDone <- 0
+            DeregisterForSysShutdown(s)
+            // LogDebug("Ended %s", s)
+        }(i)
+    }
+
+    for i := 0; i < cnt; i++ {
+        <- chStarted
+    }
+
+    /* Wait for all routines to start */
+    // LogDebug("All started")
+
+    /* Kick off shutdown process */
+    go func() {
+        // LogDebug("Started shutdown")
+        DoSysShutdown(0)
+        chDone <- 1
+        // LogDebug("Shutdown Ended")
+    }()
+
+    /* Verify all go routines ended via reading their done signature */
+    for i := 0; i < cnt; i++ {
+        j := <- chDone
+        if j != 0 {
+            t.Errorf("Expect 0 value j=%d i=%d cnt=%d", j, i, cnt)
+        }
+    }
+
+    /* Verify DoSysShutdown ended too */
+    j := <- chDone
+    if j != 1 {
+        t.Errorf("Expect 1 value j=%d cnt=%d", j, cnt)
+    }
+
+    DoSysShutdown(0)
+    //LogDebug("---------- COMPLETE ----------------")
+}
 
