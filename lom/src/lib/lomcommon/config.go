@@ -14,6 +14,9 @@ const (
     ENGINE_HB_INTERVAL_SECS = "ENGINE_HB_INTERVAL_SECS"
     MAX_SEQ_TIMEOUT_SECS = "MAX_SEQ_TIMEOUT_SECS"
     MIN_PERIODIC_LOG_PERIOD_SECS = "MIN_PERIODIC_LOG_PERIOD_SECS"
+
+    /* Look for this name in Env or file */
+    LOM_TESTMODE_NAME = "LoMTestMode"
 )
 
 const (
@@ -42,6 +45,50 @@ type GlobalConfig_t struct {
     strings map[string]string
     ints    map[string]int
     anyVal  map[string]any
+}
+
+type LoMRunMode_t int
+const (
+    LoMRunMode_NotSet = LoMRunMode_t(iota) // Unknown till config init
+    LoMRunMode_Test
+    LoMRunMode_Prod
+)
+
+/* InitConfigPath sets the mode */
+var lomRunMode = LoMRunMode_NotSet
+
+func GetLoMRunMode() LoMRunMode_t {
+    if lomRunMode == LoMRunMode_NotSet {
+        if val, ok := os.LookupEnv(LOM_TESTMODE_NAME); ok {
+            if val == "yes" {
+                lomRunMode = LoMRunMode_Test
+            } else {
+                lomRunMode = LoMRunMode_Prod
+            }
+        }
+    }
+    return lomRunMode
+}
+
+func SetLoMRunMode(mode LoMRunMode_t) error {
+    if (mode != LoMRunMode_Test) && (mode != LoMRunMode_Prod) {
+        return LogError("mode=(%v) is invalid", mode)
+    }
+
+    /* Call get to ensure, Env is checked first */
+    ctMode := GetLoMRunMode()
+
+    if ctMode == LoMRunMode_NotSet {
+        /* LOM_TESTMODE_NAME ("LoMTestMode") is not set in Env */
+        lomRunMode = mode
+    } else if ctMode != mode {
+        return LogError("Mode already set(%v) != new mode(%v)", ctMode, mode)
+    }
+    return nil
+}
+
+func ResetLoMMode() {
+    lomRunMode = LoMRunMode_NotSet
 }
 
 
@@ -314,6 +361,15 @@ func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
     if err := p.readBindingsConf(cfgFiles.BindingsFl); err != nil {
         return LogError("Bind: %s: %v", cfgFiles.BindingsFl, err)
     } 
+    test_mode_fl := filepath.Join(filepath.Dir(cfgFiles.BindingsFl), LOM_TESTMODE_NAME)
+    if _, err := os.Stat(test_mode_fl); os.IsNotExist(err) {
+        LogDebug("0: fl(%s) err(%v)", test_mode_fl, err)
+        SetLoMRunMode(LoMRunMode_Prod)
+    } else {
+        LogDebug("1: fl(%s) err(%v)", test_mode_fl, err)
+        SetLoMRunMode(LoMRunMode_Test)
+    }
+
     return nil
 }
 
@@ -447,13 +503,6 @@ func (p *ConfigMgr_t) GetActionConfig(name string) (*ActionCfg_t, error) {
     return &actInfo, nil
 }
 
-/* TODO: Goutham's PR has this */
-type ProcCfg_t struct {}
-func (p *ConfigMgr_t) GetProcConfig(name string) (*ProcCfg_t, error) {
-    return nil, LogError("TODO: Yet to implement")
-}
-
-
 /*
  * GetActionsList
  *  Return list of all actions from config, with a flag indicating if that
@@ -515,15 +564,7 @@ func InitConfigMgr(p *ConfigFiles_t) (*ConfigMgr_t, error) {
 }
 
 
-func InitConfigPath(path string) error {
-    cfgPath := path
-    if len(path) == 0 {
-        if p, err := os.Getwd(); err != nil {
-            return LogError("Failed to get current working dir (%v)", err)
-        } else {
-            cfgPath = p
-        }
-    }
+func InitConfigPath(cfgPath string) error {
     cfgFiles := &ConfigFiles_t {
         GlobalFl: filepath.Join(cfgPath, GLOBALS_CONF_FILE),
         ActionsFl: filepath.Join(cfgPath, ACTIONS_CONF_FILE),
