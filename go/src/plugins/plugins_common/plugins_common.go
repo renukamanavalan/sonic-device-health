@@ -1,13 +1,14 @@
 package plugins_common
 
 import (
+	"go/src/lib/lomcommon"
 	"go/src/lib/lomipc"
 	"time"
 )
 
 // Plugin interface is implemented by all plugins and is used by plugin manager to call plugin methods
 type Plugin interface {
-	Init(plugindata PluginData) error
+	Init(actionCfg *lomcommon.ActionCfg_t) error
 	Request(hbchan chan PluginHeartBeat, request *lomipc.ActionRequestData) *lomipc.ActionResponseData
 	Shutdown() error
 	GetPluginID() PluginId
@@ -19,14 +20,11 @@ type PluginStage int
 
 const (
 	PluginStageUnknown PluginStage = iota // default value
-	PluginStageLoadingStarted
-	PluginStageLoadingError
 	PluginStageLoadingSuccess
 	PluginStageRequestStarted
 	PluginStageRequestStartedHB // for long running
 	PluginStageRequestError
 	PluginStageRequestSuccess
-	PluginStageRequestRunning
 )
 
 // sent from plugin to plugin manager via heartbeat channel
@@ -57,7 +55,7 @@ type IPluginMetadata interface {
 
 // Holds all data specific to plugin, run time info, etc
 type PluginMetadata struct {
-	Plugindata  PluginData
+	ActionCfg   *lomcommon.ActionCfg_t
 	StartedTime time.Time
 	Pluginstage PluginStage // indicate the current plugin stage
 	PluginId

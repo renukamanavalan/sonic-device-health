@@ -21,6 +21,7 @@ const (
     GLOBALS_CONF_FILE = "globals.conf.json"
     ACTIONS_CONF_FILE = "actions.conf.json"
     BINDINGS_CONF_FILE = "bindings.conf.json"
+    PROCS_CONF_FILE = "procs.conf.json"
 )
 
 const (
@@ -580,6 +581,7 @@ func InitConfigPath(path string) error {
         GlobalFl: filepath.Join(path, GLOBALS_CONF_FILE),
         ActionsFl: filepath.Join(path, ACTIONS_CONF_FILE),
         BindingsFl: filepath.Join(path, BINDINGS_CONF_FILE),
+        ProcsFl: filepath.Join(path, PROCS_CONF_FILE),
     }
 
     _, err := InitConfigMgr(cfgFiles)

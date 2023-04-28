@@ -3,6 +3,7 @@
 package plugins_files
 
 import (
+	"go/src/lib/lomcommon"
 	"go/src/lib/lomipc"
 	"go/src/plugins/plugins_common"
 )
@@ -11,7 +12,7 @@ type GenericPluginDetection struct {
 	// ... Internal plugin data
 }
 
-func (gpl *GenericPluginDetection) Init(pluginConfig plugins_common.PluginData) error {
+func (gpl *GenericPluginDetection) Init(actionCfg *lomcommon.ActionCfg_t) error {
 	// ... implementation
 	return nil
 }

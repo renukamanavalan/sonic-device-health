@@ -56,11 +56,11 @@ func SetLogLevel(lvl syslog.Priority) {
 // setprefix is used to set a prefix for all log messages
 var apprefix string
 func SetPrefix(p string) {
-    apprefix = p
+    apprefix = p + ":"
 }
 
 func getPrefix(skip int) string {
-    prefix := ""
+    prefix := apprefix
     if _, fl, ln, ok := runtime.Caller(skip); ok {
         /*
          * sample fl = /home/localadmin/tools/go/caller/t.go 
@@ -80,14 +80,10 @@ func getPrefix(skip int) string {
             c -= 1      /* go for 2 if you can. Note: with leading slash first is null */
         }
         /* prefix = caller/t.go, for the example above */
-        prefix = fmt.Sprintf("%s:%d:", strings.Join(l[c-1:], "/"), ln)
-    }
-
-    if apprefix == "" {
-        return prefix
+        prefix = prefix + fmt.Sprintf("%s:%d:", strings.Join(l[c-1:], "/"), ln)
     }
     
-    return apprefix + ":" + prefix
+    return prefix
 }
 
 /*
@@ -561,6 +557,8 @@ If timeout fires, it kick off periodic log message and stop the message upon the
 // c) Get status of all goroutines
 // d) Get status of specific goroutine
 
+var goroutineTracker *GoroutineTracker = nil
+
 type GoroutineStatus bool
 const (
 	GoroutineStatusRunning GoroutineStatus = false
@@ -572,7 +570,6 @@ type Goroutine struct {
 	done      chan struct{}
 	StartTime time.Time
 	EndTime   time.Time
-	args      interface{}
 }
 
 type GoroutineInfo struct {
@@ -594,12 +591,16 @@ type GoroutineTracker struct {
 //
 // Returns:
 // - pointer to a new GoroutineTracker instance:
-func NewGoroutineTracker() *GoroutineTracker {
-	return &GoroutineTracker{
-		mlock:      sync.Mutex{},
-		goroutines: make(map[string]*Goroutine),
-		waitGroup:  sync.WaitGroup{},
-	}
+func GetGoroutineTracker() *GoroutineTracker {
+    if goroutineTracker != nil {
+        return goroutineTracker
+    }        
+    goroutineTracker = &GoroutineTracker{
+        mlock:      sync.Mutex{},
+        goroutines: make(map[string]*Goroutine),
+        waitGroup:  sync.WaitGroup{},
+    }
+    return goroutineTracker
 }
 
 // Start a goroutine with given name. If a goroutine with same name already exists, then it panics
@@ -627,7 +628,7 @@ func (grt *GoroutineTracker) Start(name string, fn interface{}, args ...interfac
         }
 	}
 
-	g := &Goroutine{Status: GoroutineStatusRunning, done: make(chan struct{}), StartTime: time.Now(), args: args}
+	g := &Goroutine{Status: GoroutineStatusRunning, done: make(chan struct{}), StartTime: time.Now()}
 	grt.goroutines[name] = g
 	grt.waitGroup.Add(1)
 
@@ -765,41 +766,40 @@ func (grt *GoroutineTracker) InfoList(name *string) []interface{} {
 	grt.mlock.Lock()
 	defer grt.mlock.Unlock()
 
-    // if name is given, return info for that goroutine
-	if name != nil {
-		if g, ok := grt.goroutines[*name]; ok {
-			info := GoroutineInfo{
-				Goroutine: *g,
-				Name:      *name,
-				Duration:  time.Since(g.StartTime),
-			}
-			return []interface{}{info}
-		}
-		return []interface{}{}
-	}
-
-    // return info for all goroutines
-	var list []interface{}
-	for name, g := range grt.goroutines {
-		if g == nil {
-			continue
-		}
+	// Create a function to extract info for a given goroutine
+	extractInfo := func(name string, g *Goroutine) GoroutineInfo {
 		duration := time.Duration(0)
 		if g.Status == GoroutineStatusRunning {
 			duration = time.Since(g.StartTime)
 		} else if g.Status == GoroutineStatusFinished {
 			duration = g.EndTime.Sub(g.StartTime)
 		}
-		info := GoroutineInfo{
+		return GoroutineInfo{
 			Goroutine: *g,
 			Name:      name,
 			Duration:  duration,
 		}
-		list = append(list, info)
+	}
+
+	// If name is given, return info for that goroutine
+	if name != nil {
+		if g, ok := grt.goroutines[*name]; ok {
+			return []interface{}{extractInfo(*name, g)}
+		}
+		return []interface{}{}
+	}
+
+	// Return info for all goroutines
+	var list []interface{}
+	for name, g := range grt.goroutines {
+		if g != nil {
+			list = append(list, extractInfo(name, g))
+		}
 	}
 
 	return list
 }
+
 
 
 // TODO: Goutham : Cleanup
