@@ -1,4 +1,8 @@
-// Example Plugin for reference
+/*
+package plugins_files contains all plugins. Each plugin is a go file with a struct that implements Plugin interface.
+
+Example Plugin for reference
+*/
 
 package plugins_files
 

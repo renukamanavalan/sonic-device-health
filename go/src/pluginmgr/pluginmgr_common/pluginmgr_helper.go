@@ -1,3 +1,8 @@
+/*
+package pluginmgr_common provides plugin manager functionality. Plugin manager is responsible for loading plugins, managing plugins, communicating
+with engine, etc. Plugin manager is implemented as a singleton.
+*/
+
 package pluginmgr_common
 
 import (
@@ -160,7 +165,7 @@ func (plmgr *PluginManager) run() error {
 	return nil
 }
 
-// TODO: Goutham : For all plugins call shutdoen, change plugin state, wait for a timeout, Log error on any running go routines per tracker, etc
+// TODO: Goutham : For all plugins call shutdown, change plugin state, wait for a timeout, Log error on any running go routines per tracker, etc
 func (plmgr *PluginManager) shutdown() error {
 	if err := plmgr.clientTx.DeregisterClient(); err != nil {
 		lomcommon.LogError("Error in deregistering client")
@@ -256,7 +261,7 @@ func (plmgr *PluginManager) loadPlugin(pluginName string, pluginVersion string) 
 	// Create a channel to receive the result of AddPlugin()
 	resultChan := make(chan error)
 
-	lomcommon.GetGoroutineTracker().Start("plg_mgr_LoadPlugin"+pluginName, func() {
+	lomcommon.GetGoroutineTracker().Start("plg_mgr_LoadPlugin"+pluginName+lomcommon.GetUUID(), func() {
 		resultChan <- plmgr.addPlugin(pluginName, pluginVersion)
 	})
 

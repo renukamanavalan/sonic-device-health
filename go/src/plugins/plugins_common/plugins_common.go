@@ -1,3 +1,8 @@
+/*
+package plugins_common contains common interfaces and structs that are used by all plugins
+It is used by plugin manager to manage plugins
+*/
+
 package plugins_common
 
 import (
