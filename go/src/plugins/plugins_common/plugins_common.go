@@ -39,14 +39,6 @@ type PluginId struct {
 	Version string
 }
 
-/* Plugin manager passed this data to init() */
-type PluginData struct {
-	Timeout      int
-	HeartbeatInt int
-	ActionKnobs  string
-	// ... Additional fields
-}
-
 // IPluginMetadata has common methods that are used by plugin manager to manage plugins. Data remain same for all plugins
 type IPluginMetadata interface {
 	GetPluginStage() PluginStage
