@@ -1,0 +1,18 @@
+localadmin@remanava-dev-1:~/source/fork/Device-Health/Proto-Test/src-c-python/python_plugins/tests$ tree0
+.
+|-- lib
+|   `-- test_client.py
+|-- plugins
+|   `-- test_action.py
+|-- test_data
+|   `-- test_data.json
+`-- test_main.py
+
+3 directories, 4 files
+
+
+test_main -- mimics engine
+Look at test_data.json -- This drives the entire test run
+The test_data.json allows you to run with test plugins or real plugins 
+The test data has procs, actions, bindings and i/p to test actions too
+Also it states, count of runs

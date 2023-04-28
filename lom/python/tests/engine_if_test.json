@@ -1,0 +1,26 @@
+{
+    "_description": [
+        "Test cases for engine i/f",
+        "API name & its args",
+        "string expected to be read by server",
+        "string to be sent by server",
+        "expected result",
+        "NOTE: Any keys prefixed with _ is skipped. Easy way to comment"
+    ],
+    "test_cases": {
+        "0": {
+            "api": "regClient",
+            "args": [ "client_foo" ],
+            "server_read": "{\"ReqType\":1,\"Client\":\"Foo\",\"TimeoutSecs\":0,\"ReqData\":{}}",
+            "server_write": "{\"ResultCode\":0,\"ResultStr\":\"all good\",\"RespData\":{}}",
+            "result": true
+        },
+        "1": {
+            "api": "regClient",
+            "args": [ "client_foo" ],
+            "server_read": "{\"ReqType\":1,\"Client\":\"Foo\",\"TimeoutSecs\":0,\"ReqData\":{}}",
+            "server_write": "{\"ResultCode\":-1,\"ResultStr\":\"all good\",\"RespData\":{}}",
+            "result": false
+        }
+    }
+}
