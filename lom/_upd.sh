@@ -1,24 +1,6 @@
 #! /bin/bash
 
 DST="/home/remanava/lom/remanava/lom"
-UPD=""
-MSG="Diff files ?"
-
-if [ $# -eq 1 ]; then
-    if [ "$1" = "upd" ]; then
-        UPD="update"
-        MSG="Update file ?"
-        CMD="echo cp ${SRC_FL} ${DsT_FL}"
-    fi
-fi
-
-if [ -z "${UPD}" ]; then
-    echo "Compare only"
-else
-    echo "Do update"
-    echo "Msg=${MSG}"
-    echo "Run=${CMD}"
-fi
 
 libArray=(  "Makefile"
             "src/lib/lib_test/tx_test.go"
@@ -41,22 +23,26 @@ for i in ${libArray[@]}; do
     SRC_FL=$i
     DsT_FL=${DST}/$i
 
-    echo -n "$i "
     if cmp --silent -- $i ${DST}/$i; then
-        echo "================= identical ============="
+        echo "================= $i identical ============="
     else
-        echo ${MSG}
-        select yn in "Yes" "No"; do
-            case $yn in
+        echo "Check $i ?"
+        select ynx in "Yes" "No" "Exit"; do
+            case $ynx in
                 Yes )
-                    if [ -z "${UPD}" ]; then
-                        doDiff ${SRC_FL} ${DsT_FL}
-                    else 
-                        doCp ${SRC_FL} ${DsT_FL}
-                    fi
+                    doDiff ${SRC_FL} ${DsT_FL}
+                    echo "***** Update $i?"
+                    select yn in "Yes" "No"; do
+                        case $yn in
+                            Yes ) doCp ${SRC_FL} ${DsT_FL}; break;;
+                            No ) echo "No update"; break;;
+                        esac
+                    done
                     break;;
                 No ) echo "Skip"; break;;
+                Exit ) echo "Exiting ..."; exit;;
             esac
         done
     fi
 done
+
