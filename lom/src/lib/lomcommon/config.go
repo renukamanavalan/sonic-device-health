@@ -47,6 +47,21 @@ type GlobalConfig_t struct {
     anyVal  map[string]any
 }
 
+/*
+ * LoM can be run in Test or Prod mode.
+ *
+ * Mode can be set via Env
+ *      "LoMTestMode=yes" - Sets to Test Mode
+ *      "LoMTestMod=<Any other value> - sets to Prod Mode
+ *
+ * If "LoMTestMode" env is not set, 
+ *  if <Confiig Path of globals.conf.json>/LoMTestMode file exists
+ *      Mode is set to Test
+ *  else
+ *      Mode is set to Prod
+ *
+ * Until config is loaded, the mode could be uninitialized, unless env is set.
+ */
 type LoMRunMode_t int
 const (
     LoMRunMode_NotSet = LoMRunMode_t(iota) // Unknown till config init
@@ -361,12 +376,12 @@ func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
     if err := p.readBindingsConf(cfgFiles.BindingsFl); err != nil {
         return LogError("Bind: %s: %v", cfgFiles.BindingsFl, err)
     } 
-    test_mode_fl := filepath.Join(filepath.Dir(cfgFiles.BindingsFl), LOM_TESTMODE_NAME)
+    test_mode_fl := filepath.Join(filepath.Dir(cfgFiles.GlobalFl), LOM_TESTMODE_NAME)
     if _, err := os.Stat(test_mode_fl); os.IsNotExist(err) {
-        LogDebug("0: fl(%s) err(%v)", test_mode_fl, err)
+        LogDebug("Run in Prod mode as fl(%s) not exist. err(%v)", test_mode_fl, err)
         SetLoMRunMode(LoMRunMode_Prod)
     } else {
-        LogDebug("1: fl(%s) err(%v)", test_mode_fl, err)
+        LogDebug("Run in Testg mode as fl(%s) exists. err(%v)", test_mode_fl, err)
         SetLoMRunMode(LoMRunMode_Test)
     }
 

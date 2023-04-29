@@ -161,6 +161,19 @@ type sysShutdown_t struct {
     wg          *sync.WaitGroup
     shutdown    bool
 }
+/*
+ * SysShutDown:
+ *
+ * Routines that run for the lifetime of LoM process can call
+ * register with a caller string indicating the caller.
+ * The caller is expected to listen on the returned channel.
+ * For any data on the returned channel, it implies system is
+ * shutting down. The routine may do any cleanup and exit.
+ * Just as a last step before exit, call deregister with the 
+ * same caller string.
+ *
+ * Register & deregister calls are logged to enable any debugging.
+ */
 
 func (p *sysShutdown_t) register(caller string) <-chan int {
     if !p.shutdown {
@@ -185,14 +198,8 @@ func (p *sysShutdown_t) doShutdown(toutSecs int) {
     }
     p.shutdown = true
 
-    /* Send alert as many possible */
-    for len(p.ch) < cap(p.ch) {
-        /*
-         * max writes == Buffer size + count of waiting routines
-         * Note: A routine just reads once
-         */
-        p.ch <- 0
-    }
+    /* Close channel - to help all listeners get default data immediately */
+    close(p.ch)
 
     /* Buffer of 1 is useful in case of timeout, as there will not be any reader */
     chEnd := make(chan int, 1)
@@ -212,10 +219,6 @@ func (p *sysShutdown_t) doShutdown(toutSecs int) {
             return
 
         case <- time.After(time.Second):
-            /* This helps in cases the count of waiting is more than ch capacity */
-            if len(p.ch) < cap(p.ch) {
-                p.ch <- 0   
-            }
             WaitedSecs++
             if (toutSecs > 0) && (WaitedSecs >= toutSecs) {
                 LogError("Not all routines terminated. toutSecs(%d)", toutSecs)
