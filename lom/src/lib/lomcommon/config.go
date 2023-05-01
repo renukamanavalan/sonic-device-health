@@ -49,7 +49,6 @@ type GlobalConfig_t struct {
     anyVal  map[string]any
 }
 
-<<<<<<< HEAD
 /*
  * LoM can be run in Test or Prod mode.
  *
@@ -110,8 +109,6 @@ func ResetLoMMode() {
 }
 
 
-=======
->>>>>>> origin/LoM-Prod
 /*
  * NOTE: This will be deprecated soon.
  * Guideline: conf should have a value for every entry
@@ -422,7 +419,6 @@ func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
     if err := p.readProcsConf(cfgFiles.ProcsFl); err != nil {
         return LogError("Procs: %s: %v", cfgFiles.ProcsFl, err)
     }
-<<<<<<< HEAD
     test_mode_fl := filepath.Join(filepath.Dir(cfgFiles.GlobalFl), LOM_TESTMODE_NAME)
     if _, err := os.Stat(test_mode_fl); os.IsNotExist(err) {
         LogDebug("Run in Prod mode as fl(%s) not exist. err(%v)", test_mode_fl, err)
@@ -431,8 +427,6 @@ func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
         LogDebug("Run in Testg mode as fl(%s) exists. err(%v)", test_mode_fl, err)
         SetLoMRunMode(LoMRunMode_Test)
     }
-=======
->>>>>>> origin/LoM-Prod
     return nil
 }
 

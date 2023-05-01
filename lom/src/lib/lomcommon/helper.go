@@ -277,7 +277,8 @@ type LogPeriodicEntry_t struct {
     Message string          /* string to log */
     Lvl     syslog.Priority /* Log Level to use */
     Period  int             /* period in seconds */
-    /* TODO: Change period to list of {period, cnt}
+    /*
+     * TODO: Change period to list of {period, cnt}
      * after finishing cnt writes, move to next entry in list.
      * Caller may send [ {5, 100}, {3600, 0} ], implying
      * Write first 100 logs for every 5 seconds. After that
@@ -289,8 +290,10 @@ type logPeriodicEntryInt_t struct {
     LogPeriodicEntry_t
     Due   int64  /* Next due epoch time point */
     index uint64 /* Add a sequential index to the message */
-    /* This can help identify repeated logs with index */
-    /* indicating set to count of logs written so far */
+    /*
+     * This can help identify repeated logs with index
+     * indicating set to count of logs written so far
+     */
 }
 
 /* Log Periodic module */
@@ -301,7 +304,8 @@ type logPeriodic_t struct {
     logPeriodicList   map[string]*logPeriodicEntryInt_t
     logPeriodicSorted []*logPeriodicEntryInt_t
 
-    /* TODO: Any entry after logging repeatedly at set period
+    /*
+     * TODO: Any entry after logging repeatedly at set period
      * for a day or two, reduce the period to every hour
      * No point in polluting logs, as we have screamed enough
      */
@@ -314,7 +318,7 @@ func GetlogPeriodic() *logPeriodic_t {
     if logPeriodic != nil {
         return logPeriodic
     }
-    /* TODO: Replace with global abort channel later *..
+    /* TODO: Replace with global abort channel later */
     chAbort := make(chan interface{})
     logPeriodicInit(chAbort)
     return logPeriodic
@@ -635,18 +639,21 @@ func (p *oneShotTimer_t) runOneShotTimer() {
  * Go Routine Tracker  -----------------------------------------------------------------
  */
 
-/* TODO: Goutham : Add a run method which will carry a non-zero timeout. This method will block
-until either the called routine returns or timeout fires., whichever occurs earlier.
-If timeout fires, it kick off periodic log message and stop the message upon the routine returns. */
+/*
+ * TODO: Goutham : Add a run method which will carry a non-zero timeout.
+ * This method will block until either the called routine returns or timeout fires.,
+ * whichever occurs earlier. If timeout fires, it kick off periodic log message
+ * and stop the message upon the routine returns.
+ */
 
 /* TODO: Goutham : For WaitAll, accept a systemwide channel which will timeout the function */
 
 /*
  * GoroutineTracker is a helper for tracking goroutines. It can be used to
- * a) Track all goroutines
- * b) wait on specific goroutine to finish
- * c) Get status of all goroutines
- * d) Get status of specific goroutine
+ * (a) Track all goroutines
+ * (b) wait on specific goroutine to finish
+ * (c) Get status of all goroutines
+ * (d) Get status of specific goroutine
  */
 
 var goroutineTracker *GoroutineTracker = nil
@@ -888,7 +895,7 @@ func (grt *GoroutineTracker) InfoList(name *string) []interface{} {
         }
     }
 
-    // If name is given, return info for that goroutine */
+    /* If name is given, return info for that goroutine */
     if name != nil {
         if g, ok := grt.goroutines[*name]; ok {
             return []interface{}{extractInfo(*name, g)}
@@ -896,7 +903,7 @@ func (grt *GoroutineTracker) InfoList(name *string) []interface{} {
         return []interface{}{}
     }
 
-    /* Return info for all goroutines
+    /* Return info for all goroutines */
     var list []interface{}
     for name, g := range grt.goroutines {
         if g != nil {
@@ -908,8 +915,12 @@ func (grt *GoroutineTracker) InfoList(name *string) []interface{} {
 }
 
 /*
- * Read environment variables  -----------------------------------------------------------------
+ * Read environment variables
  */
+
+func xyz() {
+}
+var envMap = map[string]string {}
 
 /* variable name , system env variable name, default value */
 const EnvMapDefinitionsStr = `{
@@ -921,10 +932,10 @@ const EnvMapDefinitionsStr = `{
 
 /*
  * key is EnvMapDefinitionsStr keys. Value is string. If its "", then no value exists.
- * Convert them to appropriate before usage. */
- * e.g. ENV_lom_conf_location -> "path/to/conf" */
+ * Convert them to appropriate before usage.
+ * e.g. ENV_lom_conf_location -> "path/to/conf"
  */
-var envMap = map[string]string{}
+
 
 func LoadEnvironmentVariables() {
     var envMapDefinitions map[string]map[string]string
@@ -947,3 +958,4 @@ func GetEnvVarString(envname string) (string, bool) {
     value, exists := envMap[envname]
     return value, exists
 }
+
