@@ -6,33 +6,33 @@
 package plugins_files
 
 import (
-	"lom/src/lib/lomcommon"
-	"lom/src/lib/lomipc"
-	"lom/src/plugins/plugins_common"
+    "lom/src/lib/lomcommon"
+    "lom/src/lib/lomipc"
+    "lom/src/plugins/plugins_common"
 )
 
 type GenericPluginDetection struct {
-	// ... Internal plugin data
+    // ... Internal plugin data
 }
 
 func (gpl *GenericPluginDetection) Init(actionCfg *lomcommon.ActionCfg_t) error {
-	// ... implementation
-	return nil
+    // ... implementation
+    return nil
 }
 
 func (gpl *GenericPluginDetection) Request(hbchan chan plugins_common.PluginHeartBeat, request *lomipc.ActionRequestData) *lomipc.ActionResponseData {
-	// ... implementation
-	return nil
+    // ... implementation
+    return nil
 }
 
 func (gpl *GenericPluginDetection) Shutdown() error {
-	// ... implementation
-	return nil
+    // ... implementation
+    return nil
 }
 
 func (gpl *GenericPluginDetection) GetPluginID() plugins_common.PluginId {
-	return plugins_common.PluginId{
-		Name:    "GenericPluginDetection",
-		Version: "1.0",
-	}
+    return plugins_common.PluginId{
+        Name:    "GenericPluginDetection",
+        Version: "1.0",
+    }
 }
