@@ -63,12 +63,16 @@ etest() {
 }
 
 test() {
+<<<<<<< HEAD:lom/build.sh.deprecated
 <<<<<<< HEAD
     ${GO} test $1 -coverprofile=coverprofile.out  -coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon -covermode=atomic ./src/lib/lib_test
     echo $?
 =======
     go test $1 -coverprofile=coverprofile.out  -coverpkg go/src/lib/lomipc,go/src/lib/lomcommon -covermode=atomic ./src/lib/lib_test
 >>>>>>> origin/LoM-Prod
+=======
+    go test $1 -coverprofile=coverprofile.out  -coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon -covermode=atomic ./src/lib/lib_test
+>>>>>>> origin/LoM-Prod:lom/build-deprecated.sh
     if [ $? -ne 0 ]; then
         echo "Failed to run test"
         exit -1
@@ -85,7 +89,7 @@ test() {
 <<<<<<< HEAD
 =======
 dbClientTest() { 
-  go test $1 -p 1 -coverprofile=dbclient_coverprofile.out  -coverpkg go/src/vendors/sonic/client/dbclient -covermode=atomic go/src/vendors/sonic/client/dbclient
+  go test $1 -p 1 -coverprofile=dbclient_coverprofile.outï¿½ -coverpkg lom/src/vendors/sonic/client/dbclient -covermode=atomic lom/src/vendors/sonic/client/dbclient
   if [ $? -ne 0 ]; then
   	echo "Failed to run test"
   	exit -1
@@ -98,7 +102,7 @@ dbClientTest() {
 }
 
 test_plugin_mgr() {
-    go test -v -p 1 -cover $1 -coverprofile=coverprofile_plmgr.out -coverpkg go/src/lib/lomcommon,go/src/pluginmgr/pluginmgr_common,go/src/pluginmgr/plugins_common,go/src/pluginmgr/plugins_files -covermode=atomic ./src/pluginmgr/pluginmgr_test ./src/pluginmgr/pluginmgr_common
+    go test -v -p 1 -cover $1 -coverprofile=coverprofile_plmgr.out -coverpkg lom/src/lib/lomcommon,lom/src/pluginmgr/pluginmgr_common,lom/src/pluginmgr/plugins_common,lom/src/pluginmgr/plugins_files -covermode=atomic ./src/pluginmgr/pluginmgr_test ./src/pluginmgr/pluginmgr_common
     if [ $? -ne 0 ]; then
         echo "Failed to run plugin manager test"
         exit -1

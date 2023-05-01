@@ -18,11 +18,11 @@ import (
  *  NOTE:
  *      This is used as only IPC between processes running inside a single
  *      container as single system; Tightly coupled with static set of APIs
- *      
+ *
  *  Multiple clients (PluginMgr) send requests concurrently to a server/engine.
  *  Server process each sequentially/concurrently and respond back to each as succeeded
  *  or failed.
- *  
+ *
  *  Server send requests to multiple clients sequentially/concurrently as a request
  *  addressed to a client only. A single client may receive multiple requests at any time.
  *  For each received request, client confirm back as succeeded / failed, synchronously.
@@ -39,7 +39,6 @@ import (
  *  plugins managed by client.
  */
 
-
 /*
  * NOTE: Any change in Go lib must reflect in libs of non-go client libs
  */
@@ -50,31 +49,33 @@ const (
 
 /* All types of requests from client to server */
 type ReqDataType int
+
 const (
-    TypeNone = ReqDataType(iota)
-    TypeRegClient                           /* 1 */
-    TypeDeregClient                         /* 2 */
-    TypeRegAction                           /* 3 */
-    TypeDeregAction                         /* 4 */
-    TypeRecvServerRequest                   /* 5 */
-    TypeSendServerResponse                  /* 6 */
-    TypeNotifyActionHeartbeat               /* 7 */
+    TypeNone                  = ReqDataType(iota)
+    TypeRegClient             /* 1 */
+    TypeDeregClient           /* 2 */
+    TypeRegAction             /* 3 */
+    TypeDeregAction           /* 4 */
+    TypeRecvServerRequest     /* 5 */
+    TypeSendServerResponse    /* 6 */
+    TypeNotifyActionHeartbeat /* 7 */
     TypeCount
 )
 
-var ReqTypeToStr = map[ReqDataType]string {
-    TypeNone: "None",
-    TypeRegClient: "RegisterClient",
-    TypeDeregClient: "DeregisterClient",
-    TypeRegAction: "RegisterAction",
-    TypeDeregAction: "DeregisterAction",
-    TypeRecvServerRequest: "RecvServerRequest",
-    TypeSendServerResponse: "SendServerResponse",
+var ReqTypeToStr = map[ReqDataType]string{
+    TypeNone:                  "None",
+    TypeRegClient:             "RegisterClient",
+    TypeDeregClient:           "DeregisterClient",
+    TypeRegAction:             "RegisterAction",
+    TypeDeregAction:           "DeregisterAction",
+    TypeRecvServerRequest:     "RecvServerRequest",
+    TypeSendServerResponse:    "SendServerResponse",
     TypeNotifyActionHeartbeat: "NotifyActionHeartbeat",
 }
 
-/* Server sends its request as response to TypeRecvServerRequest */ 
+/* Server sends its request as response to TypeRecvServerRequest */
 type ServerReqDataType int
+
 const (
     TypeServerRequestNone = ServerReqDataType(iota)
     TypeServerRequestAction
@@ -82,19 +83,18 @@ const (
     TypeServerRequestCount
 )
 
-
-var ServerReqTypeToStr = map[ServerReqDataType]string {
-    TypeServerRequestAction: "RecvServerRequestAction",
+var ServerReqTypeToStr = map[ServerReqDataType]string{
+    TypeServerRequestAction:   "RecvServerRequestAction",
     TypeServerRequestShutdown: "RecvServerRequestShutdown",
 }
 
 /* Request from client to server over RPC */
 type LoMRequest struct {
-    ReqType     ReqDataType     /* Type of request */
-    Client      string          /* The client sending this request */
-    TimeoutSecs int             /* Timeout - Honored in long running requests */
-                                /* == 0 implies no timeout */
-    ReqData     interface{}     /* Data specific to request type */
+    ReqType     ReqDataType /* Type of request */
+    Client      string      /* The client sending this request */
+    TimeoutSecs int         /* Timeout - Honored in long running requests */
+    /* == 0 implies no timeout */
+    ReqData interface{} /* Data specific to request type */
 }
 
 /*
@@ -106,41 +106,41 @@ type LoMRequest struct {
  * RespData is specific to client's request. It could be nil.
  */
 type LoMResponse struct {
-    ResultCode  int
-    ResultStr   string
+    ResultCode int
+    ResultStr  string
 
-    RespData    interface{}
+    RespData interface{}
 }
 
 /*
  * Msg to pass via ReqData in LomRequest
  * All kinds of msg data matching request type
  */
-type MsgRegClient struct {          /* For TypeRegClient */
+type MsgRegClient struct { /* For TypeRegClient */
 }
 
-type MsgDeregClient struct {        /* For TypeDeregClient */
+type MsgDeregClient struct { /* For TypeDeregClient */
 }
 
-type MsgRegAction struct {          /* For TypeRegAction */
-    Action  string
+type MsgRegAction struct { /* For TypeRegAction */
+    Action string
 }
 
-type MsgDeregAction struct {        /* For TypeDeregAction */
-    Action  string
+type MsgDeregAction struct { /* For TypeDeregAction */
+    Action string
 }
 
-type MsgRecvServerRequest struct {  /* For TypeRecvServerRequest */
+type MsgRecvServerRequest struct { /* For TypeRecvServerRequest */
 }
 
 type MsgSendServerResponse struct { /* For TypeSendServerResponse */
-    ReqType             ServerReqDataType
-    ResData             interface {} /* ActionResponseData */
+    ReqType ServerReqDataType
+    ResData interface{} /* ActionResponseData */
 }
 
-type MsgNotifyHeartbeat struct {    /* For TypeNotifyActionHeartbeat */
-    Action      string
-    Timestamp   int64
+type MsgNotifyHeartbeat struct { /* For TypeNotifyActionHeartbeat */
+    Action    string
+    Timestamp int64
 }
 
 /*
@@ -151,9 +151,9 @@ type MsgNotifyHeartbeat struct {    /* For TypeNotifyActionHeartbeat */
  * The ReqData is specific per type.
  */
 type ServerRequestData struct {
-    ReqType             ServerReqDataType   /* Type of requests from server to client */
-    ReqData             interface {}        /* Data per request type */
-                                            /* ActionRequestData or ShutdownRequestData */
+    ReqType ServerReqDataType /* Type of requests from server to client */
+    ReqData interface{}       /* Data per request type */
+    /* ActionRequestData or ShutdownRequestData */
 }
 
 /*
@@ -161,25 +161,25 @@ type ServerRequestData struct {
  * MsgSendServerResponse::ReqType == TypeServerRequestAction
  */
 type ActionResponseData struct {
-    Action              string
-    InstanceId          string
-    AnomalyInstanceId   string
-    AnomalyKey          string
-    Response            string
-    ResultCode          int
-    ResultStr           string
+    Action            string
+    InstanceId        string
+    AnomalyInstanceId string
+    AnomalyKey        string
+    Response          string
+    ResultCode        int
+    ResultStr         string
 }
 
 /* Helper to convert ActionResponseData as Map */
 func (p *ActionResponseData) ToMap(end bool) map[string]string {
-    ret := map[string]string {
-        "action": p.Action,
-        "instanceId": p.InstanceId,
+    ret := map[string]string{
+        "action":            p.Action,
+        "instanceId":        p.InstanceId,
         "anomalyInstanceId": p.AnomalyInstanceId,
-        "anomalyKey": p.AnomalyKey,
-        "response": p.Response,
-        "resultCode": fmt.Sprintf("%d", p.ResultCode),
-        "resultStr": p.ResultStr,
+        "anomalyKey":        p.AnomalyKey,
+        "response":          p.Response,
+        "resultCode":        fmt.Sprintf("%d", p.ResultCode),
+        "resultStr":         p.ResultStr,
     }
     if p.InstanceId == p.AnomalyInstanceId {
         if end {
@@ -196,28 +196,27 @@ func (p *ActionResponseData) Validate() bool {
     isAnomaly := p.InstanceId == p.AnomalyInstanceId
     isFailed := p.ResultCode != 0
 
-    if ((len(p.Action) == 0) ||
+    if (len(p.Action) == 0) ||
         (len(p.InstanceId) == 0) ||
         (len(p.AnomalyInstanceId) == 0) ||
-        (!isAnomaly && len(p.AnomalyKey) == 0) ||   /* Key could miss for failed anomaly */
-        (!isFailed && len(p.AnomalyKey) == 0)) {
+        (!isAnomaly && len(p.AnomalyKey) == 0) || /* Key could miss for failed anomaly */
+        (!isFailed && len(p.AnomalyKey) == 0) {
         return false
     }
     return true
 }
-
 
 /*
  * ReqData for ServerRequestData::ReqData for
  * ServerRequestData::ReqType == TypeServerRequestAction
  */
 type ActionRequestData struct {
-    Action              string
-    InstanceId          string
-    AnomalyInstanceId   string
-    AnomalyKey          string
-    Timeout             int
-    Context             []*ActionResponseData
+    Action            string
+    InstanceId        string
+    AnomalyInstanceId string
+    AnomalyKey        string
+    Timeout           int
+    Context           []*ActionResponseData
 }
 
 /*
@@ -232,12 +231,12 @@ type MsgEmptyResp struct {
 
 /* Helper to compare given slices */
 func SlicesComp(p []*ActionResponseData, q []*ActionResponseData) bool {
-    if (len(p) != len(q)) {
+    if len(p) != len(q) {
         LogDebug("Slice len differ %d != %d\n", len(p), len(q))
         return false
     }
 
-    for i, v := range(p) {
+    for i, v := range p {
         if *v != *(q[i]) {
             LogDebug("p[%d] (%v) != q[%d] (%v)\n", i, v, i, q[i])
             return false
@@ -257,17 +256,16 @@ func (r *ActionRequestData) Equal(p *ActionRequestData) bool {
         return false
     }
 
-    if ((r.Action == p.Action) &&
+    if (r.Action == p.Action) &&
         (r.InstanceId == p.InstanceId) &&
         (r.AnomalyInstanceId == p.AnomalyInstanceId) &&
         (r.AnomalyKey == p.AnomalyKey) &&
-        SlicesComp(r.Context, p.Context)) {
+        SlicesComp(r.Context, p.Context) {
         return true
     } else {
         return false
     }
 }
-
 
 /* Helper to compare given requests. */
 func (r *ServerRequestData) Equal(p *ServerRequestData) bool {
@@ -281,8 +279,8 @@ func (r *ServerRequestData) Equal(p *ServerRequestData) bool {
     }
 
     if r.ReqType != p.ReqType {
-        LogDebug("Differing Req types %s vs %s", ServerReqTypeToStr[r.ReqType], 
-                ServerReqTypeToStr[p.ReqType])
+        LogDebug("Differing Req types %s vs %s", ServerReqTypeToStr[r.ReqType],
+            ServerReqTypeToStr[p.ReqType])
         return false
     }
     rr := r.ReqData
@@ -293,9 +291,9 @@ func (r *ServerRequestData) Equal(p *ServerRequestData) bool {
     }
     switch rr.(type) {
     case ActionRequestData:
-        rq, ok1 := rr.(ActionRequestData) 
-        pq, ok2 := pr.(ActionRequestData) 
-        if (!ok1 || !ok2 || !(&rq).Equal(&pq)) {
+        rq, ok1 := rr.(ActionRequestData)
+        pq, ok2 := pr.(ActionRequestData)
+        if !ok1 || !ok2 || !(&rq).Equal(&pq) {
             LogDebug("ActionRequestData mismatch ok1=%v ok2=%v", ok1, ok2)
             return false
         }
@@ -308,47 +306,46 @@ func (r *ServerRequestData) Equal(p *ServerRequestData) bool {
     }
 }
 
-
 /*
  * Each proc has a channel for remote end to write request.
  * Each request carry a channel for response to that request.
  */
 type LoMTransport struct {
-    ServerCh    chan interface{}
+    ServerCh chan interface{}
 }
 
 /* Internal req object within server. */
 type LoMRequestInt struct {
-    Req         *LoMRequest
+    Req *LoMRequest
     /* LoMResponse to this request is sent via this chan */
-    ChResponse  chan interface{}
-} 
+    ChResponse chan interface{}
+}
 
 /* RPC call from client */
 func (tr *LoMTransport) SendToServer(req *LoMRequest, reply *LoMResponse) (err error) {
 
     defer func() {
         if err != nil {
-            LogError("SendToServer cl(%s) mtype(%s) failed (%v)", 
-                    req.Client, ReqTypeToStr[req.ReqType], err)
+            LogError("SendToServer cl(%s) mtype(%s) failed (%v)",
+                req.Client, ReqTypeToStr[req.ReqType], err)
         } else {
             LogInfo("SUCCESS: SendToServer cl(%s) mtype(%s) result(%d)/(%s)", req.Client,
-                    ReqTypeToStr[req.ReqType], reply.ResultCode, reply.ResultStr)
+                ReqTypeToStr[req.ReqType], reply.ResultCode, reply.ResultStr)
         }
-    } ()
+    }()
 
     if (req == nil) || (reply == nil) {
         return LogError("Nil args req(%v) reply(%v)", req, reply)
     }
 
-    rpcReq := LoMRequestInt { req, make(chan interface{}, 1) }
+    rpcReq := LoMRequestInt{req, make(chan interface{}, 1)}
     tr.ServerCh <- &rpcReq
 
     LogDebug("Req sent to server client(%s) type(%s). Waiting for response...",
-            req.Client, ReqTypeToStr[req.ReqType])
+        req.Client, ReqTypeToStr[req.ReqType])
 
     /* Wait for server response */
-    p := <- rpcReq.ChResponse
+    p := <-rpcReq.ChResponse
     if x, ok := p.(*LoMResponse); ok {
         *reply = *x
     } else {
@@ -370,13 +367,12 @@ func (tr *LoMTransport) ReadClientRequest(chAbort chan interface{}) (*LoMRequest
         } else {
             return nil, LogError("Client request message (%T) != *Msg", x)
         }
-        
-    case <- chAbort:
+
+    case <-chAbort:
         return nil, LogError("Server: Aborting read via abort channel")
         /* Aborting per instruction */
     }
 }
-
 
 func init_encoding() {
     gob.Register(MsgRegClient{})
@@ -396,7 +392,7 @@ func init_encoding() {
 func GetLoMTransport() *LoMTransport {
     init_encoding()
     tr := new(LoMTransport)
-    
+
     tr.ServerCh = make(chan interface{})
     return tr
 }
@@ -439,7 +435,6 @@ func jsonServerInit() error {
     return nil
 }
 
-
 func ServerInit() (*LoMTransport, error) {
     tr := GetLoMTransport()
 
@@ -453,6 +448,3 @@ func ServerInit() (*LoMTransport, error) {
     }
     return tr, nil
 }
-
-
-

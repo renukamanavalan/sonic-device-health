@@ -1,7 +1,7 @@
 package engine
 
 /*
- *  Mock PublishEventAPI 
+ *  Mock PublishEventAPI
  *  This test code combines unit test & functional test - Two in one shot
  *
  *  Sample Scenarios created by test collections:
@@ -16,7 +16,7 @@ package engine
  *          4.  register action with empty name ("") under CLIENT_0 client - fails
  *          5.  register action "Detect-0" under CLIENT_0 client - Succeeds
  *          6.  re-register action "Detect-0" under CLIENT_0 client - Succeeds
- *          7.  register client CLIENT_1            
+ *          7.  register client CLIENT_1
  *          8.  re-register action "Detect-0" under CLIENT_1 client. De-register from
                 client0 & re-register - succeeds
  *          9.  register "Safety-chk-0", "Mitigate-0", "Mitigate-2" under CLIENT_0
@@ -59,8 +59,7 @@ package engine
  *          18. NotifyHearbeat for "xyz" non-existing
  *              Verify responnse
  *
- */
-
+*/
 
 import (
     "encoding/json"
@@ -75,7 +74,7 @@ import (
     "time"
 )
 
-const EMPTY_STR= ""
+const EMPTY_STR = ""
 const CLIENT_0 = "client-0"
 const CLIENT_1 = "client-1"
 const CLIENT_2 = "client-2"
@@ -106,7 +105,6 @@ var actions_conf = `{ "actions": [
         { "name": "Mitigate-2", "Timeout": 6},
         { "name": "Disabled-0", "Disable": true}
         ] }`
-
 
 var bindings_conf = `{ "bindings": [
     {
@@ -142,13 +140,13 @@ var bindings_conf = `{ "bindings": [
     }
 ]}`
 
-
 /*
  * A bunch of APIs from client transport or internal to engine to be called with varying
  * args and expected results
  */
 
 type clientAPIID int
+
 const (
     REG_CLIENT = clientAPIID(iota)
     REG_ACTION
@@ -164,7 +162,6 @@ const (
     PAUSE
 )
 
-
 /*
  * Req / Resp received/sent will need to be saved for proper
  * verification of subsequent req/resp as these share context
@@ -172,6 +169,7 @@ const (
  * These APIs provide a way to save/restore/reset
  */
 type savedResults_t map[int][]any
+
 var saveResults = make(savedResults_t)
 
 func printResultAny(entire bool) string {
@@ -222,6 +220,7 @@ func resetResultAll() {
 
 /* Mock publish fn given to engine for any publish calls */
 var publishCh = make(chan string, 10)
+
 func testPublish(s string) string {
 
     /* Write to channel if there is space */
@@ -233,7 +232,6 @@ func testPublish(s string) string {
     LogDebug("testPublish: (%s)", s)
     return s
 }
-
 
 const CFGPATH = "/tmp"
 
@@ -266,7 +264,7 @@ func initServer(t *testing.T) (engine *engine_t) {
     }()
 
     engine = nil
-    if e, err := startUp("test", []string { "-path", CFGPATH }); err != nil {
+    if e, err := startUp("test", []string{"-path", CFGPATH}); err != nil {
         t.Fatalf("initServer failed in startup")
         return
     } else {
@@ -282,13 +280,12 @@ func initServer(t *testing.T) (engine *engine_t) {
  * methods on this object.
  */
 type callArgs struct {
-    t       *testing.T
-    lstTx   map[string]*ClientTx
+    t     *testing.T
+    lstTx map[string]*ClientTx
 }
 
-
 func (p *callArgs) getTxWithTimeout(cl string, tout int) *ClientTx {
-    tx, ok := p.lstTx[cl];
+    tx, ok := p.lstTx[cl]
     if !ok {
         tx = GetClientTx(tout)
         if tx != nil {
@@ -337,7 +334,7 @@ func (p *callArgs) call_register_client(ti int, te *testEntry_t) {
     err := tx.RegisterClient(clName)
     if te.failed != (err != nil) {
         p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
-                ti, te.toStr(), err)
+            ti, te.toStr(), err)
     }
 }
 
@@ -366,7 +363,7 @@ func (p *callArgs) call_register_action(ti int, te *testEntry_t) {
     err := tx.RegisterAction(actName)
     if te.failed != (err != nil) {
         p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
-                ti, te.toStr(), err)
+            ti, te.toStr(), err)
     }
 }
 
@@ -395,7 +392,7 @@ func (p *callArgs) call_deregister_action(ti int, te *testEntry_t) {
     err := tx.DeregisterAction(actName)
     if te.failed != (err != nil) {
         p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
-                ti, te.toStr(), err)
+            ti, te.toStr(), err)
     }
 }
 
@@ -419,13 +416,13 @@ func (p *callArgs) call_deregister_client(ti int, te *testEntry_t) {
     err := tx.DeregisterClient()
     if te.failed != (err != nil) {
         p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
-                ti, te.toStr(), err)
+            ti, te.toStr(), err)
     }
 }
 
 /* Helper API */
 func compStr(msg, rcv, tst string) string {
-    if (len(rcv) == 0) {
+    if len(rcv) == 0 {
         return fmt.Sprintf("%s empty", msg)
     }
     if (len(tst) != 0) && (tst != rcv) {
@@ -443,7 +440,7 @@ func compActResData(rcv *ActionResponseData, tst *ActionResponseData) string {
         return s
     }
     if s := compStr("AnomalyInstanceId", rcv.AnomalyInstanceId,
-            tst.AnomalyInstanceId); len(s) > 0 {
+        tst.AnomalyInstanceId); len(s) > 0 {
         return s
     }
     if s := compStr("AnomalyKey", rcv.AnomalyKey, tst.AnomalyKey); len(s) > 0 {
@@ -461,7 +458,6 @@ func compActResData(rcv *ActionResponseData, tst *ActionResponseData) string {
     return ""
 }
 
-
 /* Helper API */
 func compActReqData(rcv *ActionRequestData, tst *ActionRequestData) string {
     if s := compStr("Action", rcv.Action, tst.Action); len(s) > 0 {
@@ -471,7 +467,7 @@ func compActReqData(rcv *ActionRequestData, tst *ActionRequestData) string {
         return s
     }
     if s := compStr("AnomalyInstanceId", rcv.AnomalyInstanceId,
-            tst.AnomalyInstanceId); len(s) > 0 {
+        tst.AnomalyInstanceId); len(s) > 0 {
         return s
     }
     if (tst.Timeout != -1) && (tst.Timeout != rcv.Timeout) {
@@ -488,7 +484,7 @@ func compActReqData(rcv *ActionRequestData, tst *ActionRequestData) string {
         if tst.Context != nil {
             if len(tst.Context) != len(rcv.Context) {
                 return fmt.Sprintf("Context: len mismatch (%d) != (%d)",
-                        len(rcv.Context), len(tst.Context))
+                    len(rcv.Context), len(tst.Context))
             }
             for i, t := range tst.Context {
                 if s := compActResData(rcv.Context[i], t); len(s) > 0 {
@@ -533,11 +529,11 @@ func buildReq(exp *ActionRequestData, seq int) (*ActionRequestData, error) {
             return nil, LogError("Restored data type (%T) != *ActionResponseData", rs)
         } else {
             ret := &ActionRequestData{
-                Action: exp.Action,
-                Timeout:exp.Timeout,
+                Action:            exp.Action,
+                Timeout:           exp.Timeout,
                 AnomalyInstanceId: req.AnomalyInstanceId,
-                AnomalyKey: res.AnomalyKey,
-                Context: make([]*ActionResponseData, len(req.Context) + 1),
+                AnomalyKey:        res.AnomalyKey,
+                Context:           make([]*ActionResponseData, len(req.Context)+1),
             }
             for i, v := range req.Context {
                 ret.Context[i] = v
@@ -548,13 +544,12 @@ func buildReq(exp *ActionRequestData, seq int) (*ActionRequestData, error) {
     } else {
         /* possible if first in sequence */
         ret := &ActionRequestData{
-            Action: exp.Action,
-            Timeout:exp.Timeout,
+            Action:  exp.Action,
+            Timeout: exp.Timeout,
         }
         return ret, nil
     }
 }
-
 
 /* Helper API */
 func buildRes(exp *ActionResponseData, seq int) (*ActionResponseData, error) {
@@ -581,13 +576,13 @@ func buildRes(exp *ActionResponseData, seq int) (*ActionResponseData, error) {
             key = req.AnomalyKey
         }
         ret := &ActionResponseData{
-            Action: exp.Action,
-            InstanceId: req.InstanceId,
+            Action:            exp.Action,
+            InstanceId:        req.InstanceId,
             AnomalyInstanceId: req.AnomalyInstanceId,
-            AnomalyKey: key,
-            Response: exp.Response,
-            ResultCode: exp.ResultCode,
-            ResultStr: exp.ResultStr,
+            AnomalyKey:        key,
+            Response:          exp.Response,
+            ResultCode:        exp.ResultCode,
+            ResultStr:         exp.ResultStr,
         }
         return ret, nil
     }
@@ -613,20 +608,20 @@ func (p *callArgs) call_receive_req(ti int, te *testEntry_t) {
     rcv, err := tx.RecvServerRequest()
     if te.failed != (err != nil) {
         p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
-                ti, te.toStr(), err)
+            ti, te.toStr(), err)
     }
     if err == nil {
         if len(te.result) != 1 {
             p.t.Fatalf("test index %v: Expect only one result len(%d)", ti, len(te.args))
         } else if rcv.ReqType != TypeServerRequestAction {
             p.t.Fatalf("Test index %v: Mismatch ReqType rcv(%v) != exp(%v)", ti,
-                    rcv.ReqType, TypeServerRequestAction)
+                rcv.ReqType, TypeServerRequestAction)
         } else if rcvd, ok := rcv.ReqData.(ActionRequestData); !ok {
             p.t.Fatalf("Test index %v: reqData type (%T) != ActionRequestData",
-                    ti, rcv.ReqData)
-        } else if exp, ok:= te.result[0].(*ActionRequestData); !ok {
+                ti, rcv.ReqData)
+        } else if exp, ok := te.result[0].(*ActionRequestData); !ok {
             p.t.Fatalf("Test index %v: Test error result (%T) != *ActionRequestData",
-                    ti, te.result[0])
+                ti, te.result[0])
         } else if expUpd, err := buildReq(exp, te.seqId); err != nil {
             p.t.Fatalf("Test index %v: buildReq failed (%v)", ti, err)
         } else if res := compActReqData(&rcvd, expUpd); len(res) > 0 {
@@ -636,7 +631,6 @@ func (p *callArgs) call_receive_req(ti int, te *testEntry_t) {
         }
     }
 }
-
 
 /*
  * Internal helper API to verify engine publishing against expected.
@@ -651,7 +645,7 @@ func verifyPublish(exp *ActionResponseData, complete bool) error {
 
     for {
         /* It is OK to block. If no data for 5 seconds, test will terminate */
-        s = <- publishCh
+        s = <-publishCh
 
         if err := json.Unmarshal([]byte(s), &pubRes); err != nil {
             return LogError("Unmarshal failed (%s)", s)
@@ -662,7 +656,7 @@ func verifyPublish(exp *ActionResponseData, complete bool) error {
         }
         /* Likely HB; Wait till action */
     }
-    
+
     if *pubRes.LoM_Action != *exp {
         return LogError("published(%v) != exp (%v)", *pubRes.LoM_Action, exp)
     }
@@ -699,13 +693,13 @@ func (p *callArgs) call_send_res(ti int, te *testEntry_t) {
 
     if len(te.args) != 1 {
         p.t.Fatalf("test index %v: Expect only one result len(%d)", ti, len(te.args))
-    } else if exp, ok:= te.args[0].(*ActionResponseData); !ok {
+    } else if exp, ok := te.args[0].(*ActionResponseData); !ok {
         p.t.Fatalf("Test index %v: Test error args (%T) != *ActionResponseData",
-                ti, te.args[0])
+            ti, te.args[0])
     } else if expUpd, err := buildRes(exp, te.seqId); err != nil {
         p.t.Fatalf("Test index %v: Test error (%v)", ti, err)
     } else {
-        res := &MsgSendServerResponse { TypeServerRequestAction, expUpd }
+        res := &MsgSendServerResponse{TypeServerRequestAction, expUpd}
         if te.failed {
             res.ReqType = TypeServerRequestCount /* To induce failure */
         }
@@ -714,8 +708,8 @@ func (p *callArgs) call_send_res(ti int, te *testEntry_t) {
         err := tx.SendServerResponse(res)
         if te.failed != (err != nil) {
             p.t.Fatalf("Test index %v: Unexpected behavior. te(%v) err(%v)",
-                    ti, te.toStr(), err)
-        } else if (err == nil) {
+                ti, te.toStr(), err)
+        } else if err == nil {
             saveResultAny(te.seqId, expUpd)
 
             if err = verifyPublish(expUpd, false); err != nil {
@@ -724,7 +718,6 @@ func (p *callArgs) call_send_res(ti int, te *testEntry_t) {
         }
     }
 }
-
 
 /*
  * Implementation for clientAPIID - CHK_REG_ACTIONS
@@ -754,19 +747,19 @@ func (p *callArgs) call_verify_registrations(ti int, te *testEntry_t) {
             p.t.Fatalf("%d: Missing client (%s) in active list", ti, k)
         }
         if len(v) != len(info.Actions) {
-            p.t.Fatalf("%d: len mismatch for client(%s) exp(%d) active(%d)", ti, 
-                    k, len(v), len(info.Actions))
+            p.t.Fatalf("%d: len mismatch for client(%s) exp(%d) active(%d)", ti,
+                k, len(v), len(info.Actions))
         }
         for _, a := range v {
             if _, ok1 := info.Actions[a]; !ok1 {
                 p.t.Fatalf("%d: Missing action. client(%s) exp(%v) active(%v)",
-                        ti, k, v, info.Actions)
+                    ti, k, v, info.Actions)
             }
         }
     }
     if len(expAct) != len(reg.activeActions) {
         p.t.Fatalf("%d: len mismatch. exp(%d) active(%d)", ti,
-                len(expAct), len(reg.activeActions))
+            len(expAct), len(reg.activeActions))
     }
 
     for k, v := range expAct {
@@ -777,7 +770,6 @@ func (p *callArgs) call_verify_registrations(ti int, te *testEntry_t) {
         }
     }
 }
-
 
 /*
  * Implementation for clientAPIID - NOTIFY_HB
@@ -821,7 +813,6 @@ func (p *callArgs) call_notify_hb(ti int, te *testEntry_t) {
     }
 }
 
-
 /*
  * Implementation for clientAPIID - CHK_ACTIV_REQ
  *
@@ -835,7 +826,7 @@ func (p *callArgs) call_verify_active_requests(ti int, te *testEntry_t) {
     }()
 
     handler := GetSeqHandler()
-    exp :=  make([]string, len(te.args))
+    exp := make([]string, len(te.args))
     for i, v := range te.args {
         if s, ok := v.(string); !ok {
             p.t.Fatalf("%d: Test error. arg (%T) not string", ti, v)
@@ -856,7 +847,6 @@ func (p *callArgs) call_verify_active_requests(ti int, te *testEntry_t) {
     }
 }
 
-
 /*
  * A helper just to introduce pause time where needed.
  * It literally sleeps with test heartbeats.
@@ -870,7 +860,7 @@ func (p *callArgs) call_pause(ti int, te *testEntry_t) {
 
     if len(te.args) != 1 {
         p.t.Fatalf("%d: Test error. Expect one arg (%v)", ti, te.args)
-    } else if tout, ok := te.args[0].(int); (!ok || tout <= 0) {
+    } else if tout, ok := te.args[0].(int); !ok || tout <= 0 {
         p.t.Fatalf("%d: Test error. arg (%T) not int or 0 (%v)", ti, te.args[0], tout)
     } else {
         for tout > 0 {
@@ -880,7 +870,6 @@ func (p *callArgs) call_pause(ti int, te *testEntry_t) {
         }
     }
 }
-
 
 /* Simple helper to construct first action's final resp */
 func margeRes(p *ActionResponseData, q *ActionResponseData) (*ActionResponseData, error) {
@@ -903,7 +892,7 @@ func (p *callArgs) call_seq_complete(ti int, te *testEntry_t) {
     }()
 
     rArgs := &ActionResponseData{}
-    if (len(te.args) > 0) {
+    if len(te.args) > 0 {
         if rtmp, ok := te.args[0].(*ActionResponseData); !ok {
             p.t.Fatalf("%d: Test error. arg (%T) not *ActionResponseData", ti, te.args[0])
             return
@@ -929,19 +918,19 @@ func (p *callArgs) call_seq_complete(ti int, te *testEntry_t) {
 }
 
 /*
- * All test runs are watched via chTestHeartbeat. 
+ * All test runs are watched via chTestHeartbeat.
  * Every test is expected to keep this channel alive.
  * An idle channel for too long is watched and terminated
  */
 func terminate(t *testing.T, tout int, chEnd chan int) {
     for {
         select {
-        case m := <- chTestHeartbeat:
+        case m := <-chTestHeartbeat:
             LogDebug("Test HB: (%s)", m)
 
-        case <- time.After(time.Duration(tout) * time.Second):
+        case <-time.After(time.Duration(tout) * time.Second):
             LogPanic("Terminating test for no heartbeats for tout=%d", tout)
-        case <- chEnd:
+        case <-chEnd:
             return
         }
     }
@@ -966,7 +955,7 @@ func testHeartbeatCh(m map[string]struct{}, ch chan string) {
     done := false
     for !done {
         /* It is OK to block. If no data for long, test will terminate */
-        s := <- publishCh
+        s := <-publishCh
 
         if err := json.Unmarshal([]byte(s), &hb); err != nil {
             ch <- "Unmarshal failed: " + s
@@ -974,7 +963,7 @@ func testHeartbeatCh(m map[string]struct{}, ch chan string) {
         }
         if hb.LoM_Heartbeat.Timestamp != 0 {
             /* This is HB */
-            done = len(m) == 0  /* Do one check after m is empty */
+            done = len(m) == 0 /* Do one check after m is empty */
             p := &hb.LoM_Heartbeat
             for _, v := range p.Actions {
                 if _, ok := m[v]; !ok {
@@ -1001,7 +990,7 @@ func testHeartbeatCh(m map[string]struct{}, ch chan string) {
  * The list is transient and gets cleared upon engine sending HB.
  * So the test sent notify for multiple actions could come in one / two
  * engine heartbeats.
- * 
+ *
  * Kick off testHeartbeatCh to receive engine HBs and remove from expected
  * list. Return when list become empty or on error.
  *
@@ -1011,6 +1000,7 @@ func testHeartbeatCh(m map[string]struct{}, ch chan string) {
  * allowing terminate to abort the testing.
  */
 const HB_WAIT = 10
+
 func testHeartbeat(actions []string) error {
     ch := make(chan string)
     cnt := HB_WAIT
@@ -1027,14 +1017,14 @@ func testHeartbeat(actions []string) error {
     /* Return on error or completion. Stop sending test HB after HB_WAIT */
     for {
         select {
-        case err := <- ch:
+        case err := <-ch:
             if len(err) != 0 {
                 return LogError(err)
             } else {
                 return nil
             }
 
-        case <- time.After(1 * time.Second):
+        case <-time.After(1 * time.Second):
             if cnt > 0 {
                 cnt--
                 chTestHeartbeat <- fmt.Sprintf("Waiting for HB %d/%d", cnt, HB_WAIT)
@@ -1067,8 +1057,8 @@ func runTestEntries(cArgs *callArgs, collPath string, lst testEntriesList_t) {
     for _, t_i := range ordered {
         t_e := lst[t_i]
 
-        LogDebug ("---------------- coll: %v tid: %v START (%s) ----------", collPath, t_i, t_e.desc)
-        switch (t_e.id) {
+        LogDebug("---------------- coll: %v tid: %v START (%s) ----------", collPath, t_i, t_e.desc)
+        switch t_e.id {
         case REG_CLIENT:
             cArgs.call_register_client(t_i, &t_e)
         case REG_ACTION:
@@ -1094,7 +1084,7 @@ func runTestEntries(cArgs *callArgs, collPath string, lst testEntriesList_t) {
         default:
             cArgs.t.Fatalf("Unhandled API ID (%v)", t_e.id)
         }
-        LogDebug ("---------------- coll: %v tid: %v  END  (%s) ----------", collPath, t_i, t_e.desc)
+        LogDebug("---------------- coll: %v tid: %v  END  (%s) ----------", collPath, t_i, t_e.desc)
     }
 }
 
@@ -1103,20 +1093,21 @@ func runTestEntries(cArgs *callArgs, collPath string, lst testEntriesList_t) {
  * Pre & Post are by themselves list of collections, which can be empty
  */
 func runColl(cArgs *callArgs, collPath string, te *testCollectionEntry_t) {
-    LogDebug ("**************** coll: %s START (%s) **********", collPath, te.desc)
+    LogDebug("**************** coll: %s START (%s) **********", collPath, te.desc)
     for _, pre := range te.preSetup {
-        runColl(cArgs, collPath + "/" + string(pre), testCollections[pre])
+        runColl(cArgs, collPath+"/"+string(pre), testCollections[pre])
     }
-    LogDebug ("**************** coll: %s  Run  (%s) **********", collPath, te.desc)
+    LogDebug("**************** coll: %s  Run  (%s) **********", collPath, te.desc)
     runTestEntries(cArgs, collPath, te.testEntries)
-    for _, post:= range te.postCleanup {
-        runColl(cArgs, collPath + "/" + string(post), testCollections[post])
+    for _, post := range te.postCleanup {
+        runColl(cArgs, collPath+"/"+string(post), testCollections[post])
     }
-    LogDebug ("**************** coll: %s  END  (%s) **********", collPath, te.desc)
+    LogDebug("**************** coll: %s  END  (%s) **********", collPath, te.desc)
 }
 
 /* Creates the conf files as per data in this code */
 var initConfigDone = false
+
 func initConfig(t *testing.T) {
     if !initConfigDone {
         createFile(t, "globals.conf.json", globals_conf)
@@ -1127,10 +1118,9 @@ func initConfig(t *testing.T) {
     }
 }
 
-
 /*
  * Executes all test collections
- * 
+ *
  * initServer starts the engine and terminated only the end.
  * engine starts listening for client connections.
  *
@@ -1152,11 +1142,10 @@ func TestRun(t *testing.T) {
 
     for _, collId := range testRunList {
         /* Create new transports for a collection */
-        cArgs := &callArgs{t: t, lstTx: make(map[string]*ClientTx) }
+        cArgs := &callArgs{t: t, lstTx: make(map[string]*ClientTx)}
         runColl(cArgs, string(collId), testCollections[collId])
-        resetResultAll()        /* Reset all saved results */
+        resetResultAll() /* Reset all saved results */
     }
     chEnd <- 0
-    engine.close()  /* Close the engine */
+    engine.close() /* Close the engine */
 }
-
