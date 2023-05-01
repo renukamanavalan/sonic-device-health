@@ -1,5 +1,7 @@
 #! /bin/bash
 
+# Run the slave docker with path one level down as root dir.
+#
 set -x
 
 docker run --rm=true --privileged --init \
