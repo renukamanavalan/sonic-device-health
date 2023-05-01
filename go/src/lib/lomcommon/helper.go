@@ -56,7 +56,7 @@ func SetLogLevel(lvl syslog.Priority) {
 // setprefix is used to set a prefix for all log messages
 var apprefix string
 func SetPrefix(p string) {
-    apprefix = p + ":"
+    apprefix = p + " : "
 }
 
 func getPrefix(skip int) string {
@@ -159,9 +159,9 @@ func LogDebug(s string, a ...interface{})  {
     LogMessage(syslog.LOG_DEBUG, s, a...)
 }
 
-/**********************************************************************/
-/* Log Periodic 													  */
-/**********************************************************************/
+/* 
+ * Log Periodic module 	--------------------------------------------------------------------										  
+ */
 
 var uuid_suffix = 0
 var UUID_BIN = "uuidgen"
@@ -358,7 +358,9 @@ func (p *logPeriodic_t) writeLogs() bool {
     return upd
 }
 
-/**** Log Periodic Helpers ******/
+/* 
+ * Log Periodic Helpers  -----------------------------------------------------------------
+ */
 
 func AddPeriodicLogNotice(ID string, message string, period int) error {
 	return AddPeriodicLogEntry(ID, message, syslog.LOG_NOTICE, period)
@@ -398,9 +400,9 @@ func UpdatePeriodicLogTime(id string, newPeriod int) error {
 	return GetlogPeriodic().updatePeriod(id, newPeriod)
 }
 
-/*************************************************************************************************/
-/* One shot Timer 																				 */
-/*************************************************************************************************/
+/* 
+ * Oneshort Timer  -----------------------------------------------------------------
+ */
 
 type OneShotEntry_t struct {
     due     int64       /* Time point of firing as epoch secconds */
@@ -539,11 +541,11 @@ func (p *oneShotTimer_t) runOneShotTimer() {
         }
     }
 }
-/****************************End Oneshor timer************************************************/
 
-/*************************************************************************************************/
-/* Goroutine Tracker																			 */
-/*************************************************************************************************/
+
+/* 
+ * Go Routine Tracker  -----------------------------------------------------------------
+ */
 
 /* TODO: Goutham : Add a run method which will carry a non-zero timeout. This method will block 
 until either the called routine returns or timeout fires., whichever occurs earlier.
@@ -801,71 +803,9 @@ func (grt *GoroutineTracker) InfoList(name *string) []interface{} {
 }
 
 
-
-// TODO: Goutham : Cleanup
-
- /***** Usage Examples
-
-func myFunc(args ...interface{}) {
-	fmt.Println("Goroutine is running with args:", args)
-	time.Sleep(2 * time.Second)
-}
-
-type MyStruct struct {
-	Name string
-}
-
-func (s *MyStruct) Print() {
-	fmt.Println(s.Name)
-}
-
-func (s *MyStruct) PrintArg(a int, b int) {
-	fmt.Printf("Testing with args .......... %d %d", a,b)
-}
-
-
-func main() {
-	mygoroutinetracker := NewGoroutineTracker()
-
-	// Start a goroutine
-	mygoroutinetracker.Start("goroutine1", myFunc, "arg1", "arg2")
-
-	// Check if the goroutine is still running
-	if status,ok := mygoroutinetracker.IsRunning("goroutine1"); ok {
-		fmt.Println("Goroutine1 is still running.")
-	}
-
-    if timeStarted,ok := mygoroutinetracker.GetTimeStarted("goroutine1"); ok {
-        fmt.Println("Goroutine1 started at", timeStarted)
-    }
-
-	// Wait for the goroutine to finish
-	mygoroutinetracker.Wait("goroutine1")
-
-	// List all the goroutines and their statuses
-	fmt.Println("Goroutine statuses:")
-	for _, g := range mygoroutinetracker.List() {
-		fmt.Println(g)
-	}
-
-	// ---------  Valid calls - Valid way of using the API
-	mygoroutinetracker.Start("test", func (a int, b int) { fmt.Printf("hello... %d %d", a,b) }, 10, 20)
-	mygoroutinetracker.Start("test1", func () { fmt.Printf("hello") })
-	var ptr = &MyStruct{"hello"}
-	mygoroutinetracker.Start("test3", ptr.Print)
-	mygoroutinetracker.Start("test4", ptr.PrintArg, 10, 20)
-
-	// ------- panic calls - Invalid way of using the API
-	//mygoroutinetracker.Start("test5", func (a int, b int) { fmt.Printf("hello %d %d", a,b) })
-	//mygoroutinetracker.Start("test6", func () { fmt.Printf("hello") }, 10, 20)
-	//mygoroutinetracker.Start("test7", ptr.Print, 10, 20)
-	//mygoroutinetracker.Start("test8", ptr.PrintArg)
-}
-****************************End GoRoutine Tracker************************************************/
-
-/*************************************************************************************************/
-/* Read Environment variables																	 */
-/*************************************************************************************************/
+/* 
+ * Read environment variables  -----------------------------------------------------------------
+ */
 
 // variable name , system env variable name, default value
 const EnvMapDefinitionsStr = `{
@@ -900,4 +840,4 @@ func GetEnvVarString(envname string) (string, bool) {
 	value, exists := envMap[envname]
 	return value, exists
 }
-/********************** End read Environemnt Variable ********************************/
+
