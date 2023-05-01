@@ -1,11 +1,12 @@
 package lomcommon
 
 import (
-    "encoding/json"
-    "io"
-    "os"
-    "path/filepath"
-    "sort"
+	"encoding/json"
+	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"sort"
 )
 
 
@@ -23,12 +24,14 @@ const (
     GLOBALS_CONF_FILE = "globals.conf.json"
     ACTIONS_CONF_FILE = "actions.conf.json"
     BINDINGS_CONF_FILE = "bindings.conf.json"
+    PROCS_CONF_FILE = "procs.conf.json"
 )
 
 type ConfigFiles_t struct {
-    GlobalFl    string
-    ActionsFl   string
-    BindingsFl  string
+	GlobalFl   string
+	ActionsFl  string
+	BindingsFl string
+	ProcsFl    string
 }
 
 const (
@@ -206,6 +209,13 @@ func (p *GlobalConfig_t) GetValAny(key string) any {
     return p.anyVal[key]
 }
 
+// TODO: Goutham. Add/delete other fields
+// Proc plugin conf file params
+type ProcPluginConfig_t struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Path    string `json:"path"`
+}
 
 /* Action config as read from actions.conf.json */
 type ActionCfg_t struct {
@@ -220,6 +230,12 @@ type ActionCfg_t struct {
 
 /* Map with action name */
 type ActionsConfigList_t  map[string]ActionCfg_t
+
+/* Map with key as action name and value as action's config for a particular procID */
+type ProcPluginConfigList_t map[string]ProcPluginConfig_t
+
+/* Map with key as procID and value JOSN of actions for that procID */
+type ProcPluginConfigListAll_t map[string]ProcPluginConfigList_t
 
 /* Action entry in sequence from binding sequence config */
 type BindingActionCfg_t struct {
@@ -274,9 +290,10 @@ type BindingsConfig_t map[string]BindingSequence_t
 
 /* ConfigMgr - A single stop for all configs */
 type ConfigMgr_t struct {
-    globalConfig    *GlobalConfig_t
-    actionsConfig   ActionsConfigList_t
-    bindingsConfig  BindingsConfig_t
+	globalConfig   *GlobalConfig_t
+	actionsConfig  ActionsConfigList_t
+	bindingsConfig BindingsConfig_t
+	procsConfig    ProcPluginConfigListAll_t
 }
 
 
@@ -304,6 +321,34 @@ func (p *ConfigMgr_t) readActionsConf(fl string) error {
     }
 }
 
+/*
+ * Read procs_conf.json file & store procID to its actions & data mapping
+ *
+ * Input:
+ *  filename - File name. e.g. actions_conf.json
+ *
+ * Output:
+ *  none -
+ *
+ * Return:
+ *  error - error message or nil on success
+ */
+ // TODO: Goutham. In case of dublicate actions in multiple procs, last one will win
+func (p *ConfigMgr_t) readProcsConf(filename string) error {
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+
+    var jsonData ProcPluginConfigListAll_t // map [procID] ProcPluginConfigList_t
+	err = json.Unmarshal(data, &jsonData)
+	if err != nil {
+		return err
+	}
+    p.procsConfig = jsonData
+
+	return nil
+}
 
 func (p *ConfigMgr_t) readBindingsConf(fl string) error {
     bindings := struct {
@@ -367,25 +412,19 @@ func (p *ConfigMgr_t) readBindingsConf(fl string) error {
 
 
 func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
-    if err := p.globalConfig.readGlobalsConf(cfgFiles.GlobalFl); err != nil {
-        return LogError("Globals: %s: %v", cfgFiles.GlobalFl, err)
-    } 
-    if err := p.readActionsConf(cfgFiles.ActionsFl); err != nil {
-        return LogError("Actions: %s: %v", cfgFiles.ActionsFl, err)
-    } 
-    if err := p.readBindingsConf(cfgFiles.BindingsFl); err != nil {
-        return LogError("Bind: %s: %v", cfgFiles.BindingsFl, err)
-    } 
-    test_mode_fl := filepath.Join(filepath.Dir(cfgFiles.GlobalFl), LOM_TESTMODE_NAME)
-    if _, err := os.Stat(test_mode_fl); os.IsNotExist(err) {
-        LogDebug("Run in Prod mode as fl(%s) not exist. err(%v)", test_mode_fl, err)
-        SetLoMRunMode(LoMRunMode_Prod)
-    } else {
-        LogDebug("Run in Testg mode as fl(%s) exists. err(%v)", test_mode_fl, err)
-        SetLoMRunMode(LoMRunMode_Test)
-    }
-
-    return nil
+	if err := p.globalConfig.readGlobalsConf(cfgFiles.GlobalFl); err != nil {
+		return LogError("Globals: %s: %v", cfgFiles.GlobalFl, err)
+	}
+	if err := p.readActionsConf(cfgFiles.ActionsFl); err != nil {
+		return LogError("Actions: %s: %v", cfgFiles.ActionsFl, err)
+	}
+	if err := p.readBindingsConf(cfgFiles.BindingsFl); err != nil {
+		return LogError("Bind: %s: %v", cfgFiles.BindingsFl, err)
+	}
+	if err := p.readProcsConf(cfgFiles.ProcsFl); err != nil {
+		return LogError("Procs: %s: %v", cfgFiles.ProcsFl, err)
+	}
+	return nil
 }
 
 /*
@@ -519,6 +558,30 @@ func (p *ConfigMgr_t) GetActionConfig(name string) (*ActionCfg_t, error) {
 }
 
 /*
+ * GetProcsConfig
+ *  Return config as read from procs_conf.json for a particular proc ID.
+ *  Else null with non nil error.
+ *
+ * Input:
+ *  procID - proc ID string
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  config - If present in proc conf file, return it, else nil
+ *  error - If not in procs config, return non nil error, else nil
+ */
+ func (p *ConfigMgr_t) GetProcsConfig(procID string) (ProcPluginConfigList_t, error) {
+    procInfo, ok := p.procsConfig[procID]
+    if !ok {
+        return nil, LogError("Failed to get config for proc ID (%s)", procID)
+    }
+
+    return procInfo, nil
+}
+
+/*
  * GetActionsList
  *  Return list of all actions from config, with a flag indicating if that
  *  action is anomaly or not. IsAnomaly is set to true, if first action
@@ -568,7 +631,7 @@ func GetConfigMgr() *ConfigMgr_t {
  *  error - Non nil on any failure, else nil
  */
 func InitConfigMgr(p *ConfigFiles_t) (*ConfigMgr_t, error) {
-    t := &ConfigMgr_t{new(GlobalConfig_t), make(ActionsConfigList_t), make(BindingsConfig_t)}
+	t := &ConfigMgr_t{new(GlobalConfig_t), make(ActionsConfigList_t), make(BindingsConfig_t), make(ProcPluginConfigListAll_t)}
 
     if err := t.loadConfigFiles(p); err != nil {
         return nil, err
@@ -579,14 +642,21 @@ func InitConfigMgr(p *ConfigFiles_t) (*ConfigMgr_t, error) {
 }
 
 
-func InitConfigPath(cfgPath string) error {
+func InitConfigPath(path string) error {
+    if len(path) == 0 {
+        cfgPath, exists := GetEnvVarString("ENV_lom_conf_location")
+        if !exists || len(cfgPath) == 0 {
+            return LogError("LOM_CONF_LOCATION environment variable not set")
+        }
+        path = cfgPath
+    }
     cfgFiles := &ConfigFiles_t {
-        GlobalFl: filepath.Join(cfgPath, GLOBALS_CONF_FILE),
-        ActionsFl: filepath.Join(cfgPath, ACTIONS_CONF_FILE),
-        BindingsFl: filepath.Join(cfgPath, BINDINGS_CONF_FILE),
+        GlobalFl: filepath.Join(path, GLOBALS_CONF_FILE),
+        ActionsFl: filepath.Join(path, ACTIONS_CONF_FILE),
+        BindingsFl: filepath.Join(path, BINDINGS_CONF_FILE),
+        ProcsFl: filepath.Join(path, PROCS_CONF_FILE),
     }
 
     _, err := InitConfigMgr(cfgFiles)
     return err
 }
-

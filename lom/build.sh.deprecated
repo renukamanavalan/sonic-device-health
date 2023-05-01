@@ -2,10 +2,19 @@
 
 # may have to set GO111MODULE=off
 
+<<<<<<< HEAD
 # set -x
 
 export GO111MODULE=on
 export GO=/usr/local/go/bin/go
+=======
+##export GOPATH=$(pwd;)
+
+##echo $GOPATH
+
+# set -x
+
+>>>>>>> origin/LoM-Prod
 
 # Define output directory
 OUTPUT_DIR=$(realpath ./bin)
@@ -14,6 +23,7 @@ OUTPUT_DIR=$(realpath ./bin)
 export GOBIN=$OUTPUT_DIR
 
 # Install any dependencies specified in go.mod
+<<<<<<< HEAD
 ${GO} mod download -x
 ${GO} version
 
@@ -22,37 +32,93 @@ install() {
     rm -rf $OUTPUT_DIR
     mkdir -p $OUTPUT_DIR
     ${GO} install ./...
+=======
+go mod download -x
+
+
+install() {
+    echo "Installing to "$OUTPUT_DIR
+    go install ./...
+>>>>>>> origin/LoM-Prod
     echo "Build completed successfully."
 }
 
 etest() {
+<<<<<<< HEAD
     ${GO} test $1 -coverprofile=coverprofile.out  -coverpkg engine -covermode=atomic engine
+=======
+    go test $1 -coverprofile=coverprofile.out  -coverpkg engine -covermode=atomic engine
+>>>>>>> origin/LoM-Prod
     if [ $? -ne 0 ]; then
         echo "Failed to run engine test"
         exit -1
     fi
+<<<<<<< HEAD
     ${GO} tool cover -html=coverprofile.out -o /tmp/coverage.html
+=======
+    go tool cover -html=coverprofile.out -o /tmp/coverage.html
+>>>>>>> origin/LoM-Prod
     ls -l coverprofile.out /tmp/coverage.html
     echo "View /tmp/coverage.html in Edge"
 }
 
 test() {
+<<<<<<< HEAD
     ${GO} test $1 -coverprofile=coverprofile.out  -coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon -covermode=atomic ./src/lib/lib_test
     echo $?
+=======
+    go test $1 -coverprofile=coverprofile.out  -coverpkg go/src/lib/lomipc,go/src/lib/lomcommon -covermode=atomic ./src/lib/lib_test
+>>>>>>> origin/LoM-Prod
     if [ $? -ne 0 ]; then
         echo "Failed to run test"
         exit -1
     fi
+<<<<<<< HEAD
     ${GO} tool cover -html=coverprofile.out -o /tmp/coverage.html
+=======
+    go tool cover -html=coverprofile.out -o /tmp/coverage.html
+>>>>>>> origin/LoM-Prod
     ls -l coverprofile.out /tmp/coverage.html
     echo "View /tmp/coverage.html in Edge"
 }
 
+<<<<<<< HEAD
+=======
+dbClientTest() { 
+  go test $1 -p 1 -coverprofile=dbclient_coverprofile.out  -coverpkg go/src/vendors/sonic/client/dbclient -covermode=atomic go/src/vendors/sonic/client/dbclient
+  if [ $? -ne 0 ]; then
+  	echo "Failed to run test"
+  	exit -1
+  fi
+  cat ./dbclient_coverprofile.out* > dbclient_coverprofile.out
+  go tool cover -html=dbclient_coverprofile.out -o /tmp/dbclient_coverage.html
+  ls -l dbclient_coverprofile.out /tmp/dbclient_coverage.html
+  echo "View /tmp/dbclient_coverage.html in Edge"
+
+}
+
+test_plugin_mgr() {
+    go test -v -p 1 -cover $1 -coverprofile=coverprofile_plmgr.out -coverpkg go/src/lib/lomcommon,go/src/pluginmgr/pluginmgr_common,go/src/pluginmgr/plugins_common,go/src/pluginmgr/plugins_files -covermode=atomic ./src/pluginmgr/pluginmgr_test ./src/pluginmgr/pluginmgr_common
+    if [ $? -ne 0 ]; then
+        echo "Failed to run plugin manager test"
+        exit -1
+    fi
+   
+    go tool cover -html=coverprofile_plmgr.out -o /tmp/coverage_plmgr.html
+    ls -l coverprofile_plmgr.out /tmp/coverage_plmgr.html
+    echo "View /tmp/coverage_plmgr.html in Edge"
+}
+
+>>>>>>> origin/LoM-Prod
 clean() {
     echo "run clean"
     rm -rf bin/*
     rm -rf pkg/*
+<<<<<<< HEAD
     rm -f coverprofile.out
+=======
+    rm -f coverprofile*.out
+>>>>>>> origin/LoM-Prod
 }
 
 list() {
@@ -77,6 +143,15 @@ elif [[ "list" == "$cmd"* ]]; then
 elif [[ "test" == "$cmd"* ]]; then
     test ""
 
+<<<<<<< HEAD
+=======
+elif [[ "dbClientTest" == "$cmd"* ]]; then
+    dbClientTest ""
+    
+elif [[ "test_plugin_mgr" == "$cmd"* ]]; then
+    test_plugin_mgr ""
+
+>>>>>>> origin/LoM-Prod
 elif [[ "vtest" == "$cmd"* ]]; then
     test "-v"
 
@@ -85,7 +160,13 @@ elif [[ "etest" == "$cmd"* ]]; then
 
 elif [[ "xetest" == "$cmd"* ]]; then
     etest "-v"
+<<<<<<< HEAD
 else
+=======
+
+else
+    echo "($cmd) match None"
+>>>>>>> origin/LoM-Prod
     echo "install / test / clean"
 fi
 
