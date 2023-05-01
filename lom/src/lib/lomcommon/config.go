@@ -14,6 +14,9 @@ const (
     ENGINE_HB_INTERVAL_SECS      = "ENGINE_HB_INTERVAL_SECS"
     MAX_SEQ_TIMEOUT_SECS         = "MAX_SEQ_TIMEOUT_SECS"
     MIN_PERIODIC_LOG_PERIOD_SECS = "MIN_PERIODIC_LOG_PERIOD_SECS"
+
+    /* Look for this name in Env or file */
+    LOM_TESTMODE_NAME = "LoMTestMode"
 )
 
 const (
@@ -45,6 +48,66 @@ type GlobalConfig_t struct {
     ints    map[string]int
     anyVal  map[string]any
 }
+
+/*
+ * LoM can be run in Test or Prod mode.
+ *
+ * Mode can be set via Env
+ *      "LoMTestMode=yes" - Sets to Test Mode
+ *      "LoMTestMod=<Any other value> - sets to Prod Mode
+ *
+ * If "LoMTestMode" env is not set, 
+ *  if <Confiig Path of globals.conf.json>/LoMTestMode file exists
+ *      Mode is set to Test
+ *  else
+ *      Mode is set to Prod
+ *
+ * Until config is loaded, the mode could be uninitialized, unless env is set.
+ */
+type LoMRunMode_t int
+const (
+    LoMRunMode_NotSet = LoMRunMode_t(iota) // Unknown till config init
+    LoMRunMode_Test
+    LoMRunMode_Prod
+)
+
+/* InitConfigPath sets the mode */
+var lomRunMode = LoMRunMode_NotSet
+
+func GetLoMRunMode() LoMRunMode_t {
+    if lomRunMode == LoMRunMode_NotSet {
+        if val, ok := os.LookupEnv(LOM_TESTMODE_NAME); ok {
+            if val == "yes" {
+                lomRunMode = LoMRunMode_Test
+            } else {
+                lomRunMode = LoMRunMode_Prod
+            }
+        }
+    }
+    return lomRunMode
+}
+
+func SetLoMRunMode(mode LoMRunMode_t) error {
+    if (mode != LoMRunMode_Test) && (mode != LoMRunMode_Prod) {
+        return LogError("mode=(%v) is invalid", mode)
+    }
+
+    /* Call get to ensure, Env is checked first */
+    ctMode := GetLoMRunMode()
+
+    if ctMode == LoMRunMode_NotSet {
+        /* LOM_TESTMODE_NAME ("LoMTestMode") is not set in Env */
+        lomRunMode = mode
+    } else if ctMode != mode {
+        return LogError("Mode already set(%v) != new mode(%v)", ctMode, mode)
+    }
+    return nil
+}
+
+func ResetLoMMode() {
+    lomRunMode = LoMRunMode_NotSet
+}
+
 
 /*
  * NOTE: This will be deprecated soon.
@@ -355,6 +418,14 @@ func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
     }
     if err := p.readProcsConf(cfgFiles.ProcsFl); err != nil {
         return LogError("Procs: %s: %v", cfgFiles.ProcsFl, err)
+    }
+    test_mode_fl := filepath.Join(filepath.Dir(cfgFiles.GlobalFl), LOM_TESTMODE_NAME)
+    if _, err := os.Stat(test_mode_fl); os.IsNotExist(err) {
+        LogDebug("Run in Prod mode as fl(%s) not exist. err(%v)", test_mode_fl, err)
+        SetLoMRunMode(LoMRunMode_Prod)
+    } else {
+        LogDebug("Run in Testg mode as fl(%s) exists. err(%v)", test_mode_fl, err)
+        SetLoMRunMode(LoMRunMode_Test)
     }
     return nil
 }
