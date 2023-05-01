@@ -1,17 +1,20 @@
 package lomcommon
 
 import (
-    "errors"
-    "fmt"
-    "log"
-    "log/syslog"
-    "math"
-    "os"
-    "os/exec"
-    "runtime"
-    "sort"
-    "strings"
-    "time"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"log/syslog"
+	"math"
+	"os"
+	"os/exec"
+	"reflect"
+	"runtime"
+	"sort"
+	"strings"
+	"sync"
+	"time"
 )
 
 var writers = make(map[syslog.Priority]*syslog.Writer)
@@ -50,10 +53,14 @@ func SetLogLevel(lvl syslog.Priority) {
     log_level = lvl
 }
 
-func getPrefix(skip int) string {
-    t := time.Now()
-    prefix := fmt.Sprintf("%02d:%02d:%02d: ", t.Hour(), t.Minute(), t.Second())
+// setprefix is used to set a prefix for all log messages
+var apprefix string
+func SetPrefix(p string) {
+    apprefix = p + " : "
+}
 
+func getPrefix(skip int) string {
+    prefix := apprefix
     if _, fl, ln, ok := runtime.Caller(skip); ok {
         /*
          * sample fl = /home/localadmin/tools/go/caller/t.go 
@@ -151,6 +158,10 @@ func LogDebug(s string, a ...interface{})  {
     LogMessage(syslog.LOG_DEBUG, s, a...)
 }
 
+/* 
+ * Log Periodic module 	--------------------------------------------------------------------										  
+ */
+
 var uuid_suffix = 0
 var UUID_BIN = "uuidgen"
 
@@ -191,7 +202,7 @@ type logPeriodicEntryInt_t struct {
 }
 
 /* Log Periodic module */
-type LogPeriodic_t struct {
+type logPeriodic_t struct {
     /* Channel to communicate to logging routine */
     logCh               chan *LogPeriodicEntry_t
 
@@ -205,16 +216,22 @@ type LogPeriodic_t struct {
 }
 
 
-var logPeriodic *LogPeriodic_t
+var logPeriodic *logPeriodic_t
 
 /* Get Log Periodic instance */
-func GetlogPeriodic() *LogPeriodic_t {
+func GetlogPeriodic() *logPeriodic_t{
+    if logPeriodic != nil {
+        return logPeriodic
+    }    
+    // TODO: Replace with global abort channel later
+    chAbort := make(chan interface{})
+    logPeriodicInit(chAbort)
     return logPeriodic
 }
 
 /* Initialize the singleton instance for log periodic */
-func LogPeriodicInit(chAbort chan interface{}) {
-    logPeriodic = &LogPeriodic_t {
+func logPeriodicInit(chAbort chan interface{}) {
+    logPeriodic = &logPeriodic_t {
         logCh: make( chan *LogPeriodicEntry_t),
         logPeriodicList: make(map[string]*logPeriodicEntryInt_t),
         logPeriodicSorted: nil,
@@ -224,7 +241,7 @@ func LogPeriodicInit(chAbort chan interface{}) {
 }
 
 /* Helper to add a log periodic entry */
-func (p *LogPeriodic_t) AddLogPeriodic(l *LogPeriodicEntry_t) error {
+func (p *logPeriodic_t) AddLogPeriodic(l *LogPeriodicEntry_t) error {
     if ((len(l.ID) == 0) || (len(l.Message) == 0)) {
         return LogError("LogPeriodicEntry ID or message is empty")
     }
@@ -237,15 +254,14 @@ func (p *LogPeriodic_t) AddLogPeriodic(l *LogPeriodicEntry_t) error {
 }
 
 /* Helper to remove a previouslu added log periodic entry */
-func (p *LogPeriodic_t) DropLogPeriodic(ID string) {
+func (p *logPeriodic_t) DropLogPeriodic(ID string) {
     if len(ID) > 0 {
         /* Emtpy Message implies drop */
         p.logCh  <- &LogPeriodicEntry_t {ID: ID }
     }
 }
 
-
-func (p *LogPeriodic_t) run(chAbort chan interface{}) {
+func (p *logPeriodic_t) run(chAbort chan interface{}) {
     tout := A_DAY_IN_SECS           /* Just a init value; Once per day */
 
     for {
@@ -283,8 +299,22 @@ func (p *LogPeriodic_t) run(chAbort chan interface{}) {
     }
 }
 
+func (p *logPeriodic_t) updatePeriod(id string, newPeriod int) error {
+	entry, ok := logPeriodic.logPeriodicList[id]
+	if !ok {
+		return LogError("Periodic entry with ID(%s) not found", id)
+	}
+	newentry := &LogPeriodicEntry_t{
+		ID:      id,
+		Message: entry.Message,
+		Lvl:     entry.Lvl,
+		Period:  newPeriod,
+	}
 
-func (p *LogPeriodic_t) update(l *LogPeriodicEntry_t) bool {
+	return logPeriodic.AddLogPeriodic(newentry)
+}
+
+func (p *logPeriodic_t) update(l *LogPeriodicEntry_t) bool {
     upd := false
     v, ok := p.logPeriodicList[l.ID]
     if len(l.Message) > 0 {
@@ -309,7 +339,7 @@ func (p *LogPeriodic_t) update(l *LogPeriodicEntry_t) bool {
 }
 
 
-func (p *LogPeriodic_t) writeLogs() bool {
+func (p *logPeriodic_t) writeLogs() bool {
     now := time.Now().Unix()
     upd := false 
 
@@ -327,6 +357,51 @@ func (p *LogPeriodic_t) writeLogs() bool {
     return upd
 }
 
+/* 
+ * Log Periodic Helpers  -----------------------------------------------------------------
+ */
+
+func AddPeriodicLogNotice(ID string, message string, period int) error {
+	return AddPeriodicLogEntry(ID, message, syslog.LOG_NOTICE, period)
+}
+
+func AddPeriodicLogInfo(ID string, message string, period int) error {
+	return AddPeriodicLogEntry(ID, message, syslog.LOG_INFO, period)
+}
+
+func AddPeriodicLogDebug(ID string, message string, period int) error {
+	return AddPeriodicLogEntry(ID, message, syslog.LOG_DEBUG, period)
+}
+
+func AddPeriodicLogError(ID string, message string, period int) error {
+	return AddPeriodicLogEntry(ID, message, syslog.LOG_ERR, period)
+}
+
+func AddPeriodicLogEntry(ID string, message string, lvl syslog.Priority, period int) error {
+	entry := &LogPeriodicEntry_t{
+		ID:      ID,
+		Message: message,
+		Lvl:     lvl,
+		Period:  period,
+	}
+	err := GetlogPeriodic().AddLogPeriodic(entry)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func RemovePeriodicLogEntry(ID string) {
+	GetlogPeriodic().DropLogPeriodic(ID)
+}
+
+func UpdatePeriodicLogTime(id string, newPeriod int) error {
+	return GetlogPeriodic().updatePeriod(id, newPeriod)
+}
+
+/* 
+ * Oneshort Timer  -----------------------------------------------------------------
+ */
 
 type OneShotEntry_t struct {
     due     int64       /* Time point of firing as epoch secconds */
@@ -464,5 +539,304 @@ func (p *oneShotTimer_t) runOneShotTimer() {
         case <- time.After(time.Duration(tout) * time.Second):
         }
     }
+}
+
+
+/* 
+ * Go Routine Tracker  -----------------------------------------------------------------
+ */
+
+/* TODO: Goutham : Add a run method which will carry a non-zero timeout. This method will block 
+until either the called routine returns or timeout fires., whichever occurs earlier.
+If timeout fires, it kick off periodic log message and stop the message upon the routine returns. */
+
+/* TODO: Goutham : For WaitAll, accept a systemwide channel which will timeout the function */
+ 
+// GoroutineTracker is a helper for tracking goroutines. It can be used to
+// a) Track all goroutines
+// b) wait on specific goroutine to finish
+// c) Get status of all goroutines
+// d) Get status of specific goroutine
+
+var goroutineTracker *GoroutineTracker = nil
+
+type GoroutineStatus bool
+const (
+	GoroutineStatusRunning GoroutineStatus = false
+	GoroutineStatusFinished GoroutineStatus = true
+)
+
+type Goroutine struct {
+	Status    GoroutineStatus
+	done      chan struct{}
+	StartTime time.Time
+	EndTime   time.Time
+}
+
+type GoroutineInfo struct {
+    Goroutine
+	Name      string
+	Duration  time.Duration
+}
+
+type GoroutineTracker struct {
+	mlock      sync.Mutex
+	goroutines map[string]*Goroutine
+	waitGroup  sync.WaitGroup
+}
+
+// Create a new GoroutineTracker and return GoroutineTracker instance
+//
+// Parameters:
+// - None:
+//
+// Returns:
+// - pointer to a new GoroutineTracker instance:
+func GetGoroutineTracker() *GoroutineTracker {
+    if goroutineTracker != nil {
+        return goroutineTracker
+    }        
+    goroutineTracker = &GoroutineTracker{
+        mlock:      sync.Mutex{},
+        goroutines: make(map[string]*Goroutine),
+        waitGroup:  sync.WaitGroup{},
+    }
+    return goroutineTracker
+}
+
+// Start a goroutine with given name. If a goroutine with same name already exists, then it panics
+// Returns true if the goroutine is runing, false otherwise.
+//
+// Parameters:
+// - name: the name of the goroutine
+// - fn  : Function to be called
+// - args - Arguments to be passed to the function
+//
+// Returns:
+// - None:
+func (grt *GoroutineTracker) Start(name string, fn interface{}, args ...interface{}) {
+	grt.mlock.Lock()
+	defer grt.mlock.Unlock()
+
+	if _, ok := grt.goroutines[name]; ok {
+		// Goroutine with same name already exists & active
+        if grt.goroutines[name].Status == GoroutineStatusRunning {
+            panic(fmt.Sprintf("Cannot start goroutine, %q as its active", name))
+        } else {
+            // Goroutine with same name already exists & finished
+            LogInfo("Goroutine %s is finished. Deleting it from goroutine tracker", name)
+            delete(grt.goroutines, name)           
+        }
+	}
+
+	g := &Goroutine{Status: GoroutineStatusRunning, done: make(chan struct{}), StartTime: time.Now()}
+	grt.goroutines[name] = g
+	grt.waitGroup.Add(1)
+
+	// Start the goroutine
+	go func() {
+		defer func() {
+			grt.mlock.Lock()
+			defer grt.mlock.Unlock()
+
+			g.Status = GoroutineStatusFinished
+			g.EndTime = time.Now()
+			close(g.done)
+			grt.waitGroup.Done()
+		}()
+
+		// Get the reflect.Value of the function
+		f := reflect.ValueOf(fn)
+
+		// If the function is not a valid type, panic with an error message
+		if f.Kind() != reflect.Func {
+			panic("Invalid function type provided to Start method of GoroutineTracker instance with name " + name + "") 
+		}
+
+		// If arguments are provided, call the function with the arguments
+		if len(args) > 0 {
+			// Convert the arguments to a slice of reflect.Value
+			argVals := make([]reflect.Value, len(args))
+			for i, arg := range args {
+				argVals[i] = reflect.ValueOf(arg)
+			}
+
+			// Call the function with the arguments
+			f.Call(argVals)
+		} else {
+			// Call the function without arguments
+			f.Call(nil)
+		}
+	}()
+}
+
+// Wait for a goroutine with given name to finish. 
+// CAUTION : This may bocks on channel. So, it should be called in a separate goroutine
+// Parameters:
+// - name: the name of the goroutine to check
+//
+// Returns:
+// - bool:
+func (grt *GoroutineTracker) Wait(name string) {
+
+	grt.mlock.Lock()
+	g, ok := grt.goroutines[name]
+	grt.mlock.Unlock()
+
+	if ok {
+		<-g.done
+	}
+}
+
+// Wait for a all the goroutine to finish.
+// CAUTION : This blocks as intended.
+// Parameters:
+// - timeout: timeout in seconds. If timeout is 0, then it waits forever
+//
+// Returns:
+// - bool: true if all goroutines finished within timeout, false otherwise
+func (grt *GoroutineTracker) WaitAll(timeout time.Duration) bool {
+    c := make(chan struct{})
+    go func() {
+        grt.waitGroup.Wait()
+        close(c)
+    }()
+    
+    if timeout == 0 {
+        <-c
+        return true
+    }
+    
+    select {
+    case <-c:
+        return true
+    case <-time.After(timeout):
+        LogInfo("WaitAll timed out after %v", timeout)
+        return false
+    }
+}
+
+// Checks if a goroutine with the given name is currently running or not.
+// Returns true if the goroutine is running, false otherwise.
+//
+// Parameters:
+// - name: the name of the goroutine to check
+//
+// Returns:
+// - bool: status of goroutine
+// - error: error if goroutine with given name doesn't exist
+func (grt *GoroutineTracker) IsRunning(name string) (bool,error) {
+	grt.mlock.Lock()
+	defer grt.mlock.Unlock()
+
+	if g, ok := grt.goroutines[name]; ok {
+		return g.Status == GoroutineStatusRunning, nil
+	}
+
+	// Goroutine with given name doesn't exist
+	return false, fmt.Errorf("Goroutine with name %q doesn't exist", name)
+}
+
+// Gets the start time of a goroutine with the given name. It may be runnning or completed
+// Parameters:
+// - name: the name of the goroutine
+//
+// Returns:
+// - string: start time of the goroutine
+// - error: error if goroutine with given name doesn't exist
+func (grt *GoroutineTracker) GetTimeStarted(name string) (string, error) {
+    grt.mlock.Lock()
+    defer grt.mlock.Unlock()
+
+    if g, ok := grt.goroutines[name]; ok { // if goroutine exists		
+		return g.StartTime.String(), nil
+    }
+
+	// Goroutine with given name doesn't exist
+	return "", fmt.Errorf("Goroutine with name %q doesn't exist", name)
+}
+
+// Returns a list of GoroutineInfo. If name is nil then return info for all the goroutines being tracked
+// If name is given, then return info for that goroutine
+// Parameters:
+// - name: the name of the goroutine
+//
+// Returns:
+// - []interface{}: list of GoroutineInfo
+func (grt *GoroutineTracker) InfoList(name *string) []interface{} {
+	grt.mlock.Lock()
+	defer grt.mlock.Unlock()
+
+	// Create a function to extract info for a given goroutine
+	extractInfo := func(name string, g *Goroutine) GoroutineInfo {
+		duration := time.Duration(0)
+		if g.Status == GoroutineStatusRunning {
+			duration = time.Since(g.StartTime)
+		} else if g.Status == GoroutineStatusFinished {
+			duration = g.EndTime.Sub(g.StartTime)
+		}
+		return GoroutineInfo{
+			Goroutine: *g,
+			Name:      name,
+			Duration:  duration,
+		}
+	}
+
+	// If name is given, return info for that goroutine
+	if name != nil {
+		if g, ok := grt.goroutines[*name]; ok {
+			return []interface{}{extractInfo(*name, g)}
+		}
+		return []interface{}{}
+	}
+
+	// Return info for all goroutines
+	var list []interface{}
+	for name, g := range grt.goroutines {
+		if g != nil {
+			list = append(list, extractInfo(name, g))
+		}
+	}
+
+	return list
+}
+
+
+/* 
+ * Read environment variables  -----------------------------------------------------------------
+ */
+
+// variable name , system env variable name, default value
+const EnvMapDefinitionsStr = `{
+    "ENV_lom_conf_location": {
+        "env": "LOM_CONF_LOCATION",
+        "default": ""
+    }
+}`
+
+// key is EnvMapDefinitionsStr keys. Value is string. If its "", then no value exists. Convert them to appropriate before usage.
+// e.g. ENV_lom_conf_location -> "path/to/conf"
+var envMap = map[string]string{}
+
+func LoadEnvironmentVariables() {
+	var envMapDefinitions map[string]map[string]string
+	if err := json.Unmarshal([]byte(EnvMapDefinitionsStr), &envMapDefinitions); err != nil {
+		return
+	}
+	for key, value := range envMapDefinitions {
+		envVal, exists := os.LookupEnv(value["env"])
+		if !exists {
+			envVal = value["default"]
+		}
+		envMap[key] = envVal
+	}
+}
+
+func GetEnvVarString(envname string) (string, bool) {
+    if len(envMap) == 0 {
+        LoadEnvironmentVariables()
+    }
+	value, exists := envMap[envname]
+	return value, exists
 }
 
