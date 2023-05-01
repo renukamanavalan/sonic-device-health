@@ -1,8 +1,10 @@
 package lomipc
 
-import (
-	. "go/src/lib/lomcommon"
-	"net/rpc"
+
+import(
+    . "lom/src/lib/lomcommon"
+    "net/rpc"
+    "strconv"
 )
 
 const server_address = "localhost"
@@ -49,7 +51,7 @@ func (tx *ClientTx) RegisterClient(client string) error {
         /* This context is local to client. So this bug will not be hit on restart */
         return LogError("Already registered (%s). De-register & re-register", tx.clientName)
     }
-    r, err := RPCDialHttp("tcp", server_address+":1234")
+    r, err := RPCDialHttp("tcp", server_address+":"+strconv.Itoa(RPC_HTTP_PORT))
 
     if (err != nil) {
         LogError("RegisterClient: Failed to call rpc.DialHTTP err:(%v)", err)
@@ -85,6 +87,7 @@ func (tx *ClientTx) RegisterClient(client string) error {
     LogInfo("Registered client (%s)", client)
     return nil
 }
+
 
 /*
  * DeregisterClient

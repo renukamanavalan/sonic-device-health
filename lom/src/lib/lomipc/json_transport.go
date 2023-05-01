@@ -2,7 +2,7 @@ package lomipc
 
 import (
     "encoding/json"
-    . "go/src/lib/lomcommon"
+    . "lom/src/lib/lomcommon"
 )
 
 
