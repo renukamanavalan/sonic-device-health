@@ -365,30 +365,30 @@ func TestRun_AddPlugin2(t *testing.T) {
     pluginVersion := "v1.0.0"
     isDynamic := true
     /*
-        testDataActions := []byte(`{
-            "link_flap": {
-                "Name": "link_flap",
-                "Type": "Detection",
-                "Timeout": 0,
-                "HeartbeatInt": 2,
-                "Disable": false,
-                "Mimic": "true",
-                "ActionKnobs": {
-                    "min": 80
-                }
-            },
-            "dummy_action": {
-                "Name": "dummy_action",
-                "Type": "dummy_type",
-                "Timeout": 10,
-                "HeartbeatInt": 5,
-                "Disable": false,
-                "Mimic": "false",
-                "ActionKnobs": {
-                    "repeat": false
-                }
-            }
-        }`)
+       testDataActions := []byte(`{
+           "link_flap": {
+               "Name": "link_flap",
+               "Type": "Detection",
+               "Timeout": 0,
+               "HeartbeatInt": 2,
+               "Disable": false,
+               "Mimic": "true",
+               "ActionKnobs": {
+                   "min": 80
+               }
+           },
+           "dummy_action": {
+               "Name": "dummy_action",
+               "Type": "dummy_type",
+               "Timeout": 10,
+               "HeartbeatInt": 5,
+               "Disable": false,
+               "Mimic": "false",
+               "ActionKnobs": {
+                   "repeat": false
+               }
+           }
+       }`)
     */
 
     testDataActions := []byte(`{

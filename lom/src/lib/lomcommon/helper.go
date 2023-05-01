@@ -1,20 +1,20 @@
 package lomcommon
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"log"
-	"log/syslog"
-	"math"
-	"os"
-	"os/exec"
-	"reflect"
-	"runtime"
-	"sort"
-	"strings"
-	"sync"
-	"time"
+    "encoding/json"
+    "errors"
+    "fmt"
+    "log"
+    "log/syslog"
+    "math"
+    "os"
+    "os/exec"
+    "reflect"
+    "runtime"
+    "sort"
+    "strings"
+    "sync"
+    "time"
 )
 
 var writers = make(map[syslog.Priority]*syslog.Writer)
@@ -27,7 +27,7 @@ var OSExit = os.Exit
 func init() {
 
     for i := syslog.LOG_EMERG; i <= syslog.LOG_DEBUG; i++ {
-        writer, err := syslog.Dial("", "", (i|syslog.LOG_LOCAL7), "")
+        writer, err := syslog.Dial("", "", (i | syslog.LOG_LOCAL7), "")
         if err != nil {
             log.Fatal(err)
         }
@@ -47,7 +47,6 @@ func GetLogLevel() syslog.Priority {
     return log_level
 }
 
-
 /* Set current log level */
 func SetLogLevel(lvl syslog.Priority) {
     log_level = lvl
@@ -55,6 +54,7 @@ func SetLogLevel(lvl syslog.Priority) {
 
 // setprefix is used to set a prefix for all log messages
 var apprefix string
+
 func SetPrefix(p string) {
     apprefix = p + " : "
 }
@@ -63,7 +63,7 @@ func getPrefix(skip int) string {
     prefix := apprefix
     if _, fl, ln, ok := runtime.Caller(skip); ok {
         /*
-         * sample fl = /home/localadmin/tools/go/caller/t.go 
+         * sample fl = /home/localadmin/tools/go/caller/t.go
          * get last 2 elements
          * len returns 7, counting leading slash too. l[0] is empty
          * [ () (home) (localadmin) (tools) (go) (caller) (t.go) ]
@@ -77,7 +77,7 @@ func getPrefix(skip int) string {
          * Hence go back only if > 2, not >= 2
          */
         if c > 2 {
-            c -= 1      /* go for 2 if you can. Note: with leading slash first is null */
+            c -= 1 /* go for 2 if you can. Note: with leading slash first is null */
         }
         /* prefix = caller/t.go, for the example above */
         prefix = prefix + fmt.Sprintf("%s:%d:", strings.Join(l[c-1:], "/"), ln)
@@ -112,15 +112,13 @@ func LogMessageWithSkip(skip int, lvl syslog.Priority, s string, a ...interface{
     return m
 }
 
-
 func LogMessage(lvl syslog.Priority, s string, a ...interface{}) string {
     return LogMessageWithSkip(2, lvl, s, a...)
 }
 
-
 /* Log this message for panic level and exit */
 func LogPanic(s string, a ...interface{}) {
-    LogMessage(syslog.LOG_CRIT, s + "LoM exiting ...", a...)
+    LogMessage(syslog.LOG_CRIT, s+"LoM exiting ...", a...)
     OSExit(-1)
 }
 
@@ -140,26 +138,23 @@ func LogError(s string, a ...interface{}) error {
     return lastError
 }
 
-
 /* Log this message at warning level */
-func LogWarning(s string, a ...interface{})  {
+func LogWarning(s string, a ...interface{}) {
     LogMessage(syslog.LOG_WARNING, s, a...)
 }
 
-
 /* Log this message at info level */
-func LogInfo(s string, a ...interface{})  {
+func LogInfo(s string, a ...interface{}) {
     LogMessage(syslog.LOG_INFO, s, a...)
 }
 
-
 /* Log this message at debug level */
-func LogDebug(s string, a ...interface{})  {
+func LogDebug(s string, a ...interface{}) {
     LogMessage(syslog.LOG_DEBUG, s, a...)
 }
 
-/* 
- * Log Periodic module 	--------------------------------------------------------------------										  
+/*
+ * Log Periodic module     --------------------------------------------------------------------
  */
 
 var uuid_suffix = 0
@@ -176,7 +171,6 @@ func GetUUID() string {
     }
 }
 
-
 const A_DAY_IN_SECS = int64(24 * 60 * 60)
 
 /* Info related to logging periodically */
@@ -189,51 +183,50 @@ type LogPeriodicEntry_t struct {
      * after finishing cnt writes, move to next entry in list.
      * Caller may send [ {5, 100}, {3600, 0} ], implying
      * Write first 100 logs for every 5 seconds. After that
-     * write logs for every hour forever (cnt = 0) 
+     * write logs for every hour forever (cnt = 0)
      */
 }
 
 type logPeriodicEntryInt_t struct {
     LogPeriodicEntry_t
-    Due     int64           /* Next due epoch time point */
-    index   uint64          /* Add a sequential index to the message */
-                            /* This can help identify repeated logs with index */
-                            /* indicating set to count of logs written so far */
+    Due   int64  /* Next due epoch time point */
+    index uint64 /* Add a sequential index to the message */
+    /* This can help identify repeated logs with index */
+    /* indicating set to count of logs written so far */
 }
 
 /* Log Periodic module */
 type logPeriodic_t struct {
     /* Channel to communicate to logging routine */
-    logCh               chan *LogPeriodicEntry_t
+    logCh chan *LogPeriodicEntry_t
 
-    logPeriodicList     map[string]*logPeriodicEntryInt_t
-    logPeriodicSorted   []*logPeriodicEntryInt_t
+    logPeriodicList   map[string]*logPeriodicEntryInt_t
+    logPeriodicSorted []*logPeriodicEntryInt_t
 
-    /* TODO: Any entry after logging repeatedly at set period 
+    /* TODO: Any entry after logging repeatedly at set period
      * for a day or two, reduce the period to every hour
      * No point in polluting logs, as we have screamed enough
      */
 }
 
-
 var logPeriodic *logPeriodic_t
 
 /* Get Log Periodic instance */
-func GetlogPeriodic() *logPeriodic_t{
+func GetlogPeriodic() *logPeriodic_t {
     if logPeriodic != nil {
         return logPeriodic
-    }    
+    }
     // TODO: Replace with global abort channel later
     chAbort := make(chan interface{})
-    LogPeriodicInit(chAbort)
+    logPeriodicInit(chAbort)
     return logPeriodic
 }
 
 /* Initialize the singleton instance for log periodic */
-func LogPeriodicInit(chAbort chan interface{}) {
-    logPeriodic = &logPeriodic_t {
-        logCh: make( chan *LogPeriodicEntry_t),
-        logPeriodicList: make(map[string]*logPeriodicEntryInt_t),
+func logPeriodicInit(chAbort chan interface{}) {
+    logPeriodic = &logPeriodic_t{
+        logCh:             make(chan *LogPeriodicEntry_t),
+        logPeriodicList:   make(map[string]*logPeriodicEntryInt_t),
         logPeriodicSorted: nil,
     }
 
@@ -242,14 +235,14 @@ func LogPeriodicInit(chAbort chan interface{}) {
 
 /* Helper to add a log periodic entry */
 func (p *logPeriodic_t) AddLogPeriodic(l *LogPeriodicEntry_t) error {
-    if ((len(l.ID) == 0) || (len(l.Message) == 0)) {
+    if (len(l.ID) == 0) || (len(l.Message) == 0) {
         return LogError("LogPeriodicEntry ID or message is empty")
     }
     min := GetConfigMgr().GetGlobalCfgInt("MIN_PERIODIC_LOG_PERIOD_SECS")
     if l.Period < min {
         return LogError("LogPeriodicEntry Period(%v) < min(%v)", l.Period, min)
     }
-    p.logCh  <- l
+    p.logCh <- l
     return nil
 }
 
@@ -257,23 +250,23 @@ func (p *logPeriodic_t) AddLogPeriodic(l *LogPeriodicEntry_t) error {
 func (p *logPeriodic_t) DropLogPeriodic(ID string) {
     if len(ID) > 0 {
         /* Emtpy Message implies drop */
-        p.logCh  <- &LogPeriodicEntry_t {ID: ID }
+        p.logCh <- &LogPeriodicEntry_t{ID: ID}
     }
 }
 
 func (p *logPeriodic_t) run(chAbort chan interface{}) {
-    tout := A_DAY_IN_SECS           /* Just a init value; Once per day */
+    tout := A_DAY_IN_SECS /* Just a init value; Once per day */
 
     for {
         upd := false
         select {
-        case l := <- p.logCh:
+        case l := <-p.logCh:
             upd = p.update(l)
 
-        case <- time.After(time.Duration(tout) * time.Second):
+        case <-time.After(time.Duration(tout) * time.Second):
             upd = p.writeLogs()
 
-        case <- chAbort:
+        case <-chAbort:
             LogDebug("Terminating LogPeriodic upon explicit abort")
             return
         }
@@ -300,18 +293,18 @@ func (p *logPeriodic_t) run(chAbort chan interface{}) {
 }
 
 func (p *logPeriodic_t) updatePeriod(id string, newPeriod int) error {
-	entry, ok := logPeriodic.logPeriodicList[id]
-	if !ok {
-		return LogError("Periodic entry with ID(%s) not found", id)
-	}
-	newentry := &LogPeriodicEntry_t{
-		ID:      id,
-		Message: entry.Message,
-		Lvl:     entry.Lvl,
-		Period:  newPeriod,
-	}
+    entry, ok := logPeriodic.logPeriodicList[id]
+    if !ok {
+        return LogError("Periodic entry with ID(%s) not found", id)
+    }
+    newentry := &LogPeriodicEntry_t{
+        ID:      id,
+        Message: entry.Message,
+        Lvl:     entry.Lvl,
+        Period:  newPeriod,
+    }
 
-	return logPeriodic.AddLogPeriodic(newentry)
+    return logPeriodic.AddLogPeriodic(newentry)
 }
 
 func (p *logPeriodic_t) update(l *LogPeriodicEntry_t) bool {
@@ -323,7 +316,7 @@ func (p *logPeriodic_t) update(l *LogPeriodicEntry_t) bool {
             upd = true
         }
     } else if ok {
-        delete (p.logPeriodicList, l.ID)
+        delete(p.logPeriodicList, l.ID)
         upd = true
     }
     if upd {
@@ -338,10 +331,9 @@ func (p *logPeriodic_t) update(l *LogPeriodicEntry_t) bool {
     return upd
 }
 
-
 func (p *logPeriodic_t) writeLogs() bool {
     now := time.Now().Unix()
-    upd := false 
+    upd := false
 
     for _, v := range p.logPeriodicSorted {
         if now >= v.Due {
@@ -357,58 +349,58 @@ func (p *logPeriodic_t) writeLogs() bool {
     return upd
 }
 
-/* 
+/*
  * Log Periodic Helpers  -----------------------------------------------------------------
  */
 
 func AddPeriodicLogNotice(ID string, message string, period int) error {
-	return AddPeriodicLogEntry(ID, message, syslog.LOG_NOTICE, period)
+    return AddPeriodicLogEntry(ID, message, syslog.LOG_NOTICE, period)
 }
 
 func AddPeriodicLogInfo(ID string, message string, period int) error {
-	return AddPeriodicLogEntry(ID, message, syslog.LOG_INFO, period)
+    return AddPeriodicLogEntry(ID, message, syslog.LOG_INFO, period)
 }
 
 func AddPeriodicLogDebug(ID string, message string, period int) error {
-	return AddPeriodicLogEntry(ID, message, syslog.LOG_DEBUG, period)
+    return AddPeriodicLogEntry(ID, message, syslog.LOG_DEBUG, period)
 }
 
 func AddPeriodicLogError(ID string, message string, period int) error {
-	return AddPeriodicLogEntry(ID, message, syslog.LOG_ERR, period)
+    return AddPeriodicLogEntry(ID, message, syslog.LOG_ERR, period)
 }
 
 func AddPeriodicLogEntry(ID string, message string, lvl syslog.Priority, period int) error {
-	entry := &LogPeriodicEntry_t{
-		ID:      ID,
-		Message: message,
-		Lvl:     lvl,
-		Period:  period,
-	}
-	err := GetlogPeriodic().AddLogPeriodic(entry)
-	if err != nil {
-		return err
-	}
-	return nil
+    entry := &LogPeriodicEntry_t{
+        ID:      ID,
+        Message: message,
+        Lvl:     lvl,
+        Period:  period,
+    }
+    err := GetlogPeriodic().AddLogPeriodic(entry)
+    if err != nil {
+        return err
+    }
+    return nil
 }
 
 func RemovePeriodicLogEntry(ID string) {
-	GetlogPeriodic().DropLogPeriodic(ID)
+    GetlogPeriodic().DropLogPeriodic(ID)
 }
 
 func UpdatePeriodicLogTime(id string, newPeriod int) error {
-	return GetlogPeriodic().updatePeriod(id, newPeriod)
+    return GetlogPeriodic().updatePeriod(id, newPeriod)
 }
 
-/* 
+/*
  * Oneshort Timer  -----------------------------------------------------------------
  */
 
 type OneShotEntry_t struct {
-    due     int64       /* Time point of firing as epoch secconds */
-    msg     string      /* Just info only; Used for logging */
-    f       func()      /* Function to call upon due */
-    disable bool        /* == true, f will not be called, if set before due */
-    done    bool        /* Set to true, upon firing / calling f */
+    due     int64  /* Time point of firing as epoch secconds */
+    msg     string /* Just info only; Used for logging */
+    f       func() /* Function to call upon due */
+    disable bool   /* == true, f will not be called, if set before due */
+    done    bool   /* Set to true, upon firing / calling f */
 }
 
 /* Disable it. If disabled, before fired/done, f will not be called */
@@ -427,11 +419,11 @@ func (p *OneShotEntry_t) IsDone() bool {
 }
 
 type oneShotTimer_t struct {
-    ch  chan *OneShotEntry_t    /* Caller reqs are sent to handler via this chan */
-    initOneShotTimer bool       /* True - Upon first request, initialized */
-} 
+    ch               chan *OneShotEntry_t /* Caller reqs are sent to handler via this chan */
+    initOneShotTimer bool                 /* True - Upon first request, initialized */
+}
 
-var oneShotTimer = oneShotTimer_t { make(chan *OneShotEntry_t, 1), false }
+var oneShotTimer = oneShotTimer_t{make(chan *OneShotEntry_t, 1), false}
 
 /*
  * Helper to call a function upon given time provided in seconds, just once..
@@ -454,7 +446,7 @@ var oneShotTimer = oneShotTimer_t { make(chan *OneShotEntry_t, 1), false }
  *      A disabled entity will not be called, when it becomes due.
  */
 func AddOneShotTimer(tout int64, msg string, f func()) *OneShotEntry_t {
-    tmr := &OneShotEntry_t{ due: time.Now().Unix() + tout, msg: msg, f: f }
+    tmr := &OneShotEntry_t{due: time.Now().Unix() + tout, msg: msg, f: f}
     oneShotTimer.ch <- tmr
     if !oneShotTimer.initOneShotTimer {
         oneShotTimer.initOneShotTimer = true
@@ -467,8 +459,8 @@ func AddOneShotTimer(tout int64, msg string, f func()) *OneShotEntry_t {
 
 /*
  * Call all entries that are due.
- * Remove called/disabled. 
- * Return the next earliest due 
+ * Remove called/disabled.
+ * Return the next earliest due
  */
 func callback(all map[int64][]*OneShotEntry_t) int64 {
     nxt := int64(math.MaxInt64)
@@ -476,7 +468,7 @@ func callback(all map[int64][]*OneShotEntry_t) int64 {
         tnow := time.Now().Unix()
         done := make([]int64, len(all))
         cnt := 0
-        for k, l := range(all) {
+        for k, l := range all {
             if k <= tnow {
                 for _, e := range l {
                     if !e.disable {
@@ -499,18 +491,17 @@ func callback(all map[int64][]*OneShotEntry_t) int64 {
                 if drop {
                     done[cnt] = k
                     cnt++
-                } else if nxt > k { 
+                } else if nxt > k {
                     nxt = k
                 }
             }
         }
-        for i:=0; i<cnt; i++ {
+        for i := 0; i < cnt; i++ {
             delete(all, done[i])
         }
     }
     return nxt
 }
-
 
 /*
  * Started on first request for oneshot firing.
@@ -533,25 +524,24 @@ func (p *oneShotTimer_t) runOneShotTimer() {
         }
 
         select {
-        case tmr := <- p.ch:
+        case tmr := <-p.ch:
             all[tmr.due] = append(all[tmr.due], tmr)
 
-        case <- time.After(time.Duration(tout) * time.Second):
+        case <-time.After(time.Duration(tout) * time.Second):
         }
     }
 }
 
-
-/* 
+/*
  * Go Routine Tracker  -----------------------------------------------------------------
  */
 
-/* TODO: Goutham : Add a run method which will carry a non-zero timeout. This method will block 
+/* TODO: Goutham : Add a run method which will carry a non-zero timeout. This method will block
 until either the called routine returns or timeout fires., whichever occurs earlier.
 If timeout fires, it kick off periodic log message and stop the message upon the routine returns. */
 
 /* TODO: Goutham : For WaitAll, accept a systemwide channel which will timeout the function */
- 
+
 // GoroutineTracker is a helper for tracking goroutines. It can be used to
 // a) Track all goroutines
 // b) wait on specific goroutine to finish
@@ -561,28 +551,29 @@ If timeout fires, it kick off periodic log message and stop the message upon the
 var goroutineTracker *GoroutineTracker = nil
 
 type GoroutineStatus bool
+
 const (
-	GoroutineStatusRunning GoroutineStatus = false
-	GoroutineStatusFinished GoroutineStatus = true
+    GoroutineStatusRunning  GoroutineStatus = false
+    GoroutineStatusFinished GoroutineStatus = true
 )
 
 type Goroutine struct {
-	Status    GoroutineStatus
-	done      chan struct{}
-	StartTime time.Time
-	EndTime   time.Time
+    Status    GoroutineStatus
+    done      chan struct{}
+    StartTime time.Time
+    EndTime   time.Time
 }
 
 type GoroutineInfo struct {
     Goroutine
-	Name      string
-	Duration  time.Duration
+    Name     string
+    Duration time.Duration
 }
 
 type GoroutineTracker struct {
-	mlock      sync.Mutex
-	goroutines map[string]*Goroutine
-	waitGroup  sync.WaitGroup
+    mlock      sync.Mutex
+    goroutines map[string]*Goroutine
+    waitGroup  sync.WaitGroup
 }
 
 // Create a new GoroutineTracker and return GoroutineTracker instance
@@ -595,7 +586,7 @@ type GoroutineTracker struct {
 func GetGoroutineTracker() *GoroutineTracker {
     if goroutineTracker != nil {
         return goroutineTracker
-    }        
+    }
     goroutineTracker = &GoroutineTracker{
         mlock:      sync.Mutex{},
         goroutines: make(map[string]*Goroutine),
@@ -615,62 +606,62 @@ func GetGoroutineTracker() *GoroutineTracker {
 // Returns:
 // - None:
 func (grt *GoroutineTracker) Start(name string, fn interface{}, args ...interface{}) {
-	grt.mlock.Lock()
-	defer grt.mlock.Unlock()
+    grt.mlock.Lock()
+    defer grt.mlock.Unlock()
 
-	if _, ok := grt.goroutines[name]; ok {
-		// Goroutine with same name already exists & active
+    if _, ok := grt.goroutines[name]; ok {
+        // Goroutine with same name already exists & active
         if grt.goroutines[name].Status == GoroutineStatusRunning {
             panic(fmt.Sprintf("Cannot start goroutine, %q as its active", name))
         } else {
             // Goroutine with same name already exists & finished
             LogInfo("Goroutine %s is finished. Deleting it from goroutine tracker", name)
-            delete(grt.goroutines, name)           
+            delete(grt.goroutines, name)
         }
-	}
+    }
 
-	g := &Goroutine{Status: GoroutineStatusRunning, done: make(chan struct{}), StartTime: time.Now()}
-	grt.goroutines[name] = g
-	grt.waitGroup.Add(1)
+    g := &Goroutine{Status: GoroutineStatusRunning, done: make(chan struct{}), StartTime: time.Now()}
+    grt.goroutines[name] = g
+    grt.waitGroup.Add(1)
 
-	// Start the goroutine
-	go func() {
-		defer func() {
-			grt.mlock.Lock()
-			defer grt.mlock.Unlock()
+    // Start the goroutine
+    go func() {
+        defer func() {
+            grt.mlock.Lock()
+            defer grt.mlock.Unlock()
 
-			g.Status = GoroutineStatusFinished
-			g.EndTime = time.Now()
-			close(g.done)
-			grt.waitGroup.Done()
-		}()
+            g.Status = GoroutineStatusFinished
+            g.EndTime = time.Now()
+            close(g.done)
+            grt.waitGroup.Done()
+        }()
 
-		// Get the reflect.Value of the function
-		f := reflect.ValueOf(fn)
+        // Get the reflect.Value of the function
+        f := reflect.ValueOf(fn)
 
-		// If the function is not a valid type, panic with an error message
-		if f.Kind() != reflect.Func {
-			panic("Invalid function type provided to Start method of GoroutineTracker instance with name " + name + "") 
-		}
+        // If the function is not a valid type, panic with an error message
+        if f.Kind() != reflect.Func {
+            panic("Invalid function type provided to Start method of GoroutineTracker instance with name " + name + "")
+        }
 
-		// If arguments are provided, call the function with the arguments
-		if len(args) > 0 {
-			// Convert the arguments to a slice of reflect.Value
-			argVals := make([]reflect.Value, len(args))
-			for i, arg := range args {
-				argVals[i] = reflect.ValueOf(arg)
-			}
+        // If arguments are provided, call the function with the arguments
+        if len(args) > 0 {
+            // Convert the arguments to a slice of reflect.Value
+            argVals := make([]reflect.Value, len(args))
+            for i, arg := range args {
+                argVals[i] = reflect.ValueOf(arg)
+            }
 
-			// Call the function with the arguments
-			f.Call(argVals)
-		} else {
-			// Call the function without arguments
-			f.Call(nil)
-		}
-	}()
+            // Call the function with the arguments
+            f.Call(argVals)
+        } else {
+            // Call the function without arguments
+            f.Call(nil)
+        }
+    }()
 }
 
-// Wait for a goroutine with given name to finish. 
+// Wait for a goroutine with given name to finish.
 // CAUTION : This may bocks on channel. So, it should be called in a separate goroutine
 // Parameters:
 // - name: the name of the goroutine to check
@@ -679,13 +670,13 @@ func (grt *GoroutineTracker) Start(name string, fn interface{}, args ...interfac
 // - bool:
 func (grt *GoroutineTracker) Wait(name string) {
 
-	grt.mlock.Lock()
-	g, ok := grt.goroutines[name]
-	grt.mlock.Unlock()
+    grt.mlock.Lock()
+    g, ok := grt.goroutines[name]
+    grt.mlock.Unlock()
 
-	if ok {
-		<-g.done
-	}
+    if ok {
+        <-g.done
+    }
 }
 
 // Wait for a all the goroutine to finish.
@@ -701,12 +692,12 @@ func (grt *GoroutineTracker) WaitAll(timeout time.Duration) bool {
         grt.waitGroup.Wait()
         close(c)
     }()
-    
+
     if timeout == 0 {
         <-c
         return true
     }
-    
+
     select {
     case <-c:
         return true
@@ -725,16 +716,16 @@ func (grt *GoroutineTracker) WaitAll(timeout time.Duration) bool {
 // Returns:
 // - bool: status of goroutine
 // - error: error if goroutine with given name doesn't exist
-func (grt *GoroutineTracker) IsRunning(name string) (bool,error) {
-	grt.mlock.Lock()
-	defer grt.mlock.Unlock()
+func (grt *GoroutineTracker) IsRunning(name string) (bool, error) {
+    grt.mlock.Lock()
+    defer grt.mlock.Unlock()
 
-	if g, ok := grt.goroutines[name]; ok {
-		return g.Status == GoroutineStatusRunning, nil
-	}
+    if g, ok := grt.goroutines[name]; ok {
+        return g.Status == GoroutineStatusRunning, nil
+    }
 
-	// Goroutine with given name doesn't exist
-	return false, fmt.Errorf("Goroutine with name %q doesn't exist", name)
+    // Goroutine with given name doesn't exist
+    return false, fmt.Errorf("Goroutine with name %q doesn't exist", name)
 }
 
 // Gets the start time of a goroutine with the given name. It may be runnning or completed
@@ -748,12 +739,12 @@ func (grt *GoroutineTracker) GetTimeStarted(name string) (string, error) {
     grt.mlock.Lock()
     defer grt.mlock.Unlock()
 
-    if g, ok := grt.goroutines[name]; ok { // if goroutine exists		
-		return g.StartTime.String(), nil
+    if g, ok := grt.goroutines[name]; ok { // if goroutine exists
+        return g.StartTime.String(), nil
     }
 
-	// Goroutine with given name doesn't exist
-	return "", fmt.Errorf("Goroutine with name %q doesn't exist", name)
+    // Goroutine with given name doesn't exist
+    return "", fmt.Errorf("Goroutine with name %q doesn't exist", name)
 }
 
 // Returns a list of GoroutineInfo. If name is nil then return info for all the goroutines being tracked
@@ -764,45 +755,44 @@ func (grt *GoroutineTracker) GetTimeStarted(name string) (string, error) {
 // Returns:
 // - []interface{}: list of GoroutineInfo
 func (grt *GoroutineTracker) InfoList(name *string) []interface{} {
-	grt.mlock.Lock()
-	defer grt.mlock.Unlock()
+    grt.mlock.Lock()
+    defer grt.mlock.Unlock()
 
-	// Create a function to extract info for a given goroutine
-	extractInfo := func(name string, g *Goroutine) GoroutineInfo {
-		duration := time.Duration(0)
-		if g.Status == GoroutineStatusRunning {
-			duration = time.Since(g.StartTime)
-		} else if g.Status == GoroutineStatusFinished {
-			duration = g.EndTime.Sub(g.StartTime)
-		}
-		return GoroutineInfo{
-			Goroutine: *g,
-			Name:      name,
-			Duration:  duration,
-		}
-	}
+    // Create a function to extract info for a given goroutine
+    extractInfo := func(name string, g *Goroutine) GoroutineInfo {
+        duration := time.Duration(0)
+        if g.Status == GoroutineStatusRunning {
+            duration = time.Since(g.StartTime)
+        } else if g.Status == GoroutineStatusFinished {
+            duration = g.EndTime.Sub(g.StartTime)
+        }
+        return GoroutineInfo{
+            Goroutine: *g,
+            Name:      name,
+            Duration:  duration,
+        }
+    }
 
-	// If name is given, return info for that goroutine
-	if name != nil {
-		if g, ok := grt.goroutines[*name]; ok {
-			return []interface{}{extractInfo(*name, g)}
-		}
-		return []interface{}{}
-	}
+    // If name is given, return info for that goroutine
+    if name != nil {
+        if g, ok := grt.goroutines[*name]; ok {
+            return []interface{}{extractInfo(*name, g)}
+        }
+        return []interface{}{}
+    }
 
-	// Return info for all goroutines
-	var list []interface{}
-	for name, g := range grt.goroutines {
-		if g != nil {
-			list = append(list, extractInfo(name, g))
-		}
-	}
+    // Return info for all goroutines
+    var list []interface{}
+    for name, g := range grt.goroutines {
+        if g != nil {
+            list = append(list, extractInfo(name, g))
+        }
+    }
 
-	return list
+    return list
 }
 
-
-/* 
+/*
  * Read environment variables  -----------------------------------------------------------------
  */
 
@@ -819,24 +809,23 @@ const EnvMapDefinitionsStr = `{
 var envMap = map[string]string{}
 
 func LoadEnvironmentVariables() {
-	var envMapDefinitions map[string]map[string]string
-	if err := json.Unmarshal([]byte(EnvMapDefinitionsStr), &envMapDefinitions); err != nil {
-		return
-	}
-	for key, value := range envMapDefinitions {
-		envVal, exists := os.LookupEnv(value["env"])
-		if !exists {
-			envVal = value["default"]
-		}
-		envMap[key] = envVal
-	}
+    var envMapDefinitions map[string]map[string]string
+    if err := json.Unmarshal([]byte(EnvMapDefinitionsStr), &envMapDefinitions); err != nil {
+        return
+    }
+    for key, value := range envMapDefinitions {
+        envVal, exists := os.LookupEnv(value["env"])
+        if !exists {
+            envVal = value["default"]
+        }
+        envMap[key] = envVal
+    }
 }
 
 func GetEnvVarString(envname string) (string, bool) {
     if len(envMap) == 0 {
         LoadEnvironmentVariables()
     }
-	value, exists := envMap[envname]
-	return value, exists
+    value, exists := envMap[envname]
+    return value, exists
 }
-
