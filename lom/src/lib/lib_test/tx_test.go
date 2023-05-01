@@ -24,9 +24,9 @@ import (
     "fmt"
     "io"
     "log/syslog"
-    "net/rpc"
     . "lom/src/lib/lomcommon"
     . "lom/src/lib/lomipc"
+    "net/rpc"
     "os"
     "path/filepath"
     "strconv"
@@ -35,169 +35,169 @@ import (
 )
 
 type TestClientData struct {
-    ReqType     ReqDataType  /* Req type to call */
-    Args        []string            /* Args needed for the call */
-    DataArgs    interface{}
-    Failed      bool                /* Expect to fail or succeed */
-    ExpResp     interface{}         /* Differs per request */
+    ReqType  ReqDataType /* Req type to call */
+    Args     []string    /* Args needed for the call */
+    DataArgs interface{}
+    Failed   bool        /* Expect to fail or succeed */
+    ExpResp  interface{} /* Differs per request */
 }
 
 type TestServerData struct {
-    Req     LoMRequest
-    Res     LoMResponse             /* LoMResponse to send back */
+    Req LoMRequest
+    Res LoMResponse /* LoMResponse to send back */
 }
 
 type TestData struct {
-    TestClientData                  /* Simulated client raises call per this data */
-    TestServerData                  /* TestMain code validates incoming req against */
-                                    /* TestServerData:Req and send back TestServerData:Res */
+    TestClientData /* Simulated client raises call per this data */
+    TestServerData /* TestMain code validates incoming req against */
+    /* TestServerData:Req and send back TestServerData:Res */
 }
 
 type TestDataForJson struct {
-    JsonReq     string              /* Req to send as string */
-    JsonRes     string              /* Expected JSON res */
-    TestServerData                  /* TestMain code validates incoming req against */
-                                    /* TestServerData:Req and send back TestServerData:Res */
+    JsonReq        string /* Req to send as string */
+    JsonRes        string /* Expected JSON res */
+    TestServerData        /* TestMain code validates incoming req against */
+    /* TestServerData:Req and send back TestServerData:Res */
 }
 
 const TEST_CL_NAME = "Foo"
 const TEST_ACTION_NAME = "Detect-0"
-var ActReqData = ServerRequestData { TypeServerRequestAction,
-        ActionRequestData { "Bar", "inst_1", "an_inst_0", "an_key", 10,
-            []*ActionResponseData {
-                    { TEST_ACTION_NAME, "an_inst_0", "an_inst_0", "an_key", "res_anomaly", 0, ""},
-                    { "Foo-safety", "inst_0", "an_inst_0", "an_key", "res_foo_check", 2, "some failure"},
-        } } }
 
-var ActResData = MsgSendServerResponse { TypeServerRequestAction, ActionResponseData {
-                "Foo", "Inst-0", "AN-Inst-0", "an-key", "some resp", 9, "Failure Data" } }
+var ActReqData = ServerRequestData{TypeServerRequestAction,
+    ActionRequestData{"Bar", "inst_1", "an_inst_0", "an_key", 10,
+        []*ActionResponseData{
+            {TEST_ACTION_NAME, "an_inst_0", "an_inst_0", "an_key", "res_anomaly", 0, ""},
+            {"Foo-safety", "inst_0", "an_inst_0", "an_key", "res_foo_check", 2, "some failure"},
+        }}}
 
-var ShutReqData = ServerRequestData { TypeServerRequestShutdown, ShutdownRequestData{} }
+var ActResData = MsgSendServerResponse{TypeServerRequestAction, ActionResponseData{
+    "Foo", "Inst-0", "AN-Inst-0", "an-key", "some resp", 9, "Failure Data"}}
+
+var ShutReqData = ServerRequestData{TypeServerRequestShutdown, ShutdownRequestData{}}
 
 var ClTimeout = 2
 
 /* For clientAPI testing */
-var testData = []TestData {
-            // Reg Client
-            {   TestClientData { TypeRegClient, []string{TEST_CL_NAME }, nil, false, MsgEmptyResp{} },
-                TestServerData { LoMRequest { TypeRegClient, TEST_CL_NAME, ClTimeout, MsgRegClient {} },
-                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+var testData = []TestData{
+    // Reg Client
+    {TestClientData{TypeRegClient, []string{TEST_CL_NAME}, nil, false, MsgEmptyResp{}},
+        TestServerData{LoMRequest{TypeRegClient, TEST_CL_NAME, ClTimeout, MsgRegClient{}},
+            LoMResponse{0, "Succeeded", MsgEmptyResp{}}}},
 
-            // Reg Action - test failure
-            {   TestClientData { TypeRegAction, []string{ TEST_ACTION_NAME }, nil, true, MsgEmptyResp{} },
-                TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
-                        LoMResponse { 1, "failed by design", MsgEmptyResp {} } } },
+    // Reg Action - test failure
+    {TestClientData{TypeRegAction, []string{TEST_ACTION_NAME}, nil, true, MsgEmptyResp{}},
+        TestServerData{LoMRequest{TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction{TEST_ACTION_NAME}},
+            LoMResponse{1, "failed by design", MsgEmptyResp{}}}},
 
-            // Reg Action - test failure
-            {   TestClientData { TypeRegAction, []string{ TEST_ACTION_NAME }, nil, true, MsgEmptyResp{} },
-                TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
-                        LoMResponse { 1, "SKIP", MsgEmptyResp {} } } },
+    // Reg Action - test failure
+    {TestClientData{TypeRegAction, []string{TEST_ACTION_NAME}, nil, true, MsgEmptyResp{}},
+        TestServerData{LoMRequest{TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction{TEST_ACTION_NAME}},
+            LoMResponse{1, "SKIP", MsgEmptyResp{}}}},
 
-            // Register action
-            {   TestClientData { TypeRegAction, []string{ TEST_ACTION_NAME }, nil, false, MsgEmptyResp{} },
-                TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
-                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+    // Register action
+    {TestClientData{TypeRegAction, []string{TEST_ACTION_NAME}, nil, false, MsgEmptyResp{}},
+        TestServerData{LoMRequest{TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction{TEST_ACTION_NAME}},
+            LoMResponse{0, "Succeeded", MsgEmptyResp{}}}},
 
-            // Request for request and server sends Action request
-            {   TestClientData { TypeRecvServerRequest, []string{}, nil, false, ActReqData },
-                TestServerData { LoMRequest { TypeRecvServerRequest, TEST_CL_NAME, ClTimeout, MsgRecvServerRequest{} },
-                        LoMResponse { 0, "Succeeded", ActReqData } } },
+    // Request for request and server sends Action request
+    {TestClientData{TypeRecvServerRequest, []string{}, nil, false, ActReqData},
+        TestServerData{LoMRequest{TypeRecvServerRequest, TEST_CL_NAME, ClTimeout, MsgRecvServerRequest{}},
+            LoMResponse{0, "Succeeded", ActReqData}}},
 
-            // Send Action response to server
-            {   TestClientData { TypeSendServerResponse, []string{}, ActResData, false, MsgEmptyResp{} },
-                TestServerData { LoMRequest { TypeSendServerResponse, TEST_CL_NAME, ClTimeout, ActResData },
-                        LoMResponse { 0, "Succeeded", MsgEmptyResp{} } } },
+    // Send Action response to server
+    {TestClientData{TypeSendServerResponse, []string{}, ActResData, false, MsgEmptyResp{}},
+        TestServerData{LoMRequest{TypeSendServerResponse, TEST_CL_NAME, ClTimeout, ActResData},
+            LoMResponse{0, "Succeeded", MsgEmptyResp{}}}},
 
-            // Send Action heartbeat to server
-            {   TestClientData { TypeNotifyActionHeartbeat, []string{ TEST_ACTION_NAME, "100" }, nil, false, MsgEmptyResp{} },
-                TestServerData { LoMRequest { TypeNotifyActionHeartbeat, TEST_CL_NAME, ClTimeout,
-                                            MsgNotifyHeartbeat { TEST_ACTION_NAME, 100 } },
-                        LoMResponse { 0, "Good", MsgEmptyResp {} } } },
+    // Send Action heartbeat to server
+    {TestClientData{TypeNotifyActionHeartbeat, []string{TEST_ACTION_NAME, "100"}, nil, false, MsgEmptyResp{}},
+        TestServerData{LoMRequest{TypeNotifyActionHeartbeat, TEST_CL_NAME, ClTimeout,
+            MsgNotifyHeartbeat{TEST_ACTION_NAME, 100}},
+            LoMResponse{0, "Good", MsgEmptyResp{}}}},
 
-            // Request for request and server sends shutdown request
-            {   TestClientData { TypeRecvServerRequest, []string{}, nil, false, ShutReqData },
-                TestServerData { LoMRequest { TypeRecvServerRequest, TEST_CL_NAME, ClTimeout, MsgRecvServerRequest{} },
-                        LoMResponse { 0, "Succeeded", ShutReqData } } },
+    // Request for request and server sends shutdown request
+    {TestClientData{TypeRecvServerRequest, []string{}, nil, false, ShutReqData},
+        TestServerData{LoMRequest{TypeRecvServerRequest, TEST_CL_NAME, ClTimeout, MsgRecvServerRequest{}},
+            LoMResponse{0, "Succeeded", ShutReqData}}},
 
-            // Send Dereg action
-            {   TestClientData { TypeDeregAction, []string{ TEST_ACTION_NAME }, nil, false, MsgEmptyResp{} },
-                TestServerData { LoMRequest { TypeDeregAction, TEST_CL_NAME, ClTimeout, MsgDeregAction { TEST_ACTION_NAME } },
-                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+    // Send Dereg action
+    {TestClientData{TypeDeregAction, []string{TEST_ACTION_NAME}, nil, false, MsgEmptyResp{}},
+        TestServerData{LoMRequest{TypeDeregAction, TEST_CL_NAME, ClTimeout, MsgDeregAction{TEST_ACTION_NAME}},
+            LoMResponse{0, "Succeeded", MsgEmptyResp{}}}},
 
-            // Send Dereg client
-            {   TestClientData { TypeDeregClient,  []string{}, nil, false, MsgEmptyResp{} },
-                TestServerData { LoMRequest { TypeDeregClient, TEST_CL_NAME, ClTimeout, MsgDeregClient {} },
-                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+    // Send Dereg client
+    {TestClientData{TypeDeregClient, []string{}, nil, false, MsgEmptyResp{}},
+        TestServerData{LoMRequest{TypeDeregClient, TEST_CL_NAME, ClTimeout, MsgDeregClient{}},
+            LoMResponse{0, "Succeeded", MsgEmptyResp{}}}},
 
-            // Send duplicate Dereg client which is expected to fail
-            {   TestClientData { TypeDeregClient,  []string{}, nil, true, MsgEmptyResp{} },
-                TestServerData { LoMRequest {}, LoMResponse {} } },
-        }
+    // Send duplicate Dereg client which is expected to fail
+    {TestClientData{TypeDeregClient, []string{}, nil, true, MsgEmptyResp{}},
+        TestServerData{LoMRequest{}, LoMResponse{}}},
+}
 
 /* For clientAPI via JSON testing */
-var testDataForJson = []TestDataForJson {
-            // Reg Client
-            {   `{"ReqType":1,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`,
-                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
-                TestServerData { LoMRequest { TypeRegClient, TEST_CL_NAME, ClTimeout, MsgRegClient {} },
-                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+var testDataForJson = []TestDataForJson{
+    // Reg Client
+    {`{"ReqType":1,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`,
+        `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
+        TestServerData{LoMRequest{TypeRegClient, TEST_CL_NAME, ClTimeout, MsgRegClient{}},
+            LoMResponse{0, "Succeeded", MsgEmptyResp{}}}},
 
-            // Reg Action - test failure - as we set server msg too
-            {   `{"ReqType":3,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
-                `{"ResultCode":1,"ResultStr":"failed by design","RespData":{}}`,
-                TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
-                        LoMResponse { 1, "failed by design", MsgEmptyResp {} } } },
+    // Reg Action - test failure - as we set server msg too
+    {`{"ReqType":3,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
+        `{"ResultCode":1,"ResultStr":"failed by design","RespData":{}}`,
+        TestServerData{LoMRequest{TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction{TEST_ACTION_NAME}},
+            LoMResponse{1, "failed by design", MsgEmptyResp{}}}},
 
-            // Register action failed
-            {   `{"ReqType":3,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
-                `{"ResultCode":1,"ResultStr":"Failed","RespData":{}}`,
-                TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
-                        LoMResponse { 1, "Failed", MsgEmptyResp {} } } },
+    // Register action failed
+    {`{"ReqType":3,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
+        `{"ResultCode":1,"ResultStr":"Failed","RespData":{}}`,
+        TestServerData{LoMRequest{TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction{TEST_ACTION_NAME}},
+            LoMResponse{1, "Failed", MsgEmptyResp{}}}},
 
-            // Register action succeeded.
-            {   `{"ReqType":3,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
-                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
-                TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
-                        LoMResponse { 0, "Succeeded", MsgEmptyResp{} } } },
+    // Register action succeeded.
+    {`{"ReqType":3,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
+        `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
+        TestServerData{LoMRequest{TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction{TEST_ACTION_NAME}},
+            LoMResponse{0, "Succeeded", MsgEmptyResp{}}}},
 
-            // Send recv server req to server
-            {   `{"ReqType":5,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`,
-                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{"ReqType":1,"ReqData":{"Action":"Bar","InstanceId":"inst_1","AnomalyInstanceId":"an_inst_0","AnomalyKey":"an_key","Timeout":10,"Context":[{"Action":"Detect-0","InstanceId":"an_inst_0","AnomalyInstanceId":"an_inst_0","AnomalyKey":"an_key","Response":"res_anomaly","ResultCode":0,"ResultStr":""},{"Action":"Foo-safety","InstanceId":"inst_0","AnomalyInstanceId":"an_inst_0","AnomalyKey":"an_key","Response":"res_foo_check","ResultCode":2,"ResultStr":"some failure"}]}}}`,
-                TestServerData {
-                    LoMRequest { TypeRecvServerRequest, TEST_CL_NAME, ClTimeout, MsgEmptyResp {} },
-                    LoMResponse { 0, "Succeeded", ActReqData } } },
+    // Send recv server req to server
+    {`{"ReqType":5,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`,
+        `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{"ReqType":1,"ReqData":{"Action":"Bar","InstanceId":"inst_1","AnomalyInstanceId":"an_inst_0","AnomalyKey":"an_key","Timeout":10,"Context":[{"Action":"Detect-0","InstanceId":"an_inst_0","AnomalyInstanceId":"an_inst_0","AnomalyKey":"an_key","Response":"res_anomaly","ResultCode":0,"ResultStr":""},{"Action":"Foo-safety","InstanceId":"inst_0","AnomalyInstanceId":"an_inst_0","AnomalyKey":"an_key","Response":"res_foo_check","ResultCode":2,"ResultStr":"some failure"}]}}}`,
+        TestServerData{
+            LoMRequest{TypeRecvServerRequest, TEST_CL_NAME, ClTimeout, MsgEmptyResp{}},
+            LoMResponse{0, "Succeeded", ActReqData}}},
 
-            // Send Server response
-            {   `{"ReqType":6,"Client":"Foo","TimeoutSecs":2,"ReqData":{"ReqType":1,"ResData":{"Action":"Foo","InstanceId":"Inst-0","AnomalyInstanceId":"AN-Inst-0","AnomalyKey":"an-key","Response":"some resp","ResultCode":9,"ResultStr":"Failure Data"}}}`,
-                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
-                TestServerData { LoMRequest { TypeSendServerResponse, TEST_CL_NAME, ClTimeout,
-                                    MsgSendServerResponse { TypeServerRequestAction, ActionResponseData {
-                                        "Foo", "Inst-0", "AN-Inst-0", "an-key", "some resp", 9, "Failure Data"}}},
-                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+    // Send Server response
+    {`{"ReqType":6,"Client":"Foo","TimeoutSecs":2,"ReqData":{"ReqType":1,"ResData":{"Action":"Foo","InstanceId":"Inst-0","AnomalyInstanceId":"AN-Inst-0","AnomalyKey":"an-key","Response":"some resp","ResultCode":9,"ResultStr":"Failure Data"}}}`,
+        `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
+        TestServerData{LoMRequest{TypeSendServerResponse, TEST_CL_NAME, ClTimeout,
+            MsgSendServerResponse{TypeServerRequestAction, ActionResponseData{
+                "Foo", "Inst-0", "AN-Inst-0", "an-key", "some resp", 9, "Failure Data"}}},
+            LoMResponse{0, "Succeeded", MsgEmptyResp{}}}},
 
-            // Request for heartbeat
-            {   `{"ReqType":7,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0","Timestamp":100}}`,
-                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
-                TestServerData { LoMRequest { TypeNotifyActionHeartbeat, TEST_CL_NAME, ClTimeout,
-                                    MsgNotifyHeartbeat{"Detect-0", 100 } },
-                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+    // Request for heartbeat
+    {`{"ReqType":7,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0","Timestamp":100}}`,
+        `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
+        TestServerData{LoMRequest{TypeNotifyActionHeartbeat, TEST_CL_NAME, ClTimeout,
+            MsgNotifyHeartbeat{"Detect-0", 100}},
+            LoMResponse{0, "Succeeded", MsgEmptyResp{}}}},
 
-            // Send Dereg action
-            {   `{"ReqType":4,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
-                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
-                TestServerData { LoMRequest { TypeDeregAction, TEST_CL_NAME, ClTimeout, MsgDeregAction { TEST_ACTION_NAME } },
-                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+    // Send Dereg action
+    {`{"ReqType":4,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
+        `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
+        TestServerData{LoMRequest{TypeDeregAction, TEST_CL_NAME, ClTimeout, MsgDeregAction{TEST_ACTION_NAME}},
+            LoMResponse{0, "Succeeded", MsgEmptyResp{}}}},
 
-            // Send Dereg client
-            {   `{"ReqType":2,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`,
-                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
-                TestServerData { LoMRequest { TypeDeregClient, TEST_CL_NAME, ClTimeout, MsgDeregClient {} },
-                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
-        }
-
+    // Send Dereg client
+    {`{"ReqType":2,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`,
+        `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
+        TestServerData{LoMRequest{TypeDeregClient, TEST_CL_NAME, ClTimeout, MsgDeregClient{}},
+            LoMResponse{0, "Succeeded", MsgEmptyResp{}}}},
+}
 
 /*
- * This is *not* a test Function -- Note it is not exported 
+ * This is *not* a test Function -- Note it is not exported
  *
  * This is used to simulate concurrent client.
  * It walks the testData array and simulates request per TestClientData
@@ -237,16 +237,16 @@ func testClient(chRes chan interface{}, chComplete chan interface{}) {
             err = txClient.DeregisterAction(tdata.Args[0])
         case TypeRecvServerRequest:
             if len(tdata.Args) != 0 {
-                 LogPanic("client: tid:%d: Expect No args for RecvServerRequest len=%d", i, len(tdata.Args))
+                LogPanic("client: tid:%d: Expect No args for RecvServerRequest len=%d", i, len(tdata.Args))
             }
             reqData, err = txClient.RecvServerRequest()
         case TypeSendServerResponse:
             if len(tdata.Args) != 0 {
-                 LogPanic("client: tid:%d: Expect No args for SendServerResponse len=%d", i, len(tdata.Args))
+                LogPanic("client: tid:%d: Expect No args for SendServerResponse len=%d", i, len(tdata.Args))
             }
             p := tdata.DataArgs
             res, ok := p.(MsgSendServerResponse)
-            if (!ok) {
+            if !ok {
                 LogPanic("client: tid:%d: Expect MsgSendServerResponse as DataArgs (%T)/(%v)", i, p, p)
             }
             err = txClient.SendServerResponse(&res)
@@ -264,7 +264,7 @@ func testClient(chRes chan interface{}, chComplete chan interface{}) {
         }
         if (err != nil) != tdata.Failed {
             LogPanic("client: tid:%d type(%d/%s) err=%v failed=%v", i, tdata.ReqType,
-                    ReqTypeToStr[tdata.ReqType], err, tdata.Failed)
+                ReqTypeToStr[tdata.ReqType], err, tdata.Failed)
         }
 
         p := tdata.ExpResp
@@ -274,17 +274,17 @@ func testClient(chRes chan interface{}, chComplete chan interface{}) {
                     LogPanic("Client: tid:%d ReqData (%v) != expData(%v)", i, *reqData, expData)
                 }
             } else {
-                LogPanic("Client: tid:%d Type mismatch Rcvd:(%T) exp(%T)",i, reqData, p)
+                LogPanic("Client: tid:%d Type mismatch Rcvd:(%T) exp(%T)", i, reqData, p)
             }
         } else if x, ok := p.(MsgEmptyResp); !ok {
             LogPanic("Client: tid:%d Received None. Exp:(%T)", i, x)
         }
 
         LogDebug("client: tid=%d succeeded", i)
-        chRes <- struct {}{}
+        chRes <- struct{}{}
     }
     LogDebug("client: Complete")
-    chComplete <- struct {}{}
+    chComplete <- struct{}{}
 }
 
 func TestMain(t *testing.T) {
@@ -321,9 +321,9 @@ func TestMain(t *testing.T) {
             if p == nil {
                 t.Errorf("Server: tid:%d ReadClientRequest returned nil", i)
             }
-            if (*p.Req != tdata.Req) {
+            if *p.Req != tdata.Req {
                 t.Errorf("Server: tid:%d: Type(%d) Failed to match msg(%v) != exp(%v)",
-                                    i, tdata.ReqType, *p.Req, tdata.Req)
+                    i, tdata.ReqType, *p.Req, tdata.Req)
             }
             /* Response to remote client -- done via clientTx */
             if tdata.Res.ResultStr == "SKIP" {
@@ -333,14 +333,13 @@ func TestMain(t *testing.T) {
             }
         }
         /* Wait for client to complete */
-        <- chResult
-            
+        <-chResult
+
     }
     LogDebug("Server Complete. Waiting on client to complete...")
-    <- chComplete
+    <-chComplete
     LogDebug("SUCCEEDED")
 }
-
 
 func testJSONClient(t *testing.T, tx *LoMTransport, chRes, chComplete chan interface{}) {
     for ti := 0; ti < len(testDataForJson); ti++ {
@@ -356,7 +355,7 @@ func testJSONClient(t *testing.T, tx *LoMTransport, chRes, chComplete chan inter
         if ti == 4 {
             LogDebug("res:(%v)", res)
         }
-        chRes <- struct {}{} /* Indicate completion to server */
+        chRes <- struct{}{} /* Indicate completion to server */
     }
     {
         /* Failure cases */
@@ -373,9 +372,8 @@ func testJSONClient(t *testing.T, tx *LoMTransport, chRes, chComplete chan inter
         }
     }
     LogDebug("testJSONClient: complete")
-    chComplete <- struct {}{}
+    chComplete <- struct{}{}
 }
-
 
 func TestJSONServer(t *testing.T) {
     tx := GetLoMTransport()
@@ -388,8 +386,8 @@ func TestJSONServer(t *testing.T) {
     for ti := 0; ti < len(testDataForJson); ti++ {
         if len(chComplete) != 0 {
             t.Errorf("ERR: Server tid:%d But client complete", ti)
-        }   
-        tdata := &testDataForJson[ti]   
+        }
+        tdata := &testDataForJson[ti]
         LogDebug("JSON Server: Running: tid=%d", ti)
         LogDebug("JSON Server: Running: tdata(%v)", *tdata)
 
@@ -400,19 +398,18 @@ func TestJSONServer(t *testing.T) {
         if recv, err := json.Marshal(*p.Req); err != nil {
             t.Errorf("ERR: testJSONServer: %d: err(%v) is not valid Json (%v)", ti, err, *p.Req)
         } else if exp, err := json.Marshal(tdata.Req); err != nil {
-            t.Errorf("ERR: testJSONServer: %d Failed to marshal test data err(%v) data(%v)",  ti, err, tdata.Req)
+            t.Errorf("ERR: testJSONServer: %d Failed to marshal test data err(%v) data(%v)", ti, err, tdata.Req)
         } else if string(recv) != string(exp) {
             t.Errorf("ERR: testJSONServer: %d req mismatch recv(%s) != exp(%s)", ti, string(recv), string(exp))
         }
         p.ChResponse <- &tdata.Res
         /* Wait for client to complete */
-        <- chResult
+        <-chResult
     }
     LogDebug("TestJSONServer complete. Waiting on client ...")
-    <- chComplete
+    <-chComplete
     LogDebug("TestJSONServer complete. SUCCESS")
 }
-
 
 func TestClientFail(t *testing.T) {
     txClient := GetClientTx(ClTimeout)
@@ -421,7 +418,7 @@ func TestClientFail(t *testing.T) {
         retE := errors.New("rerer")
         retC := errors.New("irerrwe")
         resCode := -1
-        
+
         /* Save & override */
         dial := RPCDialHttp
         RPCDialHttp = func(s1 string, s2 string) (*rpc.Client, error) {
@@ -444,7 +441,7 @@ func TestClientFail(t *testing.T) {
 
         {
             err := txClient.RegisterClient("")
-            if (err != retE) {
+            if err != retE {
                 t.Errorf("Failed to fail HTTP call")
             }
 
@@ -476,7 +473,7 @@ func TestClientFail(t *testing.T) {
                 t.Errorf("Failed to fail in RPC call")
             }
         }
-        
+
         /* Don't fail call, but return non zero result */
         retC = nil
         {
@@ -553,11 +550,10 @@ func cmpMap(s map[string]string, d map[string]string) bool {
     return true
 }
 
-
 func TestServerFail(t *testing.T) {
     {
-        p1 := []*ActionResponseData {{}, {} }
-        p2 := []*ActionResponseData {{} }
+        p1 := []*ActionResponseData{{}, {}}
+        p2 := []*ActionResponseData{{}}
 
         if false != SlicesComp(p1, p2) {
             t.Errorf("SlicesComp Failed to fail")
@@ -576,13 +572,13 @@ func TestServerFail(t *testing.T) {
             t.Errorf("Failed to match nil pointers")
         }
 
-        s1 = &ServerRequestData { TypeServerRequestAction, struct{}{} }
+        s1 = &ServerRequestData{TypeServerRequestAction, struct{}{}}
         if false != s1.Equal(s2) {
             t.Errorf("Failed to mismatch non nil vs nil")
         }
 
-        s2 = &ServerRequestData { TypeServerRequestShutdown, 
-        ActionRequestData {"foo", "", "", "", 9, []*ActionResponseData{}} }
+        s2 = &ServerRequestData{TypeServerRequestShutdown,
+            ActionRequestData{"foo", "", "", "", 9, []*ActionResponseData{}}}
         if false != s1.Equal(s2) {
             t.Errorf("Failed to find mismatched req type")
         }
@@ -592,17 +588,17 @@ func TestServerFail(t *testing.T) {
             t.Errorf("Failed to find mismatched reqData type")
         }
 
-        s1.ReqData = ActionRequestData{"bar", "", "", "", 9, []*ActionResponseData{} }
+        s1.ReqData = ActionRequestData{"bar", "", "", "", 9, []*ActionResponseData{}}
         if false != s1.Equal(s2) {
             t.Errorf("Failed to find mismatched reqData value type")
         }
 
-        s2.ReqData = ActionRequestData{"Bar", "", "", "", 9, []*ActionResponseData{} }
+        s2.ReqData = ActionRequestData{"Bar", "", "", "", 9, []*ActionResponseData{}}
         if false != s1.Equal(s2) {
             t.Errorf("Failed to find mismatched reqData value")
         }
 
-        s2.ReqData = ActionRequestData{"bar", "", "", "", 9, []*ActionResponseData{} }
+        s2.ReqData = ActionRequestData{"bar", "", "", "", 9, []*ActionResponseData{}}
         if true != s1.Equal(s2) {
             t.Errorf("Failed to find match reqData value")
         }
@@ -620,17 +616,17 @@ func TestServerFail(t *testing.T) {
             t.Errorf("Failed to match nil pointers")
         }
 
-        s1 = &ActionRequestData { "bar", "", "", "", 9, []*ActionResponseData{} }
+        s1 = &ActionRequestData{"bar", "", "", "", 9, []*ActionResponseData{}}
         if false != s1.Equal(s2) {
             t.Errorf("Failed to mismatch non nil vs nil")
         }
 
-        s2 = &ActionRequestData { "bar", "rrr", "", "", 9, []*ActionResponseData{} }
+        s2 = &ActionRequestData{"bar", "rrr", "", "", 9, []*ActionResponseData{}}
         if false != s1.Equal(s2) {
             t.Errorf("Failed to find mismatched value")
         }
 
-        s2 = &ActionRequestData { "bar", "", "", "", 9, []*ActionResponseData{} }
+        s2 = &ActionRequestData{"bar", "", "", "", 9, []*ActionResponseData{}}
         if true != s1.Equal(s2) {
             t.Errorf("Failed to find matched value")
         }
@@ -656,26 +652,26 @@ func TestServerFail(t *testing.T) {
         if p, e := tx.ReadClientRequest(chAbort); e == nil || p != nil {
             t.Errorf("Failed to fail for abort")
         }
-    } 
+    }
     {
-        p := &ActionResponseData {
-            Action: "aaa",
-            InstanceId: "rerew-erere",
+        p := &ActionResponseData{
+            Action:            "aaa",
+            InstanceId:        "rerew-erere",
             AnomalyInstanceId: "fgfg-gfgg-453",
-            AnomalyKey: "Blah-Blah",
-            Response: "All good",
-            ResultCode: 77,
-            ResultStr: "Seventy Seven",
+            AnomalyKey:        "Blah-Blah",
+            Response:          "All good",
+            ResultCode:        77,
+            ResultStr:         "Seventy Seven",
         }
-        m := map[string]string {
-            "action": p.Action,
-            "instanceId": p.InstanceId,
+        m := map[string]string{
+            "action":            p.Action,
+            "instanceId":        p.InstanceId,
             "anomalyInstanceId": p.AnomalyInstanceId,
-            "anomalyKey": p.AnomalyKey,
-            "response": p.Response,
-            "resultCode": "77",
-            "resultStr": p.ResultStr,
-            }
+            "anomalyKey":        p.AnomalyKey,
+            "response":          p.Response,
+            "resultCode":        "77",
+            "resultStr":         p.ResultStr,
+        }
         if !cmpMap(p.ToMap(false), m) {
             t.Errorf("1: Failed cmp (%v) != (%v)", p.ToMap(false), m)
         }
@@ -693,23 +689,22 @@ func TestServerFail(t *testing.T) {
             t.Errorf("2: Failed cmp (%v) != (%v)", p.ToMap(true), m)
         }
 
-        lst := map[string]ActionResponseData {
-            "missing Action": ActionResponseData {},
-            "missing Instanceid": ActionResponseData{ Action: "foo" },
-            "missing AnomalyInstanceid": ActionResponseData{ Action: "foo", InstanceId: "ddd" },
-            "missing AnomalyKey for non anomaly": ActionResponseData{ Action: "foo", InstanceId: "ddd",
-                        AnomalyInstanceId: "eee" },
-            "missing AnomalyKey for anomaly": ActionResponseData{ Action: "foo", InstanceId: "ddd",
-                        AnomalyInstanceId: "ddd" },
-            }
+        lst := map[string]ActionResponseData{
+            "missing Action":            ActionResponseData{},
+            "missing Instanceid":        ActionResponseData{Action: "foo"},
+            "missing AnomalyInstanceid": ActionResponseData{Action: "foo", InstanceId: "ddd"},
+            "missing AnomalyKey for non anomaly": ActionResponseData{Action: "foo", InstanceId: "ddd",
+                AnomalyInstanceId: "eee"},
+            "missing AnomalyKey for anomaly": ActionResponseData{Action: "foo", InstanceId: "ddd",
+                AnomalyInstanceId: "ddd"},
+        }
 
-           
         /* Anomaly with key */
-        good := ActionResponseData{ Action: "foo", InstanceId: "ddd",
-                    AnomalyInstanceId: "ddd", AnomalyKey: "erere", Response: "rr" }
+        good := ActionResponseData{Action: "foo", InstanceId: "ddd",
+            AnomalyInstanceId: "ddd", AnomalyKey: "erere", Response: "rr"}
         /* Failed anonaly w/o key */
-        good1 := ActionResponseData{ Action: "foo", InstanceId: "ddd",
-                    AnomalyInstanceId: "ddd", ResultCode: 77}
+        good1 := ActionResponseData{Action: "foo", InstanceId: "ddd",
+            AnomalyInstanceId: "ddd", ResultCode: 77}
 
         for k, v := range lst {
             if v.Validate() != false {
@@ -916,9 +911,98 @@ type testAPIData_t struct {
     Seq             map[string]bool
     Sequence        BindingSequence_t
     ActionsCfg      map[string]ActionCfg_t
+=======
+    GlobalStr string
+    ActionStr string
+    BindStr   string
+    Failed    bool
+    Reason    string
 }
 
-var testApiData = testAPIData_t {
+var testConfigData = []ConfigData_t{
+    {
+        "",
+        "",
+        "",
+        true,
+        "Missing global file",
+    },
+    {
+        "{}",
+        "",
+        "",
+        true,
+        "Missing actions file",
+    },
+    {
+        "{}",
+        "{}",
+        "",
+        true,
+        "Missing bindings file",
+    },
+    {
+        "eee",
+        "",
+        "",
+        true,
+        "Invalid global Json data",
+    },
+    {
+        "{}",
+        "eee",
+        "",
+        true,
+        "Invalid actions Json data",
+    },
+    {
+        "{}",
+        "{}",
+        "eee",
+        true,
+        "Invalid bindings Json data",
+    },
+    {
+        `{}`,
+        `{ "actions": [ { "name": "xxx" } ] }`,
+        `{ "bindings": [ { "name": "Test", "actions": [ {"name": "YYY"} ] } ] }`,
+        true,
+        "Action name YYY not in actions",
+    },
+    {
+        `{}`,
+        `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+        `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 0 }, {"name": "yyy"}] } ] }`,
+        true,
+        "Duplicate sequence",
+    },
+    {
+        `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
+        `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+        `{ "bindings": [ { "name": "Test", "actions": [ ] } ] }`,
+        true,
+        "No actions in sequence",
+    },
+    {
+        `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
+        `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+        `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
+        false,
+        "",
+    },
+}
+
+type testAPIData_t struct {
+    GlobalStr  string
+    ActionStr  string
+    BindStr    string
+    Seq        map[string]bool
+    Sequence   BindingSequence_t
+    ActionsCfg map[string]ActionCfg_t
+>>>>>>> origin/LoM-Prod
+}
+
+var testApiData = testAPIData_t{
     `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 22, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
     `{ "actions": [ { "name": "foo", "timeout":77 }, { "name": "bar" } ] }`,
     `{ "bindings": [ { "sequencename": "TestFoo", "timeout": 60, "actions": [ {"name": "foo", "sequence": 1 }, {"name": "bar"}] } ] }`,
@@ -927,54 +1011,52 @@ var testApiData = testAPIData_t {
         "foo": false,
         "bar": true,
     },
-    BindingSequence_t {
+    BindingSequence_t{
         "TestFoo",
-       60,
-       0,
-       []*BindingActionCfg_t {
-           {
-               "bar",
-               false,
-               0,
-               0,
-           },
-           {
-               "foo",
-               false,
-               77,
-               1,
-           },
-       },
-   },
-   map[string]ActionCfg_t {
-       "foo": {
-           "foo",
-           "",
-           77,
-           0,
-           false,
-           false,
-           "",
-       },
-       "bar": {
-           "bar",
-           "",
-           0,
-           0,
-           false,
-           false,
-           "",
-       },
-   },
+        60,
+        0,
+        []*BindingActionCfg_t{
+            {
+                "bar",
+                false,
+                0,
+                0,
+            },
+            {
+                "foo",
+                false,
+                77,
+                1,
+            },
+        },
+    },
+    map[string]ActionCfg_t{
+        "foo": {
+            "foo",
+            "",
+            77,
+            0,
+            false,
+            false,
+            "",
+        },
+        "bar": {
+            "bar",
+            "",
+            0,
+            0,
+            false,
+            false,
+            "",
+        },
+    },
 }
-
-
 
 func createFile(name string, s string) (string, error) {
     fl := ""
     defer func() {
         LogDebug("name:(%s) file(%s)", name, fl)
-        if (len(fl) == 9) {
+        if len(fl) == 9 {
             LogPanic("Failed to create file")
         }
     }()
@@ -1089,7 +1171,7 @@ func TestConfig(t *testing.T) {
     {
         mgr, err := getConfigMgrTest(t, testApiData.GlobalStr, testApiData.ActionStr, testApiData.BindStr, testApiData.ProcStr, false)
         if err != nil {
-            t.Errorf("Unexpected error: (%v) (%v)", err,mgr == nil)
+            t.Errorf("Unexpected error: (%v) (%v)", err, mgr == nil)
         }
 
         if v := mgr.GetGlobalCfgStr("foo"); v != "bar" {
@@ -1112,7 +1194,7 @@ func TestConfig(t *testing.T) {
             } else if len(l) != 2 {
                 t.Errorf("Global list: len: 2 != (%d)", len(l))
             } else {
-                lst := [2]string {  "hello", "world" }
+                lst := [2]string{"hello", "world"}
                 for i, ac := range l {
                     if s, ok := ac.(string); !ok {
                         t.Errorf("Global list: entry type string != (%T) (%v)", s, s)
@@ -1178,7 +1260,6 @@ func TestConfig(t *testing.T) {
     }
 }
 
-
 func TestPeriodic(t *testing.T) {
     s := GetUUID()
     if len(s) != 36 {
@@ -1204,7 +1285,7 @@ func TestPeriodic(t *testing.T) {
             t.Errorf("LogPerodic: Expect to fail for empty ID")
         }
 
-        Ids := []string {"ID_0", "ID_1", "ID_2"}
+        Ids := []string{"ID_0", "ID_1", "ID_2"}
         d.ID = Ids[0]
         if err := lg.AddLogPeriodic(d); err == nil {
             t.Errorf("LogPerodic: Expect to fail for empty message")
@@ -1233,7 +1314,7 @@ func TestPeriodic(t *testing.T) {
             t.Errorf("LogPerodic: Expect to succeed (%v)", d)
         }
 
-        // Sleep to ensure run method, all cases executed 
+        // Sleep to ensure run method, all cases executed
         time.Sleep(2 * time.Second)
         for _, k := range Ids {
             lg.DropLogPeriodic(k)
@@ -1243,9 +1324,9 @@ func TestPeriodic(t *testing.T) {
     }
 
     {
-        m := map[string]string {
-            "foo": "bar",
-            "val": "42",
+        m := map[string]string{
+            "foo":  "bar",
+            "val":  "42",
             "data": "xxx",
         }  
         SetPublishAPI(PublishString)
@@ -1267,7 +1348,6 @@ func TestPeriodic(t *testing.T) {
     }
 }
 
-
 func TestOneShot(t *testing.T) {
     exp := []int{1, 2, 3}
     rcv := make([]int, 0, len(exp))
@@ -1275,18 +1355,18 @@ func TestOneShot(t *testing.T) {
 
     f0 := func() { ch <- exp[0] }
     f1 := func() { ch <- exp[1] }
-    f2 := func() { t.Errorf("f2 is not expected to be called") }       /* Disabled */
+    f2 := func() { t.Errorf("f2 is not expected to be called") } /* Disabled */
     f3 := func() { ch <- exp[2] }
 
-    tmr0 := AddOneShotTimer(-2, "f0", f0)    /* 2 secs before */
+    tmr0 := AddOneShotTimer(-2, "f0", f0) /* 2 secs before */
     AddOneShotTimer(1, "f1", f1)
-    tmr2 := AddOneShotTimer(1, "f2", f2)     /* Two for same time */
+    tmr2 := AddOneShotTimer(1, "f2", f2) /* Two for same time */
     tmr2.Disable()
-    tmr3 := AddOneShotTimer(3, "f3", f3)     /* one later */
+    tmr3 := AddOneShotTimer(3, "f3", f3) /* one later */
 
     for {
         select {
-        case v := <- ch:
+        case v := <-ch:
             rcv = append(rcv, v)
             if len(rcv) == len(exp) {
                 for i, e := range rcv {
@@ -1298,16 +1378,16 @@ func TestOneShot(t *testing.T) {
                 /* Test complete */
                 if !tmr0.IsDone() || !tmr3.IsDone() || tmr2.IsDone() {
                     t.Errorf("One shot timer IsDone not set (%v) (%v) (%v)",
-                            tmr0.IsDone(), tmr2.IsDone(), tmr3.IsDone())
+                        tmr0.IsDone(), tmr2.IsDone(), tmr3.IsDone())
                 }
                 if tmr0.IsDisabled() || !tmr2.IsDisabled() || tmr3.IsDisabled() {
                     t.Errorf("One shot timer  IsDisabled incorrect (%v) (%v) (%v)",
-                            tmr0.IsDisabled(), tmr2.IsDisabled(), tmr3.IsDisabled())
+                        tmr0.IsDisabled(), tmr2.IsDisabled(), tmr3.IsDisabled())
                 }
                 return
             }
 
-        case <- time.After(4 * time.Second):
+        case <-time.After(4 * time.Second):
             /* test expected to complete before this timeout */
             t.Errorf("Oneshot failed (%v) != (%v)", rcv, exp)
             return

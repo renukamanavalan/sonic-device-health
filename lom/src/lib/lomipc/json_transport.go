@@ -5,18 +5,17 @@ import (
     . "lom/src/lib/lomcommon"
 )
 
-
 /*
  * Lib Wrapper for calling the client APIs via JSON string
  *
  * Non go clients, can send the request in the form of JSON string
  * The JSON string should map to appropriate LomRequest
  *
- * The APIs here, try to unmarshal into appropriate struct types 
+ * The APIs here, try to unmarshal into appropriate struct types
  * and construct expected LomRequest per request type and call
- * sendToServer. 
+ * sendToServer.
  *
- * It marshals the LomResponse as JSON string and send it back to 
+ * It marshals the LomResponse as JSON string and send it back to
  * caller.
  *
  * Reference on RPC: https://pkg.go.dev/net/rpc
@@ -32,7 +31,7 @@ import (
  *
  *      func (t *T) MethodName(argType T1, replyType *T2) error
  *
- *      where T1 and T2 can be marshaled by encoding/gob. These requirements apply even if a 
+ *      where T1 and T2 can be marshaled by encoding/gob. These requirements apply even if a
  *      different codec is used. (In the future, these requirements may soften for custom codecs.)
  *
  *      The method's first argument represents the arguments provided by the caller;
@@ -69,7 +68,7 @@ func (tr *LoMTransport) LoMRPCRequest(reqJson *string, resJson *string) error {
 
     if err = json.Unmarshal([]byte(*reqJson), &req); err == nil {
         if bData, err = json.Marshal(req.ReqData); err == nil {
-            switch (req.ReqType) {
+            switch req.ReqType {
             case TypeRegClient:
                 req.ReqData = MsgRegClient{}
 
@@ -126,11 +125,9 @@ func (tr *LoMTransport) LoMRPCRequest(reqJson *string, resJson *string) error {
 
     if bData, err := json.Marshal(res); err != nil {
         return LogError("Failed to marshal for (%s) (%v) (%v)", ReqTypeToStr[req.ReqType],
-                    err, res)
+            err, res)
     } else {
         *resJson = string(bData)
     }
     return nil
 }
-
-

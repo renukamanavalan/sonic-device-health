@@ -1,7 +1,6 @@
 package lomipc
 
-
-import(
+import (
     . "lom/src/lib/lomcommon"
     "net/rpc"
     "strconv"
@@ -53,7 +52,7 @@ func (tx *ClientTx) RegisterClient(client string) error {
     }
     r, err := RPCDialHttp("tcp", server_address+":"+strconv.Itoa(RPC_HTTP_PORT))
 
-    if (err != nil) {
+    if err != nil {
         LogError("RegisterClient: Failed to call rpc.DialHTTP err:(%v)", err)
         return err
     }
@@ -64,19 +63,19 @@ func (tx *ClientTx) RegisterClient(client string) error {
             tx.clientName = ""
         }
     }()
-    
+
     tx.clientRpc = r
     tx.clientName = client
-    req := &LoMRequest { TypeRegClient, client, tx.timeoutSecs, MsgRegClient{} }
+    req := &LoMRequest{TypeRegClient, client, tx.timeoutSecs, MsgRegClient{}}
     reply := &LoMResponse{}
     err = ClientCall(tx, "LoMTransport.SendToServer", req, reply)
-    if (err != nil) {
+    if err != nil {
         LogError("RegisterClient: Failed to call sendToServer (%s) (%v)", client, err)
         return err
     }
-    if (reply.ResultCode != 0) {
+    if reply.ResultCode != 0 {
         return LogError("RegisterClient: Server failed client (%v) result(%d/%s)", client,
-                reply.ResultCode, reply.ResultStr)
+            reply.ResultCode, reply.ResultStr)
     }
 
     res := reply.RespData
@@ -87,7 +86,6 @@ func (tx *ClientTx) RegisterClient(client string) error {
     LogInfo("Registered client (%s)", client)
     return nil
 }
-
 
 /*
  * DeregisterClient
@@ -110,16 +108,16 @@ func (tx *ClientTx) DeregisterClient() error {
         tx.clientName = ""
     }()
 
-    req := &LoMRequest { TypeDeregClient, tx.clientName, tx.timeoutSecs, MsgDeregClient{} }
+    req := &LoMRequest{TypeDeregClient, tx.clientName, tx.timeoutSecs, MsgDeregClient{}}
     reply := &LoMResponse{}
     err := ClientCall(tx, "LoMTransport.SendToServer", req, reply)
-    if (err != nil) {
+    if err != nil {
         LogError("DeregisterClient: Failed to call sendToServer (%s) (%v)", tx.clientName, err)
         return err
     }
-    if (reply.ResultCode != 0) {
+    if reply.ResultCode != 0 {
         return LogError("DeregisterClient: Server failed (%v) result(%d/%s)", tx.clientName,
-                reply.ResultCode, reply.ResultStr)
+            reply.ResultCode, reply.ResultStr)
     }
 
     res := reply.RespData
@@ -130,7 +128,6 @@ func (tx *ClientTx) DeregisterClient() error {
     LogInfo("Deregistered client (%s)", tx.clientName)
     return nil
 }
-
 
 /*
  * RegisterAction
@@ -149,17 +146,17 @@ func (tx *ClientTx) DeregisterClient() error {
  */
 func (tx *ClientTx) RegisterAction(action string) error {
 
-    req := &LoMRequest { TypeRegAction, tx.clientName, tx.timeoutSecs, MsgRegAction{action} }
+    req := &LoMRequest{TypeRegAction, tx.clientName, tx.timeoutSecs, MsgRegAction{action}}
     reply := &LoMResponse{}
     err := ClientCall(tx, "LoMTransport.SendToServer", req, reply)
-    if (err != nil) {
+    if err != nil {
         LogError("RegisterAction: Failed to call sendToServer (%s/%s) (%v)", tx.clientName,
-                action, err)
+            action, err)
         return err
     }
-    if (reply.ResultCode != 0) {
+    if reply.ResultCode != 0 {
         return LogError("RegisterAction: Server failed (%s/%s) result(%d/%s)", tx.clientName,
-                action, reply.ResultCode, reply.ResultStr)
+            action, reply.ResultCode, reply.ResultStr)
     }
 
     res := reply.RespData
@@ -170,7 +167,6 @@ func (tx *ClientTx) RegisterAction(action string) error {
     LogInfo("Registered action (%s/%s)", tx.clientName, action)
     return nil
 }
-
 
 /*
  * DeregisterAction
@@ -189,17 +185,17 @@ func (tx *ClientTx) RegisterAction(action string) error {
  */
 func (tx *ClientTx) DeregisterAction(action string) error {
 
-    req := &LoMRequest { TypeDeregAction, tx.clientName, tx.timeoutSecs, MsgDeregAction{action} }
+    req := &LoMRequest{TypeDeregAction, tx.clientName, tx.timeoutSecs, MsgDeregAction{action}}
     reply := &LoMResponse{}
     err := ClientCall(tx, "LoMTransport.SendToServer", req, reply)
-    if (err != nil) {
+    if err != nil {
         LogError("DeregisterAction: Failed to call sendToServer (%s/%s) (%v)", tx.clientName,
-                action, err)
+            action, err)
         return err
     }
-    if (reply.ResultCode != 0) {
+    if reply.ResultCode != 0 {
         return LogError("DeregisterAction: Server failed (%s/%s) result(%d/%s)", tx.clientName,
-                action, reply.ResultCode, reply.ResultStr)
+            action, reply.ResultCode, reply.ResultStr)
     }
 
     res := reply.RespData
@@ -229,16 +225,16 @@ func (tx *ClientTx) DeregisterAction(action string) error {
  */
 func (tx *ClientTx) RecvServerRequest() (*ServerRequestData, error) {
 
-    req := &LoMRequest { TypeRecvServerRequest, tx.clientName, tx.timeoutSecs, MsgRecvServerRequest{} }
+    req := &LoMRequest{TypeRecvServerRequest, tx.clientName, tx.timeoutSecs, MsgRecvServerRequest{}}
     reply := &LoMResponse{}
     err := ClientCall(tx, "LoMTransport.SendToServer", req, reply)
-    if (err != nil) {
+    if err != nil {
         LogError("RecvServerRequest: Failed to call sendToServer (%s) (%v)", tx.clientName, err)
         return nil, err
     }
-    if (reply.ResultCode != 0) {
+    if reply.ResultCode != 0 {
         return nil, LogError("RecvServerRequest: Server failed (%s) result(%d/%s)", tx.clientName,
-                reply.ResultCode, reply.ResultStr)
+            reply.ResultCode, reply.ResultStr)
     }
 
     p := reply.RespData
@@ -248,7 +244,7 @@ func (tx *ClientTx) RecvServerRequest() (*ServerRequestData, error) {
     }
 
     LogInfo("RecvServerRequest: succeeded (%s/%s)", tx.clientName,
-                    ServerReqTypeToStr[res.ReqType])
+        ServerReqTypeToStr[res.ReqType])
     return &res, nil
 }
 
@@ -268,16 +264,16 @@ func (tx *ClientTx) RecvServerRequest() (*ServerRequestData, error) {
  *  Appropriate error object on failure
  */
 func (tx *ClientTx) SendServerResponse(res *MsgSendServerResponse) error {
-    req := &LoMRequest { TypeSendServerResponse, tx.clientName, tx.timeoutSecs, res }
+    req := &LoMRequest{TypeSendServerResponse, tx.clientName, tx.timeoutSecs, res}
     reply := &LoMResponse{}
     err := ClientCall(tx, "LoMTransport.SendToServer", req, reply)
-    if (err != nil) {
+    if err != nil {
         LogError("SendServerResponse: Failed to call sendToServer (%s) (%v)", tx.clientName, err)
         return err
     }
-    if (reply.ResultCode != 0) {
+    if reply.ResultCode != 0 {
         return LogError("SendServerResponse: Server failed (%s) result(%d/%s)", tx.clientName,
-                reply.ResultCode, reply.ResultStr)
+            reply.ResultCode, reply.ResultStr)
     }
 
     resD := reply.RespData
@@ -289,7 +285,6 @@ func (tx *ClientTx) SendServerResponse(res *MsgSendServerResponse) error {
     return nil
 
 }
-
 
 /*
  * NotifyHeartbeat
@@ -308,18 +303,18 @@ func (tx *ClientTx) SendServerResponse(res *MsgSendServerResponse) error {
  *  Appropriate error object on failure
  */
 func (tx *ClientTx) NotifyHeartbeat(action string, tstamp int64) error {
-    req := &LoMRequest { TypeNotifyActionHeartbeat, tx.clientName, tx.timeoutSecs, 
-                MsgNotifyHeartbeat { action, tstamp }}
+    req := &LoMRequest{TypeNotifyActionHeartbeat, tx.clientName, tx.timeoutSecs,
+        MsgNotifyHeartbeat{action, tstamp}}
     reply := &LoMResponse{}
     err := ClientCall(tx, "LoMTransport.SendToServer", req, reply)
-    if (err != nil) {
+    if err != nil {
         LogError("NotifyHeartbeat: Failed to call sendToServer (%s/%s) (%v)", tx.clientName,
-                action, err)
+            action, err)
         return err
     }
-    if (reply.ResultCode != 0) {
+    if reply.ResultCode != 0 {
         return LogError("NotifyHeartbeat: Server failed (%s/%s) result(%d/%s)", tx.clientName,
-                action, reply.ResultCode, reply.ResultStr)
+            action, reply.ResultCode, reply.ResultStr)
     }
 
     res := reply.RespData
@@ -330,5 +325,3 @@ func (tx *ClientTx) NotifyHeartbeat(action string, tstamp int64) error {
     LogInfo("Notified heartbeat from action (%s/%s)", tx.clientName, action)
     return nil
 }
-
-

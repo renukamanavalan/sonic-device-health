@@ -11,19 +11,19 @@ import (
 )
 
 type engine_t struct {
-    tx              *LoMTransport
+    tx *LoMTransport
 
-    chTrack         chan int    /* Track engine main loop state */
-    chTerminate     chan int    /* Terminate engine */
+    chTrack     chan int /* Track engine main loop state */
+    chTerminate chan int /* Terminate engine */
 
-    chClientReq     chan *LoMRequestInt
-    chClReadAbort   chan interface{}
+    chClientReq   chan *LoMRequestInt
+    chClReadAbort chan interface{}
 }
 
 var cfgPath = ""
 
 /*
- * Read client requests via engine Lib API and route it to 
+ * Read client requests via engine Lib API and route it to
  * engine's main loop.
  */
 func (p *engine_t) readRequest() {
@@ -48,7 +48,7 @@ func (p *engine_t) readRequest() {
                 select {
                 case p.chClientReq <- req:
                     break
-                case <- p.chClReadAbort:
+                case <-p.chClReadAbort:
                     return
                 }
             } else {
@@ -58,7 +58,6 @@ func (p *engine_t) readRequest() {
         }
     }()
 }
-
 
 func (p *engine_t) runLoop() {
     /*
@@ -94,7 +93,7 @@ func (p *engine_t) runLoop() {
     /*
      * Initialize seq handler
      *
-     * The seq handler is invoked for any response from clients via this 
+     * The seq handler is invoked for any response from clients via this
      * runLoop Go routine. To ensure that any timer based processing too
      * happens in the same context, it uses this routine for any of its
      * timer call back needs.
@@ -114,30 +113,30 @@ func (p *engine_t) runLoop() {
 loop:
     for {
         select {
-        case msg := <- p.chClientReq:
+        case msg := <-p.chClientReq:
             server.processRequest(msg)
 
-        case <- chSeqHandler:
+        case <-chSeqHandler:
             GetSeqHandler().processTimeout()
 
-        case sig := <- chSignal:
-            switch(sig) {
+        case sig := <-chSignal:
+            switch sig {
             case syscall.SIGHUP, syscall.SIGINT:
                 /*
                  * Reload.
                  * NOTE: Any currently active sequence will not be affected
-                 * On any error, continues to use last loaded values. 
+                 * On any error, continues to use last loaded values.
                  */
                 InitConfigPath(cfgPath)
 
             case syscall.SIGTERM:
                 break loop
             }
-        case <- p.chTerminate:
+        case <-p.chTerminate:
             break loop
         }
     }
-} 
+}
 
 func (p *engine_t) close() {
     if len(p.chTerminate) < cap(p.chTerminate) {
@@ -157,7 +156,7 @@ func startUp(progname string, args []string) (*engine_t, error) {
         flags.StringVar(&p, "path", "", "Config files path")
 
         err := flags.Parse(args)
-        if  err != nil {
+        if err != nil {
             return nil, LogError("Failed to parse (%v); details(%s)", args, buf.String())
         }
         cfgPath = p
@@ -167,7 +166,7 @@ func startUp(progname string, args []string) (*engine_t, error) {
     if err := InitConfigPath(cfgPath); err != nil {
         return nil, LogError("Failed to read config; (%s)", cfgPath)
     }
-   
+
     /* Init engine context that saves all client registrations */
     InitRegistrations()
     tx, err := ServerInit()
@@ -177,11 +176,11 @@ func startUp(progname string, args []string) (*engine_t, error) {
 
     chTrack := make(chan int, 2)     /* To track start/end of loop */
     chTerminate := make(chan int, 1) /* To force terminate a loop */
-    engine := &engine_t{tx: tx, chTrack:chTrack, chTerminate: chTerminate }
+    engine := &engine_t{tx: tx, chTrack: chTrack, chTerminate: chTerminate}
     go engine.runLoop()
-    
+
     /* Wait for loop start */
-    <- chTrack
+    <-chTrack
     return engine, nil
 }
 
@@ -193,10 +192,8 @@ func main() {
         return
     }
 
-    <- engine.chTrack
+    <-engine.chTrack
     LogDebug("Loop ended")
-
 
     LogInfo("Engine exiting...")
 }
-
