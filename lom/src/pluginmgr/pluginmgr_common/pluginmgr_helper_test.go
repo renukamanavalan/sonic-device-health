@@ -1,9 +1,9 @@
 package pluginmgr_common
 
 import (
-	"go/src/lib/lomcommon"
-	"go/src/lib/lomipc"
-	"go/src/plugins/plugins_common"
+	"lom/src/lib/lomcommon"
+	"lom/src/lib/lomipc"
+	"lom/src/plugins/plugins_common"
 
 	"errors"
 	"github.com/stretchr/testify/assert"

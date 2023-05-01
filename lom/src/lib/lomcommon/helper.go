@@ -225,12 +225,12 @@ func GetlogPeriodic() *logPeriodic_t{
     }    
     // TODO: Replace with global abort channel later
     chAbort := make(chan interface{})
-    logPeriodicInit(chAbort)
+    LogPeriodicInit(chAbort)
     return logPeriodic
 }
 
 /* Initialize the singleton instance for log periodic */
-func logPeriodicInit(chAbort chan interface{}) {
+func LogPeriodicInit(chAbort chan interface{}) {
     logPeriodic = &logPeriodic_t {
         logCh: make( chan *LogPeriodicEntry_t),
         logPeriodicList: make(map[string]*logPeriodicEntryInt_t),

@@ -6,8 +6,8 @@
 package plugins_common
 
 import (
-	"go/src/lib/lomcommon"
-	"go/src/lib/lomipc"
+	"lom/src/lib/lomcommon"
+	"lom/src/lib/lomipc"
 	"time"
 )
 

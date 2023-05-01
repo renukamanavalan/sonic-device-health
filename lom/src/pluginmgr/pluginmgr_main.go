@@ -1,9 +1,9 @@
 package main
 
 import (
-	"go/src/lib/lomcommon"
-	"go/src/pluginmgr/pluginmgr_common"
 	"log/syslog"
+	"lom/src/lib/lomcommon"
+	"lom/src/pluginmgr/pluginmgr_common"
 )
 
 func main() {
