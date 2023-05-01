@@ -1,7 +1,7 @@
 /*
-package pluginmgr_common provides plugin manager functionality. Plugin manager is responsible for loading plugins, managing plugins, communicating
-with engine, etc. Plugin manager is implemented as a singleton.
-*/
+ * package pluginmgr_common provides plugin manager functionality. Plugin manager is responsible for loading plugins, managing plugins, communicating
+ * with engine, etc. Plugin manager is implemented as a singleton.
+ */
 
 package pluginmgr_common
 
@@ -19,9 +19,9 @@ import (
 	"time"
 )
 
-/*****************************************************************************************/
-/* Plugin manager */
-/*****************************************************************************************/
+/*
+ * Plugin manager ------------------------------------------------------------------
+ */
 
 // Plugin Manager global variables
 var (
@@ -333,9 +333,9 @@ func (plmgr *PluginManager) AddPeriodicLogWithTimeouts(ID string, message string
 	return stopchannel
 }
 
-/*****************************************************************************************/
-/* 	  Helper Functions										      			             */
-/*****************************************************************************************/
+/*
+ * 	  Helper Functions ----------------------------------------------------------										      			             
+ */
 
 /*
  *  Create Plugin Instance. Multiple plugins can be created from this function
@@ -431,9 +431,9 @@ func ParseArguments() {
 	fmt.Printf("Program Arguments : proc ID : %s, Syslog Level : %d\n", ProcIDFlag, syslogLevelFlag)
 }
 
-/****************************************************************************************/
-/* 									Setup Functions 									*/
-/****************************************************************************************/
+/*
+ * Setup Functions ---------------------------------------------------------- 									 
+ */
 
 // Start Plugin Manager - Create Plugin Manager, read each plugin name and its parameters from actions_conf file & Setup each plugin
 func StartPluginManager() error {
