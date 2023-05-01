@@ -135,7 +135,7 @@ type MsgRecvServerRequest struct {  /* For TypeRecvServerRequest */
 
 type MsgSendServerResponse struct { /* For TypeSendServerResponse */
     ReqType             ServerReqDataType
-    ResData             interface {}
+    ResData             interface {} /* ActionResponseData */
 }
 
 type MsgNotifyHeartbeat struct {    /* For TypeNotifyActionHeartbeat */
