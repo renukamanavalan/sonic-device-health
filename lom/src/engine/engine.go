@@ -68,16 +68,9 @@ func (p *engine_t) runLoop() {
      *      Internal timer for outstanding request's/seq's timeout processing
      */
 
-    /* To abort periodic log at the end of loop */
-    chAbortLog := make(chan interface{}, 1)
-    LogPeriodicInit(chAbortLog)
-
     defer func() {
         /* Indicate loop end */
         p.chTrack <- 1
-
-        /* Abort LogPeriodic */
-        chAbortLog <- 0
 
         if len(p.chClReadAbort) < cap(p.chClReadAbort) {
             p.chClReadAbort <- "Aborted"

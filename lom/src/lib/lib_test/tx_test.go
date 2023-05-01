@@ -782,6 +782,7 @@ type ConfigData_t struct {
     GlobalStr   string
     ActionStr   string
     BindStr     string
+    ProcStr     string
     Failed      bool
     testMode    bool
     Reason      string
@@ -789,6 +790,7 @@ type ConfigData_t struct {
 
 var testConfigData = []ConfigData_t {
         {
+            "",
             "",
             "",
             "",
@@ -800,6 +802,7 @@ var testConfigData = []ConfigData_t {
             "{}",
             "",
             "",
+            "",
             true,
             false,
             "Missing actions file",
@@ -808,12 +811,23 @@ var testConfigData = []ConfigData_t {
             "{}",
             "{}",
             "",
+            "",
             true,
             false,
             "Missing bindings file",
         },
         {
+            "{}",
+            "{}",
+            "{}",
+            "",
+            true,
+            false,
+            "Missing procs file",
+        },
+        {
             "eee",
+            "",
             "",
             "",
             true,
@@ -824,6 +838,7 @@ var testConfigData = []ConfigData_t {
             "{}",
             "eee",
             "",
+            "",
             true,
             false,
             "Invalid actions Json data",
@@ -832,14 +847,25 @@ var testConfigData = []ConfigData_t {
             "{}",
             "{}",
             "eee",
+            "",
             true,
             false,
             "Invalid bindings Json data",
         },
         {
+            "{}",
+            "{}",
+            "{}",
+            "eee",
+            true,
+            false,
+            "Invalid procs Json data",
+        },
+        {
             `{}`,
             `{ "actions": [ { "name": "xxx" } ] }`,
             `{ "bindings": [ { "name": "Test", "actions": [ {"name": "YYY"} ] } ] }`,
+            `{}`,
             true,
             false,
             "Action name YYY not in actions",
@@ -848,6 +874,7 @@ var testConfigData = []ConfigData_t {
             `{}`,
             `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
             `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 0 }, {"name": "yyy"}] } ] }`,
+            `{}`,
             true,
             false,
             "Duplicate sequence",
@@ -856,6 +883,7 @@ var testConfigData = []ConfigData_t {
             `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
             `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
             `{ "bindings": [ { "name": "Test", "actions": [ ] } ] }`,
+            `{}`,
             true,
             false,
             "No actions in sequence",
@@ -864,6 +892,7 @@ var testConfigData = []ConfigData_t {
             `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
             `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
             `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
+            `{}`,
             false,
             false,
             "",
@@ -872,6 +901,7 @@ var testConfigData = []ConfigData_t {
             `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
             `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
             `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
+            `{}`,
             false,
             true,
             "",
@@ -882,6 +912,7 @@ type testAPIData_t struct {
     GlobalStr       string
     ActionStr       string
     BindStr         string
+    ProcStr         string
     Seq             map[string]bool
     Sequence        BindingSequence_t
     ActionsCfg      map[string]ActionCfg_t
@@ -891,6 +922,7 @@ var testApiData = testAPIData_t {
     `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 22, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
     `{ "actions": [ { "name": "foo", "timeout":77 }, { "name": "bar" } ] }`,
     `{ "bindings": [ { "sequencename": "TestFoo", "timeout": 60, "actions": [ {"name": "foo", "sequence": 1 }, {"name": "bar"}] } ] }`,
+    `{}`,
     map[string]bool {
         "foo": false,
         "bar": true,
@@ -960,13 +992,15 @@ func createFile(name string, s string) (string, error) {
     }
 }
 
-func getConfigMgr(t *testing.T, gl, ac, bi string, testMode bool) (*ConfigMgr_t, error) {
+func getConfigMgrTest(t *testing.T, gl, ac, bi, pr string, testMode bool) (*ConfigMgr_t, error) {
     if flG, err := createFile(GLOBALS_CONF_FILE, gl); err != nil {
         t.Errorf("TestConfig: Failed to create Global file")
     } else if _, err := createFile(ACTIONS_CONF_FILE, ac); err != nil {
         t.Errorf("TestConfig: Failed to create Action file")
     } else if _, err := createFile(BINDINGS_CONF_FILE, bi); err != nil {
         t.Errorf("TestConfig: Failed to create Binding file")
+    } else if _, err := createFile(PROCS_CONF_FILE, pr); err != nil {
+        t.Errorf("TestConfig: Failed to create Procs file")
     } else {
         if testMode {
             if _, err := createFile(LOM_TESTMODE_NAME, "zz"); err != nil {
@@ -984,7 +1018,7 @@ func getConfigMgr(t *testing.T, gl, ac, bi string, testMode bool) (*ConfigMgr_t,
 
 func cleanConfigFiles() {
     for _, v := range []string { GLOBALS_CONF_FILE, ACTIONS_CONF_FILE,
-                    BINDINGS_CONF_FILE, LOM_TESTMODE_NAME } {
+                    BINDINGS_CONF_FILE, PROCS_CONF_FILE, LOM_TESTMODE_NAME } {
         fl := filepath.Join("/tmp/", v)
         if _, err := os.Stat(fl); err == nil {
             os.Remove(fl)
@@ -1000,7 +1034,7 @@ func TestConfig(t *testing.T) {
         if ctTestMode != LoMRunMode_NotSet {
             t.Errorf("%d: Expect run mode NotSet(%d) != ct(%d)", ti, LoMRunMode_NotSet, ctTestMode)
         }
-        _, err := getConfigMgr(t, d.GlobalStr, d.ActionStr, d.BindStr, d.testMode)
+        _, err := getConfigMgrTest(t, d.GlobalStr, d.ActionStr, d.BindStr, d.ProcStr, d.testMode)
         if d.Failed == (err == nil) {
             t.Errorf("%d: Expect to fail(%v) but result:(%v): (%s)",
                     ti, d.Failed, err, d.Reason)
@@ -1053,7 +1087,7 @@ func TestConfig(t *testing.T) {
     }
 
     {
-        mgr, err := getConfigMgr(t, testApiData.GlobalStr, testApiData.ActionStr, testApiData.BindStr, false)
+        mgr, err := getConfigMgrTest(t, testApiData.GlobalStr, testApiData.ActionStr, testApiData.BindStr, testApiData.ProcStr, false)
         if err != nil {
             t.Errorf("Unexpected error: (%v) (%v)", err,mgr == nil)
         }
@@ -1156,20 +1190,12 @@ func TestPeriodic(t *testing.T) {
     if len(s) == 36 {
         t.Errorf("Expect custom string not 36. (%d) (%s)", len(s), s)
     }
-    _, err := getConfigMgr(t, `{ "MIN_PERIODIC_LOG_PERIOD_SECS": 1 }`,"{}", "{}", false)
+    _, err := getConfigMgrTest(t, `{ "MIN_PERIODIC_LOG_PERIOD_SECS": 1 }`,"{}", "{}", "{}", false)
     if err != nil {
         t.Errorf("Unexpected error: (%v)", err)
     }
 
     {
-        chAbort := make(chan interface{})
-
-        defer func() {
-            chAbort <- struct{}{}
-        }()
-
-        LogPeriodicInit(chAbort)
-
         lg := GetlogPeriodic()
 
         d := &LogPeriodicEntry_t{}

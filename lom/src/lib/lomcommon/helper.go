@@ -60,7 +60,8 @@ func SetPrefix(p string) {
 }
 
 func getPrefix(skip int) string {
-    prefix := apprefix
+    t := time.Now()
+    prefix := apprefix + fmt.Sprintf("%02d:%02d:%02d: ", t.Hour(), t.Minute(), t.Second())
     if _, fl, ln, ok := runtime.Caller(skip); ok {
         /*
          * sample fl = /home/localadmin/tools/go/caller/t.go 
@@ -270,7 +271,7 @@ func GetUUID() string {
 
 
 /* 
- * Log Periodic module     ------------------------------------------------------------------
+ * Log Periodic module     --------------------------------------------------------------------
  */
 
 const A_DAY_IN_SECS = int64(24 * 60 * 60)
@@ -615,6 +616,7 @@ func callback(all map[int64][]*OneShotEntry_t) int64 {
  * Run forever.
  * With no requests, it just wakes up once a day.
  */
+// TODO: Replace with global abort channel later
 func (p *oneShotTimer_t) runOneShotTimer() {
     all := make(map[int64][]*OneShotEntry_t)
 
@@ -636,7 +638,6 @@ func (p *oneShotTimer_t) runOneShotTimer() {
         }
     }
 }
-
 
 /* 
  * Go Routine Tracker  -----------------------------------------------------------------
