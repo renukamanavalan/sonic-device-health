@@ -1,0 +1,52 @@
+#1 [internal] load .dockerignore
+#1 transferring context: 2B done
+#1 DONE 0.2s
+
+#2 [internal] load build definition from Dockerfile.user
+#2 transferring dockerfile: 701B done
+#2 DONE 0.2s
+
+#3 [internal] load metadata for docker.io/library/lom-slave-bullseye:1234
+#3 DONE 0.0s
+
+#4 [internal] load build context
+#4 transferring context: 451B done
+#4 DONE 0.1s
+
+#5 [ 1/10] FROM docker.io/library/lom-slave-bullseye:1234
+#5 DONE 2.5s
+
+#6 [ 2/10] RUN groupadd -f -r -g 1000 gremanava
+#6 DONE 0.5s
+
+#7 [ 3/10] RUN useradd remanava -l -u 1000 -g 1000 -d /var/remanava -m -s /bin/bash
+#7 DONE 0.5s
+
+#8 [ 4/10] RUN gpasswd -a remanava docker
+#8 0.371 Adding user remanava to group docker
+#8 DONE 0.4s
+
+#9 [ 5/10] RUN su remanava -c "git config --global user.name remanava"
+#9 DONE 0.6s
+
+#10 [ 6/10] RUN su remanava -c "git config --global user.email remanava@contoso.com"
+#10 DONE 0.4s
+
+#11 [ 7/10] COPY sonic-jenkins-id_rsa.pub /var/remanava/.ssh/authorized_keys2
+#11 DONE 0.1s
+
+#12 [ 8/10] RUN chown remanava /var/remanava/.ssh -R
+#12 DONE 0.4s
+
+#13 [ 9/10] RUN chmod go= /var/remanava/.ssh -R
+#13 DONE 0.4s
+
+#14 [10/10] RUN echo "remanava ALL=(ALL) NOPASSWD:ALL" >>/etc/sudoers
+#14 DONE 0.4s
+
+#15 exporting to image
+#15 exporting layers
+#15 exporting layers 8.8s done
+#15 writing image sha256:4c42e03778479e7595ea4e91836d9b1b2e900e0bb9e148e3fe53858b313d85b0 done
+#15 naming to docker.io/library/lom-slave-bullseye-admin:1234 0.0s done
+#15 DONE 8.8s
