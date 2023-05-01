@@ -26,14 +26,9 @@ var LoMRunMode = 0
  * State get APIs
  * ----------------------------------------------------------------
  */
-//export IsLoMInitializedC
-func IsLOMInitializedC() C.int {
-    return LoMInitialized
-}
-
 //export GetLoMRunModeC
 func GetLoMRunModeC() C.int {
-    return LoMRunMode
+    return C.int(LoMRunMode)
 }
 
 /*
