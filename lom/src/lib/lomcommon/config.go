@@ -1,40 +1,39 @@
 package lomcommon
 
 import (
-	"encoding/json"
-	"io"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"sort"
+    "encoding/json"
+    "io"
+    "io/ioutil"
+    "os"
+    "path/filepath"
+    "sort"
 )
-
 
 const (
     /* Global constants */
-    ENGINE_HB_INTERVAL_SECS = "ENGINE_HB_INTERVAL_SECS"
-    MAX_SEQ_TIMEOUT_SECS = "MAX_SEQ_TIMEOUT_SECS"
+    ENGINE_HB_INTERVAL_SECS      = "ENGINE_HB_INTERVAL_SECS"
+    MAX_SEQ_TIMEOUT_SECS         = "MAX_SEQ_TIMEOUT_SECS"
     MIN_PERIODIC_LOG_PERIOD_SECS = "MIN_PERIODIC_LOG_PERIOD_SECS"
 )
 
 const (
-    GLOBALS_CONF_FILE = "globals.conf.json"
-    ACTIONS_CONF_FILE = "actions.conf.json"
+    GLOBALS_CONF_FILE  = "globals.conf.json"
+    ACTIONS_CONF_FILE  = "actions.conf.json"
     BINDINGS_CONF_FILE = "bindings.conf.json"
-    PROCS_CONF_FILE = "procs.conf.json"
+    PROCS_CONF_FILE    = "procs.conf.json"
 )
 
 type ConfigFiles_t struct {
-	GlobalFl   string
-	ActionsFl  string
-	BindingsFl string
-	ProcsFl    string
+    GlobalFl   string
+    ActionsFl  string
+    BindingsFl string
+    ProcsFl    string
 }
 
 const (
-    Detection string = "Detection"
+    Detection   string = "Detection"
     SafetyCheck string = "SafetyCheck"
-    Mitigation string = "Mitigation"
+    Mitigation  string = "Mitigation"
 )
 
 /*
@@ -46,7 +45,6 @@ type GlobalConfig_t struct {
     ints    map[string]int
     anyVal  map[string]any
 }
-
 
 /*
  * NOTE: This will be deprecated soon.
@@ -99,7 +97,7 @@ func (p *GlobalConfig_t) readGlobalsConf(fl string) error {
  * is returned.
  *
  * Input:
- *  key: Config key. 
+ *  key: Config key.
  *
  * Output:
  *  None
@@ -117,7 +115,7 @@ func (p *GlobalConfig_t) GetValStr(key string) string {
  * is returned.
  *
  * Input:
- *  key: Config key. 
+ *  key: Config key.
  *
  * Output:
  *  None
@@ -135,7 +133,7 @@ func (p *GlobalConfig_t) GetValInt(key string) int {
  * is returned.
  *
  * Input:
- *  key: Config key. 
+ *  key: Config key.
  *
  * Output:
  *  None
@@ -150,24 +148,24 @@ func (p *GlobalConfig_t) GetValAny(key string) any {
 // TODO: Goutham. Add/delete other fields
 // Proc plugin conf file params
 type ProcPluginConfig_t struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Path    string `json:"path"`
+    Name    string `json:"name"`
+    Version string `json:"version"`
+    Path    string `json:"path"`
 }
 
 /* Action config as read from actions.conf.json */
 type ActionCfg_t struct {
-    Name            string
-    Type            string
-    Timeout         int     /* Timeout recommended for this action */
-    HeartbeatInt    int     /* Heartbeat interval */
-    Disable         bool    /* true - Disabled */
-    Mimic           bool    /* true - Run but don't write/update device */
-    ActionKnobs     string  /* Json String with action specific knobs */
+    Name         string
+    Type         string
+    Timeout      int    /* Timeout recommended for this action */
+    HeartbeatInt int    /* Heartbeat interval */
+    Disable      bool   /* true - Disabled */
+    Mimic        bool   /* true - Run but don't write/update device */
+    ActionKnobs  string /* Json String with action specific knobs */
 }
 
 /* Map with action name */
-type ActionsConfigList_t  map[string]ActionCfg_t
+type ActionsConfigList_t map[string]ActionCfg_t
 
 /* Map with key as action name and value as action's config for a particular procID */
 type ProcPluginConfigList_t map[string]ProcPluginConfig_t
@@ -177,24 +175,24 @@ type ProcPluginConfigListAll_t map[string]ProcPluginConfigList_t
 
 /* Action entry in sequence from binding sequence config */
 type BindingActionCfg_t struct {
-    Name        string
-    Mandatory   bool    /* Once sequence kicked off, mandatory to call this */
+    Name      string
+    Mandatory bool /* Once sequence kicked off, mandatory to call this */
     /*
      * Timeout to use while in this sequence
      * <= 0 - means no timeout set.
      * >0   - timeout in seconds
      *
      */
-    Timeout     int     /* Timeout to use while in this sequence */
-    Sequence    int     /* Sequence index */
+    Timeout  int /* Timeout to use while in this sequence */
+    Sequence int /* Sequence index */
 }
 
 /* Entire single binding sequence */
 type BindingSequence_t struct {
-    SequenceName    string
-    Timeout         int     /*  >0   - timeout in seconds; else no timeout */
-    Priority        int
-    Actions         []*BindingActionCfg_t
+    SequenceName string
+    Timeout      int /*  >0   - timeout in seconds; else no timeout */
+    Priority     int
+    Actions      []*BindingActionCfg_t
 }
 
 /* Helper to compare two sequences. Return true on match, else false */
@@ -208,12 +206,12 @@ func (s *BindingSequence_t) Compare(d *BindingSequence_t) bool {
         return false
     }
 
-    if ((s.SequenceName != d.SequenceName) ||
-            (s.Timeout != d.Timeout) ||
-            (len(s.Actions) != len(d.Actions))) {
+    if (s.SequenceName != d.SequenceName) ||
+        (s.Timeout != d.Timeout) ||
+        (len(s.Actions) != len(d.Actions)) {
         return false
     }
-     
+
     for i := 0; i < len(s.Actions); i++ {
         if *(s.Actions[i]) != *(d.Actions[i]) {
             return false
@@ -221,19 +219,17 @@ func (s *BindingSequence_t) Compare(d *BindingSequence_t) bool {
     }
     return true
 }
-        
+
 /* Binding sequence. Key = Name of first action. Value: Ordered actions first to last. */
 type BindingsConfig_t map[string]BindingSequence_t
 
-
 /* ConfigMgr - A single stop for all configs */
 type ConfigMgr_t struct {
-	globalConfig   *GlobalConfig_t
-	actionsConfig  ActionsConfigList_t
-	bindingsConfig BindingsConfig_t
-	procsConfig    ProcPluginConfigListAll_t
+    globalConfig   *GlobalConfig_t
+    actionsConfig  ActionsConfigList_t
+    bindingsConfig BindingsConfig_t
+    procsConfig    ProcPluginConfigListAll_t
 }
-
 
 func (p *ConfigMgr_t) readActionsConf(fl string) error {
     actions := struct {
@@ -271,21 +267,21 @@ func (p *ConfigMgr_t) readActionsConf(fl string) error {
  * Return:
  *  error - error message or nil on success
  */
- // TODO: Goutham. In case of dublicate actions in multiple procs, last one will win
+// TODO: Goutham. In case of dublicate actions in multiple procs, last one will win
 func (p *ConfigMgr_t) readProcsConf(filename string) error {
-	data, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return err
-	}
+    data, err := ioutil.ReadFile(filename)
+    if err != nil {
+        return err
+    }
 
     var jsonData ProcPluginConfigListAll_t // map [procID] ProcPluginConfigList_t
-	err = json.Unmarshal(data, &jsonData)
-	if err != nil {
-		return err
-	}
+    err = json.Unmarshal(data, &jsonData)
+    if err != nil {
+        return err
+    }
     p.procsConfig = jsonData
 
-	return nil
+    return nil
 }
 
 func (p *ConfigMgr_t) readBindingsConf(fl string) error {
@@ -297,9 +293,9 @@ func (p *ConfigMgr_t) readBindingsConf(fl string) error {
     if err != nil {
         return err
     }
-    
+
     defer jsonFile.Close()
-    
+
     if byteValue, err := io.ReadAll(jsonFile); err != nil {
         return err
     } else if err := json.Unmarshal(byteValue, &bindings); err != nil {
@@ -313,15 +309,15 @@ func (p *ConfigMgr_t) readBindingsConf(fl string) error {
                 actInfo, ok := p.actionsConfig[a.Name]
                 if !ok {
                     return LogError("%s: %d: Failed to get conf for action (%s)",
-                            fl, i, a.Name)
+                        fl, i, a.Name)
                 }
                 if i == 0 {
                     seq = a.Sequence
                     firstAction = a.Name
-                } else if (seq == a.Sequence) {
+                } else if seq == a.Sequence {
                     return LogError("%s: %d: Duplicate sequence (%d/%s) vs (%d/%s)",
-                            fl, i, seq, firstAction, a.Sequence, a.Name)
-                } else if (seq > a.Sequence) {
+                        fl, i, seq, firstAction, a.Sequence, a.Name)
+                } else if seq > a.Sequence {
                     seq = a.Sequence
                     firstAction = a.Name
                 }
@@ -340,29 +336,27 @@ func (p *ConfigMgr_t) readBindingsConf(fl string) error {
                 p.bindingsConfig[firstAction] = b
             } else {
                 return LogError("Internal Error: Missing actions in bindings for (%s) fl(%s)",
-                        b.SequenceName, jsonFile)
+                    b.SequenceName, jsonFile)
             }
         }
         return nil
     }
 }
 
-
-
 func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
-	if err := p.globalConfig.readGlobalsConf(cfgFiles.GlobalFl); err != nil {
-		return LogError("Globals: %s: %v", cfgFiles.GlobalFl, err)
-	}
-	if err := p.readActionsConf(cfgFiles.ActionsFl); err != nil {
-		return LogError("Actions: %s: %v", cfgFiles.ActionsFl, err)
-	}
-	if err := p.readBindingsConf(cfgFiles.BindingsFl); err != nil {
-		return LogError("Bind: %s: %v", cfgFiles.BindingsFl, err)
-	}
-	if err := p.readProcsConf(cfgFiles.ProcsFl); err != nil {
-		return LogError("Procs: %s: %v", cfgFiles.ProcsFl, err)
-	}
-	return nil
+    if err := p.globalConfig.readGlobalsConf(cfgFiles.GlobalFl); err != nil {
+        return LogError("Globals: %s: %v", cfgFiles.GlobalFl, err)
+    }
+    if err := p.readActionsConf(cfgFiles.ActionsFl); err != nil {
+        return LogError("Actions: %s: %v", cfgFiles.ActionsFl, err)
+    }
+    if err := p.readBindingsConf(cfgFiles.BindingsFl); err != nil {
+        return LogError("Bind: %s: %v", cfgFiles.BindingsFl, err)
+    }
+    if err := p.readProcsConf(cfgFiles.ProcsFl); err != nil {
+        return LogError("Procs: %s: %v", cfgFiles.ProcsFl, err)
+    }
+    return nil
 }
 
 /*
@@ -371,7 +365,7 @@ func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
  * is returned.
  *
  * Input:
- *  key: Config key. 
+ *  key: Config key.
  *
  * Output:
  *  None
@@ -389,7 +383,7 @@ func (p *ConfigMgr_t) GetGlobalCfgStr(key string) string {
  * is returned.
  *
  * Input:
- *  key: Config key. 
+ *  key: Config key.
  *
  * Output:
  *  None
@@ -407,7 +401,7 @@ func (p *ConfigMgr_t) GetGlobalCfgInt(key string) int {
  * is returned.
  *
  * Input:
- *  key: Config key. 
+ *  key: Config key.
  *
  * Output:
  *  None
@@ -418,7 +412,6 @@ func (p *ConfigMgr_t) GetGlobalCfgInt(key string) int {
 func (p *ConfigMgr_t) GetGlobalCfgAny(key string) any {
     return p.globalConfig.GetValAny(key)
 }
-
 
 /*
  * IsStartSequenceAction
@@ -437,7 +430,7 @@ func (p *ConfigMgr_t) GetGlobalCfgAny(key string) any {
 func (p *ConfigMgr_t) IsStartSequenceAction(name string) bool {
     /* Return true, if action is start of any sequence; else false */
     _, ok := p.bindingsConfig[name]
-     return ok
+    return ok
 }
 
 /*
@@ -446,7 +439,7 @@ func (p *ConfigMgr_t) IsStartSequenceAction(name string) bool {
  *  Else null with non nil error.
  *
  * Input:
- *  name - Name of the action 
+ *  name - Name of the action
  *
  * Output:
  *  None
@@ -467,10 +460,9 @@ func (p *ConfigMgr_t) GetSequence(name string) (*BindingSequence_t, error) {
     *ret = v
     ret.Actions = make([]*BindingActionCfg_t, len(v.Actions))
     copy(ret.Actions, v.Actions)
-    
+
     return ret, nil
 }
-
 
 /*
  * GetActionConfig
@@ -478,7 +470,7 @@ func (p *ConfigMgr_t) GetSequence(name string) (*BindingSequence_t, error) {
  *  Else null with non nil error.
  *
  * Input:
- *  name - Name of the action 
+ *  name - Name of the action
  *
  * Output:
  *  None
@@ -510,7 +502,7 @@ func (p *ConfigMgr_t) GetActionConfig(name string) (*ActionCfg_t, error) {
  *  config - If present in proc conf file, return it, else nil
  *  error - If not in procs config, return non nil error, else nil
  */
- func (p *ConfigMgr_t) GetProcsConfig(procID string) (ProcPluginConfigList_t, error) {
+func (p *ConfigMgr_t) GetProcsConfig(procID string) (ProcPluginConfigList_t, error) {
     procInfo, ok := p.procsConfig[procID]
     if !ok {
         return nil, LogError("Failed to get config for proc ID (%s)", procID)
@@ -534,24 +526,22 @@ func (p *ConfigMgr_t) GetActionConfig(name string) (*ActionCfg_t, error) {
  * Return:
  *  List of all actions with a flag for each.
  */
-func (p *ConfigMgr_t) GetActionsList() map[string]struct{IsAnomaly bool} {
+func (p *ConfigMgr_t) GetActionsList() map[string]struct{ IsAnomaly bool } {
 
-    ret := make(map[string]struct{IsAnomaly bool})
+    ret := make(map[string]struct{ IsAnomaly bool })
 
     for k, _ := range p.actionsConfig {
         _, ok := p.bindingsConfig[k]
-        ret[k] = struct{IsAnomaly bool} { ok }
+        ret[k] = struct{ IsAnomaly bool }{ok}
     }
     return ret
 }
-
 
 var configMgr *ConfigMgr_t = nil
 
 func GetConfigMgr() *ConfigMgr_t {
     return configMgr
 }
-
 
 /*
  * Initialize config or re-refresh config from files.
@@ -569,7 +559,7 @@ func GetConfigMgr() *ConfigMgr_t {
  *  error - Non nil on any failure, else nil
  */
 func InitConfigMgr(p *ConfigFiles_t) (*ConfigMgr_t, error) {
-	t := &ConfigMgr_t{new(GlobalConfig_t), make(ActionsConfigList_t), make(BindingsConfig_t), make(ProcPluginConfigListAll_t)}
+    t := &ConfigMgr_t{new(GlobalConfig_t), make(ActionsConfigList_t), make(BindingsConfig_t), make(ProcPluginConfigListAll_t)}
 
     if err := t.loadConfigFiles(p); err != nil {
         return nil, err
@@ -579,7 +569,6 @@ func InitConfigMgr(p *ConfigFiles_t) (*ConfigMgr_t, error) {
     }
 }
 
-
 func InitConfigPath(path string) error {
     if len(path) == 0 {
         cfgPath, exists := GetEnvVarString("ENV_lom_conf_location")
@@ -588,11 +577,11 @@ func InitConfigPath(path string) error {
         }
         path = cfgPath
     }
-    cfgFiles := &ConfigFiles_t {
-        GlobalFl: filepath.Join(path, GLOBALS_CONF_FILE),
-        ActionsFl: filepath.Join(path, ACTIONS_CONF_FILE),
+    cfgFiles := &ConfigFiles_t{
+        GlobalFl:   filepath.Join(path, GLOBALS_CONF_FILE),
+        ActionsFl:  filepath.Join(path, ACTIONS_CONF_FILE),
         BindingsFl: filepath.Join(path, BINDINGS_CONF_FILE),
-        ProcsFl: filepath.Join(path, PROCS_CONF_FILE),
+        ProcsFl:    filepath.Join(path, PROCS_CONF_FILE),
     }
 
     _, err := InitConfigMgr(cfgFiles)

@@ -11,7 +11,7 @@ import (
  *
  *  Input:
  *      The given string is logged & published
- *      
+ *
  *  Output:
  *      None
  *
@@ -32,18 +32,17 @@ func SetPublishAPI(f func(string) string) {
     publishEventAPI = f
 }
 
-
 /*
  *  Publish as event
  *
  *  Input:
  *      A map of string vs string. JSonified map will be published.
- *      
+ *
  *  Output:
  *      None
  *
  *  Return:
- *      The string that was published. 
+ *      The string that was published.
  *
  */
 func PublishEvent(m any) string {
@@ -56,4 +55,3 @@ func PublishEvent(m any) string {
     }
     return publishEventAPI(s)
 }
-

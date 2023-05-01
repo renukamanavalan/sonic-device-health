@@ -23,7 +23,7 @@ func testContext(t *testing.T) {
 
         defer func() {
             reg.DeregisterClient(clientName)
-            delete (reg.activeActions, "Detect-0")
+            delete(reg.activeActions, "Detect-0")
         }()
 
         /* simulate clients */
@@ -32,23 +32,23 @@ func testContext(t *testing.T) {
         }
 
         /* Simulate one action */
-        reg.activeActions["Detect-0"] = &ActiveActionInfo_t{"Detect-0", clientName, 0 }
+        reg.activeActions["Detect-0"] = &ActiveActionInfo_t{"Detect-0", clientName, 0}
 
         /* Test request timeout */
         /*
          * send testCnt requests with timeout.
          * verify the requests time out.
          */
-        
+
         testCnt := 3
-        ch := make (chan interface{}, testCnt)
+        ch := make(chan interface{}, testCnt)
 
         /* Send testCnt requests with different timeouts */
         for i := 0; i < testCnt; i++ {
-            req := &LoMRequestInt{ &LoMRequest{Client: clientName, TimeoutSecs:testCnt-i}, ch}
+            req := &LoMRequestInt{&LoMRequest{Client: clientName, TimeoutSecs: testCnt - i}, ch}
             if err := reg.PendServerRequest(req); err != nil {
                 t.Fatalf("****TEST FAILED: failed in PendServerRequest (%d)/(%d) (%v)",
-                        i, testCnt, err)
+                    i, testCnt, err)
             }
         }
         /* Add One server request */
@@ -56,30 +56,30 @@ func testContext(t *testing.T) {
         if err := reg.AddServerRequest("Detect-0", req); err != nil {
             t.Fatalf("****TEST FAILED: Failed to fail for missing action's client.")
         }
-        
+
         /* Wait for them to return. They would return in 3 seconds */
-        cnt := testCnt + 2     /* Wait 2 seconds more before aborting */ 
-        errCode := LoMResponseOk    /* Expect first req to succeed */
+        cnt := testCnt + 2       /* Wait 2 seconds more before aborting */
+        errCode := LoMResponseOk /* Expect first req to succeed */
 
         /* Wait till all requests completes or timeout */
         for i := 0; i < testCnt; {
             select {
-            case r := <- ch:
+            case r := <-ch:
                 /* Validate timeout error */
                 if res, ok := r.(*LoMResponse); !ok {
                     t.Fatalf("****TEST FAILED: PendServerRequest (%d/%d) (%T) != *LoMResponse",
-                                i, testCnt, r)
+                        i, testCnt, r)
                 } else if res.ResultCode != int(errCode) {
                     t.Fatalf("****TEST FAILED: PendServerRequest (%d/%d) res (%d) != (%d)",
-                            i, testCnt, res.ResultCode, errCode)
+                        i, testCnt, res.ResultCode, errCode)
                 } else if (errCode == LoMReqTimeout) && (res.ResultStr != GetLoMResponseStr(LoMReqTimeout)) {
                     t.Fatalf("****TEST FAILED: PendServerRequest (%d/%d) res (%s) != (%s)",
-                            i, testCnt, res.ResultStr, GetLoMResponseStr(LoMReqTimeout))
+                        i, testCnt, res.ResultStr, GetLoMResponseStr(LoMReqTimeout))
                 }
                 i++
                 errCode = LoMReqTimeout
 
-            case <- time.After(time.Second):
+            case <-time.After(time.Second):
                 cnt--
                 if cnt == 0 {
                     t.Fatalf("****TEST FAILED: PendServerRequest Aborting due to test timeout")
@@ -92,16 +92,15 @@ func testContext(t *testing.T) {
         clientName_new := "xxxx"
         /* Re-simulate client, but don't call registerClient as that kicks off processSendRequests */
 
-        reg.activeClients[clientName] = &ActiveClientInfo_t {
-                ClientName: clientName,
-                Actions: make(map[string]struct{}),
-                pendingWriteRequests: make(chan *ServerRequestData, CHAN_REQ_SIZE),
-                pendingReadRequests: make(chan *LoMRequestInt, CHAN_REQ_SIZE),
-                abortCh: make(chan interface{}, 2) }
+        reg.activeClients[clientName] = &ActiveClientInfo_t{
+            ClientName:           clientName,
+            Actions:              make(map[string]struct{}),
+            pendingWriteRequests: make(chan *ServerRequestData, CHAN_REQ_SIZE),
+            pendingReadRequests:  make(chan *LoMRequestInt, CHAN_REQ_SIZE),
+            abortCh:              make(chan interface{}, 2)}
 
         /* Simulate one action */
-        reg.activeActions["Detect-0"] = &ActiveActionInfo_t{"Detect-0", clientName, 0 }
-
+        reg.activeActions["Detect-0"] = &ActiveActionInfo_t{"Detect-0", clientName, 0}
 
         /* Random corner cases */
 
@@ -110,7 +109,7 @@ func testContext(t *testing.T) {
             t.Fatalf("****TEST FAILED: Failed to fail for nil arg")
         }
 
-        act := &ActiveActionInfo_t {clientName_new, "bar", 0 }
+        act := &ActiveActionInfo_t{clientName_new, "bar", 0}
         if err := reg.RegisterAction(act); err == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for non-existing client")
         }
@@ -129,7 +128,6 @@ func testContext(t *testing.T) {
         if GetLastError() == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for empty client")
         }
-
 
         /* Corner test cases for AddServerRequest */
 
@@ -158,43 +156,41 @@ func testContext(t *testing.T) {
         for i := 0; i < CHAN_REQ_SIZE; i++ {
             if err := reg.AddServerRequest("Detect-0", req); err != nil {
                 t.Fatalf("****TEST FAILED: AddServerRequest Failed to write %d/%d (%v)",
-                        i, CHAN_REQ_SIZE, err)
+                    i, CHAN_REQ_SIZE, err)
             }
         }
         if err := reg.AddServerRequest("Detect-0", req); err == nil {
             t.Fatalf("****TEST FAILED: AddServerRequest Failed to fail to write %d/%d",
-                    CHAN_REQ_SIZE+1, CHAN_REQ_SIZE)
+                CHAN_REQ_SIZE+1, CHAN_REQ_SIZE)
         }
-
 
         /* Corner test cases for PendServerRequest */
         if err := reg.PendServerRequest(nil); err == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for nil req")
         }
 
-        lomReq := &LoMRequest { Client: clientName_new}
+        lomReq := &LoMRequest{Client: clientName_new}
         lreq := &LoMRequestInt{Req: lomReq}
         if err := reg.PendServerRequest(lreq); err == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for non-existing client")
         }
 
         /*
-         * Test client pending req channel overflow 
+         * Test client pending req channel overflow
          */
         lreq.Req.Client = clientName
         for i := 0; i < CHAN_REQ_SIZE; i++ {
             if err := reg.PendServerRequest(lreq); err != nil {
                 t.Fatalf("****TEST FAILED: PendServerRequest Failed to write %d/%d (%v)",
-                        i, CHAN_REQ_SIZE, err)
+                    i, CHAN_REQ_SIZE, err)
             }
         }
         if err := reg.PendServerRequest(lreq); err == nil {
             t.Fatalf("****TEST FAILED: PendServerRequest Failed to write %d/%d",
-                    CHAN_REQ_SIZE+1, CHAN_REQ_SIZE)
+                CHAN_REQ_SIZE+1, CHAN_REQ_SIZE)
         }
     }
 }
-
 
 /* Test serverReqHandler.go APIs for corner cases. */
 func testserverReqHandler(t *testing.T) {
@@ -209,7 +205,7 @@ func testserverReqHandler(t *testing.T) {
     if m := GetLoMResponseStr(LoMResponseOk); m != LoMResponseOkStr {
         t.Fatalf("LoMResponseStr (%s) != (%s)", m, LoMResponseOkStr)
     }
-    if m := GetLoMResponseStr(LoMResponseCode(LoMErrorCnt+2)); m != LoMResponseUnknownStr {
+    if m := GetLoMResponseStr(LoMResponseCode(LoMErrorCnt + 2)); m != LoMResponseUnknownStr {
         t.Fatalf("LoMResponseStr (%s) != (%s)", m, LoMResponseUnknownStr)
     }
     if m := GetLoMResponseStr(LoMResponseCode(LOM_RESP_CODE_START)); m != LoMResponseStr[0] {
@@ -223,7 +219,7 @@ func testserverReqHandler(t *testing.T) {
         if GetLastError() == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for invalid code")
         }
-        
+
         res := createLoMResponse(LoMReqFailed, "")
         if len(res.ResultStr) == 0 {
             t.Fatalf("****TEST FAILED: Failed to construct error message")
@@ -374,7 +370,7 @@ func testSequenceHandler(t *testing.T) {
         seqHandler = nil
 
         ResetLastError()
-        if GetSeqHandler() != nil  {
+        if GetSeqHandler() != nil {
             t.Fatalf("****TEST FAILED: Expect nil handler")
         } else if GetLastError() == nil {
             t.Fatalf("****TEST FAILED: Failed to get error logged.")
@@ -385,7 +381,7 @@ func testSequenceHandler(t *testing.T) {
         if GetLastError() == nil {
             t.Fatalf("****TEST FAILED: Failed to fail for nil chTimer")
         }
-        
+
         InitSeqHandler(make(chan int64, 100))
         handler := GetSeqHandler()
         if handler == nil {
@@ -432,15 +428,14 @@ func testSequenceHandler(t *testing.T) {
         }
     }
 
-    
     {
         /* Drop req for in-prog sequence */
         handler := GetSeqHandler()
-        
+
         if len(handler.activeRequests) != 0 {
             t.Fatalf("****TEST FAILED: Failed to remove active req")
         }
-        handler.activeRequests["Detect-0"] = &activeRequest_t{anomalyID:"id"}
+        handler.activeRequests["Detect-0"] = &activeRequest_t{anomalyID: "id"}
         handler.sequencesByAnomaly["id"] = nil
 
         handler.DropRequest("Detect-0")
@@ -535,7 +530,7 @@ func testSequenceHandler(t *testing.T) {
 
         /* Invalid sequence */
         handler.sequencesByAnomaly["123"] = &sequenceState_t{}
-        data = &ActionResponseData { actionName, "123", "123", "key", "fff", 0, "" }
+        data = &ActionResponseData{actionName, "123", "123", "key", "fff", 0, ""}
         ResetLastError()
         handler.processActionResponse(data)
         if GetLastError() == nil {
@@ -549,7 +544,7 @@ func testSequenceHandler(t *testing.T) {
         res := &ActionResponseData{}
         handler.activeRequests[actionName] = reqTmp
         seq := &sequenceState_t{sequenceStatus_running,
-                    "123", bs, 10, 20, 1, []*ActionResponseData{res}, req, &OneShotEntry_t{}}
+            "123", bs, 10, 20, 1, []*ActionResponseData{res}, req, &OneShotEntry_t{}}
         handler.sequencesByAnomaly["123"] = seq
 
         /* seq.currentRequest != active request found for this action */
@@ -595,7 +590,6 @@ func testSequenceHandler(t *testing.T) {
             t.Fatalf("****TEST FAILED: Failed to fail ProcessActionResponse first action resp for existing seq")
         }
 
-
         /* Simulate no active request for this response's action */
         delete(handler.activeRequests, actionName)
         ResetLastError()
@@ -605,7 +599,7 @@ func testSequenceHandler(t *testing.T) {
         }
 
         /* Simulate no seq by changing anomaly Id and response not for first action */
-        handler.activeRequests[actionName] = req        /* active req - Yes */
+        handler.activeRequests[actionName] = req         /* active req - Yes */
         data.AnomalyInstanceId = data.InstanceId + "abc" /* Not first action */
         handler.currentSequence = &sequenceState_t{sequenceStatus: sequenceStatus_running}
         ResetLastError()
@@ -616,9 +610,9 @@ func testSequenceHandler(t *testing.T) {
         }
 
         /* No seq; response is for first action; But GetSequence fails */
-        handler.activeRequests[actionName] = req        /* active req - Yes */
-        data.AnomalyInstanceId = data.InstanceId  /* first action */
-        delete (handler.sequencesByAnomaly, "123")
+        handler.activeRequests[actionName] = req /* active req - Yes */
+        data.AnomalyInstanceId = data.InstanceId /* first action */
+        delete(handler.sequencesByAnomaly, "123")
         ResetLastError()
         handler.processActionResponse(data)
         if GetLastError() == nil {
@@ -633,44 +627,44 @@ func testSequenceHandler(t *testing.T) {
         /* Fail for nil seq */
         if c, _, _ := handler.resumeSequence(nil); c != LoMSequenceIncorrect {
             t.Fatalf("****TEST FAILED: resumeSequence for nil %d != %d",
-                    c, LoMSequenceIncorrect)
+                c, LoMSequenceIncorrect)
         }
 
         /* Fail for invalid seq */
         seq := &sequenceState_t{}
         if c, _, _ := handler.resumeSequence(seq); c != LoMSequenceIncorrect {
             t.Fatalf("****TEST FAILED: resumeSequence for invalid seq %d != %d",
-                    c, LoMSequenceIncorrect)
+                c, LoMSequenceIncorrect)
         }
 
         actionName := "xyz"
         bs := &BindingSequence_t{"ee", 0, 0, []*BindingActionCfg_t{
-                    {}, {Name:actionName}}}
+            {}, {Name: actionName}}}
         // reqTmp := &activeRequest_t{}
         req := &activeRequest_t{}
         res := &ActionResponseData{Action: "foo"}
         // handler.activeRequests[actionName] = reqTmp
         seq = &sequenceState_t{sequenceStatus_running,
-                    "123", bs, 10, 20, 1, []*ActionResponseData{res}, req, &OneShotEntry_t{}}
+            "123", bs, 10, 20, 1, []*ActionResponseData{res}, req, &OneShotEntry_t{}}
 
         /* Expect to succeed as current req is non nil */
         if c, _, _ := handler.resumeSequence(seq); c != LoMResponseOk {
             t.Fatalf("****TEST FAILED: resumeSequence: non null current req to succeed %d != %d",
-                    c, LoMResponseOk)
+                c, LoMResponseOk)
         }
 
         /* Fail to resume as this action is not active. */
         seq.currentRequest = nil
         if c, _, _ := handler.resumeSequence(seq); c != LoMActionNotRegistered {
             t.Fatalf("****TEST FAILED: resumeSequence: non active action. %d != %d",
-                    c, LoMActionNotRegistered)
+                c, LoMActionNotRegistered)
         }
-        
+
         /* Ensure active action, but fail due to missing client */
         regF.activeActions[actionName] = &ActiveActionInfo_t{}
         if c, _, _ := handler.resumeSequence(seq); c != LoMInternalError {
             t.Fatalf("****TEST FAILED: resumeSequence: non active client. %d != %d",
-                    c, LoMInternalError)
+                c, LoMInternalError)
         }
 
         /* Fail complete sequence due to nil context for first action */
@@ -705,7 +699,7 @@ func testSequenceHandler(t *testing.T) {
         handler.sortedSequencesByPri = append(handler.sortedSequencesByPri, seq)
         LogDebug("-------- p.sortedSequencesByPri(%d): [%v]", len(handler.sortedSequencesByPri), handler.sortedSequencesByPri)
         seq.sequenceStatus = sequenceStatus_pending
-        seq.anomalyInstanceId = ""      /* Failing to validate will fail resume */
+        seq.anomalyInstanceId = "" /* Failing to validate will fail resume */
         ResetLastError()
         handler.resumeNextSequence()
         if GetLastError() == nil {
@@ -714,16 +708,15 @@ func testSequenceHandler(t *testing.T) {
     }
 }
 
-
 /* Test engine.go APIs for corner cases. */
 func testEngine(t *testing.T) {
-    if _, err := startUp("ddd", []string { "-xxx", "rrr" }); err == nil {
+    if _, err := startUp("ddd", []string{"-xxx", "rrr"}); err == nil {
         t.Fatalf("****TEST FAILED: engine::startup incorrect args")
     }
-    if _, err := startUp("ddd", []string { "-path", "" }); err == nil {
+    if _, err := startUp("ddd", []string{"-path", ""}); err == nil {
         t.Fatalf("****TEST FAILED: engine::startup Incorrect path")
     }
-    if _, err := startUp("ddd", []string { "-path", "ddd" }); err == nil {
+    if _, err := startUp("ddd", []string{"-path", "ddd"}); err == nil {
         t.Fatalf("****TEST FAILED: engine::startup Incorrect path")
     }
 
@@ -731,18 +724,18 @@ func testEngine(t *testing.T) {
     ResetLastError()
     main()
     if GetLastError() == nil {
-         t.Fatalf("****TEST FAILED: engine: main to fail for invalid args")
+        t.Fatalf("****TEST FAILED: engine: main to fail for invalid args")
     }
 }
 
-var utList = []func(t *testing.T) {
+var utList = []func(t *testing.T){
     testContext,
     testserverReqHandler,
     testSequenceHandler,
     testEngine,
 }
 
-var xutList = []func(t *testing.T) {
+var xutList = []func(t *testing.T){
     testEngine,
 }
 
@@ -757,6 +750,3 @@ func TestAll(t *testing.T) {
         f(t)
     }
 }
-
-
-
