@@ -1,15 +1,13 @@
 package lomipc
 
 import (
-    "encoding/gob"
-    "fmt"
-    . "lom/src/lib/lomcommon"
-    "net"
-    "net/http"
-    "net/rpc"
-    "net/rpc/jsonrpc"
-    "reflect"
-    "strconv"
+	"encoding/gob"
+	"fmt"
+	. "go/src/lib/lomcommon"
+	"net"
+	"net/http"
+	"net/rpc"
+	"reflect"
 )
 
 /*
@@ -40,25 +38,17 @@ import (
  */
 
 
-/*
- * NOTE: Any change in Go lib must reflect in libs of non-go client libs
- */
-const (
-    RPC_HTTP_PORT = 1234
-    RPC_JSON_PORT = 1235
-)
-
 /* All types of requests from client to server */
 type ReqDataType int
 const (
     TypeNone = ReqDataType(iota)
-    TypeRegClient                           /* 1 */
-    TypeDeregClient                         /* 2 */
-    TypeRegAction                           /* 3 */
-    TypeDeregAction                         /* 4 */
-    TypeRecvServerRequest                   /* 5 */
-    TypeSendServerResponse                  /* 6 */
-    TypeNotifyActionHeartbeat               /* 7 */
+    TypeRegClient
+    TypeDeregClient
+    TypeRegAction
+    TypeDeregAction
+    TypeRecvServerRequest
+    TypeSendServerResponse
+    TypeNotifyActionHeartbeat
     TypeCount
 )
 
@@ -76,8 +66,7 @@ var ReqTypeToStr = map[ReqDataType]string {
 /* Server sends its request as response to TypeRecvServerRequest */ 
 type ServerReqDataType int
 const (
-    TypeServerRequestNone = ServerReqDataType(iota)
-    TypeServerRequestAction
+    TypeServerRequestAction = ServerReqDataType(iota)
     TypeServerRequestShutdown
     TypeServerRequestCount
 )
@@ -93,7 +82,6 @@ type LoMRequest struct {
     ReqType     ReqDataType     /* Type of request */
     Client      string          /* The client sending this request */
     TimeoutSecs int             /* Timeout - Honored in long running requests */
-                                /* == 0 implies no timeout */
     ReqData     interface{}     /* Data specific to request type */
 }
 
@@ -134,8 +122,8 @@ type MsgRecvServerRequest struct {  /* For TypeRecvServerRequest */
 }
 
 type MsgSendServerResponse struct { /* For TypeSendServerResponse */
-    ReqType             ServerReqDataType
-    ResData             interface {} /* ActionResponseData */
+	ReqType ServerReqDataType
+	ResData interface{} /* ActionResponseData */
 }
 
 type MsgNotifyHeartbeat struct {    /* For TypeNotifyActionHeartbeat */
@@ -402,55 +390,18 @@ func GetLoMTransport() *LoMTransport {
 }
 
 /* Init the serverside transport */
-func httpServerInit() error {
-
-    rpc.HandleHTTP()
-    l, e := net.Listen("tcp", "localhost:"+strconv.Itoa(RPC_HTTP_PORT))
-    if e != nil {
-        LogPanic("listen error at %d :(%v)", RPC_HTTP_PORT, e)
-        return e
-    }
-    go http.Serve(l, nil)
-    LogDebug("HTTP Server: Started serving")
-
-    return nil
-}
-
-func jsonServerInit() error {
-    l, e := net.Listen("tcp", "localhost:"+strconv.Itoa(RPC_JSON_PORT))
-    if e != nil {
-        LogPanic("listen error at %d (%v)", RPC_JSON_PORT, e)
-        return e
-    }
-
-    go func() {
-        for {
-            LogInfo("waiting for JSON connections ...")
-            if conn, err := l.Accept(); err != nil {
-                LogError("JSON RPC accept error: %v", err)
-            } else {
-                LogInfo("JSON RPC connection started: %v", conn.RemoteAddr())
-                go jsonrpc.ServeConn(conn)
-            }
-        }
-    }()
-    LogDebug("JSON Server: Started serving")
-
-    return nil
-}
-
-
 func ServerInit() (*LoMTransport, error) {
     tr := GetLoMTransport()
 
     rpc.Register(tr)
-
-    if err := httpServerInit(); err != nil {
-        return nil, err
+    rpc.HandleHTTP()
+    l, e := net.Listen("tcp", ":1234")
+    if e != nil {
+        LogPanic("listen error:(%v)", e)
+        return nil, e
     }
-    if err := jsonServerInit(); err != nil {
-        return nil, err
-    }
+    go http.Serve(l, nil)
+    LogDebug("Server: Started serving")
     return tr, nil
 }
 

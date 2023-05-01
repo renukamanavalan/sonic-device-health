@@ -10,12 +10,12 @@ import (
 )
 
 
-const (
-    /* Global constants */
-    ENGINE_HB_INTERVAL_SECS = "ENGINE_HB_INTERVAL_SECS"
-    MAX_SEQ_TIMEOUT_SECS = "MAX_SEQ_TIMEOUT_SECS"
-    MIN_PERIODIC_LOG_PERIOD_SECS = "MIN_PERIODIC_LOG_PERIOD_SECS"
-)
+type ConfigFiles_t struct {
+	GlobalFl   string
+	ActionsFl  string
+	BindingsFl string
+	ProcsFl    string
+}
 
 const (
     GLOBALS_CONF_FILE = "globals.conf.json"
@@ -23,13 +23,6 @@ const (
     BINDINGS_CONF_FILE = "bindings.conf.json"
     PROCS_CONF_FILE = "procs.conf.json"
 )
-
-type ConfigFiles_t struct {
-	GlobalFl   string
-	ActionsFl  string
-	BindingsFl string
-	ProcsFl    string
-}
 
 const (
     Detection string = "Detection"
@@ -46,7 +39,6 @@ type GlobalConfig_t struct {
     ints    map[string]int
     anyVal  map[string]any
 }
-
 
 /*
  * NOTE: This will be deprecated soon.
@@ -75,18 +67,18 @@ func (p *GlobalConfig_t) readGlobalsConf(fl string) error {
 
     defer jsonFile.Close()
 
-    if byteValue, err := io.ReadAll(jsonFile); err != nil {
-        return LogError("Failed to read (%s) (%v)", jsonFile, err)
-    } else if err := json.Unmarshal(byteValue, &v); err != nil {
-        return LogError("Failed to parse (%s) (%v)", jsonFile, err)
-    } else {
-        for k, v := range v {
-            p.anyVal[k] = v
-            if s, ok := v.(string); ok {
-                p.strings[k] = s
-            } else if f, ok := v.(float64); ok {
-                p.ints[k] = int(f)
-            }
+	if byteValue, err := io.ReadAll(jsonFile); err != nil {
+		return LogError("Failed to read (%v) (%v)", jsonFile, err)
+	} else if err := json.Unmarshal(byteValue, &v); err != nil {
+		return LogError("Failed to parse (%v) (%v)", jsonFile, err)
+	} else {
+		for k, v := range v {
+			p.anyVal[k] = v
+			if s, ok := v.(string); ok {
+				p.strings[k] = s
+			} else if f, ok := v.(float64); ok {
+				p.ints[k] = int(f)
+			}
 
         }
         return nil
@@ -167,7 +159,7 @@ type ActionCfg_t struct {
 }
 
 /* Map with action name */
-type ActionsConfigList_t  map[string]ActionCfg_t
+type ActionsConfigList_t map[string]ActionCfg_t
 
 /* Map with key as action name and value as action's config for a particular procID */
 type ProcPluginConfigList_t map[string]ProcPluginConfig_t
@@ -225,7 +217,6 @@ func (s *BindingSequence_t) Compare(d *BindingSequence_t) bool {
 /* Binding sequence. Key = Name of first action. Value: Ordered actions first to last. */
 type BindingsConfig_t map[string]BindingSequence_t
 
-
 /* ConfigMgr - A single stop for all configs */
 type ConfigMgr_t struct {
 	globalConfig   *GlobalConfig_t
@@ -233,7 +224,6 @@ type ConfigMgr_t struct {
 	bindingsConfig BindingsConfig_t
 	procsConfig    ProcPluginConfigListAll_t
 }
-
 
 func (p *ConfigMgr_t) readActionsConf(fl string) error {
     actions := struct {
@@ -578,7 +568,6 @@ func InitConfigMgr(p *ConfigFiles_t) (*ConfigMgr_t, error) {
         return t, nil
     }
 }
-
 
 func InitConfigPath(path string) error {
     if len(path) == 0 {

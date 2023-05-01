@@ -4,8 +4,7 @@ package lib_test
  * Info
  *
  * To run test
- * localadmin@remanava-dev-1:~/source/fork/Device-Health/go-main/src/lib$ clear; ./build.sh t
- *  Use ./build.sh v for verbose.
+ * localadmin@remanava-dev-1:~/source/fork/Device-Health/go-main/src/lib$ clear; GOPATH=$(pwd) go test -coverprofile=coverprofile.out  -coverpkg lomipc,lomcommon -covermode=atomic txlib_test
  *
  * To create HTML page
  * localadmin@remanava-dev-1:~/source/fork/Device-Health/go-main/src/lib$ GOPATH=$(pwd) go tool cover -html=coverprofile.out -o /tmp/coverage.html
@@ -19,13 +18,12 @@ package lib_test
  */
 
 import (
-    "encoding/json"
     "errors"
     "io"
     "log/syslog"
     "net/rpc"
-    . "lom/src/lib/lomcommon"
-    . "lom/src/lib/lomipc"
+    . "go/src/lib/lomcommon"
+    . "go/src/lib/lomipc"
     "os"
     "strconv"
     "testing"
@@ -140,57 +138,59 @@ var testDataForJson = []TestDataForJson {
                 TestServerData { LoMRequest { TypeRegClient, TEST_CL_NAME, ClTimeout, MsgRegClient {} },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
 
-            // Reg Action - test failure - as we set server msg too
+            // Reg Action - test failure
             {   `{"ReqType":3,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
                 `{"ResultCode":1,"ResultStr":"failed by design","RespData":{}}`,
                 TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
                         LoMResponse { 1, "failed by design", MsgEmptyResp {} } } },
 
-            // Register action failed
+            // Register action
             {   `{"ReqType":3,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
-                `{"ResultCode":1,"ResultStr":"Failed","RespData":{}}`,
+                `{"ResultCode":1,"ResultStr":"SKIP","RespData":{}}`,
                 TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
-                        LoMResponse { 1, "Failed", MsgEmptyResp {} } } },
+                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
 
-            // Register action succeeded.
+            // Request for request and server sends Action request
             {   `{"ReqType":3,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
                 `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
-                TestServerData { LoMRequest { TypeRegAction, TEST_CL_NAME, ClTimeout, MsgRegAction { TEST_ACTION_NAME } },
+                TestServerData { LoMRequest { TypeRecvServerRequest, TEST_CL_NAME, ClTimeout, MsgRecvServerRequest{} },
+                        LoMResponse { 0, "Succeeded", ActReqData } } },
+
+            // Send Action response to server
+            {   `{"ReqType":5,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`,
+                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{"ReqType":0,"ReqData":{"Action":"Bar","InstanceId":"inst_1","AnomalyInstanceId":"an_inst_0","AnomalyKey":"an_key","Timeout":10,"Context":[{"Action":"Detect-0","InstanceId":"an_inst_0","AnomalyInstanceId":"an_inst_0","AnomalyKey":"an_key","Response":"res_anomaly","ResultCode":0,"ResultStr":""},{"Action":"Foo-safety","InstanceId":"inst_0","AnomalyInstanceId":"an_inst_0","AnomalyKey":"an_key","Response":"res_foo_check","ResultCode":2,"ResultStr":"some failure"}]}}}`,
+                TestServerData { LoMRequest { TypeSendServerResponse, TEST_CL_NAME, ClTimeout, ActResData },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp{} } } },
 
-            // Send recv server req to server
-            {   `{"ReqType":5,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`,
-                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{"ReqType":1,"ReqData":{"Action":"Bar","InstanceId":"inst_1","AnomalyInstanceId":"an_inst_0","AnomalyKey":"an_key","Timeout":10,"Context":[{"Action":"Detect-0","InstanceId":"an_inst_0","AnomalyInstanceId":"an_inst_0","AnomalyKey":"an_key","Response":"res_anomaly","ResultCode":0,"ResultStr":""},{"Action":"Foo-safety","InstanceId":"inst_0","AnomalyInstanceId":"an_inst_0","AnomalyKey":"an_key","Response":"res_foo_check","ResultCode":2,"ResultStr":"some failure"}]}}}`,
-                TestServerData {
-                    LoMRequest { TypeRecvServerRequest, TEST_CL_NAME, ClTimeout, MsgEmptyResp {} },
-                    LoMResponse { 0, "Succeeded", ActReqData } } },
-
-            // Send Server response
-            {   `{"ReqType":6,"Client":"Foo","TimeoutSecs":2,"ReqData":{"ReqType":1,"ResData":{"Action":"Foo","InstanceId":"Inst-0","AnomalyInstanceId":"AN-Inst-0","AnomalyKey":"an-key","Response":"some resp","ResultCode":9,"ResultStr":"Failure Data"}}}`,
-                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
-                TestServerData { LoMRequest { TypeSendServerResponse, TEST_CL_NAME, ClTimeout,
-                                    MsgSendServerResponse { TypeServerRequestAction, ActionResponseData {
-                                        "Foo", "Inst-0", "AN-Inst-0", "an-key", "some resp", 9, "Failure Data"}}},
-                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
-
-            // Request for heartbeat
-            {   `{"ReqType":7,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0","Timestamp":100}}`,
+            // Send Action heartbeat to server
+            {   `{"ReqType":6,"Client":"Foo","TimeoutSecs":2,"ReqData":{"ReqType":0,"ResData":{"Action":"Foo","InstanceId":"Inst-0","AnomalyInstanceId":"AN-Inst-0","AnomalyKey":"an-key","Response":"some resp","ResultCode":9,"ResultStr":"Failure Data"}}}`,
                 `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
                 TestServerData { LoMRequest { TypeNotifyActionHeartbeat, TEST_CL_NAME, ClTimeout,
-                                    MsgNotifyHeartbeat{"Detect-0", 100 } },
-                        LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+                                            MsgNotifyHeartbeat { TEST_ACTION_NAME, 100 } },
+                        LoMResponse { 0, "Good", MsgEmptyResp {} } } },
+
+            // Request for request and server sends shutdown request
+            {   `{"ReqType":7,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0","Timestamp":100}}`,
+                `{"ResultCode":0,"ResultStr":"Good","RespData":{}}`,
+                TestServerData { LoMRequest { TypeRecvServerRequest, TEST_CL_NAME, ClTimeout, MsgRecvServerRequest{} },
+                        LoMResponse { 0, "Succeeded", ShutReqData } } },
 
             // Send Dereg action
-            {   `{"ReqType":4,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
-                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
+            {   `{"ReqType":5,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`,
+                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{"ReqType":1,"ReqData":{}}}`,
                 TestServerData { LoMRequest { TypeDeregAction, TEST_CL_NAME, ClTimeout, MsgDeregAction { TEST_ACTION_NAME } },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
 
             // Send Dereg client
-            {   `{"ReqType":2,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`,
+            {   `{"ReqType":4,"Client":"Foo","TimeoutSecs":2,"ReqData":{"Action":"Detect-0"}}`,
                 `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
                 TestServerData { LoMRequest { TypeDeregClient, TEST_CL_NAME, ClTimeout, MsgDeregClient {} },
                         LoMResponse { 0, "Succeeded", MsgEmptyResp {} } } },
+
+            // Send duplicate Dereg client which is expected to fail
+            {   `{"ReqType":2,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`,
+                `{"ResultCode":0,"ResultStr":"Succeeded","RespData":{}}`,
+                TestServerData { LoMRequest {}, LoMResponse {} } },
         }
 
 
@@ -346,13 +346,10 @@ func testJSONClient(t *testing.T, tx *LoMTransport, chRes, chComplete chan inter
         req := tdata.JsonReq
         res := ""
         if err := tx.LoMRPCRequest(&req, &res); err != nil {
-            t.Errorf("ERR: testJSONClient: %d: failed (%v)", ti, err)
+            t.Errorf("testJSONClient: %d: failed (%v)", ti, err)
         }
         if res != tdata.JsonRes {
-            t.Errorf("ERR: testJSONClient: %d: res(%s) != exp(%s)", ti, res, tdata.JsonRes)
-        }
-        if ti == 4 {
-            LogDebug("res:(%v)", res)
+            t.Errorf("testJSONClient: %d: res(%s) != exp(%s)", ti, res, tdata.JsonRes)
         }
         chRes <- struct {}{} /* Indicate completion to server */
     }
@@ -371,22 +368,14 @@ func TestJSONServer(t *testing.T) {
 
     for ti := 0; ti < len(testDataForJson); ti++ {
         if len(chComplete) != 0 {
-            t.Errorf("ERR: Server tid:%d But client complete", ti)
+            t.Errorf("Server tid:%d But client complete", ti)
         }   
-        tdata := &testDataForJson[ti]   
+        tdata := &testData[ti]   
         LogDebug("JSON Server: Running: tid=%d", ti)
-        LogDebug("JSON Server: Running: tdata(%v)", *tdata)
 
-        p, err := tx.ReadClientRequest(chComplete)
+        p, _ := tx.ReadClientRequest(chComplete)
         if p == nil {
-            t.Errorf("ERR: ServerJson: tid:%d ReadClientRequest returned nil err(%v)", ti, err)
-        }
-        if recv, err := json.Marshal(*p.Req); err != nil {
-            t.Errorf("ERR: testJSONServer: %d: err(%v) is not valid Json (%v)", ti, err, *p.Req)
-        } else if exp, err := json.Marshal(tdata.Req); err != nil {
-            t.Errorf("ERR: testJSONServer: %d Failed to marshal test data err(%v) data(%v)",  ti, err, tdata.Req)
-        } else if string(recv) != string(exp) {
-            t.Errorf("ERR: testJSONServer: %d req mismatch recv(%s) != exp(%s)", ti, string(recv), string(exp))
+            t.Errorf("ServerJson: tid:%d ReadClientRequest returned nil", ti)
         }
         p.ChResponse <- &tdata.Res
         /* Wait for client to complete */
@@ -1045,7 +1034,7 @@ func TestConfig(t *testing.T) {
 func TestPeriodic(t *testing.T) {
     s := GetUUID()
     if len(s) != 36 {
-        t.Errorf("Expect 36 chars long != (%d) (%s)", len(s), s)
+        t.Errorf("Expect 36 chars long != (%d)", len(s))
     }
 
     UUID_BIN = "xxx"

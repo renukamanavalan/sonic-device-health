@@ -47,18 +47,6 @@ test() {
     echo "View /tmp/coverage.html in Edge"
 }
 
-dbClientTest() { 
-  go test $1 -p 1 -coverprofile=dbclient_coverprofile.out  -coverpkg go/src/vendors/sonic/client/dbclient -covermode=atomic go/src/vendors/sonic/client/dbclient
-  if [ $? -ne 0 ]; then
-  	echo "Failed to run test"
-  	exit -1
-  fi
-  cat ./dbclient_coverprofile.out* > dbclient_coverprofile.out
-  go tool cover -html=dbclient_coverprofile.out -o /tmp/dbclient_coverage.html
-  ls -l dbclient_coverprofile.out /tmp/dbclient_coverage.html
-  echo "View /tmp/dbclient_coverage.html in Edge"
-
-}
 
 test_plugin_mgr() {
     go test -v -p 1 -cover $1 -coverprofile=coverprofile_plmgr.out -coverpkg go/src/lib/lomcommon,go/src/pluginmgr/pluginmgr_common,go/src/pluginmgr/plugins_common,go/src/pluginmgr/plugins_files -covermode=atomic ./src/pluginmgr/pluginmgr_test ./src/pluginmgr/pluginmgr_common
@@ -101,9 +89,6 @@ elif [[ "list" == "$cmd"* ]]; then
 elif [[ "test" == "$cmd"* ]]; then
     test ""
 
-elif [[ "dbClientTest" == "$cmd"* ]]; then
-    dbClientTest ""
-    
 elif [[ "test_plugin_mgr" == "$cmd"* ]]; then
     test_plugin_mgr ""
 
