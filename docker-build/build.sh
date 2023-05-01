@@ -1,5 +1,10 @@
 #! /bin/bash
 
+# Builds slave docker containers to give a build environment for LoM.
+# This way every dev uses exactly same env for building.
+# This ensure right versions of dependent packages are resolved.
+#
+
 /* Required by docker build */
 mkdir -p lom-slave-bullseye/vcache
 
