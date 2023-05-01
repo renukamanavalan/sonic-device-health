@@ -1,20 +1,20 @@
 package lomcommon
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"log"
-	"log/syslog"
-	"math"
-	"os"
-	"os/exec"
-	"reflect"
-	"runtime"
-	"sort"
-	"strings"
-	"sync"
-	"time"
+    "encoding/json"
+    "errors"
+    "fmt"
+    "log"
+    "log/syslog"
+    "math"
+    "os"
+    "os/exec"
+    "reflect"
+    "runtime"
+    "sort"
+    "strings"
+    "sync"
+    "time"
 )
 
 var writers = make(map[syslog.Priority]*syslog.Writer)
@@ -271,7 +271,7 @@ func GetUUID() string {
 
 
 /* 
- * Log Periodic module 	--------------------------------------------------------------------
+ * Log Periodic module     --------------------------------------------------------------------
  */
 
 const A_DAY_IN_SECS = int64(24 * 60 * 60)
@@ -397,18 +397,18 @@ func (p *logPeriodic_t) run(chAbort chan interface{}) {
 }
 
 func (p *logPeriodic_t) updatePeriod(id string, newPeriod int) error {
-	entry, ok := logPeriodic.logPeriodicList[id]
-	if !ok {
-		return LogError("Periodic entry with ID(%s) not found", id)
-	}
-	newentry := &LogPeriodicEntry_t{
-		ID:      id,
-		Message: entry.Message,
-		Lvl:     entry.Lvl,
-		Period:  newPeriod,
-	}
+    entry, ok := logPeriodic.logPeriodicList[id]
+    if !ok {
+        return LogError("Periodic entry with ID(%s) not found", id)
+    }
+    newentry := &LogPeriodicEntry_t{
+        ID:      id,
+        Message: entry.Message,
+        Lvl:     entry.Lvl,
+        Period:  newPeriod,
+    }
 
-	return logPeriodic.AddLogPeriodic(newentry)
+    return logPeriodic.AddLogPeriodic(newentry)
 }
 
 func (p *logPeriodic_t) update(l *LogPeriodicEntry_t) bool {
@@ -459,41 +459,41 @@ func (p *logPeriodic_t) writeLogs() bool {
  */
 
 func AddPeriodicLogNotice(ID string, message string, period int) error {
-	return AddPeriodicLogEntry(ID, message, syslog.LOG_NOTICE, period)
+    return AddPeriodicLogEntry(ID, message, syslog.LOG_NOTICE, period)
 }
 
 func AddPeriodicLogInfo(ID string, message string, period int) error {
-	return AddPeriodicLogEntry(ID, message, syslog.LOG_INFO, period)
+    return AddPeriodicLogEntry(ID, message, syslog.LOG_INFO, period)
 }
 
 func AddPeriodicLogDebug(ID string, message string, period int) error {
-	return AddPeriodicLogEntry(ID, message, syslog.LOG_DEBUG, period)
+    return AddPeriodicLogEntry(ID, message, syslog.LOG_DEBUG, period)
 }
 
 func AddPeriodicLogError(ID string, message string, period int) error {
-	return AddPeriodicLogEntry(ID, message, syslog.LOG_ERR, period)
+    return AddPeriodicLogEntry(ID, message, syslog.LOG_ERR, period)
 }
 
 func AddPeriodicLogEntry(ID string, message string, lvl syslog.Priority, period int) error {
-	entry := &LogPeriodicEntry_t{
-		ID:      ID,
-		Message: message,
-		Lvl:     lvl,
-		Period:  period,
-	}
-	err := GetlogPeriodic().AddLogPeriodic(entry)
-	if err != nil {
-		return err
-	}
-	return nil
+    entry := &LogPeriodicEntry_t{
+        ID:      ID,
+        Message: message,
+        Lvl:     lvl,
+        Period:  period,
+    }
+    err := GetlogPeriodic().AddLogPeriodic(entry)
+    if err != nil {
+        return err
+    }
+    return nil
 }
 
 func RemovePeriodicLogEntry(ID string) {
-	GetlogPeriodic().DropLogPeriodic(ID)
+    GetlogPeriodic().DropLogPeriodic(ID)
 }
 
 func UpdatePeriodicLogTime(id string, newPeriod int) error {
-	return GetlogPeriodic().updatePeriod(id, newPeriod)
+    return GetlogPeriodic().updatePeriod(id, newPeriod)
 }
 
 /* 
@@ -616,6 +616,7 @@ func callback(all map[int64][]*OneShotEntry_t) int64 {
  * Run forever.
  * With no requests, it just wakes up once a day.
  */
+// TODO: Replace with global abort channel later
 func (p *oneShotTimer_t) runOneShotTimer() {
     all := make(map[int64][]*OneShotEntry_t)
 
@@ -658,27 +659,27 @@ var goroutineTracker *GoroutineTracker = nil
 
 type GoroutineStatus bool
 const (
-	GoroutineStatusRunning GoroutineStatus = false
-	GoroutineStatusFinished GoroutineStatus = true
+    GoroutineStatusRunning GoroutineStatus = false
+    GoroutineStatusFinished GoroutineStatus = true
 )
 
 type Goroutine struct {
-	Status    GoroutineStatus
-	done      chan struct{}
-	StartTime time.Time
-	EndTime   time.Time
+    Status    GoroutineStatus
+    done      chan struct{}
+    StartTime time.Time
+    EndTime   time.Time
 }
 
 type GoroutineInfo struct {
     Goroutine
-	Name      string
-	Duration  time.Duration
+    Name      string
+    Duration  time.Duration
 }
 
 type GoroutineTracker struct {
-	mlock      sync.Mutex
-	goroutines map[string]*Goroutine
-	waitGroup  sync.WaitGroup
+    mlock      sync.Mutex
+    goroutines map[string]*Goroutine
+    waitGroup  sync.WaitGroup
 }
 
 // Create a new GoroutineTracker and return GoroutineTracker instance
@@ -711,11 +712,11 @@ func GetGoroutineTracker() *GoroutineTracker {
 // Returns:
 // - None:
 func (grt *GoroutineTracker) Start(name string, fn interface{}, args ...interface{}) {
-	grt.mlock.Lock()
-	defer grt.mlock.Unlock()
+    grt.mlock.Lock()
+    defer grt.mlock.Unlock()
 
-	if _, ok := grt.goroutines[name]; ok {
-		// Goroutine with same name already exists & active
+    if _, ok := grt.goroutines[name]; ok {
+        // Goroutine with same name already exists & active
         if grt.goroutines[name].Status == GoroutineStatusRunning {
             panic(fmt.Sprintf("Cannot start goroutine, %q as its active", name))
         } else {
@@ -723,47 +724,47 @@ func (grt *GoroutineTracker) Start(name string, fn interface{}, args ...interfac
             LogInfo("Goroutine %s is finished. Deleting it from goroutine tracker", name)
             delete(grt.goroutines, name)           
         }
-	}
+    }
 
-	g := &Goroutine{Status: GoroutineStatusRunning, done: make(chan struct{}), StartTime: time.Now()}
-	grt.goroutines[name] = g
-	grt.waitGroup.Add(1)
+    g := &Goroutine{Status: GoroutineStatusRunning, done: make(chan struct{}), StartTime: time.Now()}
+    grt.goroutines[name] = g
+    grt.waitGroup.Add(1)
 
-	// Start the goroutine
-	go func() {
-		defer func() {
-			grt.mlock.Lock()
-			defer grt.mlock.Unlock()
+    // Start the goroutine
+    go func() {
+        defer func() {
+            grt.mlock.Lock()
+            defer grt.mlock.Unlock()
 
-			g.Status = GoroutineStatusFinished
-			g.EndTime = time.Now()
-			close(g.done)
-			grt.waitGroup.Done()
-		}()
+            g.Status = GoroutineStatusFinished
+            g.EndTime = time.Now()
+            close(g.done)
+            grt.waitGroup.Done()
+        }()
 
-		// Get the reflect.Value of the function
-		f := reflect.ValueOf(fn)
+        // Get the reflect.Value of the function
+        f := reflect.ValueOf(fn)
 
-		// If the function is not a valid type, panic with an error message
-		if f.Kind() != reflect.Func {
-			panic("Invalid function type provided to Start method of GoroutineTracker instance with name " + name + "") 
-		}
+        // If the function is not a valid type, panic with an error message
+        if f.Kind() != reflect.Func {
+            panic("Invalid function type provided to Start method of GoroutineTracker instance with name " + name + "") 
+        }
 
-		// If arguments are provided, call the function with the arguments
-		if len(args) > 0 {
-			// Convert the arguments to a slice of reflect.Value
-			argVals := make([]reflect.Value, len(args))
-			for i, arg := range args {
-				argVals[i] = reflect.ValueOf(arg)
-			}
+        // If arguments are provided, call the function with the arguments
+        if len(args) > 0 {
+            // Convert the arguments to a slice of reflect.Value
+            argVals := make([]reflect.Value, len(args))
+            for i, arg := range args {
+                argVals[i] = reflect.ValueOf(arg)
+            }
 
-			// Call the function with the arguments
-			f.Call(argVals)
-		} else {
-			// Call the function without arguments
-			f.Call(nil)
-		}
-	}()
+            // Call the function with the arguments
+            f.Call(argVals)
+        } else {
+            // Call the function without arguments
+            f.Call(nil)
+        }
+    }()
 }
 
 // Wait for a goroutine with given name to finish. 
@@ -775,13 +776,13 @@ func (grt *GoroutineTracker) Start(name string, fn interface{}, args ...interfac
 // - bool:
 func (grt *GoroutineTracker) Wait(name string) {
 
-	grt.mlock.Lock()
-	g, ok := grt.goroutines[name]
-	grt.mlock.Unlock()
+    grt.mlock.Lock()
+    g, ok := grt.goroutines[name]
+    grt.mlock.Unlock()
 
-	if ok {
-		<-g.done
-	}
+    if ok {
+        <-g.done
+    }
 }
 
 // Wait for a all the goroutine to finish.
@@ -822,15 +823,15 @@ func (grt *GoroutineTracker) WaitAll(timeout time.Duration) bool {
 // - bool: status of goroutine
 // - error: error if goroutine with given name doesn't exist
 func (grt *GoroutineTracker) IsRunning(name string) (bool,error) {
-	grt.mlock.Lock()
-	defer grt.mlock.Unlock()
+    grt.mlock.Lock()
+    defer grt.mlock.Unlock()
 
-	if g, ok := grt.goroutines[name]; ok {
-		return g.Status == GoroutineStatusRunning, nil
-	}
+    if g, ok := grt.goroutines[name]; ok {
+        return g.Status == GoroutineStatusRunning, nil
+    }
 
-	// Goroutine with given name doesn't exist
-	return false, fmt.Errorf("Goroutine with name %q doesn't exist", name)
+    // Goroutine with given name doesn't exist
+    return false, fmt.Errorf("Goroutine with name %q doesn't exist", name)
 }
 
 // Gets the start time of a goroutine with the given name. It may be runnning or completed
@@ -844,12 +845,12 @@ func (grt *GoroutineTracker) GetTimeStarted(name string) (string, error) {
     grt.mlock.Lock()
     defer grt.mlock.Unlock()
 
-    if g, ok := grt.goroutines[name]; ok { // if goroutine exists		
-		return g.StartTime.String(), nil
+    if g, ok := grt.goroutines[name]; ok { // if goroutine exists        
+        return g.StartTime.String(), nil
     }
 
-	// Goroutine with given name doesn't exist
-	return "", fmt.Errorf("Goroutine with name %q doesn't exist", name)
+    // Goroutine with given name doesn't exist
+    return "", fmt.Errorf("Goroutine with name %q doesn't exist", name)
 }
 
 // Returns a list of GoroutineInfo. If name is nil then return info for all the goroutines being tracked
@@ -860,41 +861,41 @@ func (grt *GoroutineTracker) GetTimeStarted(name string) (string, error) {
 // Returns:
 // - []interface{}: list of GoroutineInfo
 func (grt *GoroutineTracker) InfoList(name *string) []interface{} {
-	grt.mlock.Lock()
-	defer grt.mlock.Unlock()
+    grt.mlock.Lock()
+    defer grt.mlock.Unlock()
 
-	// Create a function to extract info for a given goroutine
-	extractInfo := func(name string, g *Goroutine) GoroutineInfo {
-		duration := time.Duration(0)
-		if g.Status == GoroutineStatusRunning {
-			duration = time.Since(g.StartTime)
-		} else if g.Status == GoroutineStatusFinished {
-			duration = g.EndTime.Sub(g.StartTime)
-		}
-		return GoroutineInfo{
-			Goroutine: *g,
-			Name:      name,
-			Duration:  duration,
-		}
-	}
+    // Create a function to extract info for a given goroutine
+    extractInfo := func(name string, g *Goroutine) GoroutineInfo {
+        duration := time.Duration(0)
+        if g.Status == GoroutineStatusRunning {
+            duration = time.Since(g.StartTime)
+        } else if g.Status == GoroutineStatusFinished {
+            duration = g.EndTime.Sub(g.StartTime)
+        }
+        return GoroutineInfo{
+            Goroutine: *g,
+            Name:      name,
+            Duration:  duration,
+        }
+    }
 
-	// If name is given, return info for that goroutine
-	if name != nil {
-		if g, ok := grt.goroutines[*name]; ok {
-			return []interface{}{extractInfo(*name, g)}
-		}
-		return []interface{}{}
-	}
+    // If name is given, return info for that goroutine
+    if name != nil {
+        if g, ok := grt.goroutines[*name]; ok {
+            return []interface{}{extractInfo(*name, g)}
+        }
+        return []interface{}{}
+    }
 
-	// Return info for all goroutines
-	var list []interface{}
-	for name, g := range grt.goroutines {
-		if g != nil {
-			list = append(list, extractInfo(name, g))
-		}
-	}
+    // Return info for all goroutines
+    var list []interface{}
+    for name, g := range grt.goroutines {
+        if g != nil {
+            list = append(list, extractInfo(name, g))
+        }
+    }
 
-	return list
+    return list
 }
 
 
@@ -915,24 +916,24 @@ const EnvMapDefinitionsStr = `{
 var envMap = map[string]string{}
 
 func LoadEnvironmentVariables() {
-	var envMapDefinitions map[string]map[string]string
-	if err := json.Unmarshal([]byte(EnvMapDefinitionsStr), &envMapDefinitions); err != nil {
-		return
-	}
-	for key, value := range envMapDefinitions {
-		envVal, exists := os.LookupEnv(value["env"])
-		if !exists {
-			envVal = value["default"]
-		}
-		envMap[key] = envVal
-	}
+    var envMapDefinitions map[string]map[string]string
+    if err := json.Unmarshal([]byte(EnvMapDefinitionsStr), &envMapDefinitions); err != nil {
+        return
+    }
+    for key, value := range envMapDefinitions {
+        envVal, exists := os.LookupEnv(value["env"])
+        if !exists {
+            envVal = value["default"]
+        }
+        envMap[key] = envVal
+    }
 }
 
 func GetEnvVarString(envname string) (string, bool) {
     if len(envMap) == 0 {
         LoadEnvironmentVariables()
     }
-	value, exists := envMap[envname]
-	return value, exists
+    value, exists := envMap[envname]
+    return value, exists
 }
 

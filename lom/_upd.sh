@@ -9,7 +9,15 @@ libArray=(  "Makefile"
             "src/lib/lomcommon/helper.go"
             "src/lib/lomipc/client_transport.go"
             "src/lib/lomipc/json_transport.go"
-            "src/lib/lomipc/server_transport.go")
+            "src/lib/lomipc/server_transport.go"
+            "src/engine/engine_test.go"
+            "src/engine/engine_data_test.go"
+            "src/engine/sequenceHandler.go"
+            "src/engine/engine_ut_test.go"
+            "src/engine/serverReqHandler.go"
+            "src/engine/engine.go"
+            "src/engine/context.go"
+        )
 
 doDiff() {
     zdiff $1 $2 | less

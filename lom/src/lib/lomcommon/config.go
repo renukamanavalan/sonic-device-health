@@ -1,12 +1,12 @@
 package lomcommon
 
 import (
-	"encoding/json"
-	"io"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"sort"
+    "encoding/json"
+    "io"
+    "io/ioutil"
+    "os"
+    "path/filepath"
+    "sort"
 )
 
 
@@ -28,10 +28,10 @@ const (
 )
 
 type ConfigFiles_t struct {
-	GlobalFl   string
-	ActionsFl  string
-	BindingsFl string
-	ProcsFl    string
+    GlobalFl   string
+    ActionsFl  string
+    BindingsFl string
+    ProcsFl    string
 }
 
 const (
@@ -212,9 +212,9 @@ func (p *GlobalConfig_t) GetValAny(key string) any {
 // TODO: Goutham. Add/delete other fields
 // Proc plugin conf file params
 type ProcPluginConfig_t struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Path    string `json:"path"`
+    Name    string `json:"name"`
+    Version string `json:"version"`
+    Path    string `json:"path"`
 }
 
 /* Action config as read from actions.conf.json */
@@ -290,10 +290,10 @@ type BindingsConfig_t map[string]BindingSequence_t
 
 /* ConfigMgr - A single stop for all configs */
 type ConfigMgr_t struct {
-	globalConfig   *GlobalConfig_t
-	actionsConfig  ActionsConfigList_t
-	bindingsConfig BindingsConfig_t
-	procsConfig    ProcPluginConfigListAll_t
+    globalConfig   *GlobalConfig_t
+    actionsConfig  ActionsConfigList_t
+    bindingsConfig BindingsConfig_t
+    procsConfig    ProcPluginConfigListAll_t
 }
 
 
@@ -335,19 +335,19 @@ func (p *ConfigMgr_t) readActionsConf(fl string) error {
  */
  // TODO: Goutham. In case of dublicate actions in multiple procs, last one will win
 func (p *ConfigMgr_t) readProcsConf(filename string) error {
-	data, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return err
-	}
+    data, err := ioutil.ReadFile(filename)
+    if err != nil {
+        return err
+    }
 
     var jsonData ProcPluginConfigListAll_t // map [procID] ProcPluginConfigList_t
-	err = json.Unmarshal(data, &jsonData)
-	if err != nil {
-		return err
-	}
+    err = json.Unmarshal(data, &jsonData)
+    if err != nil {
+        return err
+    }
     p.procsConfig = jsonData
 
-	return nil
+    return nil
 }
 
 func (p *ConfigMgr_t) readBindingsConf(fl string) error {
@@ -412,19 +412,27 @@ func (p *ConfigMgr_t) readBindingsConf(fl string) error {
 
 
 func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
-	if err := p.globalConfig.readGlobalsConf(cfgFiles.GlobalFl); err != nil {
-		return LogError("Globals: %s: %v", cfgFiles.GlobalFl, err)
-	}
-	if err := p.readActionsConf(cfgFiles.ActionsFl); err != nil {
-		return LogError("Actions: %s: %v", cfgFiles.ActionsFl, err)
-	}
-	if err := p.readBindingsConf(cfgFiles.BindingsFl); err != nil {
-		return LogError("Bind: %s: %v", cfgFiles.BindingsFl, err)
-	}
-	if err := p.readProcsConf(cfgFiles.ProcsFl); err != nil {
-		return LogError("Procs: %s: %v", cfgFiles.ProcsFl, err)
-	}
-	return nil
+    if err := p.globalConfig.readGlobalsConf(cfgFiles.GlobalFl); err != nil {
+        return LogError("Globals: %s: %v", cfgFiles.GlobalFl, err)
+    }
+    if err := p.readActionsConf(cfgFiles.ActionsFl); err != nil {
+        return LogError("Actions: %s: %v", cfgFiles.ActionsFl, err)
+    }
+    if err := p.readBindingsConf(cfgFiles.BindingsFl); err != nil {
+        return LogError("Bind: %s: %v", cfgFiles.BindingsFl, err)
+    }
+    if err := p.readProcsConf(cfgFiles.ProcsFl); err != nil {
+        return LogError("Procs: %s: %v", cfgFiles.ProcsFl, err)
+    }
+    test_mode_fl := filepath.Join(filepath.Dir(cfgFiles.GlobalFl), LOM_TESTMODE_NAME)
+    if _, err := os.Stat(test_mode_fl); os.IsNotExist(err) {
+        LogDebug("Run in Prod mode as fl(%s) not exist. err(%v)", test_mode_fl, err)
+        SetLoMRunMode(LoMRunMode_Prod)
+    } else {
+        LogDebug("Run in Testg mode as fl(%s) exists. err(%v)", test_mode_fl, err)
+        SetLoMRunMode(LoMRunMode_Test)
+    }
+    return nil
 }
 
 /*
@@ -631,7 +639,7 @@ func GetConfigMgr() *ConfigMgr_t {
  *  error - Non nil on any failure, else nil
  */
 func InitConfigMgr(p *ConfigFiles_t) (*ConfigMgr_t, error) {
-	t := &ConfigMgr_t{new(GlobalConfig_t), make(ActionsConfigList_t), make(BindingsConfig_t), make(ProcPluginConfigListAll_t)}
+    t := &ConfigMgr_t{new(GlobalConfig_t), make(ActionsConfigList_t), make(BindingsConfig_t), make(ProcPluginConfigListAll_t)}
 
     if err := t.loadConfigFiles(p); err != nil {
         return nil, err
