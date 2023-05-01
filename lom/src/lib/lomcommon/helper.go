@@ -82,7 +82,6 @@ func getPrefix(skip int) string {
         /* prefix = caller/t.go, for the example above */
         prefix = prefix + fmt.Sprintf("%s:%d:", strings.Join(l[c-1:], "/"), ln)
     }
-    
     return prefix
 }
 
