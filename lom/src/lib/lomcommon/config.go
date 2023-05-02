@@ -421,10 +421,9 @@ func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
     }
     test_mode_fl := filepath.Join(filepath.Dir(cfgFiles.GlobalFl), LOM_TESTMODE_NAME)
     if _, err := os.Stat(test_mode_fl); os.IsNotExist(err) {
-        LogDebug("Run in Prod mode as fl(%s) not exist. err(%v)", test_mode_fl, err)
         SetLoMRunMode(LoMRunMode_Prod)
     } else {
-        LogDebug("Run in Testg mode as fl(%s) exists. err(%v)", test_mode_fl, err)
+        LogDebug("Run in Test mode as fl(%s) exists. err(%v)", test_mode_fl, err)
         SetLoMRunMode(LoMRunMode_Test)
     }
     return nil

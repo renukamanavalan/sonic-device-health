@@ -60,9 +60,9 @@ func GetGlobalCfgStrC(keyPtr *C.char) *C.char {
 func GetGlobalCfgIntC(keyPtr *C.char) C.int {
     key := C.GoString(keyPtr)
     val := GetConfigMgr().GetGlobalCfgAny(key)
-    iVal, ok := val.(int) 
+    iVal, ok := val.(float64) 
     if !ok {
-        LogError("Missing key with int val (%T)/(%v)", val, val)
+        LogError("Failed key=%s expect float64 val (%T)/(%v)", val, val)
     }
     return C.int(iVal)     /* Defaults to 0 on failed conversion */
 }
