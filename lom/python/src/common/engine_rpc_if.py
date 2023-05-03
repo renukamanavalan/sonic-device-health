@@ -1,5 +1,12 @@
 #! /usr/bin/env python3
 
+#
+# Client lib to access engine via RPC-JSON i/f
+#
+# Connects to RPC JSON listener and communicate all client requests via
+# JSON string and receive response as JSON too.
+#
+
 from dataclasses import dataclass
 import json
 import socket

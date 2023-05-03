@@ -1,4 +1,3 @@
-import os
 from setuptools import setup, find_packages
 
 setup_requirements = ['pytest-runner']
@@ -36,12 +35,12 @@ setup(
     version='1.0.0',
     scripts=['plugin_manager/engine_if.py',
         'common/common.py',
+        'common/engine_apis.py',
+        'common/engine_rpc_if.py',
         'common/gvars.py',
         'hal/DBAccess.py',
         'hal/sonic/ClientDBAccess.py',
-        'hal/sonic/DBServer.py',
-        'plugin_manager/engine_if.py',
-        'plugin_manager/pluginMgr.py'],
+        'hal/sonic/DBServer.py'],
     zip_safe=False,
 )
 
