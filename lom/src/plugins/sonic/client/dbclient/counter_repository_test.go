@@ -24,7 +24,7 @@ const (
         SAI_PORT_STAT_IF_IN_UCAST_PKTS  = "SAI_PORT_STAT_IF_IN_UCAST_PKTS"
         SAI_PORT_STAT_IF_OUT_UCAST_PKTS = "SAI_PORT_STAT_IF_OUT_UCAST_PKTS"
         SAI_PORT_STAT_IF_OUT_ERRORS     = "SAI_PORT_STAT_IF_OUT_ERRORS"
-	COUNTERS_PORT_NAME_MAP          = "COUNTERS_PORT_NAME_MAP"
+       	COUNTERS_PORT_NAME_MAP          = "COUNTERS_PORT_NAME_MAP"
         ADMIN_STATUS_FIELD              = "admin_status"
         OPER_STATUS_FIELD               = "oper_status"
         PORT_TABLE                      = "PORT_TABLE:"
@@ -102,14 +102,14 @@ func Test_GetInterfaceCounters_ReturnsAllCountersSuccessfuly(t *testing.T) {
         assert.Equal(uint64(111), result[ethernet1]["InUnicastPackets"], "Ehternet1's InUnicastPackets counter is expected to be 111")
         assert.Equal(uint64(112), result[ethernet1]["OutUnicastPackets"], "Ehternet1's OutUnicastPackets counter is expected to be 112")
         assert.Equal(uint64(113), result[ethernet1]["IfOutErrors"], "Ehternet1's IfOutErrors counter is expected to be 113")
-	assert.Equal(uint64(210), result[ethernet2]["IfInErrors"], "Ehternet2's IfInErrors counter is expected to be 210")
+	      assert.Equal(uint64(210), result[ethernet2]["IfInErrors"], "Ehternet2's IfInErrors counter is expected to be 210")
         assert.Equal(uint64(211), result[ethernet2]["InUnicastPackets"], "Ehternet2's InUnicastPackets counter is expected to be 211")
         assert.Equal(uint64(212), result[ethernet2]["OutUnicastPackets"], "Ehternet2's OutUnicastPackets counter is expected to be 212")
         assert.Equal(uint64(213), result[ethernet2]["IfOutErrors"], "Ehternet2's IfOutErrors counter is expected to be 213")
-	assert.Equal(uint64(310), result[ethernet3]["IfInErrors"], "Ehternet3's IfInErrors counter is expected to be 310")
+	      assert.Equal(uint64(310), result[ethernet3]["IfInErrors"], "Ehternet3's IfInErrors counter is expected to be 310")
         assert.Equal(uint64(311), result[ethernet3]["InUnicastPackets"], "Ehternet3's InUnicastPackets counter is expected to be 311")
         assert.Equal(uint64(312), result[ethernet3]["OutUnicastPackets"], "Ehternet3's OutUnicastPackets counter is expected to be 312")
-	assert.Equal(uint64(313), result[ethernet3]["IfOutErrors"], "Ehternet3's IfOutErrors counter is expected to be 313")
+	      assert.Equal(uint64(313), result[ethernet3]["IfOutErrors"], "Ehternet3's IfOutErrors counter is expected to be 313")
 }
 
 /* Test GetInterfaceCounters returns error when HGetAll method returns error */
@@ -302,7 +302,3 @@ func Test_isInterfaceActive_ReturnsFalseWhenRedisCallFails(t *testing.T) {
     assert.NotEqual(t, nil, err, "err is exptected to be nil")
     assert.False(t, result, "result is exptected to be False")
 }
-
-
-
-

@@ -25,7 +25,6 @@ SONIC_DBCLIENT_TEST =$(TEST_DIR)/SonicDbClientTested
 SONIC_LINK_CRC_TEST = $(TEST_DIR)/SonicLinkCrcTested
 all: $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST)
 
-
 $(ENGINE_BIN): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(BIN_DIR)
 	$(GO) build  -o $@ lom/src/engine
