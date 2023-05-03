@@ -35,7 +35,7 @@ func Test_LinkCrcDetector_AddInterfaceCountersDetectsSuccessfuly(t *testing.T) {
 	minOutliersForDetection = min_outliers_for_detection_default
 	lookBackPeriodInSecs = look_back_period_in_secs_default
 
-	rollingWindowCrcDetector := RollingWindowCrcDetector{}
+	rollingWindowCrcDetector := RollingWindowLinkCrcDetector{}
 	rollingWindowCrcDetector.Initialize()
 
 	map1 := map[string]uint64{"IfInErrors": 100, "InUnicastPackets": 101, "OutUnicastPackets": 1100, "IfOutErrors": 1}

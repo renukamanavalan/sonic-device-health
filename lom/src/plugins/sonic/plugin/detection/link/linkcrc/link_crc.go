@@ -103,7 +103,7 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeCrcDetection(reques
 		linkCrcDetector, ok := linkCrcDetectionPlugin.currentMonitoredInterfaces[interfaceName]
 		if !ok {
 			/* For very first time, create an entry in the mapping for interface with linkCrcDetector */
-			linkCrcDetector := &RollingWindowCrcDetector{}
+			linkCrcDetector := &RollingWindowLinkCrcDetector{}
 			linkCrcDetectionPlugin.currentMonitoredInterfaces[interfaceName] = linkCrcDetector
 			linkCrcDetector.Initialize()
 			linkCrcDetector.AddInterfaceCountersAndDetectCrc(interfaceCounters, time.Now().UTC())
@@ -154,19 +154,19 @@ type LinkCrcDetectorInterface interface {
 Contains logic for detecting CRC on an interface using a rolling window based approach.
 It uses same algorithm that is currently used by Event hub pipelines today
 */
-type RollingWindowCrcDetector struct {
+type RollingWindowLinkCrcDetector struct {
 	latestCounters       map[string]uint64 // This will be nil for the very first time.
 	outlierRollingWindow plugins_common.FixedSizeRollingWindow[CrcOutlierInfo]
 }
 
 /* Initializes the detector instance with config values */
-func (linkCrcDetector *RollingWindowCrcDetector) Initialize() {
+func (linkCrcDetector *RollingWindowLinkCrcDetector) Initialize() {
 	linkCrcDetector.outlierRollingWindow = plugins_common.FixedSizeRollingWindow[CrcOutlierInfo]{}
 	linkCrcDetector.outlierRollingWindow.Initialize(outlierRollingWindowSize)
 }
 
 /* Adds CRC based interface counters, computes outlier and detects CRC utilizing the rollowing window outlier details */
-func (linkCrcDetector *RollingWindowCrcDetector) AddInterfaceCountersAndDetectCrc(currentCounters map[string]uint64, localTimeStampUtc time.Time) bool {
+func (linkCrcDetector *RollingWindowLinkCrcDetector) AddInterfaceCountersAndDetectCrc(currentCounters map[string]uint64, localTimeStampUtc time.Time) bool {
 	if currentCounters == nil {
 		return false
 	}
@@ -226,7 +226,7 @@ func (linkCrcDetector *RollingWindowCrcDetector) AddInterfaceCountersAndDetectCr
 }
 
 /* Validates if counters are valid. Note: Currently GWS does this validation before dumping counterDiffs into eventHub */
-func (linkCrcDetector *RollingWindowCrcDetector) validateCountersDiff(previousCounter map[string]uint64, currentCounters map[string]uint64) bool {
+func (linkCrcDetector *RollingWindowLinkCrcDetector) validateCountersDiff(previousCounter map[string]uint64, currentCounters map[string]uint64) bool {
 	if previousCounter[dbclient.IF_IN_ERRORS_COUNTER_KEY] > currentCounters[dbclient.IF_IN_ERRORS_COUNTER_KEY] {
 		return false
 	}
