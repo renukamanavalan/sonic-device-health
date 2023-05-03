@@ -2,6 +2,7 @@
 
 
 from ctypes import *
+from common import *
 from enum import IntEnum, auto
 import os
 

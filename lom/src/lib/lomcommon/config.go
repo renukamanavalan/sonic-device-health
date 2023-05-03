@@ -420,6 +420,7 @@ func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
         return LogError("Procs: %s: %v", cfgFiles.ProcsFl, err)
     }
     test_mode_fl := filepath.Join(filepath.Dir(cfgFiles.GlobalFl), LOM_TESTMODE_NAME)
+    ResetLoMMode()
     if _, err := os.Stat(test_mode_fl); os.IsNotExist(err) {
         SetLoMRunMode(LoMRunMode_Prod)
     } else {

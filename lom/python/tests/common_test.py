@@ -1,7 +1,12 @@
+#! /usr/bin/env python3
+
+import json
 import os
+import pathlib
 import sys
 
 sys.path.append("src/common")
+from common import *
 import engine_apis
 
 class cfgInit:
@@ -17,9 +22,79 @@ class cfgInit:
     "flag_false": false,\
     "lst_6_7_8": [ 6, 7, 8 ]\
 }',
-        "actions.conf.json": '{}',
-        "bindings.conf.json": '{}',
-        "procs.conf.json": '{}'
+        "actions.conf.json": '\
+{\
+    "actions": [\
+        { "name": "Detect-0" },\
+        { "name": "Safety-chk-0", "Timeout": 1},\
+        { "name": "Mitigate-0", "Timeout": 6},\
+        { "name": "Detect-1" },\
+        { "name": "Safety-chk-1", "Timeout": 7},\
+        { "name": "Mitigate-1", "Timeout": 8}\
+    ]\
+}',
+        "bindings.conf.json": '\
+{\
+    "bindings": [\
+        {\
+            "SequenceName": "bind-0", \
+            "Priority": 0,\
+            "Timeout": 2,\
+            "Actions": [\
+                {"name": "Detect-0" },\
+                {"name": "Safety-chk-0", "sequence": 1 },\
+                {"name": "Mitigate-0", "sequence": 2 }\
+            ]\
+        },\
+        {\
+            "SequenceName": "bind-1", \
+            "Priority": 1,\
+            "Timeout": 19,\
+            "Actions": [\
+                {"name": "Detect-1" },\
+                {"name": "Safety-chk-1", "sequence": 1 },\
+                {"name": "Mitigate-1", "sequence": 2 }\
+            ]\
+        }\
+    ]\
+}',
+        "procs.conf.json": '\
+{\
+        "proc_0": {\
+            "Detect-0": {\
+                "name": "Detect-0",\
+                "version": "00.01.1",\
+                "path": " /path/"\
+            },\
+            "Detect-1": {\
+                "name": "Detect-1",\
+                "version": "02.00.1",\
+                "path": " /path/"\
+            },\
+            "Safety-chk-0": {\
+                "name": "Safety-chk-0",\
+                "version": "02.00.1",\
+                "path": " /path/"\
+            }\
+        },\
+        "proc_1": {\
+            "Mitigate-0": {\
+                "name": "Mitigate-0",\
+                "version": "02_1",\
+                "path": " /path/"\
+            },\
+            "Mitigate-1": {\
+                "name": "Mitigate-1",\
+                "version": "02_1",\
+                "path": " /path/"\
+            },\
+            "Safety-chk-1": {\
+                "name": "Safety-chk-1",\
+                "version": "02.00.1",\
+                "path": " /path/"\
+            }\
+        }\
+}'
         }
 
 
@@ -37,7 +112,6 @@ class cfgInit:
             pathlib.Path(testModeFl).unlink(missing_ok = True)
 
 
-
 cfg = None
 
 def InitCfg(testMode: bool):
@@ -50,4 +124,16 @@ def InitCfg(testMode: bool):
     else:
         log_error("Failed to load config")
         return -1
+
+
+def main():
+    s = cfgInit.cfgData["procs.conf.json"]
+    print(s)
+    print("--------------------------")
+    d = json.loads(s)
+    print(json.dumps(d, indent=4))
+    
+
+if __name__ == "__main__":
+    main()
 
