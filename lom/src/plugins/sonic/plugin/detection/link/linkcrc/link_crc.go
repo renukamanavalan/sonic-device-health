@@ -44,7 +44,7 @@ var lookBackPeriodInSecs int
 
 type LinkCRCDetectionPlugin struct {
 	counterRepository    dbclient.CounterRepositoryInterface
-	monitoredInterfaces  map[string]LinkCrcDetectorInterface
+	currentMonitoredInterfaces  map[string]LinkCrcDetectorInterface
 	reportingFreqLimiter plugins_common.PluginReportingFrequencyLimiterInterface
 	plugins_common.PeriodicDetectionPluginUtil
 }
@@ -64,7 +64,7 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) Init(actionConfig *lomcomm
 
 	// Initialize values.
 	linkCrcDetectionPlugin.counterRepository = &dbclient.CounterRepository{RedisProvider: &dbclient.RedisProvider{}}
-	linkCrcDetectionPlugin.monitoredInterfaces = map[string]LinkCrcDetectorInterface{}
+	linkCrcDetectionPlugin.currentMonitoredInterfaces = map[string]LinkCrcDetectorInterface{}
 	linkCrcDetectionPlugin.reportingFreqLimiter = plugins_common.GetDefaultDetectionFrequencyLimiter()
 	err := linkCrcDetectionPlugin.PeriodicDetectionPluginUtil.Init(actionConfig.Name, detectionFreqInSecs, actionConfig, linkCrcDetectionPlugin.executeCrcDetection, linkCrcDetectionPlugin.executeShutdown)
 	if err != nil {
@@ -87,22 +87,24 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeCrcDetection(reques
 		*isExecutionHealthy = false
 		return nil
 	}
+
 	if len(currentInterfaceCounters) == 0 {
 		/* currentInterfaceCounters is either nil or 0 which is invalid. Mark it unhealthy */
 		*isExecutionHealthy = false
 		lomcommon.LogError("interface counters is 0")
 		return nil
 	}
+
 	for interfaceName, interfaceCounters := range currentInterfaceCounters {
 		if interfaceCounters == nil {
 			lomcommon.LogError(fmt.Sprintf("Nil interface Counters for %s", interfaceName))
 			continue
 		}
-		linkCrcDetector, ok := linkCrcDetectionPlugin.monitoredInterfaces[interfaceName]
+		linkCrcDetector, ok := linkCrcDetectionPlugin.currentMonitoredInterfaces[interfaceName]
 		if !ok {
 			/* For very first time, create an entry in the mapping for interface with linkCrcDetector */
 			linkCrcDetector := &RollingWindowCrcDetector{}
-			linkCrcDetectionPlugin.monitoredInterfaces[interfaceName] = linkCrcDetector
+			linkCrcDetectionPlugin.currentMonitoredInterfaces[interfaceName] = linkCrcDetector
 			linkCrcDetector.Initialize()
 			linkCrcDetector.AddInterfaceCountersAndDetectCrc(interfaceCounters, time.Now().UTC())
 		} else {
@@ -132,8 +134,9 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeCrcDetection(reques
 	return nil
 }
 
+/* Contains Clean up that needs to be done when Shutdown() is invoked. This will be invoked after ensuring request is aborted. */
 func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeShutdown() error {
-	linkCrcDetectionPlugin.monitoredInterfaces = nil
+	linkCrcDetectionPlugin.currentMonitoredInterfaces = nil
 	return nil
 }
 
