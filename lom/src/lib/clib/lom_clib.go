@@ -108,13 +108,12 @@ func GetActionsListAsJsonC() *C.char {
     return C.CString(ret)
 }
 
-/*
 //export GetProcsConfigC
 func GetProcsConfigC(namePtr *C.char) *C.char {
     name:= C.GoString(namePtr)
     ret := ""
 
-    if v, err := GetConfigMgr().GetProcConfig(name); err != nil {
+    if v, err := GetConfigMgr().GetProcsConfig(name); err != nil {
         LogError("Failed to get proc conf for (%s) err=(%v)", name, err)
     } else if out, err := json.Marshal(v); err != nil {
         LogError("Failed to marshal proc config (%v) err(%v)", v, err)
@@ -123,7 +122,6 @@ func GetProcsConfigC(namePtr *C.char) *C.char {
     }
     return C.CString(ret)
 }
-*/
 
 //export 
 
