@@ -1,4 +1,4 @@
-/* This file contains logic for Link CRC anomaly detection. It detects CRC anomlies for all the interfaces on the device.*/
+/* This file contains logic for Link CRC anomaly detection. It detects CRC anomlies for all eligible interfaces on the device.*/
 package linkcrc
 
 import (
@@ -74,48 +74,56 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) Init(actionConfig *lomcomm
 	return nil
 }
 
+/* Executes the crc detection logic. isExecutionHealthy is marked false when there is an issue in detecting the anomaly 
+   This is the logic that is periodically executed to detect crc anoamlies */
 func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeCrcDetection(request *lomipc.ActionRequestData, isExecutionHealthy *bool) *lomipc.ActionResponseData {
 	lomcommon.LogInfo(fmt.Sprintf("executeCrcDetection Starting"))
 	ifAnyInterfaceHasCrcError := false
 	var listOfInterfacesWithCrcError strings.Builder
 	currentInterfaceCounters, err := linkCrcDetectionPlugin.counterRepository.GetCountersForActiveInterfaces()
 	if err != nil {
+		/* If redis call fails, there can be no detection that can be performed. Mark it unhealthy */
 		lomcommon.LogError("Error fetching interface counters for LinkCrc detection")
 		*isExecutionHealthy = false
 		return nil
 	}
-
 	if len(currentInterfaceCounters) == 0 {
+		/* currentInterfaceCounters is either nil or 0 which is invalid. Mark it unhealthy */
 		*isExecutionHealthy = false
 		lomcommon.LogError("interface counters is 0")
 		return nil
 	}
-
 	for interfaceName, interfaceCounters := range currentInterfaceCounters {
 		if interfaceCounters == nil {
 			lomcommon.LogError(fmt.Sprintf("Nil interface Counters for %s", interfaceName))
 			continue
 		}
-
 		linkCrcDetector, ok := linkCrcDetectionPlugin.monitoredInterfaces[interfaceName]
 		if !ok {
-			linkCrcDetector := &LinkCrcDetector{}
+			/* For very first time, create an entry in the mapping for interface with linkCrcDetector */
+			linkCrcDetector := &RollingWindowCrcDetector{}
 			linkCrcDetectionPlugin.monitoredInterfaces[interfaceName] = linkCrcDetector
 			linkCrcDetector.Initialize()
 			linkCrcDetector.AddInterfaceCountersAndDetectCrc(interfaceCounters, time.Now().UTC())
 		} else {
 			if linkCrcDetector.AddInterfaceCountersAndDetectCrc(interfaceCounters, time.Now().UTC()) {
+				/* Consider reporting only if it was not reported recently based on the rate limiter settings */
 				if linkCrcDetectionPlugin.reportingFreqLimiter.ShouldReport(interfaceName) {
 					ifAnyInterfaceHasCrcError = true
 					listOfInterfacesWithCrcError.WriteString(interfaceName)
 					listOfInterfacesWithCrcError.WriteString(",")
 				}
 			} else {
-				// reset limiter freq when detection is false.
+				// reset limiter freq when detection is false and the datapoints look valid.
 				linkCrcDetectionPlugin.reportingFreqLimiter.ResetCache(interfaceName)
 			}
 		}
+		/* Note : For interfaces which are in monitoredInterfaces and not in currentInterfaceCounters, we dont perform any action.
+		   This is the same behaviour in event hub pipeline as well. When the counters start showing up for the link later,
+		   then we will start detecting the crc for that link */
 	}
+
+	/* Consider execution is healthy when one full check on interfaces is evaluated */
 	*isExecutionHealthy = true
 	if ifAnyInterfaceHasCrcError {
 		lomcommon.LogInfo("executeCrcDetection Anomaly Detected")
@@ -143,23 +151,22 @@ type LinkCrcDetectorInterface interface {
 Contains logic for detecting CRC on an interface using a rolling window based approach.
 It uses same algorithm that is currently used by Event hub pipelines today
 */
-type LinkCrcDetector struct {
+type RollingWindowCrcDetector struct {
 	latestCounters       map[string]uint64 // This will be nil for the very first time.
 	outlierRollingWindow plugins_common.FixedSizeRollingWindow[CrcOutlierInfo]
 }
 
 /* Initializes the detector instance with config values */
-func (linkCrcDetector *LinkCrcDetector) Initialize() {
+func (linkCrcDetector *RollingWindowCrcDetector) Initialize() {
 	linkCrcDetector.outlierRollingWindow = plugins_common.FixedSizeRollingWindow[CrcOutlierInfo]{}
 	linkCrcDetector.outlierRollingWindow.Initialize(outlierRollingWindowSize)
 }
 
 /* Adds CRC based interface counters, computes outlier and detects CRC utilizing the rollowing window outlier details */
-func (linkCrcDetector *LinkCrcDetector) AddInterfaceCountersAndDetectCrc(currentCounters map[string]uint64, localTimeStampUtc time.Time) bool {
+func (linkCrcDetector *RollingWindowCrcDetector) AddInterfaceCountersAndDetectCrc(currentCounters map[string]uint64, localTimeStampUtc time.Time) bool {
 	if currentCounters == nil {
 		return false
 	}
-
 	defer func() {
 		linkCrcDetector.latestCounters = currentCounters
 	}()
@@ -191,6 +198,7 @@ func (linkCrcDetector *LinkCrcDetector) AddInterfaceCountersAndDetectCrc(current
 				totalLinkErrors := ifInErrorsDiff - ifOutErrorsDiff
 				fcsErrorRate := totalLinkErrors / inUnicastPacketsDiff
 				if fcsErrorRate > 0 {
+					/* if fcsErrorRate is > 0, the diff counter considered an outlier */
 					crcOutlier := CrcOutlierInfo{TimeStamp: localTimeStampUtc}
 					linkCrcDetector.outlierRollingWindow.AddElement(crcOutlier)
 
@@ -214,24 +222,20 @@ func (linkCrcDetector *LinkCrcDetector) AddInterfaceCountersAndDetectCrc(current
 	return false
 }
 
-/* Validates if counters are valid */
-func (linkCrcDetector *LinkCrcDetector) validateCountersDiff(previousCounter map[string]uint64, currentCounters map[string]uint64) bool {
+/* Validates if counters are valid. Note: Currently GWS does this validation before dumping counterDiffs into eventHub */
+func (linkCrcDetector *RollingWindowCrcDetector) validateCountersDiff(previousCounter map[string]uint64, currentCounters map[string]uint64) bool {
 	if previousCounter[dbclient.IF_IN_ERRORS_COUNTER_KEY] > currentCounters[dbclient.IF_IN_ERRORS_COUNTER_KEY] {
 		return false
 	}
-
 	if previousCounter[dbclient.IF_OUT_ERRORS_COUNTER_KEY] > currentCounters[dbclient.IF_OUT_ERRORS_COUNTER_KEY] {
 		return false
 	}
-
 	if previousCounter[dbclient.IN_UNICAST_PACKETS_COUNTER_KEY] > currentCounters[dbclient.IN_UNICAST_PACKETS_COUNTER_KEY] {
 		return false
 	}
-
 	if previousCounter[dbclient.OUT_UNICAST_PACKETS_COUNTER_KEY] > currentCounters[dbclient.OUT_UNICAST_PACKETS_COUNTER_KEY] {
 		return false
 	}
-
 	return true
 }
 

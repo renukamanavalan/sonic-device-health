@@ -1,5 +1,5 @@
 {
-  "link_flap": {
+  "link_crc": {
     "Name": "link_crc",
     "Type": "Detection",
     "Timeout": 0,

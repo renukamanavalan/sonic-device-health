@@ -85,10 +85,10 @@ func (counterRepository *CounterRepository) GetCountersForActiveInterfaces() (In
                 return nil, errors.New(fmt.Sprintf("OutUnicastPackets counter ParseUint conversion failed for key (%s). err: (%v)", interfaceCountersKey, err))
             }
 
-	          ifOutErrors, err := strconv.ParseUint(result[3].(string), atoi_base, uint_bit_size)
-	          if err != nil {
-		            return nil, errors.New(fmt.Sprintf("IfOutErrors counter ParseUint conversion failed for key (%s). err: (%v)", interfaceCountersKey, err))
-	          }
+	    ifOutErrors, err := strconv.ParseUint(result[3].(string), atoi_base, uint_bit_size)
+	    if err != nil {
+		return nil, errors.New(fmt.Sprintf("IfOutErrors counter ParseUint conversion failed for key (%s). err: (%v)", interfaceCountersKey, err))
+	    }
 
             var interfaceCounters = map[string]uint64{IF_IN_ERRORS_COUNTER_KEY: ifInErrors, IN_UNICAST_PACKETS_COUNTER_KEY: inUnicastPackets, OUT_UNICAST_PACKETS_COUNTER_KEY: outUnicastPackets, IF_OUT_ERRORS_COUNTER_KEY: ifOutErrors}
             interfaceCountersMap[interfaceName] = interfaceCounters
