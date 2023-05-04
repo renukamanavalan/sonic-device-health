@@ -20,6 +20,8 @@ class LOM_LIB_FN_INDICES(IntEnum):
     LOM_LIB_FN_CFG_ACTION   = auto()
     LOM_LIB_FN_LIST_ACTIONS = auto()
     LOM_LIB_FN_CFG_PROC     = auto()
+    LOM_LIB_FN_ENGINE_START = auto()
+    LOM_LIB_FN_ENGINE_STOP  = auto()
     LOM_LIB_FN_REG_CLIENT   = auto()
     LOM_LIB_FN_DEREG_CLIENT = auto()
     LOM_LIB_FN_REG_ACTION   = auto()
@@ -63,6 +65,10 @@ def lom_lib_init():
                 "fn": lomLib.GetActionsListAsJsonC, "args": [], "res":  c_char_p },
             str(LOM_LIB_FN_INDICES.LOM_LIB_FN_CFG_PROC.value): {
                 "fn": lomLib.GetProcsConfigC, "args": [ c_char_p ], "res":  c_char_p },
+            str(LOM_LIB_FN_INDICES.LOM_LIB_FN_ENGINE_START.value): {
+                "fn": lomLib.EngineStartC, "args": [ c_char_p ], "res":  c_int },
+            str(LOM_LIB_FN_INDICES.LOM_LIB_FN_ENGINE_STOP.value): {
+                "fn": lomLib.EngineStopC, "args": [], "res":  c_int },
             str(LOM_LIB_FN_INDICES.LOM_LIB_FN_REG_CLIENT.value): {
                 "fn": lomLib.RegisterClientC, "args": [ c_char_p ], "res":  c_char_p },
             str(LOM_LIB_FN_INDICES.LOM_LIB_FN_DEREG_CLIENT.value): {
@@ -110,8 +116,10 @@ def call_lom_lib(id: LOM_LIB_FN_INDICES,  *args):
             updArgs[i] = args[i].encode("utf-8")
         elif fn.argtypes[i] == c_int:
             updArgs[i] = c_int(args[i])
+        elif fn.argtypes[i] == c_longlong:
+            updArgs[i] = c_longlong(args[i])
         else:
-            logError("id:{} i:{} Unexpected arg type {}".format(id, i, fn.argtypes[i]))
+            log_error("id:{} i:{} Unexpected arg type {}".format(id, i, fn.argtypes[i]))
 
     if argsCnt == 0:
         res = lomLibFunctions[id]()

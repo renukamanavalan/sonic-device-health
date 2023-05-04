@@ -6,6 +6,7 @@ import (
     "fmt"
     . "lom/src/lib/lomcommon"
     . "lom/src/lib/lomipc"
+    "lom/src/engine"
 )
 
 
@@ -141,6 +142,24 @@ func GetProcsConfigC(namePtr *C.char) *C.char {
  *
  * ----------------------------------------------------------------
  */
+
+
+//export EngineStartC
+func EngineStartC(cfgPath *C.char) C.int {
+
+    _, err := engine.EngineStartup(C.GoString(cfgPath))
+    if err != nil {
+        LogError("Failed to startup engine (%v)", err)
+        return C.int(-1)
+    }
+    return C.int(0)
+}
+
+//export EngineStopC
+func EngineStopC() C.int {
+    engine.EngineStop()
+    return C.int(0)
+}
 
 var clientSessTx = GetClientTx(0)
 

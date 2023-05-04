@@ -115,6 +115,8 @@ class cfgInit:
 cfg = None
 
 def InitCfg(testMode: bool):
+    global cfg
+
     c = cfgInit(testMode)
     ret = engine_apis.call_lom_lib(
             engine_apis.LOM_LIB_FN_INDICES.LOM_LIB_FN_INIT, c.cfgPath)
@@ -124,6 +126,25 @@ def InitCfg(testMode: bool):
     else:
         log_error("Failed to load config")
         return -1
+
+
+def StartEngine() -> bool:
+    if cfg == None:
+        log_error("Require to init config first")
+        return False
+
+    ret = engine_apis.call_lom_lib(
+            engine_apis.LOM_LIB_FN_INDICES.LOM_LIB_FN_ENGINE_START, cfg.cfgPath)
+    return ret == 0
+
+
+def StopEngine() -> bool:
+    if cfg == None:
+        log_error("Require to init config first")
+        return False
+
+    ret = engine_apis.call_lom_lib(engine_apis.LOM_LIB_FN_INDICES.LOM_LIB_FN_ENGINE_STOP)
+    return ret == 0
 
 
 def main():

@@ -60,8 +60,7 @@ func SetPrefix(p string) {
 }
 
 func getPrefix(skip int) string {
-    t := time.Now()
-    prefix := apprefix + fmt.Sprintf("%02d:%02d:%02d: ", t.Hour(), t.Minute(), t.Second())
+    prefix := apprefix
     if _, fl, ln, ok := runtime.Caller(skip); ok {
         /*
          * sample fl = /home/localadmin/tools/go/caller/t.go
