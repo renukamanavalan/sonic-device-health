@@ -5,7 +5,7 @@
 # This ensure right versions of dependent packages are resolved.
 #
 
-/* Required by docker build */
+# Required by docker build 
 mkdir -p lom-slave-bullseye/vcache
 
 docker inspect --type image lom-slave-bullseye:1234 &> /dev/null; RET=$?
