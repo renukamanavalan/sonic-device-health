@@ -228,9 +228,12 @@ def register_client(clName: str) -> bool:
 # Reset clientName & disconnect from server/engine.
 #
 def deregister_client():
+    global clientName
+
     sendAndReceive(LoMRequest(gvars.TypeLoMReq.TypeDeregClient, clientName, 0, {}))
     clientName = None
     disconnectServer()
+    return True
 
 
 # Send register action request
@@ -241,13 +244,13 @@ def register_action(act: str) -> bool:
 
 # Send deregister action request
 def deregister_action(act: str) -> bool:
-    recv = sendAndReceive(LoMRequest(gvars.TypeLoMReq.TypeDeregAction, clientName, 0, MsgDeregAction(act)))
+    recv = sendAndReceive(LoMRequest(gvars.TypeLoMReq.TypeDeregAction, clientName, 0, MsgRegAction(act)))
     return recv.ResultCode == 0
 
 
 # Send Heartbeat from action.
-def regNotifyHB(act: str, tout: int):
-    recv = sendAndReceive(LoMRequest(gvars.TypeLoMReq.TypeRegAction, clientName, 0, MsgNotifyHeartbeat(act, tout)))
+def regNotifyHB(act: str, ts: int):
+    recv = sendAndReceive(LoMRequest(gvars.TypeLoMReq.TypeNotifyActionHeartbeat, clientName, 0, MsgNotifyHeartbeat(act, ts)))
     return recv.ResultCode == 0
 
 
@@ -258,7 +261,7 @@ def regNotifyHB(act: str, tout: int):
 # This allows access all members as in LoMResponse.
 #
 def read_action_request(timeout: int = 0) -> (bool, SimpleNamespace):
-    recv = sendAndReceive(gvars.TypeLoMReq.TypeRecvServerRequest, clientName, timeout, {})
+    recv = sendAndReceive(LoMRequest(gvars.TypeLoMReq.TypeRecvServerRequest, clientName, timeout, {}))
     return (recv.ResultCode == 0, recv)
 
 
@@ -266,7 +269,7 @@ def read_action_request(timeout: int = 0) -> (bool, SimpleNamespace):
 #
 def write_action_response(res: ActionResponseData) -> bool:
     recv = sendAndReceive(LoMRequest(gvars.TypeLoMReq.TypeSendServerResponse, clientName, 0, 
-            MsgSendServerResponse(gvars.TypeLoMReq.TypeServerRequestAction, res)))
+            MsgSendServerResponse(gvars.TypeServerReq.TypeServerRequestAction, res)))
     return recv.ResultCode == 0
 
 

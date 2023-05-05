@@ -33,14 +33,11 @@ setup(
     packages=find_packages(),
     setup_requires=setup_requirements,
     version='1.0.0',
-    scripts=['plugin_manager/engine_if.py',
+    scripts=[
         'common/common.py',
         'common/engine_apis.py',
         'common/engine_rpc_if.py',
-        'common/gvars.py',
-        'hal/DBAccess.py',
-        'hal/sonic/ClientDBAccess.py',
-        'hal/sonic/DBServer.py'],
+        'common/gvars.py'],
     zip_safe=False,
 )
 

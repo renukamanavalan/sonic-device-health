@@ -41,6 +41,7 @@ lomLibFunctions = {}  # dict[LOM_LIB_FN_INDICES-int, ctypes.CDLL.__init__.<local
 def lom_lib_init():
     global lomLib
 
+    print("DROP:--------------------lom_lib_init ----------")
     if lomLib == None:
         try:
             lomLib = CDLL(os.path.join(DLL_PATH, DLL_NAME))
@@ -103,6 +104,7 @@ def call_lom_lib(id: LOM_LIB_FN_INDICES,  *args):
         log_error("Failed to find id={} in mapped fns {}", id, list(lomLibFunctions.keys()))
         return -1
 
+    print("DROP: ******** call id={}--------------", id)
     fn = lomLibFunctions[id]
     argsCnt = len(args)
 
@@ -125,7 +127,9 @@ def call_lom_lib(id: LOM_LIB_FN_INDICES,  *args):
         res = lomLibFunctions[id]()
 
     elif argsCnt == 1:
+        print("DROP:+++++++++ id={} args=1 {} ++++++++++++", id, updArgs[0])
         res = lomLibFunctions[id](updArgs[0])
+        print("DROP:+++++++++ id={} args=1 DONE ++++++++++++", id)
 
     elif argsCnt == 2:
         res = lomLibFunctions[id](updArgs[0], updArgs[1])
