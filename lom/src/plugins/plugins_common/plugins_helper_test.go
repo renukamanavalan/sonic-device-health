@@ -204,6 +204,58 @@ func (dummyPlugin *DummyPlugin) GetPluginID() PluginId {
 	return PluginId{Name: pluginName, Version: version}
 }
 
+/* Validates that Init returns error for invalid arguments */
+func Test_PeriodicDetectionPluginUtil_InitReturnsErrorForInvalidArgument(t *testing.T) {
+	// Mock
+	periodicDetectionPluginUtil := &PeriodicDetectionPluginUtil{}
+	testRequestFrequency = 1
+	actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: -1}
+	err := periodicDetectionPluginUtil.Init("dummyName", 10, &actionConfig, nil, nil)
+
+	// Assert.
+	assert := assert.New(t)
+	assert.NotNil(err, "err is expected to be non nil")
+
+	actionConfig = lomcommon.ActionCfg_t{HeartbeatInt: 1}
+	err = periodicDetectionPluginUtil.Init("dummyName", -10, &actionConfig, nil, nil)
+
+	// Assert.
+	assert.NotNil(err, "err is expected to be non nil")
+
+	actionConfig = lomcommon.ActionCfg_t{HeartbeatInt: 1}
+	err = periodicDetectionPluginUtil.Init("dummyName", 10, &actionConfig, nil, nil)
+
+	// Assert.
+	assert.NotNil(err, "err is expected to be non nil")
+
+	actionConfig = lomcommon.ActionCfg_t{HeartbeatInt: 1}
+	dummyPlugin := &DummyPlugin{}
+	err = periodicDetectionPluginUtil.Init("dummyName", 10, &actionConfig, nil, dummyPlugin.executeShutdown)
+
+	// Assert.
+	assert.NotNil(err, "err is expected to be non nil")
+	err = periodicDetectionPluginUtil.Init("dummyName", 10, &actionConfig, dummyPlugin.executeRequest, nil)
+
+	// Assert.
+	assert.NotNil(err, "err is expected to be non nil")
+}
+
+/* Validates that Request returns failure when actionRequest has timeout */
+func Test_PeriodicDetectionPluginUtil_ReturnsErrorWhenTimeoutIsInvalid(t *testing.T) {
+	// Mock
+	periodicDetectionPluginUtil := &PeriodicDetectionPluginUtil{}
+	pluginHBChan := make(chan PluginHeartBeat, 2)
+	request := &lomipc.ActionRequestData{Timeout: 10}
+
+	// Act
+	response := periodicDetectionPluginUtil.Request(pluginHBChan, request)
+
+	// Assert.
+	assert := assert.New(t)
+	assert.NotNil(response, "response is expected to be non nil")
+	assert.Equal(response.ResultCode, ResultCodeInvalidArgument, "resultCode is expected to be ResultCodeInvalidArgument")
+}
+
 /* Validates that Request returns successfully when ActionResponseData is non nil */
 func Test_PeriodicDetectionPluginUtil_RequestDetectsSuccessfuly(t *testing.T) {
 	// Mock

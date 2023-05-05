@@ -27,6 +27,7 @@ func (mockCounterRepository *MockCounterRepository) IsInterfaceActive(interfaceN
 
 /* Validate AddInterfaceCounter detects crc successfuly */
 func Test_LinkCrcDetector_AddInterfaceCountersDetectsSuccessfuly(t *testing.T) {
+	// Mock
 	ifInErrorsDiffMinValue = if_in_errors_diff_min_value_default
 	inUnicastPacketsMinValue = in_unicast_packets_min_value_default
 	outUnicastPacketsMinValue = out_unicast_packets_min_value_default
@@ -43,7 +44,8 @@ func Test_LinkCrcDetector_AddInterfaceCountersDetectsSuccessfuly(t *testing.T) {
 	map3 := map[string]uint64{"IfInErrors": 850, "InUnicastPackets": 333, "OutUnicastPackets": 3100000000, "IfOutErrors": 3}
 	map4 := map[string]uint64{"IfInErrors": 1220, "InUnicastPackets": 444, "OutUnicastPackets": 4100000000, "IfOutErrors": 4}
 	map5 := map[string]uint64{"IfInErrors": 1650, "InUnicastPackets": 555, "OutUnicastPackets": 4100004000, "IfOutErrors": 5}
-
+        
+	// Assert
 	assert := assert.New(t)
 
 	isDetected := rollingWindowCrcDetector.AddInterfaceCountersAndDetectCrc(map1, time.Now())
@@ -67,27 +69,182 @@ func Test_LinkCrcDetector_AddInterfaceCountersDetectsSuccessfuly(t *testing.T) {
 	assert.Equal(2, outlierRollingWindow.GetElements().Len(), "Length of rolling window is expected to be 2")
 }
 
+/* Validate AddInterfaceCountersAndDetectCrc returns false for nil counters */
+func Test_LinkCrcDetector_AddInterfaceCountersReturnsFalseForNilCounters(t *testing.T) {
+	// Mock
+	ifInErrorsDiffMinValue = if_in_errors_diff_min_value_default
+	inUnicastPacketsMinValue = in_unicast_packets_min_value_default
+	outUnicastPacketsMinValue = out_unicast_packets_min_value_default
+	outlierRollingWindowSize = outlier_rolling_window_size_default
+	minCrcError = min_crc_error_default
+	minOutliersForDetection = min_outliers_for_detection_default
+	lookBackPeriodInSecs = look_back_period_in_secs_default
+        // Act
+	rollingWindowCrcDetector := RollingWindowLinkCrcDetector{}
+	rollingWindowCrcDetector.Initialize()
+        // Assert
+	assert := assert.New(t)
+
+	isDetected := rollingWindowCrcDetector.AddInterfaceCountersAndDetectCrc(nil, time.Now())
+	assert.False(isDetected, "isDetected is expected to be false for nil interface coutners")
+}
+
+/* Validate AddInterfaceCountersAndDetectCrc returns false for invalid diff counters */
+func Test_LinkCrcDetector_AddInterfaceCountersReturnsFalseForInvalidCountersDiff(t *testing.T) {
+	// Mock
+	ifInErrorsDiffMinValue = if_in_errors_diff_min_value_default
+	inUnicastPacketsMinValue = in_unicast_packets_min_value_default
+	outUnicastPacketsMinValue = out_unicast_packets_min_value_default
+	outlierRollingWindowSize = outlier_rolling_window_size_default
+	minCrcError = min_crc_error_default
+	minOutliersForDetection = min_outliers_for_detection_default
+	lookBackPeriodInSecs = look_back_period_in_secs_default
+        // Act
+	rollingWindowCrcDetector := RollingWindowLinkCrcDetector{}
+	rollingWindowCrcDetector.Initialize()
+        // Assert
+	assert := assert.New(t)
+
+	rollingWindowCrcDetector.latestCounters = map[string]uint64{"IfInErrors": 150, "IfOutErrors": 151, "InUnicastPackets": 152, "OutUnicastPackets": 153}
+	currentCounters := map[string]uint64{"IfInErrors": 120, "IfOutErrors": 1051, "InUnicastPackets": 1052, "OutUnicastPackets": 1053}
+
+	isDetected := rollingWindowCrcDetector.AddInterfaceCountersAndDetectCrc(currentCounters, time.Now())
+	assert.False(isDetected, "isDetected is expected to be false for when IfInErrors is less than previous value")
+
+	rollingWindowCrcDetector.latestCounters = map[string]uint64{"IfInErrors": 150, "IfOutErrors": 151, "InUnicastPackets": 152, "OutUnicastPackets": 153}
+	currentCounters = map[string]uint64{"IfInErrors": 1050, "IfOutErrors": 121, "InUnicastPackets": 1052, "OutUnicastPackets": 1053}
+
+	isDetected = rollingWindowCrcDetector.AddInterfaceCountersAndDetectCrc(currentCounters, time.Now())
+	assert.False(isDetected, "isDetected is expected to be false for when IfOutErrors is less than previous value")
+
+	rollingWindowCrcDetector.latestCounters = map[string]uint64{"IfInErrors": 150, "IfOutErrors": 151, "InUnicastPackets": 152, "OutUnicastPackets": 153}
+	currentCounters = map[string]uint64{"IfInErrors": 1050, "IfOutErrors": 1051, "InUnicastPackets": 122, "OutUnicastPackets": 1053}
+
+	isDetected = rollingWindowCrcDetector.AddInterfaceCountersAndDetectCrc(currentCounters, time.Now())
+	assert.False(isDetected, "isDetected is expected to be false for when InUnicastPackets is less than previous value")
+
+	rollingWindowCrcDetector.latestCounters = map[string]uint64{"IfInErrors": 150, "IfOutErrors": 151, "InUnicastPackets": 152, "OutUnicastPackets": 153}
+	currentCounters = map[string]uint64{"IfInErrors": 1050, "IfOutErrors": 1051, "InUnicastPackets": 1052, "OutUnicastPackets": 123}
+
+	isDetected = rollingWindowCrcDetector.AddInterfaceCountersAndDetectCrc(currentCounters, time.Now())
+	assert.False(isDetected, "isDetected is expected to be false for when InUnicastPackets is less than previous value")
+}
+
 /* Validates DetectCrc returns nil for error */
 func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForError(t *testing.T) {
+	// Mock
 	linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
-	actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 10}
+	actionConfig := lomcommon.ActionCfg_t{Name: "linkCrc", HeartbeatInt: 10}
 	linkCRCDetectionPlugin.Init(&actionConfig)
-
 	mockCounterRepository := new(MockCounterRepository)
 	mockCounterRepository.On("GetCountersForActiveInterfaces").Return(dbclient.InterfaceCountersMap(nil), errors.New("Some Error"))
 	linkCRCDetectionPlugin.counterRepository = mockCounterRepository
+	request := &lomipc.ActionRequestData{Action: "action", InstanceId: "InstanceId", AnomalyInstanceId: "AnmlyInstId", Timeout: 0}
+	isHealthy := true
+	// Act
+	response := linkCRCDetectionPlugin.executeCrcDetection(request, &isHealthy)
+	assert := assert.New(t)
+	// Assert
+	assert.Nil(response, "response is expected to be nil")
+	assert.False(isHealthy, "isHealthy is expected to be False")
+	mockCounterRepository.AssertNumberOfCalls(t, "GetCountersForActiveInterfaces", 1)
+	mockCounterRepository.AssertExpectations(t)
+}
 
+/* Validates executeCrcDetection returns nil for empty interfaces from redis  */
+func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForEmptyInterfacesFromRedis(t *testing.T) {
+	// Mock
+	linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
+	actionConfig := lomcommon.ActionCfg_t{Name: "linkCrc", HeartbeatInt: 10}
+	linkCRCDetectionPlugin.Init(&actionConfig)
+	mockCounterRepository := new(MockCounterRepository)
+	interfaceCountersMap := new(dbclient.InterfaceCountersMap)
+	mockCounterRepository.On("GetCountersForActiveInterfaces").Return(*interfaceCountersMap, nil)
+	linkCRCDetectionPlugin.counterRepository = mockCounterRepository
+        // Act
 	request := &lomipc.ActionRequestData{Action: "action", InstanceId: "InstanceId", AnomalyInstanceId: "AnmlyInstId", Timeout: 0}
 	isHealthy := true
 	response := linkCRCDetectionPlugin.executeCrcDetection(request, &isHealthy)
+	// Assert
 	assert := assert.New(t)
 	assert.Nil(response, "response is expected to be nil")
+	assert.False(isHealthy, "isHealthy is expected to be False")
+	mockCounterRepository.AssertNumberOfCalls(t, "GetCountersForActiveInterfaces", 1)
+	mockCounterRepository.AssertExpectations(t)
+}
+
+/* Validates executeCrcDetection ignores empty interface counters from redis  */
+func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForEmptyInterfaceCountersFromRedis(t *testing.T) {
+	// Mock
+	linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
+	actionConfig := lomcommon.ActionCfg_t{Name: "LinkCrc", HeartbeatInt: 10}
+	linkCRCDetectionPlugin.Init(&actionConfig)
+	mockCounterRepository := new(MockCounterRepository)
+	interfaceCountersMap := dbclient.InterfaceCountersMap{"ethernet0": nil}
+	mockCounterRepository.On("GetCountersForActiveInterfaces").Return(interfaceCountersMap, nil)
+	linkCRCDetectionPlugin.counterRepository = mockCounterRepository
+	request := &lomipc.ActionRequestData{Action: "action", InstanceId: "InstanceId", AnomalyInstanceId: "AnmlyInstId", Timeout: 0}
+	isHealthy := true
+	// Act
+	response := linkCRCDetectionPlugin.executeCrcDetection(request, &isHealthy)
+	// Assert
+	assert := assert.New(t)
+	assert.Nil(response, "response is expected to be nil")
+	assert.False(isHealthy, "isHealthy is expected to be False")
+	assert.Equal(0, len(linkCRCDetectionPlugin.currentMonitoredInterfaces), "Monitored interfaces length is expected to be 0")
+	mockCounterRepository.AssertNumberOfCalls(t, "GetCountersForActiveInterfaces", 1)
+	mockCounterRepository.AssertExpectations(t)
+}
+
+/* Validates GetPluginId returns plugin details. */
+func Test_LinkCrcDetectionPlugin_GetPluginIdReturnsPluginDetails(t *testing.T) {
+	// Mock
+	linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
+	actionConfig := lomcommon.ActionCfg_t{Name: "LinkCrc", HeartbeatInt: 10}
+	linkCRCDetectionPlugin.Init(&actionConfig)
+	// Act
+	pluginId := linkCRCDetectionPlugin.GetPluginId()
+	// Assert
+	assert := assert.New(t)
+	assert.NotNil(pluginId, "pluginId is expected to be non nil")
+	assert.Equal("LinkCrc", pluginId.Name, "PluginId.Name is expected to be LinkCrc")
+	assert.Equal("1.0.0.0", pluginId.Version, "PluginId.version  is expected to be 1.0.0.0")
+}
+
+/* Validates executeShutdown returns successfully and clears monitoredInterfaces*/
+func Test_LinkCrcDetectionPlugin_ExecuteShutdownReturnsSuccessfuly(t *testing.T) {
+	// Mock
+	linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
+	actionConfig := lomcommon.ActionCfg_t{Name: "LinkCrc", HeartbeatInt: 10}
+	initErr := linkCRCDetectionPlugin.Init(&actionConfig)
+	// Act
+	shutDownErr := linkCRCDetectionPlugin.executeShutdown()
+	// Assert
+	assert := assert.New(t)
+	assert.Nil(initErr, "initErr is expected to be nil")
+	assert.Nil(shutDownErr, "shutDownErr is expected to be nil")
+	assert.Nil(linkCRCDetectionPlugin.currentMonitoredInterfaces, "monitoredInterfaces is expected to be nil")
+}
+
+/* Validates DetectCrc returns error when ActionConfig is invalid */
+func Test_LinkCrcDetectionPlugin_InitReturnsErrorForInvalidActionConfig(t *testing.T) {
+	// Mock
+	linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
+	actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 10}
+
+	// Act
+	err := linkCRCDetectionPlugin.Init(&actionConfig)
+
+	// Assert
+	assert := assert.New(t)
+	assert.NotNil(err, "response is expected to be non nil")
 }
 
 /* Validates executeCrcDetection detects successfuly */
 func Test_LinkCrcDetectionPlugin_CrcDetectionDetectsSuccessfuly(t *testing.T) {
+	// Mock
 	linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
-	actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 10}
+	actionConfig := lomcommon.ActionCfg_t{Name: "linkCrc", HeartbeatInt: 10}
 	linkCRCDetectionPlugin.Init(&actionConfig)
 
 	map1 := map[string]uint64{"IfInErrors": 100, "InUnicastPackets": 101, "OutUnicastPackets": 1100, "IfOutErrors": 1}
@@ -116,6 +273,7 @@ func Test_LinkCrcDetectionPlugin_CrcDetectionDetectsSuccessfuly(t *testing.T) {
 	response3 := linkCRCDetectionPlugin.executeCrcDetection(request, &isHealthy)
 	response4 := linkCRCDetectionPlugin.executeCrcDetection(request, &isHealthy)
 	response5 := linkCRCDetectionPlugin.executeCrcDetection(request, &isHealthy)
+	// Assert
 	assert := assert.New(t)
 	assert.Nil(response1, "response is expected to be nil")
 	assert.Nil(response2, "response is expected to be nil")
@@ -145,8 +303,9 @@ func (mockLimitDetectionReportingFrequency *MockLimitDetectionReportingFrequency
 
 /* Validates executeCrcDetection reports only for one interface */
 func Test_LinkCrcDetectionPlugin_CrcDetectionReportsForOnlyOneInterface(t *testing.T) {
+	// Mock
 	linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
-	actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 10}
+	actionConfig := lomcommon.ActionCfg_t{Name: "linkCrc", HeartbeatInt: 10}
 	mockLimitDetectionReportingFrequency := new(MockLimitDetectionReportingFrequency)
 	mockLimitDetectionReportingFrequency.On("ShouldReport", "Ethernet1").Return(true)
 	mockLimitDetectionReportingFrequency.On("ShouldReport", "Ethernet2").Return(false)
@@ -173,7 +332,7 @@ func Test_LinkCrcDetectionPlugin_CrcDetectionReportsForOnlyOneInterface(t *testi
 	mockCounterRepository.On("GetCountersForActiveInterfaces").Return(counterMap4, nil).Once()
 	mockCounterRepository.On("GetCountersForActiveInterfaces").Return(counterMap5, nil).Once()
 	linkCRCDetectionPlugin.counterRepository = mockCounterRepository
-
+        // Act
 	request := &lomipc.ActionRequestData{Action: "action", InstanceId: "InstanceId", AnomalyInstanceId: "AnmlyInstId", Timeout: 0}
 	isHealthy := true
 	response1 := linkCRCDetectionPlugin.executeCrcDetection(request, &isHealthy)
@@ -181,6 +340,7 @@ func Test_LinkCrcDetectionPlugin_CrcDetectionReportsForOnlyOneInterface(t *testi
 	response3 := linkCRCDetectionPlugin.executeCrcDetection(request, &isHealthy)
 	response4 := linkCRCDetectionPlugin.executeCrcDetection(request, &isHealthy)
 	response5 := linkCRCDetectionPlugin.executeCrcDetection(request, &isHealthy)
+	// Assert
 	assert := assert.New(t)
 	assert.Nil(response1, "response is expected to be nil")
 	assert.Nil(response2, "response is expected to be nil")
@@ -192,8 +352,9 @@ func Test_LinkCrcDetectionPlugin_CrcDetectionReportsForOnlyOneInterface(t *testi
 
 /* Validates executeCrcDetection reports none */
 func Test_LinkCrcDetectionPlugin_CrcDetectionReportsNone(t *testing.T) {
+	// Mock
 	linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
-	actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 10}
+	actionConfig := lomcommon.ActionCfg_t{Name: "linkCrc", HeartbeatInt: 10}
 	mockLimitDetectionReportingFrequency := new(MockLimitDetectionReportingFrequency)
 	mockLimitDetectionReportingFrequency.On("ShouldReport", "Ethernet1").Return(false)
 	mockLimitDetectionReportingFrequency.On("ShouldReport", "Ethernet2").Return(false)
@@ -223,11 +384,13 @@ func Test_LinkCrcDetectionPlugin_CrcDetectionReportsNone(t *testing.T) {
 
 	request := &lomipc.ActionRequestData{Action: "action", InstanceId: "InstanceId", AnomalyInstanceId: "AnmlyInstId", Timeout: 0}
 	isHealthy := true
+	// Act
 	response1 := linkCRCDetectionPlugin.executeCrcDetection(request, &isHealthy)
 	response2 := linkCRCDetectionPlugin.executeCrcDetection(request, &isHealthy)
 	response3 := linkCRCDetectionPlugin.executeCrcDetection(request, &isHealthy)
 	response4 := linkCRCDetectionPlugin.executeCrcDetection(request, &isHealthy)
 	response5 := linkCRCDetectionPlugin.executeCrcDetection(request, &isHealthy)
+	// Assert
 	assert := assert.New(t)
 	assert.Nil(response1, "response is expected to be nil")
 	assert.Nil(response2, "response is expected to be nil")

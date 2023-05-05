@@ -95,9 +95,11 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeCrcDetection(reques
 		return nil
 	}
 
+        *isExecutionHealthy = true
 	for interfaceName, interfaceCounters := range currentInterfaceCounters {
 		if interfaceCounters == nil {
 			lomcommon.LogError(fmt.Sprintf("Nil interface Counters for %s", interfaceName))
+			*isExecutionHealthy = false
 			continue
 		}
 		linkCrcDetector, ok := linkCrcDetectionPlugin.currentMonitoredInterfaces[interfaceName]
@@ -125,8 +127,6 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeCrcDetection(reques
 		   then we will start detecting the crc for that link */
 	}
 
-	/* Consider execution is healthy when one full check on interfaces is evaluated */
-	*isExecutionHealthy = true
 	if ifAnyInterfaceHasCrcError {
 		lomcommon.LogInfo("executeCrcDetection Anomaly Detected")
 		return plugins_common.GetResponse(request, strings.TrimSuffix(listOfInterfacesWithCrcError.String(), ","), "Detected Crc", plugins_common.ResultCodeSuccess, plugins_common.ResultStringSuccess)
@@ -183,7 +183,7 @@ func (linkCrcDetector *RollingWindowLinkCrcDetector) AddInterfaceCountersAndDete
 	if !linkCrcDetector.validateCountersDiff(linkCrcDetector.latestCounters, currentCounters) {
 		// Make this alertable.
 		// LogError(fmt.Sprintf("Invalid counters"))
-		// TODO: should we reset latestCounters ? Also should we reset latestCounters when the its stale ?
+		// TODO: Should we also reset latestCounters when the its stale ?
 		return false
 	}
 
