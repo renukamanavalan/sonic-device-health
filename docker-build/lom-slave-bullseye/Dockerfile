@@ -1,6 +1,6 @@
 FROM debian:bullseye
 
-MAINTAINER gulv@microsoft.com
+MAINTAINER remanava@microsoft.com
 
 COPY ["no-check-valid-until", "/etc/apt/apt.conf.d/"]
 COPY ["apt-multiple-retries", "/etc/apt/apt.conf.d/"]
