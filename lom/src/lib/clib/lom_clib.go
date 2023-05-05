@@ -144,6 +144,7 @@ func GetProcsConfigC(namePtr *C.char) *C.char {
  */
 
 
+// Required only for test code.
 //export EngineStartC
 func EngineStartC(cfgPath *C.char) C.int {
 
@@ -152,12 +153,6 @@ func EngineStartC(cfgPath *C.char) C.int {
         LogError("Failed to startup engine (%v)", err)
         return C.int(-1)
     }
-    return C.int(0)
-}
-
-//export EngineStopC
-func EngineStopC() C.int {
-    engine.EngineStop()
     return C.int(0)
 }
 

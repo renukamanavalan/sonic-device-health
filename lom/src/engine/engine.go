@@ -180,13 +180,6 @@ func EngineStartup(path string) (*engine_t, error) {
 }
 
 
-func EngineStop() {
-    if engineInst != nil {
-        engineInst.close()
-    }
-}
-
-
 func startUp(progname string, args []string) (*engine_t, error) {
 
     /* Parse args for path */

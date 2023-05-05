@@ -138,15 +138,6 @@ def StartEngine() -> bool:
     return ret == 0
 
 
-def StopEngine() -> bool:
-    if cfg == None:
-        log_error("Require to init config first")
-        return False
-
-    ret = engine_apis.call_lom_lib(engine_apis.LOM_LIB_FN_INDICES.LOM_LIB_FN_ENGINE_STOP)
-    return ret == 0
-
-
 def main():
     s = cfgInit.cfgData["procs.conf.json"]
     print(s)

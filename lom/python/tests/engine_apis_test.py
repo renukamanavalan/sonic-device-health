@@ -232,6 +232,26 @@ testRpcList = [
         }
     ]
 
+
+serverRunning = False
+
+def ServerStart():
+    global serverRunning
+
+    if serverRunning:
+        return
+
+    # Load config & Start Engine
+    #
+    ret = common_test.InitCfg(False)
+    assert ret == 0, f"lomLib.InitConfigPathForC failed ret={ret}"
+
+    ret = common_test.StartEngine()
+    assert ret == True, f"Failed to start engine"
+
+    serverRunning = True
+
+
 class TestCfg(object):
     def callFn(self, fn, args): 
         ln = len(args)
@@ -276,16 +296,9 @@ class TestCfg(object):
             id += 1
 
 
-    def xtestEngineApi(self):
-        # Load config & Start Engine
-        #
-        ret = common_test.InitCfg(False)
-        assert ret == 0, f"lomLib.InitConfigPathForC failed ret={ret}"
+    def testEngineApi(self):
+        ServerStart()
 
-        ret = common_test.StartEngine()
-        assert ret == True, f"Failed to start engine"
-
-        """
         for tc in testEngineAPIList:
             ret = self.callAPI(tc)
             try:
@@ -293,21 +306,10 @@ class TestCfg(object):
                 assert retData["ResultCode"] == tc["resCode"], f'Result mismatch: {tc["msg"]}'
             except json.decoder.JSONDecodeError as e:
                 assert false, f"Failed to decode ({ret}) err:({err})"
-        drop for now
-        """
-
-        ret = common_test.StopEngine()
-        assert ret == True, f"Failed to stop engine"
 
 
     def testRPCApi(self):
-        # Load config & Start Engine
-        #
-        ret = common_test.InitCfg(False)
-        assert ret == 0, f"lomLib.InitConfigPathForC failed ret={ret}"
-
-        ret = common_test.StartEngine()
-        assert ret == True, f"Failed to start engine"
+        ServerStart()
 
         for tc in testRpcList:
             ret = self.callFn(tc["fn"], tc["args"])
@@ -330,8 +332,5 @@ class TestCfg(object):
 
                 for k, v in expD.items():
                     assert v == retD[k], f'Data mismatch key:{k} {v} != {retD[k]} {tc["msg"]}'
-
-        ret = common_test.StopEngine()
-        assert ret == True, f"Failed to stop engine"
 
 
