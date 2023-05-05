@@ -25,10 +25,9 @@ ENGINE_BIN := $(BIN_DIR)/LoMEngine
 # Test binaries/flags
 LIB_TEST = $(TEST_DIR)/LibTested
 ENGINE_TEST = $(TEST_DIR)/EngineTested
+SONIC_DBCLIENT_TEST =$(TEST_DIR)/SonicDbClientTested
 
-all: $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST)
-xall: $(CMN_C_LIB) $(ENGINE_BIN)
-zlib: $(LIB_TEST)
+all: $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST) $(SONIC_DBCLIENT_TEST)
 
 $(CMN_C_LIB): $(SRC_FILES)
 	mkdir -p $(LIB_DIR)
@@ -58,6 +57,13 @@ $(ENGINE_TEST): $(SRC_FILES) $(TEST_FILES)
 	${GO} tool cover -html=$(TEST_DIR)/EngineCoverprofile.out -o $(TEST_DIR)/EngineCoverprofile.html
 	touch $@
 
+$(SONIC_DBCLIENT_TEST): $(SRC_FILES) $(TEST_FILES)
+	mkdir -p $(TEST_DIR)
+	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/SonicDbClientCoverprofile.out \
+		-coverpkg lom/src/plugins/sonic/client/dbclient \
+		-covermode=atomic lom/src/plugins/sonic/client/dbclient || (echo "SonicDbClient Test failed $$?"; exit 1)
+	${GO} tool cover -html=$(TEST_DIR)/SonicDbClientCoverprofile.out -o $(TEST_DIR)/SonicDbClientCoverprofile.html
+	touch $@
 
 clean:
 	rm -rf $(BUILD_DIR)
