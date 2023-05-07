@@ -324,6 +324,10 @@ type LoMRequestInt struct {
 /* RPC call from client */
 func (tr *LoMTransport) SendToServer(req *LoMRequest, reply *LoMResponse) (err error) {
 
+    if (req == nil) || (reply == nil) {
+        return LogError("Nil args req(%v) reply(%v)", req, reply)
+    }
+
     defer func() {
         if err != nil {
             LogError("SendToServer cl(%s) mtype(%s) failed (%v)",
@@ -333,10 +337,6 @@ func (tr *LoMTransport) SendToServer(req *LoMRequest, reply *LoMResponse) (err e
                 ReqTypeToStr[req.ReqType], reply.ResultCode, reply.ResultStr)
         }
     }()
-
-    if (req == nil) || (reply == nil) {
-        return LogError("Nil args req(%v) reply(%v)", req, reply)
-    }
 
     rpcReq := LoMRequestInt{req, make(chan interface{}, 1)}
     tr.ServerCh <- &rpcReq
@@ -404,7 +404,6 @@ func httpServerInit() error {
     l, e := net.Listen("tcp", "localhost:"+strconv.Itoa(RPC_HTTP_PORT))
     if e != nil {
         LogPanic("listen error at %d :(%v)", RPC_HTTP_PORT, e)
-        return e
     }
     go http.Serve(l, nil)
     LogDebug("HTTP Server: Started serving")
@@ -416,7 +415,6 @@ func jsonServerInit() error {
     l, e := net.Listen("tcp", "localhost:"+strconv.Itoa(RPC_JSON_PORT))
     if e != nil {
         LogPanic("listen error at %d (%v)", RPC_JSON_PORT, e)
-        return e
     }
 
     go func() {
@@ -439,12 +437,8 @@ func ServerInit() (*LoMTransport, error) {
     tr := GetLoMTransport()
 
     rpc.Register(tr)
+    httpServerInit()
+    jsonServerInit()
 
-    if err := httpServerInit(); err != nil {
-        return nil, err
-    }
-    if err := jsonServerInit(); err != nil {
-        return nil, err
-    }
     return tr, nil
 }

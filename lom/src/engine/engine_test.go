@@ -66,6 +66,7 @@ import (
     "fmt"
     . "lom/src/lib/lomcommon"
     . "lom/src/lib/lomipc"
+    "net"
     "os"
     "path/filepath"
     "sort"
@@ -1105,6 +1106,31 @@ func runColl(cArgs *callArgs, collPath string, te *testCollectionEntry_t) {
     LogDebug("**************** coll: %s  END  (%s) **********", collPath, te.desc)
 }
 
+func testRPCListener(t *testing.T) {
+    /*
+     * LibTest extensively test JSON-RPC APIs.
+     * The RPC APIs use SendToServer for redirecting requests to server as 
+     * done in HTTP APIs
+     *
+     * All the tests above are HTTP based and extensively test engine via
+     * SendToServer.
+     *
+     * All we need to test is to ensure that engine indeed started RPC listener
+     * or not. So a sample register/de-register would do.
+     */
+
+    servAddr := "localhost:"+strconv.Itoa(RPC_JSON_PORT)
+    if tcpAddr, err := net.ResolveTCPAddr("tcp", servAddr); err != nil {
+        t.Fatalf("Failed to resolve TCP address (%s) err(%v)", servAddr, err)
+    } else if conn, err := net.DialTCP("tcp", nil, tcpAddr); err != nil {
+        t.Fatalf("Failed to connect to JSON Server. err(%v)", err)
+    } else {
+        conn.Close()
+    }
+    LogDebug("testRPCListener COMPLETE")
+}
+
+    
 /* Creates the conf files as per data in this code */
 var initConfigDone = false
 
@@ -1146,6 +1172,8 @@ func TestRun(t *testing.T) {
         runColl(cArgs, string(collId), testCollections[collId])
         resetResultAll() /* Reset all saved results */
     }
+
+    testRPCListener(t)
     chEnd <- 0
     engine.close() /* Close the engine */
 }

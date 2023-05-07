@@ -642,11 +642,10 @@ func InitConfigMgr(p *ConfigFiles_t) (*ConfigMgr_t, error) {
 
 func InitConfigPath(path string) error {
     if len(path) == 0 {
-        cfgPath, exists := GetEnvVarString("ENV_lom_conf_location")
-        if !exists || len(cfgPath) == 0 {
+        path, exists := GetEnvVarString("ENV_lom_conf_location")
+        if !exists || len(path) == 0 {
             return LogError("LOM_CONF_LOCATION environment variable not set")
         }
-        path = cfgPath
     }
     cfgFiles := &ConfigFiles_t{
         GlobalFl:   filepath.Join(path, GLOBALS_CONF_FILE),

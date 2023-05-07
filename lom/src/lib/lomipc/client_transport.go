@@ -79,8 +79,8 @@ func (tx *ClientTx) RegisterClient(client string) error {
     }
 
     res := reply.RespData
-    if x, ok := res.(MsgEmptyResp); !ok {
-        return LogError("RegisterClient: Expect empty resp. (%T) (%v)", x, x)
+    if _, ok := res.(MsgEmptyResp); !ok {
+        return LogError("RegisterClient: Expect empty resp. (%T) (%v)", res, res)
     }
 
     LogInfo("Registered client (%s)", client)
