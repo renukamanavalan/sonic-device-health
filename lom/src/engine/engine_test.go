@@ -67,6 +67,7 @@ import (
     . "lom/src/lib/lomcommon"
     . "lom/src/lib/lomipc"
     "net"
+    // "net/rpc/jsonrpc"
     "os"
     "path/filepath"
     "sort"
@@ -1119,14 +1120,91 @@ func testRPCListener(t *testing.T) {
      * or not. So a sample register/de-register would do.
      */
 
+
+    // REG_CLIENT_RES := `{"id":1,"result":"{\\"ResultCode\\":0,\\"ResultStr\\":\\"\\",\\"RespData\\":{}}","error":null}`
+
+    // reply := make([]byte, 1024)
+
     servAddr := "localhost:"+strconv.Itoa(RPC_JSON_PORT)
-    if tcpAddr, err := net.ResolveTCPAddr("tcp", servAddr); err != nil {
-        t.Fatalf("Failed to resolve TCP address (%s) err(%v)", servAddr, err)
-    } else if conn, err := net.DialTCP("tcp", nil, tcpAddr); err != nil {
-        t.Fatalf("Failed to connect to JSON Server. err(%v)", err)
-    } else {
-        conn.Close()
+
+    /*
+    REG_CLIENT_REQ := `{"ReqType": 1, "Client": "test", "TimeoutSecs": 0, "ReqData":{}}`
+    conn, e1 := net.Dial("tcp", servAddr)
+    if e1 != nil {
+        t.Fatalf("Failed to connect to JSON Server. err(%v)", e1)
     }
+
+    client := jsonrpc.NewClient(conn)
+    if client == nil {
+        t.Fatalf("Failed to get rpc client")
+    }
+
+    reply := ""
+    e2 := client.Call("LoMTransport.LoMRPCRequest", &REG_CLIENT_REQ, &reply)
+    if e2 != nil {
+        t.Fatalf("Failed to call via rpc client err(%v)", e2)
+    }
+    LogDebug("recevied: (%s)", reply)
+    */
+
+    /*
+    REG_CLIENT_RPC_REQ := `{"id": 1, "method": "LoMTransport.LoMRPCRequest", "params": ["{\"ReqType\": 1, \"Client\": \"test\", \"TimeoutSecs\": 0, \"ReqData\": {}}"]}`
+    tcpServer, err := net.ResolveTCPAddr("tcp", servAddr)
+    if err != nil {
+        t.Fatalf("Failed to resolve (%s) (%v)", servAddr, err)
+    }
+
+    conn, err := net.DialTCP("tcp", nil, tcpServer)
+    if err != nil {
+        t.Fatalf("Dial failed: (%v)", err)
+    }
+    
+    _, err = conn.Write([]byte(REG_CLIENT_RPC_REQ))
+    if err != nil {
+        t.Fatalf("Failed to write req")
+    }
+
+    received := make([]byte, 1024)
+    _, err = conn.Read(received)
+    if err != nil {
+        t.Fatalf("Failed to write req")
+    }
+
+    LogDebug("read (%s)", string(received))
+    */
+
+    rpcResp := map[string]any{}
+    resp := LoMResponse{}
+    received := make([]byte, 1024)
+
+    type RPCReq struct {
+        Id      int
+        Method  string
+        Params  []string
+    }
+    req := &LoMRequest{TypeRegClient, "test", 0, struct{}{}}
+    if out, err := json.Marshal(req); err != nil {
+        t.Fatalf("Failed to marshal LoMRequest (%v)", err)
+    } else if out, err := json.Marshal(RPCReq{1, "LoMTransport.LoMRPCRequest", []string{string(out)}}); err != nil {
+        t.Fatalf("Failed to marshal LoMRequest (%v)", err)
+    } else if tcpServer, err := net.ResolveTCPAddr("tcp", servAddr); err != nil {
+        t.Fatalf("Failed to resolve (%s) (%v)", servAddr, err)
+    } else if conn, err := net.DialTCP("tcp", nil, tcpServer); err != nil {
+        t.Fatalf("Dial failed: (%v)", err)
+    } else if _, err := conn.Write([]byte(string(out))); err != nil {
+        t.Fatalf("Failed to write req")
+    } else if n, err := conn.Read(received); err != nil {
+        t.Fatalf("Failed to read reply")
+    } else if err := json.Unmarshal(received[:n], &rpcResp); err != nil {
+        t.Fatalf("Failed to unmarshal reply (%s) (%v)", string(received[:n]), err)
+    } else if strRes, ok := rpcResp["result"].(string); !ok {
+        t.Fatalf("Failed to get result as string result (%T)/(%s)", rpcResp["result"], rpcResp["result"])
+    } else if err := json.Unmarshal([]byte(strRes), &resp); err != nil {
+        t.Fatalf("Failed to unmarshal reply (%s)", strRes)
+    } else if resp.ResultCode != 0 {
+        t.Fatalf("register Client failed (%v)", strRes)
+    }
+
     LogDebug("testRPCListener COMPLETE")
 }
 

@@ -170,7 +170,7 @@ def sendAndReceive(req: LoMRequest) -> SimpleNamespace:
 
     msg = json.dumps(req, default=vars)
     rpcMsg = json.dumps({"id": ReqId, "method": "LoMTransport.LoMRPCRequest", "params": [msg]})
-
+    print("DROP: send: ({})".format(rpcMsg))
     try:
         clientConn.sendall(rpcMsg.encode())
         recv = clientConn.recv(MAX_RECV_BUFSZ).decode()
@@ -184,6 +184,7 @@ def sendAndReceive(req: LoMRequest) -> SimpleNamespace:
             recv[0:40], recv[-40:])
         return retFailedResponse(req, -1, msg)
 
+    print("DROP: recv: ({})".format(recv))
     try:
         rcvMsg = json.loads(recv, object_hook=lambda d: SimpleNamespace(**d))
     except json.JSONDecodeError as e:
