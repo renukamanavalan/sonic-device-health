@@ -1117,62 +1117,11 @@ func testRPCListener(t *testing.T) {
      * SendToServer.
      *
      * All we need to test is to ensure that engine indeed started RPC listener
-     * or not. So a sample register/de-register would do.
+     * or not. So a sample register would do.
      */
 
 
-    // REG_CLIENT_RES := `{"id":1,"result":"{\\"ResultCode\\":0,\\"ResultStr\\":\\"\\",\\"RespData\\":{}}","error":null}`
-
-    // reply := make([]byte, 1024)
-
     servAddr := "localhost:"+strconv.Itoa(RPC_JSON_PORT)
-
-    /*
-    REG_CLIENT_REQ := `{"ReqType": 1, "Client": "test", "TimeoutSecs": 0, "ReqData":{}}`
-    conn, e1 := net.Dial("tcp", servAddr)
-    if e1 != nil {
-        t.Fatalf("Failed to connect to JSON Server. err(%v)", e1)
-    }
-
-    client := jsonrpc.NewClient(conn)
-    if client == nil {
-        t.Fatalf("Failed to get rpc client")
-    }
-
-    reply := ""
-    e2 := client.Call("LoMTransport.LoMRPCRequest", &REG_CLIENT_REQ, &reply)
-    if e2 != nil {
-        t.Fatalf("Failed to call via rpc client err(%v)", e2)
-    }
-    LogDebug("recevied: (%s)", reply)
-    */
-
-    /*
-    REG_CLIENT_RPC_REQ := `{"id": 1, "method": "LoMTransport.LoMRPCRequest", "params": ["{\"ReqType\": 1, \"Client\": \"test\", \"TimeoutSecs\": 0, \"ReqData\": {}}"]}`
-    tcpServer, err := net.ResolveTCPAddr("tcp", servAddr)
-    if err != nil {
-        t.Fatalf("Failed to resolve (%s) (%v)", servAddr, err)
-    }
-
-    conn, err := net.DialTCP("tcp", nil, tcpServer)
-    if err != nil {
-        t.Fatalf("Dial failed: (%v)", err)
-    }
-    
-    _, err = conn.Write([]byte(REG_CLIENT_RPC_REQ))
-    if err != nil {
-        t.Fatalf("Failed to write req")
-    }
-
-    received := make([]byte, 1024)
-    _, err = conn.Read(received)
-    if err != nil {
-        t.Fatalf("Failed to write req")
-    }
-
-    LogDebug("read (%s)", string(received))
-    */
-
     rpcResp := map[string]any{}
     resp := LoMResponse{}
     received := make([]byte, 1024)
