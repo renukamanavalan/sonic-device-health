@@ -19,6 +19,10 @@ TEST_DIR := $(BUILD_DIR)/test
 # export TEST_FLAG=-v in shell before calling make or
 # TEST_FLAG=-v make all
 
+ifeq "${TEST_FLAG}" "-v"
+PYTEST_VERBOSE= --addopts "-s"
+endif
+
 export GO111MODULE=on
 export LOM_LIB_PATH=/lom-root/lom/build/lib
 
@@ -80,7 +84,7 @@ $(SONIC_DBCLIENT_TEST): $(SRC_FILES) $(TEST_FILES)
 $(PY_TEST): $(SRC_FILES) $(PY_FILES)
 	mkdir -p $(TEST_DIR)
 	pushd /lom-root/lom/python; \
-	python3 setup.py test; \
+	python3 setup.py test $(PYTEST_VERBOSE); \
     popd
 
 clean:
