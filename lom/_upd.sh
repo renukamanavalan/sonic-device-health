@@ -3,7 +3,8 @@
 DST="/home/remanava/lom/remanava/lom"
 
 libArray=(  "Makefile"
-            "src/lib/clib/tx_test.go"
+            "src/lib/README.md"
+            "src/lib/clib/lom_clib.go"
             "src/lib/lib_test/tx_test.go"
             "src/lib/lomcommon/config.go"
             "src/lib/lomcommon/hal.go"
@@ -47,6 +48,9 @@ doDiff() {
 }
 
 doCp() {
+    if ! test -d $(dirname ${DST}/$i); then
+        mkdir -p $(dirname ${DST}/$i)
+    fi
     cp $1 $2
 }
 

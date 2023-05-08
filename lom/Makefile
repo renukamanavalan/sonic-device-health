@@ -85,7 +85,8 @@ $(PY_TEST): $(SRC_FILES) $(PY_FILES)
 	mkdir -p $(TEST_DIR)
 	pushd /lom-root/lom/python; \
 	python3 setup.py test $(PYTEST_VERBOSE); \
-    popd
+	popd
+	touch $@
 
 clean:
 	rm -rf $(BUILD_DIR)
