@@ -48,7 +48,7 @@ var ClientCall = txCallClient
 func (tx *ClientTx) RegisterClient(client string) error {
     if tx.clientRpc != nil {
         /* This context is local to client. So this bug will not be hit on restart */
-        return LogError("Already registered (%s). De-register & re-register", tx.clientName)
+        return LogError("Already registered (%s). De-register and re-register", tx.clientName)
     }
     r, err := RPCDialHttp("tcp", server_address+":"+strconv.Itoa(RPC_HTTP_PORT))
 
@@ -79,8 +79,8 @@ func (tx *ClientTx) RegisterClient(client string) error {
     }
 
     res := reply.RespData
-    if x, ok := res.(MsgEmptyResp); !ok {
-        return LogError("RegisterClient: Expect empty resp. (%T) (%v)", x, x)
+    if _, ok := res.(MsgEmptyResp); !ok {
+        return LogError("RegisterClient: Expect empty resp. (%T) (%v)", res, res)
     }
 
     LogInfo("Registered client (%s)", client)

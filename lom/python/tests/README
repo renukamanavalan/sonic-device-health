@@ -1,0 +1,6 @@
+1. Have a class with name starting "Test"
+2. Have methods starting with "test"
+3. from parent dir run "python3 setup.py test"
+
+
+LOM_LIB_PATH=/lom-root/lom/build/lib  python3 setup.py test --addopts "-s"   -- to capture stdout

@@ -62,6 +62,7 @@ func (tr *LoMTransport) LoMRPCRequest(reqJson *string, resJson *string) error {
     bData := []uint8{}
     var err error
 
+    LogDebug("LoMRPCRequest called")
     if (reqJson == nil) || (resJson == nil) {
         return LogError("Nil args req(%v) res(%v)", reqJson, resJson)
     }

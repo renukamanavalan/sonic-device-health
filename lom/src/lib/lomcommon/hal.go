@@ -46,12 +46,10 @@ func SetPublishAPI(f func(string) string) {
  *
  */
 func PublishEvent(m any) string {
-    s := ""
     if b, err := json.Marshal(m); err != nil {
         LogError("Failed to marshal map (%v)", m)
-        s = fmt.Sprintf("%v", m)
+        return fmt.Sprintf("%v", err)
     } else {
-        s = string(b)
+        return publishEventAPI(string(b))
     }
-    return publishEventAPI(s)
 }
