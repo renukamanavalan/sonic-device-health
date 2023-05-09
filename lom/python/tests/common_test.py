@@ -9,10 +9,11 @@ sys.path.append("src/common")
 from common import *
 import engine_apis
 
+# Test data for various LoM config files and  files path
 class cfgInit:
-    cfgPath = "/tmp"
+    cfgPath = "/tmp"                            # Folder for config files
 
-    cfgData = {
+    cfgData = {                                 # key=filename val=<contents of file> 
         "globals.conf.json": '\
 {\
     "ENGINE_HB_INTERVAL_SECS" : 3,\
@@ -114,6 +115,8 @@ class cfgInit:
 
 cfg = None
 
+# Creates config files
+#
 def InitCfg(testMode: bool):
     global cfg
 
@@ -128,6 +131,8 @@ def InitCfg(testMode: bool):
         return -1
 
 
+# Run the engine so clients can access it with all requests
+#
 def StartEngine() -> bool:
     if cfg == None:
         log_error("Require to init config first")
@@ -138,6 +143,7 @@ def StartEngine() -> bool:
     return ret == 0
 
 
+# Some temp test code -- not used
 def main():
     s = cfgInit.cfgData["procs.conf.json"]
     print(s)
