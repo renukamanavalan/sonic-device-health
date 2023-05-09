@@ -1,5 +1,16 @@
 #! /usr/bin/env python3
 
+"""
+    Each client creates a client instance and uses for all its DB requests.
+
+    This client calls into DBMainServer which runs dedicated singletons as one
+    for subscription and other for any DB access in dedicated threads.
+
+    All client requests are routed to these singletons via Q maintained by these.
+    Any response is given back via Q maintained by this caller.
+
+"""
+
 from dataclasses import dataclass
 from enum import Enum, auto
 from queue import Queue
@@ -24,8 +35,12 @@ class DBClientInstance:
     def __init__(self, cid: str, server: DBMainServer_t):
         self.cid = cid
         self.server = server
-        self.qSubs = Queue(10)
-        self.qAccess = Queue(1)
+        self.qSubs = Queue(10)      # 10 to buffer outstanding responses.
+                                    # Any Q overflow results in drop.
+                                    # So client should drain this Q as fast as possible.
+        self.qAccess = Queue(1)     # Queue for sending DBAccess response.
+                                    # As DBAccess response is 1:1 with request no additional
+                                    # buffer needed.
 
         # register as caller for future subscriptions
         self.server.GetSubscriber().UpdSubs(DBSubsReq_t(cid, "", "", False, self.qSubs))

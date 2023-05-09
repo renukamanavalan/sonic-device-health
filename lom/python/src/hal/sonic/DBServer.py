@@ -1,5 +1,23 @@
 #! /usr/bin/env python3
 
+"""
+    Has a singleton instance to handle all subscribe requests
+    Has another singleton instance to handle all DB access requests Get/Set/Delete
+
+    These instances are created by Main server and given to requesting clients.
+    Each instance runs its main method ("run") in a dedicated thread
+
+    Clients send their requests via Queue of these singleton service instances.
+    The dedicated thread reads requests & process and send response back via
+    Queue embedded in the request itself.
+
+    As subscriber main thread sleeps forever on select call looking for DB updates
+    create a fake table and send update to this table, each time a request is added
+    to the Q to alert main thread about the pending req. This fake table alert will 
+    make select return and facilitates looking at Q
+
+"""
+
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -60,6 +78,8 @@ class DBAccessReq_t:
 
 MAX_PEND_SUBS_RES_CNT = 100
 
+# Put response in Q if not full.
+#
 def putResInQ(q: Queue, res: DBSubsRes_t):
     failed = False
     if not q.full():
@@ -114,12 +134,26 @@ class SubsInfo_t:
 """
     DB Subscriber
 
-    Upon init, expect to call Run method in a dedicated thread.
-    UpdSubs is the way of adding / removing new subs request
-    It sends the requests to thread via its personal Q self.ReqQ.
+    A single instance created by DBMainServer to handle all subscriptions
+    All DB Subcriptions happens via this instance only.
+    Init calls run method in a dedicated thread.
+    A fake temp table is created for alerting main thread
+    for any additions from caller threads.
 
-    Waits for update on all subscriptions. Updates are sent via
-    caller's own Q.
+    All clients send their subscribe requests to this main thread via queue
+    Alert main thread via updating fake table (updSubs)
+
+    Main loop does the subscription, when first request arrives for a
+    a table in a DB, it creates  swsscommon.SubscriberStateTable (Subscriber_t),
+    creates SubsInfo_t and add this caller's id to its list. On future requests
+    for same table, it just adds the id of caller to SubsInfo_t instance.
+
+    Each SubsInfo_t has a subscriber added to swsscommon::selector as selectable
+
+    The dedicated thread of this instance that runs "run" method, waits on select
+    and passes received DB update to all callers as recorded in corresponding
+    SubsInfo_t. The response is sent via Q in caller's object.
+    
 """
 
 class DBSubscriber:
@@ -153,14 +187,16 @@ class DBSubscriber:
         log_debug("Waiting for run thread to join")
         self.tid.join()
 
-    # Send request and alert the thread.
+    # DBClient intances send request to main thread via Q and alert the thread.
+    # Register subscriptions with cid.
+    #
     def UpdSubs(self, req: DBSubsReq_t):
         # Write into Q & alert.
         self.ReqQ.put(req)
         swsscommon.Table(self.GetDBConn(self.testDBName), self.testTblName).set("alert", [('fo0', 'bar')])
 
 
-    # internal key used in trackig subscribers, which is 1 : 1 with (db, tbl) tuple.
+    # internal key used in tracking subscribers, which is 1 : 1 with (db, tbl) tuple.
     def getSubsDictKey(self, db : DBName_t, tbl: TblName_t):
         return ";".join([db, tbl])
 
@@ -245,7 +281,7 @@ class DBSubscriber:
 
         if ret == 0:
             # Add to caller info
-            caller.lst[req.db].add(req.tbl)
+            caller.AddSubs(req.db, req.tbl)
 
         return ret
 
@@ -265,9 +301,7 @@ class DBSubscriber:
                     if (not req.tbl) or (req.tbl == tbl):
                         self.DropSubscriber(db, tbl, req.cid)
                     if req.tbl:
-                        caller.lst[db].discard(tbl)
-                        if not caller.lst[db]:
-                            caller.lst.discard(db)
+                        caller.delSubs(db, tbl)
         if not req.db:
             # Dropping entire caller
             self.callers.discard(req.cid)
@@ -332,7 +366,11 @@ class DBSubscriber:
 
 
 # Meant for DB ops only.
+# A singleton instance is created at the start.
+# clients send their request via Q maintained by this instance.
 # Runs in a dedicated thread and watch for requests from Q
+# Executes each request and send response back via Q embedded in the request
+#
 class DBAccess:
 
     def __init__(self):
