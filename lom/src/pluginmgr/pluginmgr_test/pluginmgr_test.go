@@ -183,6 +183,7 @@ func TestGoroutineTracker(t *testing.T) {
         // Check that the goroutine is no longer running after waiting for it
         wg.Wait()
         running, _ = mygoroutinetracker.IsRunning("test_goroutine5")
+        time.Sleep(1000 * time.Millisecond)
         assert.False(t, running)
 
         // Now get the time for a goroutine which is not running.
@@ -300,22 +301,22 @@ func TestGoroutineTracker(t *testing.T) {
     t.Run("Test API usage ways ", func(t *testing.T) {
 
         // Create Goroutine Tracker which will be used to track all goroutines in the process
-    goroutinetracker := lomcommon.GetGoroutineTracker()
-    if goroutinetracker == nil {
-        panic("Error creating goroutine tracker")
-    }
-    
-    goroutinetracker.Start("test", func(a int, b int) { fmt.Printf("1111111111111111 %d %d", a, b) }, 10, 20)
-    goroutinetracker.Start("test1", func() { fmt.Printf("1111111111111111") })
-    var ptr = &MyStruct{"hello"}
-    goroutinetracker.Start("test3", ptr.Print)
-    goroutinetracker.Start("test4", ptr.PrintArg, 10, 20)
+        goroutinetracker := lomcommon.GetGoroutineTracker()
+        if goroutinetracker == nil {
+            panic("Error creating goroutine tracker")
+        }
 
-    //panic calls
-    // goroutinetracker.Start("test5", func (a int, b int) { fmt.Printf("1111111111111111 %d %d", a,b) })
-    //goroutinetracker.Start("test6", func () { fmt.Printf("1111111111111111") }, 10, 20)
-    //goroutinetracker.Start("test7", ptr.Print, 10, 20)
-    //goroutinetracker.Start("test8", ptr.PrintArg)
+        goroutinetracker.Start("test", func(a int, b int) { fmt.Printf("1111111111111111 %d %d", a, b) }, 10, 20)
+        goroutinetracker.Start("test1", func() { fmt.Printf("1111111111111111") })
+        var ptr = &MyStruct{"hello"}
+        goroutinetracker.Start("test3", ptr.Print)
+        goroutinetracker.Start("test4", ptr.PrintArg, 10, 20)
+
+        //panic calls
+        // goroutinetracker.Start("test5", func (a int, b int) { fmt.Printf("1111111111111111 %d %d", a,b) })
+        //goroutinetracker.Start("test6", func () { fmt.Printf("1111111111111111") }, 10, 20)
+        //goroutinetracker.Start("test7", ptr.Print, 10, 20)
+        //goroutinetracker.Start("test8", ptr.PrintArg)
 
     })
 

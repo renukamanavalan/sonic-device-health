@@ -6,19 +6,19 @@
 package pluginmgr_common
 
 import (
-	"flag"
-	"fmt"
-	"log/syslog"
-	"lom/src/lib/lomcommon"
-	"lom/src/lib/lomipc"
-	"lom/src/plugins/plugins_common"
-	"lom/src/plugins/plugins_files"
-	"os"
-	"os/signal"
-	"sync"
-	"sync/atomic"
-	"syscall"
-	"time"
+    "flag"
+    "fmt"
+    "log/syslog"
+    "lom/src/lib/lomcommon"
+    "lom/src/lib/lomipc"
+    "lom/src/plugins/plugins_common"
+    "lom/src/plugins/plugins_files"
+    "os"
+    "os/signal"
+    "sync"
+    "sync/atomic"
+    "syscall"
+    "time"
 )
 
 /*
@@ -356,7 +356,7 @@ func (plmgr *PluginManager) handleRequest(actionReq *lomipc.ActionRequestData) e
     }
 
     if actionReq.Timeout == 0 {
-        plmgr.handleRequestWithHeartbeats(actionReq, hbChan, respChan, handleResponseFunc) // long running 
+        plmgr.handleRequestWithHeartbeats(actionReq, hbChan, respChan, handleResponseFunc) // long running
     } else {
         plmgr.handleRequestWithTimeouts(actionReq, respChan, handleResponseFunc) // short running
     }

@@ -36,15 +36,13 @@ format_code:
 		echo "sed command not found, skipping code formatting"; \
 	fi
 
-.PHONY: pluginmgr lib all clean
+.PHONY: pluginmgr all clean
 
 all: | format_code $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST)
 
 pluginmgr: export TEST_FLAG=-v -p 1 -cover
 pluginmgr:  | format_code clean $(PLUGIN_MANAGER_BIN) $(PLUGIN_MANAGER_TEST)
 
-lib: export TEST_FLAG=-v -p 1 -cover
-lib: clean $(SRC_FILES) $(LIB_TEST)
 
 $(ENGINE_BIN): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(BIN_DIR)
@@ -61,7 +59,7 @@ $(LIB_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/LibCoverprofile.out \
 		-coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon \
-		-covermode=atomic ./src/lib/lib_test || (echo "LibTest failed $$?"; exit 1)
+		-covermode=atomic ./src/lib/lib_test ./src/pluginmgr/pluginmgr_test|| (echo "LibTest failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/LibCoverprofile.out -o $(TEST_DIR)/LibCoverprofile.html
 	touch $@
 
@@ -76,11 +74,13 @@ $(ENGINE_TEST): $(SRC_FILES) $(TEST_FILES)
 $(PLUGIN_MANAGER_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginManagerCoverprofile.out \
-		-coverpkg lom/src/pluginmgr_common \
+		-coverpkg lom/src/pluginmgr/pluginmgr_common \
 		-coverpkg lom/src/plugins/plugins_common \
 		-covermode=atomic ./src/pluginmgr/pluginmgr_test  || (echo "Plugin manager test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/PluginManagerCoverprofile.out -o $(TEST_DIR)/PluginManagerCoverprofile.html
 	touch $@
+
+#./src/pluginmgr/pluginmgr_common
 
 $(SONIC_DBCLIENT_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
