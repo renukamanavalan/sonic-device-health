@@ -10,11 +10,11 @@ import (
     //"lom/src/plugins/plugins_common"
     //"lom/src/plugins/plugins_files"
     //"io/ioutil"
-    //"log/syslog"
+    "log/syslog"
     "os"
-    "path/filepath"
+    //"path/filepath"
     "regexp"
-    "strconv"
+    //"strconv"
     "sync"
     "testing"
     "time"
@@ -51,8 +51,20 @@ func (m *mockFunction) exec(vv ...interface{}) {
     }
 }
 
+type MyStruct struct {
+    Name string
+}
+
+func (s *MyStruct) Print() {
+    fmt.Println(s.Name)
+}
+
+func (s *MyStruct) PrintArg(a int, b int) {
+    fmt.Printf("Testing with args .......... %d %d", a, b)
+}
+
 func TestGoroutineTracker(t *testing.T) {
-    mygoroutinetracker := lomcommon.NewGoroutineTracker()
+    mygoroutinetracker := lomcommon.GetGoroutineTracker()
     wg := sync.WaitGroup{}
 
     t.Run("Test - Start and Wait", func(t *testing.T) {
@@ -66,7 +78,7 @@ func TestGoroutineTracker(t *testing.T) {
         mygoroutinetracker.Start("test_goroutine", mockFunc.exec, 1000)
 
         // Check that the goroutine is running
-        time.Sleep(10 * time.Millisecond) // Wait for the goroutine to start
+        time.Sleep(100 * time.Millisecond) // Wait for the goroutine to start
         running, _ := mygoroutinetracker.IsRunning("test_goroutine")
         assert.True(t, running)
 
@@ -111,7 +123,7 @@ func TestGoroutineTracker(t *testing.T) {
         mygoroutinetracker.Start("test_goroutine4", mockFunc2.exec, 1000, &wg)
 
         // Check that both goroutines are running
-        time.Sleep(10 * time.Millisecond) // Wait for the goroutines to start
+        time.Sleep(100 * time.Millisecond) // Wait for the goroutines to start
         running, _ := mygoroutinetracker.IsRunning("test_goroutine3")
         assert.True(t, running)
         running, _ = mygoroutinetracker.IsRunning("test_goroutine4")
@@ -131,7 +143,7 @@ func TestGoroutineTracker(t *testing.T) {
 
         // Check that both goroutines are no longer running after waiting for them
         wg.Wait()
-        time.Sleep(10 * time.Millisecond) // Wait for the goroutines to finish
+        time.Sleep(100 * time.Millisecond) // Wait for the goroutines to finish
         running, _ = mygoroutinetracker.IsRunning("test_goroutine3")
         assert.False(t, running)
         running, _ = mygoroutinetracker.IsRunning("test_goroutine4")
@@ -161,7 +173,7 @@ func TestGoroutineTracker(t *testing.T) {
         }
 
         // Check that the goroutine is running
-        time.Sleep(10 * time.Millisecond) // Wait for the goroutine to start
+        time.Sleep(100 * time.Millisecond) // Wait for the goroutine to start
         running, _ := mygoroutinetracker.IsRunning("test_goroutine5")
         assert.True(t, running)
 
@@ -185,28 +197,114 @@ func TestGoroutineTracker(t *testing.T) {
 
         mockFunc.AssertExpectations(t)
     })
-}
 
-type MyStruct struct {
-    Name string
-}
+    t.Run("Test - List goroutines statistics for name", func(t *testing.T) {
+        mockFunc1 := &mockFunction{}
+        mockFunc2 := &mockFunction{}
 
-func (s *MyStruct) Print() {
-    fmt.Println(s.Name)
-}
+        // Wait for both goroutines to complete
+        wg.Add(2)
 
-func (s *MyStruct) PrintArg(a int, b int) {
-    fmt.Printf("Testing with args .......... %d %d", a, b)
-}
+        // Start two goroutines with different names
+        mockFunc1.On("exec").Once()
+        mygoroutinetracker.Start("test_goroutine6", mockFunc1.exec, 1000, &wg)
 
-func TestGoroutine2(t *testing.T) {
+        mockFunc2.On("exec").Once()
+        mygoroutinetracker.Start("test_goroutine7", mockFunc2.exec, 1000, &wg)
 
-    // Create Goroutine Tracker which will be used to track all goroutines in the process
-    goroutinetracker := lomcommon.NewGoroutineTracker()
+        // Check that both goroutines are running
+        time.Sleep(100 * time.Millisecond) // Wait for the goroutines to start
+        running, _ := mygoroutinetracker.IsRunning("test_goroutine6")
+        assert.True(t, running)
+        running, _ = mygoroutinetracker.IsRunning("test_goroutine7")
+        assert.True(t, running)
+
+        // Check that List returns both names
+        name := "test_goroutine6"
+        infos := mygoroutinetracker.InfoList(&name)
+
+        assert.Len(t, infos, 1)
+
+        var names string
+        for _, info := range infos {
+            if gi, ok := info.(lomcommon.GoroutineInfo); ok {
+                if gi.Status == lomcommon.GoroutineStatusRunning {
+                    names = gi.Name
+                }
+            }
+        }
+        assert.Regexp(t, name, names)
+
+        // Check that both goroutines are no longer running after waiting for them
+        wg.Wait()
+        time.Sleep(100 * time.Millisecond) // Wait for the goroutines to finish
+        running, _ = mygoroutinetracker.IsRunning("test_goroutine3")
+        assert.False(t, running)
+        running, _ = mygoroutinetracker.IsRunning("test_goroutine4")
+        assert.False(t, running)
+
+        mockFunc2.AssertExpectations(t)
+        mockFunc1.AssertExpectations(t)
+    })
+
+    t.Run("PrintGoroutineInfo", func(t *testing.T) {
+        mockFunc1 := &mockFunction{}
+        mockFunc2 := &mockFunction{}
+
+        // Wait for both goroutines to complete
+        wg.Add(2)
+
+        lomcommon.PrintGoroutineInfo("", true)
+        lomcommon.PrintGoroutineInfo("", false)
+
+        // Start two goroutines with different names
+        mockFunc1.On("exec").Once()
+        mygoroutinetracker.Start("test_goroutine7", mockFunc1.exec, 1000, &wg)
+
+        mockFunc2.On("exec").Once()
+        mygoroutinetracker.Start("test_goroutine8", mockFunc2.exec, 1000, &wg)
+
+        // Check that both goroutines are running
+        time.Sleep(100 * time.Millisecond) // Wait for the goroutines to start
+        running, _ := mygoroutinetracker.IsRunning("test_goroutine7")
+        assert.True(t, running)
+        running, _ = mygoroutinetracker.IsRunning("test_goroutine8")
+        assert.True(t, running)
+
+        lomcommon.PrintGoroutineInfo("", true)
+        lomcommon.PrintGoroutineInfo("", false)
+        lomcommon.PrintGoroutineInfo("test_goroutine7", true)
+        lomcommon.PrintGoroutineInfo("test_goroutine7", false)
+        lomcommon.PrintGoroutineInfo("test_Unknown", false)
+        lomcommon.PrintGoroutineInfo("test_Unknown", true)
+
+        // check for non running goroutines
+        status, eval := mygoroutinetracker.IsRunning("test_non_existent")
+        assert.False(t, status)
+        pattern := `Goroutine with name ".*" doesn't exist`
+        re := regexp.MustCompile(pattern)
+        assert.Regexp(t, re, eval)
+
+        // Check that both goroutines are no longer running after waiting for them
+        wg.Wait()
+        time.Sleep(100 * time.Millisecond) // Wait for the goroutines to finish
+        running, _ = mygoroutinetracker.IsRunning("test_goroutine7")
+        assert.False(t, running)
+        running, _ = mygoroutinetracker.IsRunning("test_goroutine8")
+        assert.False(t, running)
+
+        mockFunc2.AssertExpectations(t)
+        mockFunc1.AssertExpectations(t)
+    })
+
+    t.Run("Test API usage ways ", func(t *testing.T) {
+
+        // Create Goroutine Tracker which will be used to track all goroutines in the process
+    goroutinetracker := lomcommon.GetGoroutineTracker()
     if goroutinetracker == nil {
         panic("Error creating goroutine tracker")
     }
-    //ms := &MyStruct{"hello"}
+    
     goroutinetracker.Start("test", func(a int, b int) { fmt.Printf("1111111111111111 %d %d", a, b) }, 10, 20)
     goroutinetracker.Start("test1", func() { fmt.Printf("1111111111111111") })
     var ptr = &MyStruct{"hello"}
@@ -214,11 +312,51 @@ func TestGoroutine2(t *testing.T) {
     goroutinetracker.Start("test4", ptr.PrintArg, 10, 20)
 
     //panic calls
-    //goroutinetracker.Start("test5", func (a int, b int) { fmt.Printf("1111111111111111 %d %d", a,b) })
+    // goroutinetracker.Start("test5", func (a int, b int) { fmt.Printf("1111111111111111 %d %d", a,b) })
     //goroutinetracker.Start("test6", func () { fmt.Printf("1111111111111111") }, 10, 20)
     //goroutinetracker.Start("test7", ptr.Print, 10, 20)
     //goroutinetracker.Start("test8", ptr.PrintArg)
 
+    })
+
+    t.Run("Test waitAll", func(t *testing.T) {
+
+        // start multiple goroutines
+        mygoroutinetracker.Start("test_goroutine9", func() {
+            time.Sleep(100 * time.Millisecond)
+        })
+
+        mygoroutinetracker.Start("test_goroutine10", func() {
+            time.Sleep(200 * time.Millisecond)
+        })
+
+        // indefinite wait for all goroutines to complete
+        status := mygoroutinetracker.WaitAll(0)
+        assert.True(t, status)
+
+        // check status of goroutines
+        status, _ = mygoroutinetracker.IsRunning("test_goroutine9")
+        assert.False(t, status)
+        status, _ = mygoroutinetracker.IsRunning("test_goroutine10")
+        assert.False(t, status)
+
+        // start multiple goroutines
+        mygoroutinetracker.Start("test_goroutine11", func() {
+            time.Sleep(500 * time.Millisecond)
+        })
+
+        mygoroutinetracker.Start("test_goroutine12", func() {
+            time.Sleep(500 * time.Millisecond)
+        })
+
+        // wait for all goroutines to complete
+        status = mygoroutinetracker.WaitAll(100 * time.Millisecond)
+        assert.False(t, status) // timeout
+
+        status = mygoroutinetracker.WaitAll(500 * time.Millisecond)
+        assert.True(t, status) // no timeout
+
+    })
 }
 
 //------------------------------------------ End of Test GoroutineTracker ------------------------------------------//
@@ -258,33 +396,29 @@ func TestReadProcsConf(t *testing.T) {
     }`)
 
     t.Run("success", func(t *testing.T) {
-        configFiles := &lomcommon.ConfigFiles_t{}
-        configFiles.ProcsFl = "./proc_conf.json"
-        configMgr, err := lomcommon.InitConfigMgr(configFiles)
-        if err != nil {
-            t.Errorf("Error in InitConfigMgr: %v", err)
-        }
-
+        os.Unsetenv("LOM_CONF_LOCATION")
+        err := lomcommon.InitConfigPath("./")
         assert.Nil(t, err)
-        config, _ := configMgr.GetProcsConfig("proc_0")
+
+        config, _ := lomcommon.GetConfigMgr().GetProcsConfig("proc_0")
         assert.Equal(t, "link_crc", config["link_crc"].Name)
         assert.Equal(t, "02.00.1", config["link_flap"].Version)
-
-        //assert.Equal(t, "link_crc", configMgr.ProcsConfig["link_crc"].Name)
-        //assert.Equal(t, "02.00.1", configMgr.ProcsConfig["link_flap"].Version)
     })
 
     t.Run("readFile_error", func(t *testing.T) {
-        configFiles := &lomcommon.ConfigFiles_t{}
-        configFiles.ProcsFl = "./proc_conf_dummy.json"
-        _, err := lomcommon.InitConfigMgr(configFiles)
-
+        os.Unsetenv("LOM_CONF_LOCATION")
+        err := lomcommon.InitConfigPath("./dummy/")
         assert.NotNil(t, err)
-        //assert.EqualError(t, err, "error reading file")
-        assert.Regexp(t, regexp.MustCompile("Procs: ./proc_conf_dummy.json: open ./proc_conf_dummy.json: no such file or directory"), err.Error())
+
+        // Define the regular expression pattern you want to match
+        expectedPattern := `\bdummy\b.*\bno such file or directory\b`
+
+        // Use assert.Regexp to match the pattern against the error message
+        assert.Regexp(t, regexp.MustCompile(expectedPattern), err.Error())
     })
 
     t.Run("unmarshal_error", func(t *testing.T) {
+        os.Unsetenv("LOM_CONF_LOCATION")
         // create the file
         err := ioutil.WriteFile("/tmp/test.json", testData_error, 0644)
         if err != nil {
@@ -293,6 +427,9 @@ func TestReadProcsConf(t *testing.T) {
 
         configFiles := &lomcommon.ConfigFiles_t{}
         configFiles.ProcsFl = "/tmp/test.json"
+        configFiles.GlobalFl = "globals.conf.json"
+        configFiles.ActionsFl = "actions.conf.json"
+        configFiles.BindingsFl = "bindings.conf.json"
         _, err = lomcommon.InitConfigMgr(configFiles)
 
         assert.NotNil(t, err)
@@ -307,61 +444,50 @@ func TestReadProcsConf(t *testing.T) {
     })
 
     t.Run("proc keys invalid", func(t *testing.T) {
+        os.Unsetenv("LOM_CONF_LOCATION")
         configFiles := &lomcommon.ConfigFiles_t{}
-        configFiles.ProcsFl = "./proc_conf.json"
+        configFiles.ProcsFl = "procs.conf.json"
+        configFiles.GlobalFl = "globals.conf.json"
+        configFiles.ActionsFl = "actions.conf.json"
+        configFiles.BindingsFl = "bindings.conf.json"
         configMgr, err := lomcommon.InitConfigMgr(configFiles)
 
         assert.Nil(t, err)
         config, _ := configMgr.GetProcsConfig("proc_0")
         assert.NotEqual(t, "link_crc_c", config["link_crc_c"].Name)
         assert.NotEqual(t, "dummy_path", config["link_crc"].Path)
-
-        //assert.NotEqual(t, "link_crc", configMgr.ProcsConfig["link_crc_c"].Name)
-        //assert.NotEqual(t, "dummy_path", configMgr.ProcsConfig["link_crc"].Path)
     })
 
     t.Run("proc ID invalid", func(t *testing.T) {
+        os.Unsetenv("LOM_CONF_LOCATION")
         configFiles := &lomcommon.ConfigFiles_t{}
-        configFiles.ProcsFl = "./proc_conf.json"
-        lomcommon.ProcID = "proc_3"
+        configFiles.ProcsFl = "procs.conf.json"
+        configFiles.GlobalFl = "globals.conf.json"
+        configFiles.ActionsFl = "actions.conf.json"
+        configFiles.BindingsFl = "bindings.conf.json"
 
         configMgr, err := lomcommon.InitConfigMgr(configFiles)
         assert.Nil(t, err)
 
-        _, err = configMgr.GetProcsConfig(lomcommon.ProcID)
+        _, err = configMgr.GetProcsConfig("proc_3") // proc_3 do not exist in config file
         assert.Regexp(t, regexp.MustCompile(`.*Failed to get config for proc ID \(proc_3\)`), err.Error())
     })
-}
 
-func TestValidateConfigFile(t *testing.T) {
-    location := "/path/to/config"
-    filename := "config.json"
+    t.Run("valid env path", func(t *testing.T) {
+        os.Unsetenv("LOM_CONF_LOCATION")
+        //originalValue := os.Getenv("ENV_lom_conf_location")
+        err := os.Setenv("LOM_CONF_LOCATION", "./")
+        if err != nil {
+            fmt.Errorf("Error unsetting environment variable: %v", err)
+        }
 
-    // Test when absolute path cannot be created
-    _, err := lomcommon.ValidateConfigFile("invalid_path", filename)
-    assert.Error(t, err)
-    assert.Regexp(t, regexp.MustCompile(`config file.*config.json.*does not exist.*`), err.Error())
+        err = lomcommon.InitConfigPath("")
+        assert.Nil(t, err)
 
-    // Test when config file does not exist
-    _, err = lomcommon.ValidateConfigFile(location, filename)
-    assert.Error(t, err)
-
-    // Create temporary config file for testing
-    testData := []byte(`{"foo":"bar"}`)
-    tmpFile, err := ioutil.TempFile("", "test-config_gg-*.json")
-    assert.NoError(t, err)
-    defer os.Remove(tmpFile.Name())
-    _, err = tmpFile.Write(testData)
-    assert.NoError(t, err)
-
-    // Test when config file exists
-    configFileAbs, err := lomcommon.ValidateConfigFile(filepath.Dir(tmpFile.Name()), filepath.Base(tmpFile.Name()))
-    assert.NoError(t, err)
-    assert.Equal(t, tmpFile.Name(), configFileAbs)
-
-    // Test an directory
-    _, err = lomcommon.ValidateConfigFile("/tmp", "")
-    assert.Error(t, err)
+        config, _ := lomcommon.GetConfigMgr().GetProcsConfig("proc_0")
+        assert.Equal(t, "link_crc", config["link_crc"].Name)
+        assert.Equal(t, "02.00.1", config["link_flap"].Version)
+    })
 }
 
 //------------------------------------------ End config.go -------------------------------------------------------------//
@@ -369,154 +495,160 @@ func TestValidateConfigFile(t *testing.T) {
 //------------------------------------------ REad Env variables test(helpers.go) -------------------------------------------------------------//
 
 func TestGetEnvVarString(t *testing.T) {
-    sessionId, exists := os.LookupEnv("XDG_SESSION_ID")
-    if !exists {
-        panic("Session ID not found")
-    }
 
     // Call the LoadEnvironemntVariables function
     lomcommon.LoadEnvironmentVariables()
 
     // Call the GetEnvVarString function
-    value, exists := lomcommon.GetEnvVarString("ENV_session_id")
+    _, exists := lomcommon.GetEnvVarString("ENV_lom_conf_location_dummy")
 
     // Assert that the value and exists variables are correct
-    assert.Equal(t, sessionId, value)
-    assert.True(t, exists)
-
-    // Call the GetEnvVarString function with a non-existent key
-    value, exists = lomcommon.GetEnvVarString("non_existent_key")
-
-    // Assert that the value and exists variables are correct
-    assert.Equal(t, "", value)
     assert.False(t, exists)
 
-    // Call the GetEnvVarString function with a key that has no corresponding value in the environment. Match with default path
+    err := os.Setenv("LOM_CONF_LOCATION", "./")
+    if err != nil {
+        fmt.Errorf("Error unsetting environment variable: %v", err)
+    }
+
+    value, exists := lomcommon.GetEnvVarString("ENV_lom_conf_location")
+
+    // Assert that the value and exists variables are correct
+    assert.Equal(t, "./", value)
+    assert.True(t, exists)
+
+    // set emnpty path and check if it returns default path
+    os.Unsetenv("LOM_CONF_LOCATION")
+
+    err = os.Setenv("LOM_CONF_LOCATION", "")
+    if err != nil {
+        fmt.Errorf("Error unsetting environment variable: %v", err)
+    }
+    lomcommon.LoadEnvironmentVariables()
     value, exists = lomcommon.GetEnvVarString("ENV_lom_conf_location")
 
     // Assert that the value and exists variables are correct
-    assert.Equal(t, "path/to/conf", value)
-    assert.True(t, exists)
-}
-
-func TestGetEnvVarInteger(t *testing.T) {
-    sessionId, exists := os.LookupEnv("XDG_SESSION_ID")
-    if !exists {
-        panic("Session ID not found")
-    }
-    sessionIdInt, ok := strconv.Atoi(sessionId)
-    if ok != nil {
-        panic("Session ID integer conversion failed")
-    }
-
-    lomcommon.LoadEnvironmentVariables()
-
-    value, exists := lomcommon.GetEnvVarInteger("ENV_session_id") // in int
-
-    assert.Equal(t, sessionIdInt, value)
-    assert.True(t, exists)
-
-    // Call the GetEnvVarInteger function with a non-existent key
-    value, exists = lomcommon.GetEnvVarInteger("non_existent_key")
-
-    // Assert that the value and exists variables are correct
-    assert.Equal(t, 0, value)
-    assert.False(t, exists)
-
-    // Call the GetEnvVarInteger function with a key that has no corresponding value in the environment
-    value, exists = lomcommon.GetEnvVarInteger("ENV_lom_conf_location")
-
-    // Assert that the value and exists variables are correct
-    assert.Equal(t, 0, value)
-    assert.False(t, exists)
-}
-
-func TestGetEnvVarFloat(t *testing.T) {
-    sessionId, exists := os.LookupEnv("XDG_SESSION_ID")
-    if !exists {
-        panic("Session ID not found")
-    }
-    sessionIdFlt, ok := strconv.ParseFloat(sessionId, 64)
-    if ok != nil {
-        panic("Session ID float conversion failed")
-    }
-
-    lomcommon.LoadEnvironmentVariables()
-
-    value, exists := lomcommon.GetEnvVarFloat("ENV_session_id")
-
-    assert.Equal(t, sessionIdFlt, value)
-    assert.True(t, exists)
-
-    // Call the GetEnvVarFloat function with a non-existent key
-    value, exists = lomcommon.GetEnvVarFloat("non_existent_key")
-
-    // Assert that the value and exists variables are correct
-    assert.Equal(t, 0.0, value)
-    assert.False(t, exists)
-
-    // Call the GetEnvVarFloat function with a key that has no corresponding value in the environment
-    value, exists = lomcommon.GetEnvVarFloat("ENV_lom_conf_location")
-
-    // Assert that the value and exists variables are correct
-    assert.Equal(t, 0.0, value)
-    assert.False(t, exists)
-}
-
-func TestGetEnvVaAny(t *testing.T) {
-    sessionId, exists := os.LookupEnv("XDG_SESSION_ID")
-    if !exists {
-        panic("Session ID not found")
-    }
-    lomcommon.LoadEnvironmentVariables()
-
-    value, exists := lomcommon.GetEnvVarAny("ENV_session_id")
-
-    assert.Equal(t, sessionId, value)
-    assert.True(t, exists)
-
-    // Call the GetEnvVarAny function with a non-existent key
-    value, exists = lomcommon.GetEnvVarAny("non_existent_key") // Interface comparision
-
-    // Assert that the value and exists variables are correct
     assert.Equal(t, "", value)
-    assert.False(t, exists)
+    assert.True(t, exists)
 
-    // Call the GetEnvVarAny function with a key that has no corresponding value in the environment. Match with default path
-    value, exists = lomcommon.GetEnvVarAny("ENV_lom_conf_location")
+    os.Unsetenv("LOM_CONF_LOCATION")
+    lomcommon.LoadEnvironmentVariables()
+    value, exists = lomcommon.GetEnvVarString("ENV_lom_conf_location")
 
     // Assert that the value and exists variables are correct
-    assert.Equal(t, "path/to/conf", value)
+    assert.Equal(t, "/conf", value)
     assert.True(t, exists)
-}
-
-func TestGetEnvVarFromOS(t *testing.T) {
-    // Set an environment variable
-    err := os.Setenv("MY_ENV_VAR", "LOM")
-    if err != nil {
-        panic(err)
-    }
-
-    // Get the value of the environment variable
-    value := os.Getenv("MY_ENV_VAR")
-    fmt.Println(value)
-
-    // The environment variable exists
-    envVarName := "MY_ENV_VAR"
-    expectedValue := "LOM"
-    actualValue, exists := lomcommon.GetEnvVarFromOS(envVarName)
-    assert.True(t, exists)
-    assert.Equal(t, expectedValue, actualValue)
-
-    // Clear an environment variable
-    os.Unsetenv("MY_ENV_VAR")
-
-    // The environment variable does not exist
-    envVarName = "nonexistent_env_var"
-    expectedValue = ""
-    actualValue, exists = lomcommon.GetEnvVarFromOS(envVarName)
-    assert.False(t, exists)
-    assert.Equal(t, expectedValue, actualValue)
 }
 
 //------------------------------------------ End Read Env variables test(helpers.go) -------------------------------------------------------------//
+
+//------------------------------------------  Helper.go  Appprefix-------------------------------------------------------------//
+
+func TestSyslogPrefix(t *testing.T) {
+    lomcommon.SetPrefix("$_plugin_manager_$")
+
+    err := lomcommon.LogError("test error")
+    assert.NotNil(t, err)
+
+    expectedPattern := `\$_plugin_manager_\$.*:test error`
+    assert.Regexp(t, regexp.MustCompile(expectedPattern), err.Error())
+}
+
+//------------------------------------------ End Appprefix Helper.go  -------------------------------------------------------------//
+
+//------------------------------------------  Helper.go  logperiodic-------------------------------------------------------------//
+
+func TestLogPeriodic(t *testing.T) {
+
+    t.Run("Test all wrappers", func(t *testing.T) {
+
+        lomcommon.AddPeriodicLogNotice("ID1", "HellO message1", 30)
+        time.Sleep(100 * time.Millisecond)
+        err := lomcommon.UpdatePeriodicLogTime("ID1", 60) // by this API, its possible to check if the entry is present or not
+        assert.Nil(t, err)
+
+        lomcommon.AddPeriodicLogInfo("ID2", "HellO message2", 30)
+        time.Sleep(100 * time.Millisecond)
+        err = lomcommon.UpdatePeriodicLogTime("ID2", 60) // by this API, its possible to check if the entry is present or not
+        assert.Nil(t, err)
+
+        lomcommon.AddPeriodicLogDebug("ID3", "HellO message3", 30)
+        time.Sleep(100 * time.Millisecond)
+        err = lomcommon.UpdatePeriodicLogTime("ID3", 60) // by this API, its possible to check if the entry is present or not
+        assert.Nil(t, err)
+
+        lomcommon.AddPeriodicLogError("ID4", "HellO message4", 30)
+        time.Sleep(100 * time.Millisecond)
+        err = lomcommon.UpdatePeriodicLogTime("ID4", 60) // by this API, its possible to check if the entry is present or not
+        assert.Nil(t, err)
+
+        // test for removal
+        lomcommon.RemovePeriodicLogEntry("ID1")
+        time.Sleep(100 * time.Millisecond)
+        err = lomcommon.UpdatePeriodicLogTime("ID1", 60) // by this API, its possible to check if the entry is present or not
+        assert.NotNil(t, err)
+
+    })
+
+    t.Run("success", func(t *testing.T) {
+        //lomcommon.RegisterForSysShutdown("plugin_manager")
+        notifyChan := make(chan bool)
+
+        go func() {
+            <-notifyChan
+            lomcommon.DoSysShutdown(0)
+            // lomcommon.DeregisterForSysShutdown("plugin_manager")
+        }()
+
+        logperiodic := lomcommon.GetlogPeriodic()
+        assert.NotNil(t, logperiodic)
+
+        lomcommon.AddPeriodicLogEntry("ID5", "HellO new message", syslog.LOG_DEBUG, 30)
+        time.Sleep(1 * time.Second)
+        err := lomcommon.UpdatePeriodicLogTime("ID5", 60)
+        assert.Nil(t, err)
+
+        // shutdown
+        notifyChan <- true
+
+        // sleep for 3 seconds
+        time.Sleep(2 * time.Second)
+
+        // logperiodic must be deleted. SO no entried must be present
+        err = lomcommon.UpdatePeriodicLogTime("ID1", 2)
+        time.Sleep(100 * time.Millisecond)
+        assert.NotNil(t, err)
+
+    })
+
+    t.Run("short long time test ", func(t *testing.T) {
+        stopch := lomcommon.AddPeriodicLogWithTimeouts("PID1", "HellO message1", 2*time.Second, 4*time.Second)
+
+        // just to check PID1 is present
+        time.Sleep(100 * time.Millisecond)
+        err := lomcommon.UpdatePeriodicLogTime("PID1", 1)
+        time.Sleep(100 * time.Millisecond)
+        assert.Nil(t, err)
+
+        stopch <- true
+        time.Sleep(100 * time.Millisecond)
+
+        // PID1 must be removed
+        err = lomcommon.UpdatePeriodicLogTime("PID1", 1)
+        time.Sleep(100 * time.Millisecond)
+        assert.NotNil(t, err)
+    })
+
+    t.Run("short long time test wait untill all timers expire ", func(t *testing.T) {
+        stopch := lomcommon.AddPeriodicLogWithTimeouts("PID2", "HellO message1", 2*time.Second, 3*time.Second)
+
+        time.Sleep(4000 * time.Millisecond)
+
+        stopch <- true
+        time.Sleep(100 * time.Millisecond)
+
+        // PID1 must be removed
+        err := lomcommon.UpdatePeriodicLogTime("PID1", 1)
+        time.Sleep(100 * time.Millisecond)
+        assert.NotNil(t, err)
+    })
+}

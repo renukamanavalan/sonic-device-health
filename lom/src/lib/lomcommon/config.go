@@ -56,7 +56,7 @@ type GlobalConfig_t struct {
  *      "LoMTestMode=yes" - Sets to Test Mode
  *      "LoMTestMod=<Any other value> - sets to Prod Mode
  *
- * If "LoMTestMode" env is not set, 
+ * If "LoMTestMode" env is not set,
  *  if <Confiig Path of globals.conf.json>/LoMTestMode file exists
  *      Mode is set to Test
  *  else
@@ -65,6 +65,7 @@ type GlobalConfig_t struct {
  * Until config is loaded, the mode could be uninitialized, unless env is set.
  */
 type LoMRunMode_t int
+
 const (
     LoMRunMode_NotSet = LoMRunMode_t(iota) // Unknown till config init
     LoMRunMode_Test
@@ -107,7 +108,6 @@ func SetLoMRunMode(mode LoMRunMode_t) error {
 func ResetLoMMode() {
     lomRunMode = LoMRunMode_NotSet
 }
-
 
 /*
  * NOTE: This will be deprecated soon.
