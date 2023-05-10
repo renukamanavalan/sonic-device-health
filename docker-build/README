@@ -1,0 +1,13 @@
+slave_docker_build.sh 
+    Builds slave docker based off Debian:bullseye with all packages required to build LoM
+    Read lom-slave-bullseye/Dockerfile for details
+
+
+slave_docker_run.sh
+    Runs docker mounting the PWD (current directory) as /lom-root.
+    So run it from the root of your git client
+    cd /lom-root/lom; make all 
+    
+
+    You may use this container only for build purpose.
+    All file editing you may do from your VM
