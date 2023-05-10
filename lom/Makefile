@@ -92,4 +92,3 @@ $(SONIC_DBCLIENT_TEST): $(SRC_FILES) $(TEST_FILES)
 
 clean:
 	rm -rf $(BUILD_DIR)
-	rm -f $(PLUGIN_MANAGER_BIN)
