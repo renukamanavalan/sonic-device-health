@@ -158,9 +158,9 @@ func LogDebug(s string, a ...interface{}) {
  * System Shutdown
  */
 type sysShutdown_t struct {
-    ch          chan int
-    wg          *sync.WaitGroup
-    shutdown    bool
+    ch       chan int
+    wg       *sync.WaitGroup
+    shutdown bool
 }
 
 /*
@@ -171,7 +171,7 @@ type sysShutdown_t struct {
  * The caller is expected to listen on the returned channel.
  * For any data on the returned channel, it implies system is
  * shutting down. The routine may do any cleanup and exit.
- * Just as a last step before exit, call deregister with the 
+ * Just as a last step before exit, call deregister with the
  * same caller string.
  *
  * Register & deregister calls are logged to enable any debugging.
@@ -209,18 +209,18 @@ func (p *sysShutdown_t) doShutdown(toutSecs int) {
     go func() {
         /* Wait until all go down & indicate */
         p.wg.Wait()
-        chEnd <- 0      /* write will not block */
+        chEnd <- 0 /* write will not block */
     }()
 
     /* Waited forever or given period */
     WaitedSecs := 0
     for {
         select {
-        case <- chEnd:
+        case <-chEnd:
             LogDebug("All routines terminated")
             return
 
-        case <- time.After(time.Second):
+        case <-time.After(time.Second):
             WaitedSecs++
             if (toutSecs > 0) && (WaitedSecs >= toutSecs) {
                 LogError("Not all routines terminated. toutSecs(%d)", toutSecs)
@@ -264,8 +264,7 @@ func GetUUID() string {
     }
 }
 
-
-/* 
+/*
  * Log Periodic module
  */
 
@@ -318,14 +317,14 @@ func GetlogPeriodic() *logPeriodic_t {
     if logPeriodic != nil {
         return logPeriodic
     }
-    /* TODO: Replace with global abort channel later */
-    chAbort := make(chan interface{})
+    /* Explicit shutdown via global abort channel */
+    chAbort := RegisterForSysShutdown("logPeriodic")
     logPeriodicInit(chAbort)
     return logPeriodic
 }
 
 /* Initialize the singleton instance for log periodic */
-func logPeriodicInit(chAbort chan interface{}) {
+func logPeriodicInit(chAbort <-chan int) {
     logPeriodic = &logPeriodic_t{
         logCh:             make(chan *LogPeriodicEntry_t),
         logPeriodicList:   make(map[string]*logPeriodicEntryInt_t),
@@ -356,7 +355,19 @@ func (p *logPeriodic_t) DropLogPeriodic(ID string) {
     }
 }
 
-func (p *logPeriodic_t) run(chAbort chan interface{}) {
+func (p *logPeriodic_t) cleanup() {
+    close(p.logCh)
+
+    // Clean up resources used by logPeriodicList
+    for _, entry := range p.logPeriodicList {
+        entry.LogPeriodicEntry_t = LogPeriodicEntry_t{} // Reset the embedded struct
+    }
+    p.logPeriodicList = nil
+    p.logPeriodicSorted = nil
+    logPeriodic = nil
+}
+
+func (p *logPeriodic_t) run(chAbort <-chan int) {
     tout := A_DAY_IN_SECS /* Just a init value; Once per day */
 
     for {
@@ -370,6 +381,8 @@ func (p *logPeriodic_t) run(chAbort chan interface{}) {
 
         case <-chAbort:
             LogDebug("Terminating LogPeriodic upon explicit abort")
+            p.cleanup()
+            DeregisterForSysShutdown("logPeriodic")
             return
         }
 
@@ -491,6 +504,43 @@ func RemovePeriodicLogEntry(ID string) {
 
 func UpdatePeriodicLogTime(id string, newPeriod int) error {
     return GetlogPeriodic().updatePeriod(id, newPeriod)
+}
+
+/* Helper to add a periodic log entry with short timeout and long timeout
+* This function will add periodic log entry with short timeout and then update the timeout to long timeout
+* after short timeout expiry. This function will also listen for stop signal to remove the periodic log entry
+* before long timeout expiry.
+* Note : This is one time call API. Usechannel to stop the logperiodic. Do not remove periodic entry or update timeout
+* Min time >= MIN_PERIODIC_LOG_PERIOD_SECS
+ */
+func AddPeriodicLogWithTimeouts(ID string, message string, shortTimeout time.Duration,
+    longTimeout time.Duration) chan bool {
+    // Create a channel to listen for stop signals to kill timer
+    stopchannel := make(chan bool)
+
+    GetGoroutineTracker().Start("AddPeriodicLogWithTimeouts"+ID+GetUUID(), func() {
+        // First add periodic log with short timeout
+        AddPeriodicLogInfo(ID, message, int(math.Round(shortTimeout.Seconds()))) // call lomcommon framework
+
+        // Wait for the short timeout to expire or for stop signal
+        select {
+        case <-time.After(shortTimeout):
+            // after short timeout expiry, update timer to longtimeout
+            UpdatePeriodicLogTime(ID, int(longTimeout.Seconds()))
+            break
+        case <-stopchannel:
+            RemovePeriodicLogEntry(ID)
+            return
+        }
+
+        // Wait for the stop signal
+        <-stopchannel
+
+        // Stop signal received, remove the periodic log entry
+        RemovePeriodicLogEntry(ID)
+    })
+
+    return stopchannel
 }
 
 /*
@@ -635,7 +685,7 @@ func (p *oneShotTimer_t) runOneShotTimer() {
     }
 }
 
-/* 
+/*
  * Go Routine Tracker  -----------------------------------------------------------------
  */
 
@@ -795,7 +845,8 @@ func (grt *GoroutineTracker) Wait(name string) {
 
 /*
  * Wait for a all the goroutine to finish.
- * CAUTION : This blocks as intended.
+ * CAUTION : This blocks as intended. Do only call per process.
+ * Do not create any goroutines after this call
  * Parameters:
  * - timeout: timeout in seconds. If timeout is 0, then it waits forever
  *
@@ -915,18 +966,59 @@ func (grt *GoroutineTracker) InfoList(name *string) []interface{} {
 }
 
 /*
+ * PrintGoroutineInfo prints the information of all goroutines to syslog
+ * Parameters:
+ * - name: the name of the goroutine. If name is empty, then info for all goroutines is printed
+ * - runningOnly: if true, only print info for running goroutines. Otherwise print info for all goroutines
+ * Returns:
+ * - None
+ */
+func PrintGoroutineInfo(name string, runningOnly bool) {
+    if goroutineTracker == nil {
+        LogInfo("GoroutineTracker is not initialized.")
+        return
+    }
+
+    infoList := goroutineTracker.InfoList(&name)
+
+    if len(infoList) == 0 {
+        LogInfo("No goroutine information available.")
+        return
+    }
+
+    for _, info := range infoList {
+        goroutineInfo, ok := info.(GoroutineInfo)
+        if ok {
+            if name == "" || goroutineInfo.Name == name {
+                if !runningOnly || goroutineInfo.Status != GoroutineStatusFinished {
+                    LogInfo("Name:", goroutineInfo.Name)
+                    LogInfo("Status:", goroutineInfo.Status)
+                    LogInfo("Duration:", goroutineInfo.Duration)
+                    LogInfo("Goroutine:")
+                    LogInfo("  Status:", goroutineInfo.Goroutine.Status)
+                    LogInfo("  StartTime:", goroutineInfo.Goroutine.StartTime)
+                    LogInfo("  EndTime:", goroutineInfo.Goroutine.EndTime)
+                    LogInfo("------------------------------")
+                }
+            }
+        }
+    }
+}
+
+/*
  * Read environment variables
  */
 
 func xyz() {
 }
-var envMap = map[string]string {}
+
+var envMap = map[string]string{}
 
 /* variable name , system env variable name, default value */
 const EnvMapDefinitionsStr = `{
     "ENV_lom_conf_location": {
         "env": "LOM_CONF_LOCATION",
-        "default": ""
+        "default": "/conf"
     }
 }`
 
@@ -935,7 +1027,6 @@ const EnvMapDefinitionsStr = `{
  * Convert them to appropriate before usage.
  * e.g. ENV_lom_conf_location -> "path/to/conf"
  */
-
 
 func LoadEnvironmentVariables() {
     var envMapDefinitions map[string]map[string]string
@@ -958,4 +1049,3 @@ func GetEnvVarString(envname string) (string, bool) {
     value, exists := envMap[envname]
     return value, exists
 }
-
