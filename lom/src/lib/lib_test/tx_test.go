@@ -361,13 +361,13 @@ func testJSONClient(t *testing.T, tx *LoMTransport, chRes, chComplete chan inter
         /* Failure cases */
         req := `{"ReqType":1999,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`
         res := ""
-        if err := tx.LoMRPCRequest(nil, &res); err == nil { 
+        if err := tx.LoMRPCRequest(nil, &res); err == nil {
             t.Errorf("ERR: testJSONClient: not failing for nil req")
         }
-        if err := tx.LoMRPCRequest(&req, nil); err == nil { 
+        if err := tx.LoMRPCRequest(&req, nil); err == nil {
             t.Errorf("ERR: testJSONClient: not failing for nil res")
         }
-        if err := tx.LoMRPCRequest(&req, &res); err == nil { 
+        if err := tx.LoMRPCRequest(&req, &res); err == nil {
             t.Errorf("ERR: testJSONClient: not failing for invalid req type")
         }
     }
@@ -774,143 +774,143 @@ func TestHelper(t *testing.T) {
 }
 
 type ConfigData_t struct {
-    GlobalStr   string
-    ActionStr   string
-    BindStr     string
-    ProcStr     string
-    Failed      bool
-    testMode    bool
-    Reason      string
+    GlobalStr string
+    ActionStr string
+    BindStr   string
+    ProcStr   string
+    Failed    bool
+    testMode  bool
+    Reason    string
 }
 
-var testConfigData = []ConfigData_t {
-        {
-            "",
-            "",
-            "",
-            "",
-            true,
-            false,
-            "Missing global file",
-        },
-        {
-            "{}",
-            "",
-            "",
-            "",
-            true,
-            false,
-            "Missing actions file",
-        },
-        {
-            "{}",
-            "{}",
-            "",
-            "",
-            true,
-            false,
-            "Missing bindings file",
-        },
-        {
-            "{}",
-            "{}",
-            "{}",
-            "",
-            true,
-            false,
-            "Missing procs file",
-        },
-        {
-            "eee",
-            "",
-            "",
-            "",
-            true,
-            false,
-            "Invalid global Json data",
-        },
-        {
-            "{}",
-            "eee",
-            "",
-            "",
-            true,
-            false,
-            "Invalid actions Json data",
-        },
-        {
-            "{}",
-            "{}",
-            "eee",
-            "",
-            true,
-            false,
-            "Invalid bindings Json data",
-        },
-        {
-            "{}",
-            "{}",
-            "{}",
-            "eee",
-            true,
-            false,
-            "Invalid procs Json data",
-        },
-        {
-            `{}`,
-            `{ "actions": [ { "name": "xxx" } ] }`,
-            `{ "bindings": [ { "name": "Test", "actions": [ {"name": "YYY"} ] } ] }`,
-            `{}`,
-            true,
-            false,
-            "Action name YYY not in actions",
-        },
-        {
-            `{}`,
-            `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
-            `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 0 }, {"name": "yyy"}] } ] }`,
-            `{}`,
-            true,
-            false,
-            "Duplicate sequence",
-        },
-        {
-            `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
-            `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
-            `{ "bindings": [ { "name": "Test", "actions": [ ] } ] }`,
-            `{}`,
-            true,
-            false,
-            "No actions in sequence",
-        },
-        {
-            `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
-            `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
-            `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
-            `{}`,
-            false,
-            false,
-            "",
-        },
-        {
-            `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
-            `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
-            `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
-            `{}`,
-            false,
-            true,
-            "",
-        },
-    }
+var testConfigData = []ConfigData_t{
+    {
+        "",
+        "",
+        "",
+        "",
+        true,
+        false,
+        "Missing global file",
+    },
+    {
+        "{}",
+        "",
+        "",
+        "",
+        true,
+        false,
+        "Missing actions file",
+    },
+    {
+        "{}",
+        "{}",
+        "",
+        "",
+        true,
+        false,
+        "Missing bindings file",
+    },
+    {
+        "{}",
+        "{}",
+        "{}",
+        "",
+        true,
+        false,
+        "Missing procs file",
+    },
+    {
+        "eee",
+        "",
+        "",
+        "",
+        true,
+        false,
+        "Invalid global Json data",
+    },
+    {
+        "{}",
+        "eee",
+        "",
+        "",
+        true,
+        false,
+        "Invalid actions Json data",
+    },
+    {
+        "{}",
+        "{}",
+        "eee",
+        "",
+        true,
+        false,
+        "Invalid bindings Json data",
+    },
+    {
+        "{}",
+        "{}",
+        "{}",
+        "eee",
+        true,
+        false,
+        "Invalid procs Json data",
+    },
+    {
+        `{}`,
+        `{ "actions": [ { "name": "xxx" } ] }`,
+        `{ "bindings": [ { "name": "Test", "actions": [ {"name": "YYY"} ] } ] }`,
+        `{}`,
+        true,
+        false,
+        "Action name YYY not in actions",
+    },
+    {
+        `{}`,
+        `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+        `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 0 }, {"name": "yyy"}] } ] }`,
+        `{}`,
+        true,
+        false,
+        "Duplicate sequence",
+    },
+    {
+        `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
+        `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+        `{ "bindings": [ { "name": "Test", "actions": [ ] } ] }`,
+        `{}`,
+        true,
+        false,
+        "No actions in sequence",
+    },
+    {
+        `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
+        `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+        `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
+        `{}`,
+        false,
+        false,
+        "",
+    },
+    {
+        `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
+        `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+        `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
+        `{}`,
+        false,
+        true,
+        "",
+    },
+}
 
 type testAPIData_t struct {
-    GlobalStr       string
-    ActionStr       string
-    BindStr         string
-    ProcStr         string
-    Seq             map[string]bool
-    Sequence        BindingSequence_t
-    ActionsCfg      map[string]ActionCfg_t
+    GlobalStr  string
+    ActionStr  string
+    BindStr    string
+    ProcStr    string
+    Seq        map[string]bool
+    Sequence   BindingSequence_t
+    ActionsCfg map[string]ActionCfg_t
 }
 
 var testApiData = testAPIData_t{
@@ -918,7 +918,7 @@ var testApiData = testAPIData_t{
     `{ "actions": [ { "name": "foo", "timeout":77 }, { "name": "bar" } ] }`,
     `{ "bindings": [ { "sequencename": "TestFoo", "timeout": 60, "actions": [ {"name": "foo", "sequence": 1 }, {"name": "bar"}] } ] }`,
     `{}`,
-    map[string]bool {
+    map[string]bool{
         "foo": false,
         "bar": true,
     },
@@ -1010,15 +1010,14 @@ func getConfigMgrTest(t *testing.T, gl, ac, bi, pr string, testMode bool) (*Conf
 }
 
 func cleanConfigFiles() {
-    for _, v := range []string { GLOBALS_CONF_FILE, ACTIONS_CONF_FILE,
-                    BINDINGS_CONF_FILE, PROCS_CONF_FILE, LOM_TESTMODE_NAME } {
+    for _, v := range []string{GLOBALS_CONF_FILE, ACTIONS_CONF_FILE,
+        BINDINGS_CONF_FILE, PROCS_CONF_FILE, LOM_TESTMODE_NAME} {
         fl := filepath.Join("/tmp/", v)
         if _, err := os.Stat(fl); err == nil {
             os.Remove(fl)
         }
     }
 }
-
 
 func TestConfig(t *testing.T) {
     for ti, d := range testConfigData {
@@ -1030,7 +1029,7 @@ func TestConfig(t *testing.T) {
         _, err := getConfigMgrTest(t, d.GlobalStr, d.ActionStr, d.BindStr, d.ProcStr, d.testMode)
         if d.Failed == (err == nil) {
             t.Errorf("%d: Expect to fail(%v) but result:(%v): (%s)",
-                    ti, d.Failed, err, d.Reason)
+                ti, d.Failed, err, d.Reason)
         }
         LogDebug("err=(%v)", err)
         if !d.Failed {
@@ -1047,10 +1046,10 @@ func TestConfig(t *testing.T) {
     }
     {
         {
-            lst := []struct{
-                    val string
-                    mode LoMRunMode_t
-                } {{"yes", LoMRunMode_Test }, {"xyz", LoMRunMode_Prod}}
+            lst := []struct {
+                val  string
+                mode LoMRunMode_t
+            }{{"yes", LoMRunMode_Test}, {"xyz", LoMRunMode_Prod}}
 
             for i, v := range lst {
                 ResetLoMMode()
@@ -1065,11 +1064,11 @@ func TestConfig(t *testing.T) {
         {
             ResetLoMMode()
             for i, v := range []struct {
-                    mode    LoMRunMode_t
-                    fail    bool
-                } { {LoMRunMode_NotSet, true},
-                    {LoMRunMode_Test, false},
-                    {LoMRunMode_Prod, true}} {
+                mode LoMRunMode_t
+                fail bool
+            }{{LoMRunMode_NotSet, true},
+                {LoMRunMode_Test, false},
+                {LoMRunMode_Prod, true}} {
                 if err := SetLoMRunMode(v.mode); (err != nil) != v.fail {
                     t.Errorf("%d: Expect to fail(%v) err(%v)", i, v.fail, err)
                 }
@@ -1182,7 +1181,7 @@ func TestPeriodic(t *testing.T) {
     if len(s) == 36 {
         t.Errorf("Expect custom string not 36. (%d) (%s)", len(s), s)
     }
-    _, err := getConfigMgrTest(t, `{ "MIN_PERIODIC_LOG_PERIOD_SECS": 1 }`,"{}", "{}", "{}", false)
+    _, err := getConfigMgrTest(t, `{ "MIN_PERIODIC_LOG_PERIOD_SECS": 1 }`, "{}", "{}", "{}", false)
     if err != nil {
         t.Errorf("Unexpected error: (%v)", err)
     }
@@ -1239,7 +1238,7 @@ func TestPeriodic(t *testing.T) {
             "foo":  "bar",
             "val":  "42",
             "data": "xxx",
-        }  
+        }
         SetPublishAPI(PublishString)
         s := PublishEvent(m)
         exp := `{"data":"xxx","foo":"bar","val":"42"}`
@@ -1310,7 +1309,7 @@ func TestShutdown(t *testing.T) {
     cnt := 3
     chStarted := make(chan int, cnt)
     chDone := make(chan int, cnt+1)
-    
+
     /*
      * start cnt routines; Each register; Then indicate their start via chStarted
      * Wait for signal from shutdown.
@@ -1325,7 +1324,7 @@ func TestShutdown(t *testing.T) {
             // LogDebug("Started %s", s)
             ch := RegisterForSysShutdown(s)
             chStarted <- 0
-            <- ch    /* Wait for signal to exit */
+            <-ch /* Wait for signal to exit */
             if p := RegisterForSysShutdown("xyx"); p != nil {
                 t.Errorf("Expect register to fail after shutdown started")
             }
@@ -1340,7 +1339,7 @@ func TestShutdown(t *testing.T) {
     }
 
     for i := 0; i < cnt; i++ {
-        <- chStarted
+        <-chStarted
     }
 
     /* Wait for all routines to start */
@@ -1356,14 +1355,14 @@ func TestShutdown(t *testing.T) {
 
     /* Verify all go routines ended via reading their done signature */
     for i := 0; i < cnt; i++ {
-        j := <- chDone
+        j := <-chDone
         if j != 0 {
             t.Errorf("Expect 0 value j=%d i=%d cnt=%d", j, i, cnt)
         }
     }
 
     /* Verify DoSysShutdown ended too */
-    j := <- chDone
+    j := <-chDone
     if j != 1 {
         t.Errorf("Expect 1 value j=%d cnt=%d", j, cnt)
     }

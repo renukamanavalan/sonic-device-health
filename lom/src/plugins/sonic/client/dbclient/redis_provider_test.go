@@ -140,7 +140,7 @@ func Test_RedisProvider_HmGetReturnsError_ForInvalidDatabaseId(t *testing.T) {
     result, err = redisProvider.HmGet(21, "any_key", fields)
     assert.Equal(([]interface{})(nil), result, "Result is expected to be nil")
     assert.NotEqual(nil, err, "err is expected to be non-nil")
-           result, err = redisProvider.HmGet(22, "any_key", fields)
+    result, err = redisProvider.HmGet(22, "any_key", fields)
     assert.Equal(([]interface{})(nil), result, "Result is expected to be nil")
     assert.NotEqual(nil, err, "err is expected to be non-nil")
 }

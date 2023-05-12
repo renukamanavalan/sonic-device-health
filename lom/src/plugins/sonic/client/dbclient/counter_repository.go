@@ -2,9 +2,9 @@
 package dbclient
 
 import (
-    "strconv"
-    "fmt"
     "errors"
+    "fmt"
+    "strconv"
 )
 
 const (
@@ -14,8 +14,8 @@ const (
     sai_port_stat_if_out_errors_field     string = "SAI_PORT_STAT_IF_OUT_ERRORS"
     sai_port_stat_if_in_ucast_pkts_field  string = "SAI_PORT_STAT_IF_IN_UCAST_PKTS"
     sai_port_stat_if_out_ucast_pkts_field string = "SAI_PORT_STAT_IF_OUT_UCAST_PKTS"
-    atoi_base                                int = 10
-    uint_bit_size                            int = 64
+    atoi_base                             int    = 10
+    uint_bit_size                         int    = 64
     port_table_redis_key                  string = "PORT_TABLE:"
     admin_status_field                    string = "admin_status"
     oper_status_field                     string = "oper_status"
@@ -46,14 +46,14 @@ First it gets all oids for interfaces and then gets counters for each interface 
 */
 func (counterRepository *CounterRepository) GetCountersForActiveInterfaces() (InterfaceCountersMap, error) {
     var interfaceCountersMap = make(InterfaceCountersMap)
-        var err error
+    var err error
 
     if interfaceToOidMapping == nil {
-       interfaceToOidMapping, err = counterRepository.RedisProvider.HGetAll(COUNTER_DB_ID, counters_port_name_map_redis_key)
-       if err != nil {
-               return nil, errors.New(fmt.Sprintf("HGetAll Failed. err: (%v)", err))
-           }
+        interfaceToOidMapping, err = counterRepository.RedisProvider.HGetAll(COUNTER_DB_ID, counters_port_name_map_redis_key)
+        if err != nil {
+            return nil, errors.New(fmt.Sprintf("HGetAll Failed. err: (%v)", err))
         }
+    }
 
     for interfaceName, interfaceOid := range interfaceToOidMapping {
         isInterfaceActive, err := counterRepository.IsInterfaceActive(interfaceName)
@@ -85,10 +85,10 @@ func (counterRepository *CounterRepository) GetCountersForActiveInterfaces() (In
                 return nil, errors.New(fmt.Sprintf("OutUnicastPackets counter ParseUint conversion failed for key (%s). err: (%v)", interfaceCountersKey, err))
             }
 
-	    ifOutErrors, err := strconv.ParseUint(result[3].(string), atoi_base, uint_bit_size)
-	    if err != nil {
-		return nil, errors.New(fmt.Sprintf("IfOutErrors counter ParseUint conversion failed for key (%s). err: (%v)", interfaceCountersKey, err))
-	    }
+            ifOutErrors, err := strconv.ParseUint(result[3].(string), atoi_base, uint_bit_size)
+            if err != nil {
+                return nil, errors.New(fmt.Sprintf("IfOutErrors counter ParseUint conversion failed for key (%s). err: (%v)", interfaceCountersKey, err))
+            }
 
             var interfaceCounters = map[string]uint64{IF_IN_ERRORS_COUNTER_KEY: ifInErrors, IN_UNICAST_PACKETS_COUNTER_KEY: inUnicastPackets, OUT_UNICAST_PACKETS_COUNTER_KEY: outUnicastPackets, IF_OUT_ERRORS_COUNTER_KEY: ifOutErrors}
             interfaceCountersMap[interfaceName] = interfaceCounters

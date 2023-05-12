@@ -158,9 +158,9 @@ func LogDebug(s string, a ...interface{}) {
  * System Shutdown
  */
 type sysShutdown_t struct {
-    ch          chan int
-    wg          *sync.WaitGroup
-    shutdown    bool
+    ch       chan int
+    wg       *sync.WaitGroup
+    shutdown bool
 }
 
 /*
@@ -171,7 +171,7 @@ type sysShutdown_t struct {
  * The caller is expected to listen on the returned channel.
  * For any data on the returned channel, it implies system is
  * shutting down. The routine may do any cleanup and exit.
- * Just as a last step before exit, call deregister with the 
+ * Just as a last step before exit, call deregister with the
  * same caller string.
  *
  * Register & deregister calls are logged to enable any debugging.
@@ -209,18 +209,18 @@ func (p *sysShutdown_t) doShutdown(toutSecs int) {
     go func() {
         /* Wait until all go down & indicate */
         p.wg.Wait()
-        chEnd <- 0      /* write will not block */
+        chEnd <- 0 /* write will not block */
     }()
 
     /* Waited forever or given period */
     WaitedSecs := 0
     for {
         select {
-        case <- chEnd:
+        case <-chEnd:
             LogDebug("All routines terminated")
             return
 
-        case <- time.After(time.Second):
+        case <-time.After(time.Second):
             WaitedSecs++
             if (toutSecs > 0) && (WaitedSecs >= toutSecs) {
                 LogError("Not all routines terminated. toutSecs(%d)", toutSecs)
@@ -264,8 +264,7 @@ func GetUUID() string {
     }
 }
 
-
-/* 
+/*
  * Log Periodic module
  */
 
@@ -635,7 +634,7 @@ func (p *oneShotTimer_t) runOneShotTimer() {
     }
 }
 
-/* 
+/*
  * Go Routine Tracker  -----------------------------------------------------------------
  */
 
@@ -920,7 +919,8 @@ func (grt *GoroutineTracker) InfoList(name *string) []interface{} {
 
 func xyz() {
 }
-var envMap = map[string]string {}
+
+var envMap = map[string]string{}
 
 /* variable name , system env variable name, default value */
 const EnvMapDefinitionsStr = `{
@@ -935,7 +935,6 @@ const EnvMapDefinitionsStr = `{
  * Convert them to appropriate before usage.
  * e.g. ENV_lom_conf_location -> "path/to/conf"
  */
-
 
 func LoadEnvironmentVariables() {
     var envMapDefinitions map[string]map[string]string
@@ -958,4 +957,3 @@ func GetEnvVarString(envname string) (string, bool) {
     value, exists := envMap[envname]
     return value, exists
 }
-

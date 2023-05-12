@@ -1,8 +1,8 @@
 package dbclient
 
 import (
-    "fmt"
     "errors"
+    "fmt"
     "github.com/go-redis/redis"
 )
 
