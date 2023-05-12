@@ -9,6 +9,14 @@ import (
 	"lom/src/lib/lomipc"
 )
 
+func init() {
+        configFiles := &lomcommon.ConfigFiles_t{}
+        configFiles.GlobalFl = "../../pluginmgr/pluginmgr_test/globals_conf.json"  
+        configFiles.ActionsFl = "../../pluginmgr/pluginmgr_test/actions_conf.json" 
+        configFiles.BindingsFl = "../../pluginmgr/pluginmgr_test/actions_conf.json"
+        configFiles.ProcsFl = "../../pluginmgr/pluginmgr_test/proc_conf.json"
+        lomcommon.InitConfigMgr(configFiles)
+}
 
 /* Validate that reportingLimiter reports successfuly for first time for an anomaly key */
 func Test_DetectionReportingFreqLimiter_ReportsSuccessfulyForFirstTime(t *testing.T) {
@@ -294,13 +302,13 @@ func Test_PeriodicDetectionPluginUtil_SendsHeartbeat(t *testing.T) {
 	assert := assert.New(t)
 	assert.NotNil(response, "response is expected to be non nil")
 	assert.Equal(2, dummyPlugin.(*DummyPlugin).testValue1, "someValue is expected to be 2")
-	assert.True(dummyPlugin.(*DummyPlugin).requestAborted, "requestAborted is expected to be true")
+	assert.True(dummyPlugin.(*DummyPlugin).requestAborted.Load(), "requestAborted is expected to be true")
 }
 
 /* Validates that the request is aborted on shutdown */
 func Test_PeriodicDetectionPluginUtil_EnsureRequestAbortedOnShutdown(t *testing.T) {
 	var dummyPlugin Plugin
-	testRequestFrequency = 1
+	testRequestFrequency = 2
 	dummyPlugin = &DummyPlugin{}
 	actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 3600}
 	dummyPlugin.Init(&actionConfig)
@@ -313,9 +321,11 @@ func Test_PeriodicDetectionPluginUtil_EnsureRequestAbortedOnShutdown(t *testing.
 	response := dummyPlugin.Request(pluginHBChan, request)
 	assert := assert.New(t)
 	assert.NotNil(response, "response is expected to be non nil")
+	// Give shutdown 2 seconds to finish its complete execution.
+	time.Sleep(2 * time.Second)	
 	assert.Equal(2, dummyPlugin.(*DummyPlugin).testValue1, "someValue is expected to be 2")
 	assert.Equal(3, dummyPlugin.(*DummyPlugin).testValue2, "otherValue is expected to be 3")
-	assert.True(dummyPlugin.(*DummyPlugin).requestAborted, "requestAborted is expected to be true")
+	assert.True(dummyPlugin.(*DummyPlugin).requestAborted.Load(), "requestAborted is expected to be true")
 }
 
 /* Validates that shutdown timesout when request is still active for a long time */
@@ -336,6 +346,6 @@ func Test_PeriodicDetectionPluginUtil_EnsureShutDownTimesOut(t *testing.T) {
 	assert.NotNil(err, "err is expected to be non nil")
 	assert.Equal(2, dummyPlugin.(*DummyPlugin).testValue1, "someValue is expected to be 2")
 	assert.Equal(0, dummyPlugin.(*DummyPlugin).testValue2, "otherValue is expected to be 0")
-	assert.False(dummyPlugin.(*DummyPlugin).requestAborted, "requestAborted is expected to be false")
+	assert.False(dummyPlugin.(*DummyPlugin).requestAborted.Load(), "requestAborted is expected to be false")
 }
 

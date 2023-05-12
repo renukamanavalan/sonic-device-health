@@ -3,10 +3,10 @@ package plugins_common
 import (
 	"time"
 	"container/list"
-	"errors"
 	"fmt"
         "lom/src/lib/lomcommon"
         "lom/src/lib/lomipc"
+        "sync/atomic"
 )
 
 /* Interface for limiting reporting frequency of plugin */
@@ -23,9 +23,9 @@ type ReportingDetails struct {
 }
 
 const (
-	initial_detection_reporting_freq_in_mins    int = 5
-	subsequent_detection_reporting_freq_in_mins int = 60
-	initial_detection_reporting_max_count       int = 12
+	initial_detection_reporting_freq_in_mins    = "INITIAL_DETECTION_REPORTING_FREQ_IN_MINS"
+	subsequent_detection_reporting_freq_in_mins = "SUBSEQUENT_DETECTION_REPORTING_FREQ_IN_MINS"
+	initial_detection_reporting_max_count       = "INITIAL_DETECTION_REPORTING_MAX_COUNT"
 )
 
 type PluginReportingFrequencyLimiter struct {
@@ -78,42 +78,42 @@ func (pluginReportingFrequencyLimiter *PluginReportingFrequencyLimiter) ResetCac
 /* Factory method to get default detection reporting limiter instance */
 func GetDefaultDetectionFrequencyLimiter() PluginReportingFrequencyLimiterInterface {
 	detectionFreqLimiter := &PluginReportingFrequencyLimiter{}
-	detectionFreqLimiter.Initialize(initial_detection_reporting_freq_in_mins, subsequent_detection_reporting_freq_in_mins, initial_detection_reporting_max_count)
+        detectionFreqLimiter.Initialize(lomcommon.GetConfigMgr().GetGlobalCfgInt(initial_detection_reporting_freq_in_mins), lomcommon.GetConfigMgr().GetGlobalCfgInt(subsequent_detection_reporting_freq_in_mins), lomcommon.GetConfigMgr().GetGlobalCfgInt(initial_detection_reporting_max_count))
 	return detectionFreqLimiter
 }
 
 /* A generic rolling window data structure with fixed size */
 type FixedSizeRollingWindow[T any] struct {
-        doublyLinkedList     *list.List
+        orderedDataPoints     *list.List
         maxRollingWindowSize int
 }
 
 /* Initalizes the datastructure with size */
 func (fxdSizeRollingWindow *FixedSizeRollingWindow[T]) Initialize(maxSize int) error {
         if maxSize <= 0 {
-                return errors.New(fmt.Sprintf("%d Invalid size for fxd size rolling window", maxSize))
+                return lomcommon.LogError(fmt.Sprintf("%d Invalid size for fxd size rolling window", maxSize))
         }
         fxdSizeRollingWindow.maxRollingWindowSize = maxSize
-        fxdSizeRollingWindow.doublyLinkedList = list.New()
+        fxdSizeRollingWindow.orderedDataPoints = list.New()
         return nil
 }
 
 /* Adds element to rolling window */
 func (fxdSizeRollingWindow *FixedSizeRollingWindow[T]) AddElement(value T) {
-        if fxdSizeRollingWindow.doublyLinkedList.Len() == 0 || fxdSizeRollingWindow.doublyLinkedList.Len() < fxdSizeRollingWindow.maxRollingWindowSize {
-                fxdSizeRollingWindow.doublyLinkedList.PushBack(value)
-        } else if fxdSizeRollingWindow.doublyLinkedList.Len() == fxdSizeRollingWindow.maxRollingWindowSize {
-                // Remove first element.
-                element := fxdSizeRollingWindow.doublyLinkedList.Front()
-                fxdSizeRollingWindow.doublyLinkedList.Remove(element)
-                // Add the input element into the back.
-                fxdSizeRollingWindow.doublyLinkedList.PushBack(value)
-        }
+        if fxdSizeRollingWindow.orderedDataPoints.Len() < fxdSizeRollingWindow.maxRollingWindowSize {
+                fxdSizeRollingWindow.orderedDataPoints.PushBack(value)
+                return
+	}
+        // Remove first element.
+        element := fxdSizeRollingWindow.orderedDataPoints.Front()
+        fxdSizeRollingWindow.orderedDataPoints.Remove(element)
+        // Add the input element into the back.
+        fxdSizeRollingWindow.orderedDataPoints.PushBack(value)
 }
 
 /* Gets all current elements as list */
 func (fxdSizeRollingWindow *FixedSizeRollingWindow[T]) GetElements() *list.List {
-        return fxdSizeRollingWindow.doublyLinkedList
+        return fxdSizeRollingWindow.orderedDataPoints
 }
 
 const (
@@ -140,7 +140,7 @@ type PeriodicDetectionPluginUtil struct {
 	requestFrequencyInSecs  int
 	heartBeatIntervalInSecs int
 	shutDownChannel         chan interface{}
-	requestAborted          bool
+	requestAborted          atomic.Bool
 	requestFunc             func(*lomipc.ActionRequestData, *bool) *lomipc.ActionResponseData
 	shutdownFunc            func() error
 	PluginName              string
@@ -150,20 +150,20 @@ type PeriodicDetectionPluginUtil struct {
 func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Init(pluginName string, requestFrequencyInSecs int, actionConfig *lomcommon.ActionCfg_t, requestFunction func(*lomipc.ActionRequestData, *bool) *lomipc.ActionResponseData, shutDownFunction func() error) error {
 	if actionConfig.HeartbeatInt <= 0 {
 		// Do not use a default heartbeat interval. Validate and honor the one passed from plugin manager.
-		return errors.New(fmt.Sprintf("Invalid heartbeat interval %d", actionConfig.HeartbeatInt))
+		return lomcommon.LogError(fmt.Sprintf("Invalid heartbeat interval %d", actionConfig.HeartbeatInt))
 	}
 	if requestFrequencyInSecs <= 0 {
-		return errors.New(fmt.Sprintf("Invalid requestFreq %d", requestFrequencyInSecs))
+		return lomcommon.LogError(fmt.Sprintf("Invalid requestFreq %d", requestFrequencyInSecs))
 	}
 	if requestFunction == nil || shutDownFunction == nil {
-		return errors.New(fmt.Sprintf("requestFunction or shutDownFunction is not initialized"))
+		return lomcommon.LogError(fmt.Sprintf("requestFunction or shutDownFunction is not initialized"))
 	}
 	if pluginName == "" {
-		return errors.New(fmt.Sprintf("PluginName invalid"))
+		return lomcommon.LogError(fmt.Sprintf("PluginName invalid"))
 	}
 	periodicDetectionPluginUtil.requestFrequencyInSecs = requestFrequencyInSecs
 	periodicDetectionPluginUtil.heartBeatIntervalInSecs = actionConfig.HeartbeatInt
-	periodicDetectionPluginUtil.requestAborted = false
+	periodicDetectionPluginUtil.requestAborted = atomic.Bool{}
 	periodicDetectionPluginUtil.shutDownChannel = make(chan interface{})
 	periodicDetectionPluginUtil.requestFunc = requestFunction
 	periodicDetectionPluginUtil.shutdownFunc = shutDownFunction
@@ -172,6 +172,7 @@ func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Init(pluginName 
 	return nil
 }
 
+// TODO: Enhance logic in this method to immediately start ticker, ensure hearbeat and request are not blocked by each other.
 /* This method is promoted to the plugin Periodically invokes detection logic and send heartbeat as well. Honors shutdown when shutdown is invoked on plugin */
 func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Request(
 	hbchan chan PluginHeartBeat,
@@ -186,14 +187,14 @@ func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Request(
 	for {
 		select {
 		case <-heartBeatTicker.C:
-                     /* Send heartbeat only when the request is healthy */
-		     if isExecutionHealthy {
+                     /* Send heartbeat only when the request is healthy and is not aborted yet */
+		     if !periodicDetectionPluginUtil.requestAborted.Load() && isExecutionHealthy {
 			pluginHeartBeat := PluginHeartBeat{PluginName: periodicDetectionPluginUtil.PluginName, EpochTime: time.Now().Unix()}
 			hbchan <- pluginHeartBeat
                      }
 		case <-detectionTicker.C:
                      /* Perform detection logic periodically */
-		     if !periodicDetectionPluginUtil.requestAborted {
+		     if !periodicDetectionPluginUtil.requestAborted.Load() {
 			response := periodicDetectionPluginUtil.requestFunc(request, &isExecutionHealthy)
 			    if response != nil {
 				return response
@@ -204,7 +205,7 @@ func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Request(
                         /* Shutdown stops the periodic detection */
 			lomcommon.LogInfo(fmt.Sprintf("Aborting Request for (%s)", periodicDetectionPluginUtil.PluginName))
 			responseData := GetResponse(request, "", "", ResultCodeAborted, ResultStringFailure)
-			periodicDetectionPluginUtil.requestAborted = true
+			periodicDetectionPluginUtil.requestAborted.Store(true)
 			return responseData
 		}
 	}
@@ -216,13 +217,14 @@ func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Shutdown() error
 	close(periodicDetectionPluginUtil.shutDownChannel)
 	startTime := time.Now()
 	for {
-		if periodicDetectionPluginUtil.requestAborted {
+		if periodicDetectionPluginUtil.requestAborted.Load() {
 			break
 		}
 
+		time.Sleep(1*time.Second)
 		elapsedTimeInSeconds := time.Since(startTime).Seconds()
 		if elapsedTimeInSeconds > float64(periodicDetectionPluginUtil.requestFrequencyInSecs) {
-			return errors.New(fmt.Sprintf("Request could not be aborted"))
+			return lomcommon.LogError(fmt.Sprintf("Request could not be aborted"))
 		}
 	}
 	periodicDetectionPluginUtil.shutdownFunc()
