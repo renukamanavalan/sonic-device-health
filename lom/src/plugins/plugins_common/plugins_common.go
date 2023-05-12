@@ -37,34 +37,29 @@ const (
     PluginStageShutdownCompleted
     PluginStageShutdownTimeout
     PluginStageDisabled
+    PluginStageCount
 )
 
+var pluginStageStrings = [PluginStageCount]string{
+    "Unknown",
+    "Loading success",
+    "Request started",
+    "Request success",
+    "Request timeout",
+    "Shutdown started",
+    "Shutdown completed",
+    "Shutdown timeout",
+    "Disabled",
+}
+
 /*
- * GetPluginStageToString returns string representation of PluginStage
+ * GetPluginStageToString returns the string representation of PluginStage
  */
 func GetPluginStageToString(stage PluginStage) string {
-    switch stage {
-    case PluginStageUnknown:
-        return "Unknown"
-    case PluginStageLoadingSuccess:
-        return "Loading success"
-    case PluginStageRequestStarted:
-        return "Request started"
-    case PluginStageRequestSuccess:
-        return "Request success"
-    case PluginStageRequestTimeout:
-        return "Request timeout"
-    case PluginStageShutdownStarted:
-        return "Shutdown started"
-    case PluginStageShutdownCompleted:
-        return "Shutdown completed"
-    case PluginStageShutdownTimeout:
-        return "Shutdown timeout"
-    case PluginStageDisabled:
-        return "Disabled"
-    default:
-        return "Unknown stage"
+    if stage >= 0 && int(stage) < len(pluginStageStrings) {
+        return pluginStageStrings[stage]
     }
+    return "Unknown stage"
 }
 
 const (
@@ -104,8 +99,19 @@ type IPluginMetadata interface {
  * RollingWindow is used to keep track of response times of plugin requests
  */
 type PluginResponseRollingWindow struct {
-    mu       sync.Mutex
     response map[string][]time.Time // map of pluginname+Anamolykey to slice of response times
+}
+
+/*
+ * Dynamically create objects of plugins based on action name
+ */
+type PluginConstructor func(...interface{}) Plugin
+
+var PluginConstructors = make(map[string]PluginConstructor)
+
+// Register a constructor function for a given action name
+func RegisterPlugin(name string, constructor PluginConstructor) {
+    PluginConstructors[name] = constructor
 }
 
 /*
@@ -145,8 +151,6 @@ func (gpl *PluginMetadata) SetPluginStage(stage PluginStage) {
  * It returns true if the window size has reached the limit, false otherwise.
  */
 func (gpl *PluginMetadata) CheckMisbehavingPlugins(pluginKey string) bool {
-    gpl.PluginResponseRollingWindow.mu.Lock()
-    defer gpl.PluginResponseRollingWindow.mu.Unlock()
 
     now := time.Now()
     responses, ok := gpl.PluginResponseRollingWindow.response[pluginKey] // rerurns window(slice) for the given pluginname

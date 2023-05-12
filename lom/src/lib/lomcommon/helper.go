@@ -317,14 +317,15 @@ func GetlogPeriodic() *logPeriodic_t {
     if logPeriodic != nil {
         return logPeriodic
     }
+
     /* Explicit shutdown via global abort channel */
-    chAbort := RegisterForSysShutdown("logPeriodic")
+    chAbort := make(chan interface{})
     logPeriodicInit(chAbort)
     return logPeriodic
 }
 
 /* Initialize the singleton instance for log periodic */
-func logPeriodicInit(chAbort <-chan int) {
+func logPeriodicInit(chAbort chan interface{}) {
     logPeriodic = &logPeriodic_t{
         logCh:             make(chan *LogPeriodicEntry_t),
         logPeriodicList:   make(map[string]*logPeriodicEntryInt_t),
@@ -355,19 +356,7 @@ func (p *logPeriodic_t) DropLogPeriodic(ID string) {
     }
 }
 
-func (p *logPeriodic_t) cleanup() {
-    close(p.logCh)
-
-    // Clean up resources used by logPeriodicList
-    for _, entry := range p.logPeriodicList {
-        entry.LogPeriodicEntry_t = LogPeriodicEntry_t{} // Reset the embedded struct
-    }
-    p.logPeriodicList = nil
-    p.logPeriodicSorted = nil
-    logPeriodic = nil
-}
-
-func (p *logPeriodic_t) run(chAbort <-chan int) {
+func (p *logPeriodic_t) run(chAbort chan interface{}) {
     tout := A_DAY_IN_SECS /* Just a init value; Once per day */
 
     for {
@@ -381,8 +370,7 @@ func (p *logPeriodic_t) run(chAbort <-chan int) {
 
         case <-chAbort:
             LogDebug("Terminating LogPeriodic upon explicit abort")
-            p.cleanup()
-            DeregisterForSysShutdown("logPeriodic")
+            logPeriodic = nil
             return
         }
 
@@ -1014,11 +1002,11 @@ func xyz() {
 
 var envMap = map[string]string{}
 
-/* variable name , system env variable name, default value */
+/* variable name , system env variable name, default value. If default value is empty, then value is mandatory */
 const EnvMapDefinitionsStr = `{
     "ENV_lom_conf_location": {
         "env": "LOM_CONF_LOCATION",
-        "default": "/conf"
+        "default": "" 
     }
 }`
 
@@ -1036,6 +1024,9 @@ func LoadEnvironmentVariables() {
     for key, value := range envMapDefinitions {
         envVal, exists := os.LookupEnv(value["env"])
         if !exists {
+            if value["default"] == "" {
+                LogPanic("Environment variable %s is not set", value["env"])
+            }
             envVal = value["default"]
         }
         envMap[key] = envVal

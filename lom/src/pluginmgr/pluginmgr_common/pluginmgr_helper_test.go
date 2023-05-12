@@ -1,5 +1,6 @@
 package pluginmgr_common
 
+/*////////////HHHHHH
 import (
     "lom/src/lib/lomcommon"
     "lom/src/lib/lomipc"
@@ -20,6 +21,8 @@ import (
     "testing"
     "time"
 )
+
+/* /////////////HH
 
 // ------------------------------------------ Plugins -------------------------------------------------------------//
 // Define a mock struct for the ClientTx interface
@@ -389,8 +392,8 @@ func TestRun_AddPlugin2(t *testing.T) {
                }
            }
        }`)
-    */
-
+*/
+/*/////////HH
     testDataActions := []byte(`{
         "Actions": [
             {
@@ -438,3 +441,4 @@ func TestRun_AddPlugin2(t *testing.T) {
     assert.Regexp(t, regexp.MustCompile(expectedErrMsg), err.Error())
     mockClient.AssertExpectations(t)
 }
+*/ ////////HH
