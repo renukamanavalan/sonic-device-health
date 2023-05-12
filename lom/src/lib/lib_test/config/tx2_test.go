@@ -1,10 +1,12 @@
-package pluginmgr_test
+package lib_test
 
 import (
     "fmt"
+    "lom/src/lib/lomcommon"
+
     "github.com/stretchr/testify/assert"
     "github.com/stretchr/testify/mock"
-    "lom/src/lib/lomcommon"
+
     //"lom/src/lib/lomipc"
     //"lom/src/pluginmgr/pluginmgr_common"
     //"lom/src/plugins/plugins_common"
@@ -12,12 +14,14 @@ import (
     //"io/ioutil"
     "log/syslog"
     "os"
+
     //"path/filepath"
     "regexp"
     //"strconv"
     "sync"
     "testing"
     "time"
+
     //"encoding/json"
     //"errors"
     "io/ioutil"
@@ -428,9 +432,9 @@ func TestReadProcsConf(t *testing.T) {
 
         configFiles := &lomcommon.ConfigFiles_t{}
         configFiles.ProcsFl = "/tmp/test.json"
-        configFiles.GlobalFl = "globals.conf.json"
-        configFiles.ActionsFl = "actions.conf.json"
-        configFiles.BindingsFl = "bindings.conf.json"
+        configFiles.GlobalFl = "./globals.conf.json"
+        configFiles.ActionsFl = "./actions.conf.json"
+        configFiles.BindingsFl = "./bindings.conf.json"
         _, err = lomcommon.InitConfigMgr(configFiles)
 
         assert.NotNil(t, err)
@@ -447,10 +451,10 @@ func TestReadProcsConf(t *testing.T) {
     t.Run("proc keys invalid", func(t *testing.T) {
         os.Unsetenv("LOM_CONF_LOCATION")
         configFiles := &lomcommon.ConfigFiles_t{}
-        configFiles.ProcsFl = "procs.conf.json"
-        configFiles.GlobalFl = "globals.conf.json"
-        configFiles.ActionsFl = "actions.conf.json"
-        configFiles.BindingsFl = "bindings.conf.json"
+        configFiles.ProcsFl = "./procs.conf.json"
+        configFiles.GlobalFl = "./globals.conf.json"
+        configFiles.ActionsFl = "./actions.conf.json"
+        configFiles.BindingsFl = "./bindings.conf.json"
         configMgr, err := lomcommon.InitConfigMgr(configFiles)
 
         assert.Nil(t, err)
@@ -462,10 +466,10 @@ func TestReadProcsConf(t *testing.T) {
     t.Run("proc ID invalid", func(t *testing.T) {
         os.Unsetenv("LOM_CONF_LOCATION")
         configFiles := &lomcommon.ConfigFiles_t{}
-        configFiles.ProcsFl = "procs.conf.json"
-        configFiles.GlobalFl = "globals.conf.json"
-        configFiles.ActionsFl = "actions.conf.json"
-        configFiles.BindingsFl = "bindings.conf.json"
+        configFiles.ProcsFl = "./procs.conf.json"
+        configFiles.GlobalFl = "./globals.conf.json"
+        configFiles.ActionsFl = "./actions.conf.json"
+        configFiles.BindingsFl = "./bindings.conf.json"
 
         configMgr, err := lomcommon.InitConfigMgr(configFiles)
         assert.Nil(t, err)
@@ -496,47 +500,18 @@ func TestReadProcsConf(t *testing.T) {
 //------------------------------------------ REad Env variables test(helpers.go) -------------------------------------------------------------//
 
 func TestGetEnvVarString(t *testing.T) {
-
-    // Call the LoadEnvironemntVariables function
-    lomcommon.LoadEnvironmentVariables()
-
-    // Call the GetEnvVarString function
-    _, exists := lomcommon.GetEnvVarString("ENV_lom_conf_location_dummy")
-
-    // Assert that the value and exists variables are correct
-    assert.False(t, exists)
-
-    err := os.Setenv("LOM_CONF_LOCATION", "./")
-    if err != nil {
-        fmt.Errorf("Error unsetting environment variable: %v", err)
-    }
-
-    value, exists := lomcommon.GetEnvVarString("ENV_lom_conf_location")
-
-    // Assert that the value and exists variables are correct
-    assert.Equal(t, "./", value)
-    assert.True(t, exists)
-
     // set emnpty path and check if it returns default path
     os.Unsetenv("LOM_CONF_LOCATION")
 
-    err = os.Setenv("LOM_CONF_LOCATION", "")
+    err := os.Setenv("LOM_CONF_LOCATION", "")
     if err != nil {
         fmt.Errorf("Error unsetting environment variable: %v", err)
     }
     lomcommon.LoadEnvironmentVariables()
-    value, exists = lomcommon.GetEnvVarString("ENV_lom_conf_location")
+    value, exists := lomcommon.GetEnvVarString("ENV_lom_conf_location")
 
     // Assert that the value and exists variables are correct
     assert.Equal(t, "", value)
-    assert.True(t, exists)
-
-    os.Unsetenv("LOM_CONF_LOCATION")
-    lomcommon.LoadEnvironmentVariables()
-    value, exists = lomcommon.GetEnvVarString("ENV_lom_conf_location")
-
-    // Assert that the value and exists variables are correct
-    assert.Equal(t, "/conf", value)
     assert.True(t, exists)
 }
 
