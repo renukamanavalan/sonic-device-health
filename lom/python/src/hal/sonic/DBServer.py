@@ -37,7 +37,7 @@ TblName_t   = str
 Key_t       = str
 DBData_t    = {}    # Dict of key & val; it is none for non-exist
 
-Suscriber_t = swsscommon.SubscriberStateTable
+# Suscriber_t = swsscommon.SubscriberStateTable
 
 caller_id_t = str
 
@@ -125,7 +125,7 @@ class Caller_t:
     SWSS common subscriber associated with one or more callers
 """
 class SubsInfo_t:
-    def __init__(self, sub: Suscriber_t, cid: str):
+    def __init__(self, sub, cid: str):
         self.sub = sub
         self.callers = set([cid])
 

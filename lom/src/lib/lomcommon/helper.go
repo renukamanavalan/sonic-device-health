@@ -377,6 +377,7 @@ func (p *logPeriodic_t) run() {
 
         case <-chAbort:
             LogDebug("Terminating LogPeriodic upon explicit abort")
+            logPeriodic = nil
             return
         }
 

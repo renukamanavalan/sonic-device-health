@@ -8,6 +8,17 @@ COPY ["sources.list.amd64", "/etc/apt/sources.list"]
 COPY ["rsyslog.conf", "/etc/"]
 COPY ["lom_start.sh", "/usr/local/bin/"]
 
+# Need a  way to get swsspycommon inside slave docker for Python plugins to work
+# Refer: https://github.com/sonic-net/sonic-py-swsssdk/blob/1db2484bbe72f3d02e7777ab843a91d420498658/setup.py#L3
+# Refer: https://sonic-build.azurewebsites.net/ui/sonic/pipelines/142/builds/270212/artifacts/434410?branchName=master&artifactName=sonic-buildimage.vs
+# Refer: Xuhui Miao from SONiC for additional details
+#
+# RUN mkdir /usr/share/sonic
+# COPY ["sonic-packages.gz", "/usr/share/sonic/Packages.gz"]
+# COPY ["sonic-deb.tar.gz", "/tmp/"]
+#
+# RUN cd /usr/share/sonic && tar -xvzf /tmp/sonic-deb.tar.gz && rm -f /tmp/sonic-deb.tar.gz
+
 ## Make apt-get non-interactive
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -468,6 +479,12 @@ RUN curl -fsSL -o /usr/local/bin/bazel ${bazelisk_url} && chmod 755 /usr/local/b
 # Bazel requires "python"
 # TODO(PINS): remove when Bazel is okay with "python3" binary name
 RUN apt install -y python-is-python3
+
+# Install python3-swsscommon
+# RUN mkdir -p /etc/apt/sources.list.d
+# COPY ["swss_sources.list", "/etc/apt/sources.list.d"]
+# RUN apt-get update
+# RUN apt-get install -y python3-swsscommon
 
 RUN post_run_buildinfo lom-slave-bullseye 
 

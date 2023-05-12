@@ -1,0 +1,3 @@
+# Add swss debian packages source info
+
+deb [trusted=yes] file:/usr/share/sonic ./

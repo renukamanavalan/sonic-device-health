@@ -15,7 +15,6 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from queue import Queue
 import queue
-import common
 import DBServer
 
 DBMainServer_t = DBServer.DBMainServer
@@ -51,6 +50,10 @@ class DBClientInstance:
         self.deregister()
 
 
+    def getCid(self):
+        return self.cid
+
+
     def isActive(self) -> bool:
         return bool(self.cid)
 
@@ -74,6 +77,9 @@ class DBClientInstance:
     
     def readSubsData(self, timeout: int) -> DBSubsRes_t:
         if self.isActive():
+            if timeout == 0:
+                if self.qSubs.empty():
+                    return None
             try:
                 return self.qSubs.get(block=True, timeout=timeout)
             except queue.Empty:

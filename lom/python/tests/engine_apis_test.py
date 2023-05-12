@@ -252,7 +252,7 @@ def ServerStart():
     serverRunning = True
 
 
-class TestCfg(object):
+class xTestCfg(object):
     def callFn(self, fn, args): 
         ln = len(args)
         if ln == 0:
