@@ -56,7 +56,7 @@ type GlobalConfig_t struct {
  *      "LoMTestMode=yes" - Sets to Test Mode
  *      "LoMTestMod=<Any other value> - sets to Prod Mode
  *
- * If "LoMTestMode" env is not set, 
+ * If "LoMTestMode" env is not set,
  *  if <Confiig Path of globals.conf.json>/LoMTestMode file exists
  *      Mode is set to Test
  *  else
@@ -65,6 +65,7 @@ type GlobalConfig_t struct {
  * Until config is loaded, the mode could be uninitialized, unless env is set.
  */
 type LoMRunMode_t int
+
 const (
     LoMRunMode_NotSet = LoMRunMode_t(iota) // Unknown till config init
     LoMRunMode_Test
@@ -107,7 +108,6 @@ func SetLoMRunMode(mode LoMRunMode_t) error {
 func ResetLoMMode() {
     lomRunMode = LoMRunMode_NotSet
 }
-
 
 /*
  * NOTE: This will be deprecated soon.
@@ -657,4 +657,33 @@ func InitConfigPath(path string) error {
 
     _, err := InitConfigMgr(cfgFiles)
     return err
+}
+
+/* Gets settings of int type from json string if present. Else returns defaultValue */
+func GetIntConfigurationFromJson(jsonString string, configurationKey string, defaultValue int) int {
+    return int(GetFloatConfigurationFromJson(jsonString, configurationKey, float64(defaultValue)))
+}
+
+/* Gets settings of float64 type from json string if present. Else returns defaultValue */
+func GetFloatConfigurationFromJson(jsonString string, configurationKey string, defaultValue float64) float64 {
+    if jsonString == "" {
+        return defaultValue
+    }
+    var resultMap map[string]interface{}
+    err := json.Unmarshal([]byte(jsonString), &resultMap)
+    if err != nil {
+        LogError("Error unmarshalling jsonString %s for key %s", jsonString, configurationKey)
+        return defaultValue
+    }
+    configurationVal, ok := resultMap[configurationKey]
+    if !ok {
+        LogError("key %s not present in json string %s", configurationKey, jsonString)
+        return defaultValue
+    }
+    configurationValFloat64, ok := configurationVal.(float64)
+    if !ok {
+        LogError("key %s not of type float64 in json string %s", configurationKey, jsonString)
+        return defaultValue
+    }
+    return configurationValFloat64
 }

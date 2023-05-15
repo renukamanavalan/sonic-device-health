@@ -22,8 +22,9 @@ ENGINE_BIN := $(BIN_DIR)/LoMEngine
 LIB_TEST = $(TEST_DIR)/LibTested
 ENGINE_TEST = $(TEST_DIR)/EngineTested
 SONIC_DBCLIENT_TEST =$(TEST_DIR)/SonicDbClientTested
-all: $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST) $(SONIC_DBCLIENT_TEST)
-
+SONIC_LINK_CRC_TEST = $(TEST_DIR)/SonicLinkCrcTested
+PLUGINS_COMMON_TEST = $(TEST_DIR)/PluginsCommonTested
+all: $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST)
 
 $(ENGINE_BIN): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(BIN_DIR)
@@ -54,6 +55,22 @@ $(SONIC_DBCLIENT_TEST): $(SRC_FILES) $(TEST_FILES)
 		-coverpkg lom/src/plugins/sonic/client/dbclient \
 		-covermode=atomic lom/src/plugins/sonic/client/dbclient || (echo "SonicDbClient Test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/SonicDbClientCoverprofile.out -o $(TEST_DIR)/SonicDbClientCoverprofile.html
+	touch $@
+
+$(SONIC_LINK_CRC_TEST): $(SRC_FILES) $(TEST_FILES)
+	mkdir -p $(TEST_DIR)
+	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/SonicLinkCrcCoverprofile.out \
+                -coverpkg lom/src/plugins/sonic/plugin/detection/link/linkcrc \
+                -covermode=atomic lom/src/plugins/sonic/plugin/detection/link/linkcrc || (echo "SonicLinkCrc plugin Test failed $$?"; exit 1)
+	${GO} tool cover -html=$(TEST_DIR)/SonicLinkCrcCoverprofile.out -o $(TEST_DIR)/SonicLinkCrcCoverprofile.html
+	touch $@
+	
+$(PLUGINS_COMMON_TEST): $(SRC_FILES) $(TEST_FILES)
+	mkdir -p $(TEST_DIR)
+	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginsCommonCoverprofile.out \
+		-coverpkg lom/src/plugins/plugins_common \
+                -covermode=atomic lom/src/plugins/plugins_common || (echo "PluginsCommon Tests failed $$?"; exit 1)
+	${GO} tool cover -html=$(TEST_DIR)/PluginsCommonCoverprofile.out -o $(TEST_DIR)/PluginsCommonCoverprofile.html
 	touch $@
 
 clean:
