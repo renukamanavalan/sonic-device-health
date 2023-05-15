@@ -6,18 +6,18 @@
 package pluginmgr_common
 
 import (
-	"flag"
-	"fmt"
-	"log/syslog"
-	"lom/src/lib/lomcommon"
-	"lom/src/lib/lomipc"
-	"lom/src/plugins/plugins_common"
-	"os"
-	"os/signal"
-	"sync"
-	"sync/atomic"
-	"syscall"
-	"time"
+    "flag"
+    "fmt"
+    "log/syslog"
+    "lom/src/lib/lomcommon"
+    "lom/src/lib/lomipc"
+    "lom/src/plugins/plugins_common"
+    "os"
+    "os/signal"
+    "sync"
+    "sync/atomic"
+    "syscall"
+    "time"
 )
 
 /*
@@ -355,6 +355,8 @@ func (plmgr *PluginManager) handleRequest(actionReq *lomipc.ActionRequestData) e
     } else {
         plmgr.handleRequestWithTimeouts(actionReq, respChan, handleResponseFunc) // short running
     }
+
+    lomcommon.LogInfo("In handleRequest(): Completed processing action request for plugin:%s", actionReq.Action)
 
     return nil
 }

@@ -498,7 +498,7 @@ func UpdatePeriodicLogTime(id string, newPeriod int) error {
 * This function will add periodic log entry with short timeout and then update the timeout to long timeout
 * after short timeout expiry. This function will also listen for stop signal to remove the periodic log entry
 * before long timeout expiry.
-* Note : This is one time call API. Usechannel to stop the logperiodic. Do not remove periodic entry or update timeout
+* Note : This is one time call API. Use channel to stop the logperiodic. Do not remove periodic entry or update timeout
 * Min time >= MIN_PERIODIC_LOG_PERIOD_SECS
  */
 func AddPeriodicLogWithTimeouts(ID string, message string, shortTimeout time.Duration,

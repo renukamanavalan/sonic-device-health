@@ -146,7 +146,7 @@ func (gpl *PluginMetadata) SetPluginStage(stage PluginStage) {
 }
 
 /*
- * CheckMisbehavingPlugins maintains rolling window for sertain time. Checks if the rolling window for the given plugin+Anamolykey
+ * CheckMisbehavingPlugins maintains rolling window for certain time. Checks if the rolling window for the given plugin+Anamolykey
  * has reached a certain size within the specified time.
  * It returns true if the window size has reached the limit, false otherwise.
  */
