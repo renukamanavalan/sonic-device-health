@@ -11,10 +11,10 @@ import (
 
 func init() {
     configFiles := &lomcommon.ConfigFiles_t{}
-    configFiles.GlobalFl = "../../pluginmgr/pluginmgr_test/globals_conf.json"
-    configFiles.ActionsFl = "../../pluginmgr/pluginmgr_test/actions_conf.json"
-    configFiles.BindingsFl = "../../pluginmgr/pluginmgr_test/actions_conf.json"
-    configFiles.ProcsFl = "../../pluginmgr/pluginmgr_test/proc_conf.json"
+    configFiles.GlobalFl = "../../lib/lib_test/config/globals.conf.json"
+    configFiles.ActionsFl = "../../lib/lib_test/config/actions.conf.json"
+    configFiles.BindingsFl = "../../lib/lib_test/config/actions.conf.json"
+    configFiles.ProcsFl = "../../lib/lib_test/config/procs.conf.json"
     lomcommon.InitConfigMgr(configFiles)
 }
 

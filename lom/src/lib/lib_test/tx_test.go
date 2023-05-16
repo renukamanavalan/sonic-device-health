@@ -1000,6 +1000,7 @@ func getConfigMgrTest(t *testing.T, gl, ac, bi, pr string, testMode bool) (*Conf
                 t.Errorf("TestConfig: Failed to create TestMode (%s) file", LOM_TESTMODE_NAME)
             }
         }
+        os.Setenv("LOM_CONF_LOCATION", "")
         if err := InitConfigPath(filepath.Dir(flG)); err != nil {
             return nil, err
         } else {
