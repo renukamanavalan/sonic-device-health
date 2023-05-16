@@ -1,20 +1,20 @@
 package lomcommon
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"log"
-	"log/syslog"
-	"math"
-	"os"
-	"os/exec"
-	"reflect"
-	"runtime"
-	"sort"
-	"strings"
-	"sync"
-	"time"
+    "encoding/json"
+    "errors"
+    "fmt"
+    "log"
+    "log/syslog"
+    "math"
+    "os"
+    "os/exec"
+    "reflect"
+    "runtime"
+    "sort"
+    "strings"
+    "sync"
+    "time"
 )
 
 var writers = make(map[syslog.Priority]*syslog.Writer)
