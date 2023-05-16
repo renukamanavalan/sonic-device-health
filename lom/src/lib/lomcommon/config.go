@@ -658,3 +658,32 @@ func InitConfigPath(path string) error {
     _, err := InitConfigMgr(cfgFiles)
     return err
 }
+
+/* Gets settings of int type from json string if present. Else returns defaultValue */
+func GetIntConfigurationFromJson(jsonString string, configurationKey string, defaultValue int) int {
+    return int(GetFloatConfigurationFromJson(jsonString, configurationKey, float64(defaultValue)))
+}
+
+/* Gets settings of float64 type from json string if present. Else returns defaultValue */
+func GetFloatConfigurationFromJson(jsonString string, configurationKey string, defaultValue float64) float64 {
+    if jsonString == "" {
+        return defaultValue
+    }
+    var resultMap map[string]interface{}
+    err := json.Unmarshal([]byte(jsonString), &resultMap)
+    if err != nil {
+        LogError("Error unmarshalling jsonString %s for key %s", jsonString, configurationKey)
+        return defaultValue
+    }
+    configurationVal, ok := resultMap[configurationKey]
+    if !ok {
+        LogError("key %s not present in json string %s", configurationKey, jsonString)
+        return defaultValue
+    }
+    configurationValFloat64, ok := configurationVal.(float64)
+    if !ok {
+        LogError("key %s not of type float64 in json string %s", configurationKey, jsonString)
+        return defaultValue
+    }
+    return configurationValFloat64
+}
