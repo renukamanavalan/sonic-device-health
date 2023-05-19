@@ -12,7 +12,7 @@ import (
 func mockHmGetFunction(redisClient *redis.Client, key string, fields []string) ([]interface{}, error) {
     if key == "hmget_scenario1_key" {
         str := []string{"111", "222", "333"}
-        counters := getCountersForInterfaces(str)
+        counters := convertStringToInterfaceType(str)
         return counters, nil
     } else if key == "hmget_scenario2_key" {
         return nil, errors.New("HmGet scenario2_key error")
@@ -140,7 +140,7 @@ func Test_RedisProvider_HmGetReturnsError_ForInvalidDatabaseId(t *testing.T) {
     result, err = redisProvider.HmGet(21, "any_key", fields)
     assert.Equal(([]interface{})(nil), result, "Result is expected to be nil")
     assert.NotEqual(nil, err, "err is expected to be non-nil")
-           result, err = redisProvider.HmGet(22, "any_key", fields)
+    result, err = redisProvider.HmGet(22, "any_key", fields)
     assert.Equal(([]interface{})(nil), result, "Result is expected to be nil")
     assert.NotEqual(nil, err, "err is expected to be non-nil")
 }

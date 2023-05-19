@@ -16,9 +16,6 @@ import (
  * A simple wrapper to corresponding APIs
  */
 
-func TestCall() {
-}
-
 var LoMInitialized = 0
 var LoMRunMode = 0
 

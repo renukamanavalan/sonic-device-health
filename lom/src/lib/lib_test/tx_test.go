@@ -362,13 +362,13 @@ func testJSONClient(t *testing.T, tx *LoMTransport, chRes, chComplete chan inter
         /* Failure cases */
         req := `{"ReqType":1999,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`
         res := ""
-        if err := tx.LoMRPCRequest(nil, &res); err == nil { 
+        if err := tx.LoMRPCRequest(nil, &res); err == nil {
             t.Errorf("ERR: testJSONClient: not failing for nil req")
         }
-        if err := tx.LoMRPCRequest(&req, nil); err == nil { 
+        if err := tx.LoMRPCRequest(&req, nil); err == nil {
             t.Errorf("ERR: testJSONClient: not failing for nil res")
         }
-        if err := tx.LoMRPCRequest(&req, &res); err == nil { 
+        if err := tx.LoMRPCRequest(&req, &res); err == nil {
             t.Errorf("ERR: testJSONClient: not failing for invalid req type")
         }
     }
@@ -786,27 +786,36 @@ func TestHelper(t *testing.T) {
     {
         /* Test log_panic to exit */
         ExitCnt := 0
+        panicMsg := ""
         e := OSExit
         OSExit = func(v int) {
             ExitCnt++
         }
+        p := DoPanic
+        DoPanic = func(m string) {
+            panicMsg = m
+        }
         LogPanic("Hitting Panic")
         if ExitCnt != 1 {
-            t.Errorf("Panic test failed")
+            t.Errorf("Panic test failed: Os.exit not called")
+        }
+        if panicMsg == "" {
+            t.Errorf("Panic test failed. DoPanic not called")
         }
         OSExit = e
+        DoPanic = p
     }
 
 }
 
 type ConfigData_t struct {
-    GlobalStr   string
-    ActionStr   string
-    BindStr     string
-    ProcStr     string
-    Failed      bool
-    testMode    bool
-    Reason      string
+    GlobalStr string
+    ActionStr string
+    BindStr   string
+    ProcStr   string
+    Failed    bool
+    testMode  bool
+    Reason    string
 }
 
 var testConfigData = []ConfigData_t {
@@ -1043,6 +1052,7 @@ func getConfigMgrTest(t *testing.T, gl, ac, bi, pr string, testMode bool) (*Conf
                 t.Errorf("TestConfig: Failed to create TestMode (%s) file", LOM_TESTMODE_NAME)
             }
         }
+        os.Setenv("LOM_CONF_LOCATION", "")
         if err := InitConfigPath(filepath.Dir(flG)); err != nil {
             return nil, err
         } else {
@@ -1053,8 +1063,8 @@ func getConfigMgrTest(t *testing.T, gl, ac, bi, pr string, testMode bool) (*Conf
 }
 
 func cleanConfigFiles() {
-    for _, v := range []string { GLOBALS_CONF_FILE, ACTIONS_CONF_FILE,
-                    BINDINGS_CONF_FILE, PROCS_CONF_FILE, LOM_TESTMODE_NAME } {
+    for _, v := range []string{GLOBALS_CONF_FILE, ACTIONS_CONF_FILE,
+        BINDINGS_CONF_FILE, PROCS_CONF_FILE, LOM_TESTMODE_NAME} {
         fl := filepath.Join("/tmp/", v)
         if _, err := os.Stat(fl); err == nil {
             os.Remove(fl)
@@ -1062,9 +1072,9 @@ func cleanConfigFiles() {
     }
 }
 
-
 func TestConfig(t *testing.T) {
     {
+        os.Setenv("LOM_CONF_LOCATION", "")
         if e := InitConfigPath(""); e == nil {
             t.Errorf("Failed to fail for nil config path")
         }
@@ -1078,7 +1088,7 @@ func TestConfig(t *testing.T) {
         _, err := getConfigMgrTest(t, d.GlobalStr, d.ActionStr, d.BindStr, d.ProcStr, d.testMode)
         if d.Failed == (err == nil) {
             t.Errorf("%d: Expect to fail(%v) but result:(%v): (%s)",
-                    ti, d.Failed, err, d.Reason)
+                ti, d.Failed, err, d.Reason)
         }
         LogDebug("err=(%v)", err)
         if !d.Failed {
@@ -1095,10 +1105,10 @@ func TestConfig(t *testing.T) {
     }
     {
         {
-            lst := []struct{
-                    val string
-                    mode LoMRunMode_t
-                } {{"yes", LoMRunMode_Test }, {"xyz", LoMRunMode_Prod}}
+            lst := []struct {
+                val  string
+                mode LoMRunMode_t
+            }{{"yes", LoMRunMode_Test}, {"xyz", LoMRunMode_Prod}}
 
             for i, v := range lst {
                 ResetLoMMode()
@@ -1113,11 +1123,11 @@ func TestConfig(t *testing.T) {
         {
             ResetLoMMode()
             for i, v := range []struct {
-                    mode    LoMRunMode_t
-                    fail    bool
-                } { {LoMRunMode_NotSet, true},
-                    {LoMRunMode_Test, false},
-                    {LoMRunMode_Prod, true}} {
+                mode LoMRunMode_t
+                fail bool
+            }{{LoMRunMode_NotSet, true},
+                {LoMRunMode_Test, false},
+                {LoMRunMode_Prod, true}} {
                 if err := SetLoMRunMode(v.mode); (err != nil) != v.fail {
                     t.Errorf("%d: Expect to fail(%v) err(%v)", i, v.fail, err)
                 }
@@ -1249,7 +1259,7 @@ func TestPeriodic(t *testing.T) {
     if len(s) == 36 {
         t.Errorf("Expect custom string not 36. (%d) (%s)", len(s), s)
     }
-    _, err := getConfigMgrTest(t, `{ "MIN_PERIODIC_LOG_PERIOD_SECS": 1 }`,"{}", "{}", "{}", false)
+    _, err := getConfigMgrTest(t, `{ "MIN_PERIODIC_LOG_PERIOD_SECS": 1 }`, "{}", "{}", "{}", false)
     if err != nil {
         t.Errorf("Unexpected error: (%v)", err)
     }
@@ -1310,7 +1320,7 @@ func TestPeriodic(t *testing.T) {
             "foo":  "bar",
             "val":  "42",
             "data": "xxx",
-        }  
+        }
         SetPublishAPI(PublishString)
         s := PublishEvent(m)
         exp := `{"data":"xxx","foo":"bar","val":"42"}`
@@ -1388,7 +1398,7 @@ func TestShutdown(t *testing.T) {
     cnt := 3
     chStarted := make(chan int, cnt)
     chDone := make(chan int, cnt+1)
-    
+
     /*
      * start cnt routines; Each register; Then indicate their start via chStarted
      * Wait for signal from shutdown.
@@ -1403,7 +1413,7 @@ func TestShutdown(t *testing.T) {
             // LogDebug("Started %s", s)
             ch := RegisterForSysShutdown(s)
             chStarted <- 0
-            <- ch    /* Wait for signal to exit */
+            <-ch /* Wait for signal to exit */
             if p := RegisterForSysShutdown("xyx"); p != nil {
                 t.Errorf("Expect register to fail after shutdown started")
             }
@@ -1418,7 +1428,7 @@ func TestShutdown(t *testing.T) {
     }
 
     for i := 0; i < cnt; i++ {
-        <- chStarted
+        <-chStarted
     }
 
     /* Wait for all routines to start */
@@ -1434,14 +1444,14 @@ func TestShutdown(t *testing.T) {
 
     /* Verify all go routines ended via reading their done signature */
     for i := 0; i < cnt; i++ {
-        j := <- chDone
+        j := <-chDone
         if j != 0 {
             t.Errorf("Expect 0 value j=%d i=%d cnt=%d", j, i, cnt)
         }
     }
 
     /* Verify DoSysShutdown ended too */
-    j := <- chDone
+    j := <-chDone
     if j != 1 {
         t.Errorf("Expect 1 value j=%d cnt=%d", j, cnt)
     }

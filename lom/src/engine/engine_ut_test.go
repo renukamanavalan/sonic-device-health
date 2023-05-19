@@ -742,6 +742,7 @@ var xutList = []func(t *testing.T){
 func TestAll(t *testing.T) {
     initConfig(t)
     cfgPath = CFGPATH
+    os.Setenv("LOM_CONF_LOCATION", "./config/")
     if err := InitConfigPath(cfgPath); err != nil {
         t.Fatalf("Failed to init configMgr")
     }
