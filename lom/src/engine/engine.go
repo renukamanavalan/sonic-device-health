@@ -21,6 +21,7 @@ type engine_t struct {
 }
 
 var cfgPath = ""
+var engineInst *engine_t
 
 /*
  * Read client requests via engine Lib API and route it to
@@ -71,9 +72,13 @@ func (p *engine_t) runLoop() {
         /* Indicate loop end */
         p.chTrack <- 1
 
+        /* TRigger any readloop to abort */
         if len(p.chClReadAbort) < cap(p.chClReadAbort) {
             p.chClReadAbort <- "Aborted"
         }
+
+        /* Nullify global inst */
+        engineInst = nil
     }()
 
     /* Handle signal for config update & terminate */
@@ -144,22 +149,12 @@ func (p *engine_t) close() {
     }
 }
 
-func startUp(progname string, args []string) (*engine_t, error) {
+func EngineStartup(path string) (*engine_t, error) {
+    cfgPath = path
 
-    /* Parse args for path */
-    {
-        p := ""
-        flags := flag.NewFlagSet(progname, flag.ContinueOnError)
-        var buf bytes.Buffer
-        flags.SetOutput(&buf)
-
-        flags.StringVar(&p, "path", "", "Config files path")
-
-        err := flags.Parse(args)
-        if err != nil {
-            return nil, LogError("Failed to parse (%v); details(%s)", args, buf.String())
-        }
-        cfgPath = p
+    if engineInst != nil {
+        LogError("Duplicate EngineStartup")
+        return engineInst, nil
     }
 
     /* Init/Load config */
@@ -176,13 +171,32 @@ func startUp(progname string, args []string) (*engine_t, error) {
 
     chTrack := make(chan int, 2)     /* To track start/end of loop */
     chTerminate := make(chan int, 1) /* To force terminate a loop */
-    engine := &engine_t{tx: tx, chTrack: chTrack, chTerminate: chTerminate}
-    go engine.runLoop()
+    engineInst := &engine_t{tx: tx, chTrack: chTrack, chTerminate: chTerminate}
+    go engineInst.runLoop()
 
     /* Wait for loop start */
     <-chTrack
-    return engine, nil
+    return engineInst, nil
 }
+
+
+func startUp(progname string, args []string) (*engine_t, error) {
+
+    /* Parse args for path */
+    p := ""
+    flags := flag.NewFlagSet(progname, flag.ContinueOnError)
+    var buf bytes.Buffer
+    flags.SetOutput(&buf)
+
+    flags.StringVar(&p, "path", "", "Config files path")
+
+    err := flags.Parse(args)
+    if err != nil {
+        return nil, LogError("Failed to parse (%v); details(%s)", args, buf.String())
+    }
+    return EngineStartup(p)
+}
+
 
 func main() {
 

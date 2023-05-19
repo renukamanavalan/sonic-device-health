@@ -24,6 +24,12 @@ var log_level = syslog.LOG_DEBUG
 var FmtFprintf = fmt.Fprintf
 var OSExit = os.Exit
 
+func RunPanic(m string) {
+    panic(m)
+}
+
+var DoPanic = RunPanic
+
 func init() {
 
     for i := syslog.LOG_EMERG; i <= syslog.LOG_DEBUG; i++ {
@@ -56,12 +62,15 @@ func SetLogLevel(lvl syslog.Priority) {
 var apprefix string
 
 func SetPrefix(p string) {
-    apprefix = p + " : "
+    if len(p) > 0 {
+        apprefix = p + ": "
+    } else {
+        apprefix = ""
+    }
 }
 
 func getPrefix(skip int) string {
-    t := time.Now()
-    prefix := apprefix + fmt.Sprintf("%02d:%02d:%02d: ", t.Hour(), t.Minute(), t.Second())
+    prefix := apprefix
     if _, fl, ln, ok := runtime.Caller(skip); ok {
         /*
          * sample fl = /home/localadmin/tools/go/caller/t.go
@@ -119,7 +128,8 @@ func LogMessage(lvl syslog.Priority, s string, a ...interface{}) string {
 
 /* Log this message for panic level and exit */
 func LogPanic(s string, a ...interface{}) {
-    LogMessage(syslog.LOG_CRIT, s+"LoM exiting ...", a...)
+    s = LogMessage(syslog.LOG_CRIT, s+"LoM exiting ...", a...)
+    DoPanic(s)
     OSExit(-1)
 }
 
@@ -317,22 +327,19 @@ func GetlogPeriodic() *logPeriodic_t {
     if logPeriodic != nil {
         return logPeriodic
     }
-
-    /* Explicit shutdown via global abort channel */
-    chAbort := make(chan interface{})
-    logPeriodicInit(chAbort)
+    logPeriodicInit()
     return logPeriodic
 }
 
 /* Initialize the singleton instance for log periodic */
-func logPeriodicInit(chAbort chan interface{}) {
+func logPeriodicInit() {
     logPeriodic = &logPeriodic_t{
         logCh:             make(chan *LogPeriodicEntry_t),
         logPeriodicList:   make(map[string]*logPeriodicEntryInt_t),
         logPeriodicSorted: nil,
     }
 
-    go logPeriodic.run(chAbort)
+    go logPeriodic.run()
 }
 
 /* Helper to add a log periodic entry */
@@ -356,8 +363,14 @@ func (p *logPeriodic_t) DropLogPeriodic(ID string) {
     }
 }
 
-func (p *logPeriodic_t) run(chAbort chan interface{}) {
+func (p *logPeriodic_t) run() {
     tout := A_DAY_IN_SECS /* Just a init value; Once per day */
+    shutId := "logPeriodic"
+    chAbort := RegisterForSysShutdown(shutId)
+
+    defer func() {
+        DeregisterForSysShutdown(shutId)
+    }()
 
     for {
         upd := false
@@ -532,7 +545,7 @@ func AddPeriodicLogWithTimeouts(ID string, message string, shortTimeout time.Dur
 }
 
 /*
- * Oneshort Timer  -----------------------------------------------------------------
+ * Oneshot Timer  -----------------------------------------------------------------
  */
 
 type OneShotEntry_t struct {
@@ -653,6 +666,12 @@ func callback(all map[int64][]*OneShotEntry_t) int64 {
 /* TODO: Replace with global abort channel later */
 func (p *oneShotTimer_t) runOneShotTimer() {
     all := make(map[int64][]*OneShotEntry_t)
+    shutId := "runOneShotTimer"
+    chAbort := RegisterForSysShutdown(shutId)
+
+    defer func() {
+        DeregisterForSysShutdown(shutId)
+    }()
 
     for {
         nxt := callback(all)
@@ -669,6 +688,10 @@ func (p *oneShotTimer_t) runOneShotTimer() {
             all[tmr.due] = append(all[tmr.due], tmr)
 
         case <-time.After(time.Duration(tout) * time.Second):
+
+        case <- chAbort:
+            LogInfo("runOneShotTimer: System abort called. terminating...")
+            return
         }
     }
 }

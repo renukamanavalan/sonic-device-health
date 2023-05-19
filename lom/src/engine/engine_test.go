@@ -66,6 +66,8 @@ import (
     "fmt"
     . "lom/src/lib/lomcommon"
     . "lom/src/lib/lomipc"
+    "net"
+    // "net/rpc/jsonrpc"
     "os"
     "path/filepath"
     "sort"
@@ -1105,6 +1107,57 @@ func runColl(cArgs *callArgs, collPath string, te *testCollectionEntry_t) {
     LogDebug("**************** coll: %s  END  (%s) **********", collPath, te.desc)
 }
 
+func testRPCListener(t *testing.T) {
+    /*
+     * LibTest extensively test JSON-RPC APIs.
+     * The RPC APIs use SendToServer for redirecting requests to server as 
+     * done in HTTP APIs
+     *
+     * All the tests above are HTTP based and extensively test engine via
+     * SendToServer.
+     *
+     * All we need to test is to ensure that engine indeed started RPC listener
+     * or not. So a sample register would do.
+     */
+
+
+    servAddr := "localhost:"+strconv.Itoa(RPC_JSON_PORT)
+    rpcResp := map[string]any{}
+    resp := LoMResponse{}
+    received := make([]byte, 1024)
+
+    type RPCReq struct {
+        Id      int
+        Method  string
+        Params  []string
+    }
+    req := &LoMRequest{TypeRegClient, "test", 0, struct{}{}}
+    if out, err := json.Marshal(req); err != nil {
+        t.Fatalf("Failed to marshal LoMRequest (%v)", err)
+    } else if out, err := json.Marshal(RPCReq{1, "LoMTransport.LoMRPCRequest", []string{string(out)}}); err != nil {
+        t.Fatalf("Failed to marshal LoMRequest (%v)", err)
+    } else if tcpServer, err := net.ResolveTCPAddr("tcp", servAddr); err != nil {
+        t.Fatalf("Failed to resolve (%s) (%v)", servAddr, err)
+    } else if conn, err := net.DialTCP("tcp", nil, tcpServer); err != nil {
+        t.Fatalf("Dial failed: (%v)", err)
+    } else if _, err := conn.Write([]byte(string(out))); err != nil {
+        t.Fatalf("Failed to write req")
+    } else if n, err := conn.Read(received); err != nil {
+        t.Fatalf("Failed to read reply")
+    } else if err := json.Unmarshal(received[:n], &rpcResp); err != nil {
+        t.Fatalf("Failed to unmarshal reply (%s) (%v)", string(received[:n]), err)
+    } else if strRes, ok := rpcResp["result"].(string); !ok {
+        t.Fatalf("Failed to get result as string result (%T)/(%s)", rpcResp["result"], rpcResp["result"])
+    } else if err := json.Unmarshal([]byte(strRes), &resp); err != nil {
+        t.Fatalf("Failed to unmarshal reply (%s)", strRes)
+    } else if resp.ResultCode != 0 {
+        t.Fatalf("register Client failed (%v)", strRes)
+    }
+
+    LogDebug("testRPCListener COMPLETE")
+}
+
+    
 /* Creates the conf files as per data in this code */
 var initConfigDone = false
 
@@ -1146,6 +1199,8 @@ func TestRun(t *testing.T) {
         runColl(cArgs, string(collId), testCollections[collId])
         resetResultAll() /* Reset all saved results */
     }
+
+    testRPCListener(t)
     chEnd <- 0
     engine.close() /* Close the engine */
 }

@@ -420,11 +420,11 @@ func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
         return LogError("Procs: %s: %v", cfgFiles.ProcsFl, err)
     }
     test_mode_fl := filepath.Join(filepath.Dir(cfgFiles.GlobalFl), LOM_TESTMODE_NAME)
+    ResetLoMMode()
     if _, err := os.Stat(test_mode_fl); os.IsNotExist(err) {
-        LogDebug("Run in Prod mode as fl(%s) not exist. err(%v)", test_mode_fl, err)
         SetLoMRunMode(LoMRunMode_Prod)
     } else {
-        LogDebug("Run in Testg mode as fl(%s) exists. err(%v)", test_mode_fl, err)
+        LogDebug("Run in Test mode as fl(%s) exists. err(%v)", test_mode_fl, err)
         SetLoMRunMode(LoMRunMode_Test)
     }
     return nil
@@ -642,11 +642,10 @@ func InitConfigMgr(p *ConfigFiles_t) (*ConfigMgr_t, error) {
 
 func InitConfigPath(path string) error {
     if len(path) == 0 {
-        cfgPath, exists := GetEnvVarString("ENV_lom_conf_location")
-        if !exists || len(cfgPath) == 0 {
+        path, exists := GetEnvVarString("ENV_lom_conf_location")
+        if !exists || len(path) == 0 {
             return LogError("LOM_CONF_LOCATION environment variable not set")
         }
-        path = cfgPath
     }
     cfgFiles := &ConfigFiles_t{
         GlobalFl:   filepath.Join(path, GLOBALS_CONF_FILE),

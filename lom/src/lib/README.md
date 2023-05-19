@@ -5,6 +5,14 @@ Summary:
     The terms server & engine are used interchangeably.
     Unit tests
 
+NOTE:
+    Engine is reachable via Go-lib's c-binding or via JSON based RPC server
+    C-binding : lom/src/lib/clib
+    JSON RPC: lom/src/lib/lomipc/json_transport.go
+    
+    c-binding incur a .so in MBs, but might be easier to use.
+    JSON - no added binary size, transact via marshaled JSON string.
+
 
 **********************************************************************************************
 lomcommon:

@@ -1,7 +1,17 @@
+# Select bash for commands
+.ONESHELL:
+SHELL = /bin/bash
+.SHELLFLAGS += -e
+USER = $(shell id -un)
+UID = $(shell id -u)
+GUID = $(shell id -g)
+
+
 GO := /usr/local/go/bin/go
 INSTALL := /usr/bin/install
 
 BUILD_DIR := build
+LIB_DIR := $(BUILD_DIR)/lib
 BIN_DIR := $(BUILD_DIR)/bin
 TEST_DIR := $(BUILD_DIR)/test
 
@@ -9,10 +19,19 @@ TEST_DIR := $(BUILD_DIR)/test
 # export TEST_FLAG=-v in shell before calling make or
 # TEST_FLAG=-v make all
 
+ifeq "${TEST_FLAG}" "-v"
+PYTEST_VERBOSE= --addopts "-s"
+endif
+
 export GO111MODULE=on
+export LOM_LIB_PATH=/lom-root/lom/build/lib
 
 SRC_FILES=$(shell find . -name '*.go' | grep -v '_test.go' | grep -v '/tests/')
+PY_FILES=$(shell find . -name '*.py' | grep -v '_test.py' | grep -v '/tests/')
 TEST_FILES=$(wildcard *_test.go)
+
+CMN_C_LIB_FILES=src/lib/clib/lom_clib.go
+CMN_C_LIB=$(BUILD_DIR)/lib/cmn_c_lib.so
 
 # Binaries used in LoM system
 ENGINE_BIN := $(BIN_DIR)/LoMEngine
@@ -23,6 +42,7 @@ LIB_TEST = $(TEST_DIR)/LibTested
 ENGINE_TEST = $(TEST_DIR)/EngineTested
 PLUGIN_MANAGER_TEST = $(TEST_DIR)/PluginManagerTested
 SONIC_DBCLIENT_TEST =$(TEST_DIR)/SonicDbClientTested
+PY_TEST = $(TEST_DIR)/pytested
 SONIC_LINK_CRC_TEST = $(TEST_DIR)/SonicLinkCrcTested
 PLUGINS_COMMON_TEST = $(TEST_DIR)/PluginsCommonTested
 
@@ -40,7 +60,12 @@ format_code:
 
 .PHONY: all clean
 
-all: | format_code $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST)
+all: | format_code $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST) $(PY_TEST)
+
+$(CMN_C_LIB): $(SRC_FILES)
+	mkdir -p $(LIB_DIR)
+	$(GO) build -buildmode=c-shared -o $@ $(CMN_C_LIB_FILES)
+	$(info "Built $(CMN_C_LIB)")
 
 $(ENGINE_BIN): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(BIN_DIR)
@@ -86,11 +111,17 @@ $(SONIC_DBCLIENT_TEST): $(SRC_FILES) $(TEST_FILES)
 	${GO} tool cover -html=$(TEST_DIR)/SonicDbClientCoverprofile.out -o $(TEST_DIR)/SonicDbClientCoverprofile.html
 	touch $@
 
+$(PY_TEST): $(SRC_FILES) $(PY_FILES)
+	mkdir -p $(TEST_DIR)
+	pushd /lom-root/lom/python; \
+	python3 setup.py test $(PYTEST_VERBOSE); \
+	popd
+
 $(SONIC_LINK_CRC_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/SonicLinkCrcCoverprofile.out \
-                -coverpkg lom/src/plugins/sonic/plugin/detection/link/linkcrc \
-                -covermode=atomic lom/src/plugins/sonic/plugin/detection/link/linkcrc || (echo "SonicLinkCrc plugin Test failed $$?"; exit 1)
+				-coverpkg lom/src/plugins/sonic/plugin/detection/link/linkcrc \
+				-covermode=atomic lom/src/plugins/sonic/plugin/detection/link/linkcrc || (echo "SonicLinkCrc plugin Test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/SonicLinkCrcCoverprofile.out -o $(TEST_DIR)/SonicLinkCrcCoverprofile.html
 	touch $@
 	
@@ -98,7 +129,7 @@ $(PLUGINS_COMMON_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginsCommonCoverprofile.out \
 		-coverpkg lom/src/plugins/plugins_common \
-                -covermode=atomic lom/src/plugins/plugins_common || (echo "PluginsCommon Tests failed $$?"; exit 1)
+				-covermode=atomic lom/src/plugins/plugins_common || (echo "PluginsCommon Tests failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/PluginsCommonCoverprofile.out -o $(TEST_DIR)/PluginsCommonCoverprofile.html
 	touch $@
 

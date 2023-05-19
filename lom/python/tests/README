@@ -1,0 +1,28 @@
+1. Have a class with name starting "Test"
+2. Have methods starting with "test"
+3. from parent dir run "python3 setup.py test"
+
+
+LOM_LIB_PATH=/lom-root/lom/build/lib  python3 setup.py test --addopts "-s"   -- to capture stdout
+
+
+------------- Details ------------------
+
+common_test:InitCfg 
+    Creates config files per data in "class cfgInit"
+
+
+common_test:StartEngine - starts the engine
+    Engine runs inside this process context only
+    It creates its HTTP & JSON RPC listeners.
+    Any client access reaches engine via these 
+    listeners.
+    The engine's Go code run these listeners in background
+    asynchronously and kick off its main loop to ri
+
+    Starts by calling corresponding c-binding API
+
+engine_apis_test:
+    testCfgList = List of config APIs to test
+    testEngineAPIList - List of C-bind APIs to test
+    testRpcList -- List of tests for JSON RPC
