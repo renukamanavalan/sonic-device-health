@@ -65,13 +65,16 @@ format_code:
 define extract_file_coverage
 	@echo "*******************************************************"
 	@echo "Extracting file coverages:"
-	@sed -n 's/.*<option value="[^"]\+">\([^<]\+\).* (\([^)]\+\%.*\)<\/option>.*/\1 (\2)/p' $(1)
+	@file_coverage="$$(sed -n 's/.*<option value="[^"]\+">\([^<]\+\).* (\([^)]\+\%.*\)<\/option>.*/\1 (\2)/p' $(1))"; 
+	echo "$${file_coverage}"
 	@echo "*******************************************************"
+	@echo ""
+	@echo ""
 endef
 
 .PHONY: all clean
 
-all: | format_code $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST) $(PY_TEST)
+all: | format_code $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST) $(PY_TEST) $(PLUGIN_MANAGER_BIN)
 
 $(CMN_C_LIB): $(SRC_FILES)
 	mkdir -p $(LIB_DIR)
