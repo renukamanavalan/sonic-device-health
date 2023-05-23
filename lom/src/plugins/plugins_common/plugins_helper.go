@@ -131,7 +131,8 @@ const (
 )
 
 const (
-    request_timeout_log_periodicity_in_secs = 3
+    req_timeout_log_periodicity_secs_key = "PLUGIN_REQ_TIMEOUT_LOG_PERIODICITY_SECS"
+    min_err_cnt_to_skip_hb_key = "PLUGIN_MIN_ERR_CNT_TO_SKIP_HEARTBEAT"
     plugin_prefix = "plugin_"
 )
 
@@ -211,7 +212,7 @@ func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Request(
 
     lomcommon.GetGoroutineTracker().Start(plugin_prefix + periodicDetectionPluginUtil.PluginName, periodicDetectionPluginUtil.handleRequest, request)
     heartBeatTicker := time.NewTicker(time.Duration(periodicDetectionPluginUtil.heartBeatIntervalInSecs) * time.Second)
-    timeoutLogTicker := time.NewTicker(request_timeout_log_periodicity_in_secs * time.Second)
+    timeoutLogTicker := time.NewTicker(time.Duration(lomcommon.GetConfigMgr().GetGlobalCfgInt(req_timeout_log_periodicity_secs_key)) * time.Second)
     defer heartBeatTicker.Stop()
     defer timeoutLogTicker.Stop()
 
@@ -260,7 +261,7 @@ func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) publishHeartBeat
 	}
 	periodicDetectionPluginUtil.detectionRunInfo.mutex.Unlock()
 
-	if numConsecutiveErrors >= 3 {
+	if numConsecutiveErrors >= uint64(lomcommon.GetConfigMgr().GetGlobalCfgInt(min_err_cnt_to_skip_hb_key))  {
 		lomcommon.LogError(fmt.Sprintf("Skipping heartbeat for %s. numConsecutiveErrors %d", periodicDetectionPluginUtil.PluginName, numConsecutiveErrors))
 		return
 	} else if durationOfLatestRunInSecs > int64(periodicDetectionPluginUtil.requestFrequencyInSecs) {
