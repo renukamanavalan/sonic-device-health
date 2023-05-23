@@ -299,3 +299,23 @@ func Test_isInterfaceActive_ReturnsFalseWhenRedisCallFails(t *testing.T) {
     assert.NotEqual(t, nil, err, "err is exptected to be nil")
     assert.False(t, result, "result is exptected to be False")
 }
+
+/* Test GetInterfaceCounters returns error when context is cancelled. */
+func Test_GetInterfaceCounters_ErrorsWhenContextCancelled(t *testing.T) {
+	// Mock
+	mockRedisProvider := new(MockRedisProvider)
+	newMap := getInterfaceToODIMapping()
+	(mockRedisProvider).On(HGetAllMethod, 2, COUNTERS_PORT_NAME_MAP).Maybe().Return(newMap, nil)
+
+	// Act
+	counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	cancelFunc()
+	result, err := counterDBClient.GetCountersForActiveInterfaces(ctx)
+
+	// Assert
+	if result != nil {
+		t.Errorf("result is expected to be nil")
+	}
+	assert.NotEqual(t, nil, err, "err is exptected to be non nil")
+}
