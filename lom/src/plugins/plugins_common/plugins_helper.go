@@ -3,13 +3,13 @@ package plugins_common
 
 import (
     "container/list"
+    "context"
     "fmt"
     "lom/src/lib/lomcommon"
     "lom/src/lib/lomipc"
+    "sync"
     "sync/atomic"
     "time"
-    "context"
-    "sync"
 )
 
 /* Interface for limiting reporting frequency of plugin */
@@ -132,8 +132,8 @@ const (
 
 const (
     req_timeout_log_periodicity_secs_key = "PLUGIN_REQ_TIMEOUT_LOG_PERIODICITY_SECS"
-    min_err_cnt_to_skip_hb_key = "PLUGIN_MIN_ERR_CNT_TO_SKIP_HEARTBEAT"
-    plugin_prefix = "plugin_"
+    min_err_cnt_to_skip_hb_key           = "PLUGIN_MIN_ERR_CNT_TO_SKIP_HEARTBEAT"
+    plugin_prefix                        = "plugin_"
 )
 
 /*
@@ -146,25 +146,25 @@ Guidence for requestFunc
   - isExecutionHealthy needs to be marked false when there is any issue in Request method that needs to be reported.
 */
 type PeriodicDetectionPluginUtil struct {
-	requestFrequencyInSecs  int
-	heartBeatIntervalInSecs int
-	requestFunc             func(*lomipc.ActionRequestData, *bool, context.Context) *lomipc.ActionResponseData
-	shutdownFunc            func() error
-	PluginName              string
-	shutDownInitiated       atomic.Bool
-	detectionRunInfo        DetectionRunInfo
-	numOfConsecutiveErrors  atomic.Uint64
-	responseChannel         chan *lomipc.ActionResponseData
-	ctx                     context.Context
-	cancelCtxFunc           context.CancelFunc
+    requestFrequencyInSecs  int
+    heartBeatIntervalInSecs int
+    requestFunc             func(*lomipc.ActionRequestData, *bool, context.Context) *lomipc.ActionResponseData
+    shutdownFunc            func() error
+    PluginName              string
+    shutDownInitiated       atomic.Bool
+    detectionRunInfo        DetectionRunInfo
+    numOfConsecutiveErrors  atomic.Uint64
+    responseChannel         chan *lomipc.ActionResponseData
+    ctx                     context.Context
+    cancelCtxFunc           context.CancelFunc
 }
 
 type DetectionRunInfo struct {
-	/* If this value is nil, it indicates there is no current run in execution. Non-nil value signifies a current run in execution. */
-	currentRunStartTimeInUtc *time.Time
-	/* Duration of the latest completed run in seconds */
-	durationOfLatestRunInSeconds int64
-	mutex                        sync.Mutex
+    /* If this value is nil, it indicates there is no current run in execution. Non-nil value signifies a current run in execution. */
+    currentRunStartTimeInUtc *time.Time
+    /* Duration of the latest completed run in seconds */
+    durationOfLatestRunInSeconds int64
+    mutex                        sync.Mutex
 }
 
 /* This method needs to be called to initialize fields present in PeriodicDetectionPluginUtil struct */
@@ -203,148 +203,147 @@ func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Request(
     hbchan chan PluginHeartBeat,
     request *lomipc.ActionRequestData) *lomipc.ActionResponseData {
     if request.Timeout > 0 {
-	return GetResponse(request, "", "", ResultCodeInvalidArgument, "Invalid Timeout value for detection plugin")
+        return GetResponse(request, "", "", ResultCodeInvalidArgument, "Invalid Timeout value for detection plugin")
     }
 
     // Publish a heartbeat immediately.
     pluginHeartBeat := PluginHeartBeat{PluginName: periodicDetectionPluginUtil.PluginName, EpochTime: time.Now().Unix()}
     hbchan <- pluginHeartBeat
 
-    lomcommon.GetGoroutineTracker().Start(plugin_prefix + periodicDetectionPluginUtil.PluginName, periodicDetectionPluginUtil.handleRequest, request)
+    lomcommon.GetGoroutineTracker().Start(plugin_prefix+periodicDetectionPluginUtil.PluginName, periodicDetectionPluginUtil.handleRequest, request)
     heartBeatTicker := time.NewTicker(time.Duration(periodicDetectionPluginUtil.heartBeatIntervalInSecs) * time.Second)
     timeoutLogTicker := time.NewTicker(time.Duration(lomcommon.GetConfigMgr().GetGlobalCfgInt(req_timeout_log_periodicity_secs_key)) * time.Second)
     defer heartBeatTicker.Stop()
     defer timeoutLogTicker.Stop()
 
-	for {
-		select {
+    for {
+        select {
 
-		case <-heartBeatTicker.C:
-			periodicDetectionPluginUtil.publishHeartBeat(hbchan)
+        case <-heartBeatTicker.C:
+            periodicDetectionPluginUtil.publishHeartBeat(hbchan)
 
-		case <-timeoutLogTicker.C:
-			periodicDetectionPluginUtil.detectionRunInfo.mutex.Lock()
-			var currentRunStartTimeInUtc time.Time
-			if periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc != nil {
-				currentRunStartTimeInUtc = *periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc
-			}
-			periodicDetectionPluginUtil.detectionRunInfo.mutex.Unlock()
+        case <-timeoutLogTicker.C:
+            periodicDetectionPluginUtil.detectionRunInfo.mutex.Lock()
+            var currentRunStartTimeInUtc time.Time
+            if periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc != nil {
+                currentRunStartTimeInUtc = *periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc
+            }
+            periodicDetectionPluginUtil.detectionRunInfo.mutex.Unlock()
 
-			if !currentRunStartTimeInUtc.IsZero() { /* Indicates a request is running currently */
-				durationTillNow := int64(time.Since(currentRunStartTimeInUtc).Seconds())
-				if durationTillNow > int64(periodicDetectionPluginUtil.requestFrequencyInSecs) {
-					lomcommon.LogError(fmt.Sprintf("Detection logic for plugin %s has timedout", periodicDetectionPluginUtil.PluginName))
-				}
-			}
+            if !currentRunStartTimeInUtc.IsZero() { /* Indicates a request is running currently */
+                durationTillNow := int64(time.Since(currentRunStartTimeInUtc).Seconds())
+                if durationTillNow > int64(periodicDetectionPluginUtil.requestFrequencyInSecs) {
+                    lomcommon.LogError(fmt.Sprintf("Detection logic for plugin %s has timedout", periodicDetectionPluginUtil.PluginName))
+                }
+            }
 
-		case resp := <-periodicDetectionPluginUtil.responseChannel:
-			return resp
+        case resp := <-periodicDetectionPluginUtil.responseChannel:
+            return resp
 
-		case <-periodicDetectionPluginUtil.ctx.Done():
-			/* Shutdown stops the periodic detection */
-			lomcommon.LogInfo(fmt.Sprintf("Aborting Request for (%s)", periodicDetectionPluginUtil.PluginName))
-			responseData := GetResponse(request, "", "", ResultCodeAborted, ResultStringFailure)
-			return responseData
-		}
-	}
+        case <-periodicDetectionPluginUtil.ctx.Done():
+            /* Shutdown stops the periodic detection */
+            lomcommon.LogInfo(fmt.Sprintf("Aborting Request for (%s)", periodicDetectionPluginUtil.PluginName))
+            responseData := GetResponse(request, "", "", ResultCodeAborted, ResultStringFailure)
+            return responseData
+        }
+    }
 }
 
 /* Publishes heartbeat after performing validations */
 func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) publishHeartBeat(hbchan chan PluginHeartBeat) {
 
-	periodicDetectionPluginUtil.detectionRunInfo.mutex.Lock()
-	numConsecutiveErrors := periodicDetectionPluginUtil.numOfConsecutiveErrors.Load()
-	durationOfLatestRunInSecs := periodicDetectionPluginUtil.detectionRunInfo.durationOfLatestRunInSeconds
-	var currentRunStartTimeInUtc time.Time
-	if periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc != nil {
-		currentRunStartTimeInUtc = *periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc
-	}
-	periodicDetectionPluginUtil.detectionRunInfo.mutex.Unlock()
+    periodicDetectionPluginUtil.detectionRunInfo.mutex.Lock()
+    numConsecutiveErrors := periodicDetectionPluginUtil.numOfConsecutiveErrors.Load()
+    durationOfLatestRunInSecs := periodicDetectionPluginUtil.detectionRunInfo.durationOfLatestRunInSeconds
+    var currentRunStartTimeInUtc time.Time
+    if periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc != nil {
+        currentRunStartTimeInUtc = *periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc
+    }
+    periodicDetectionPluginUtil.detectionRunInfo.mutex.Unlock()
 
-	if numConsecutiveErrors >= uint64(lomcommon.GetConfigMgr().GetGlobalCfgInt(min_err_cnt_to_skip_hb_key))  {
-		lomcommon.LogError(fmt.Sprintf("Skipping heartbeat for %s. numConsecutiveErrors %d", periodicDetectionPluginUtil.PluginName, numConsecutiveErrors))
-		return
-	} else if durationOfLatestRunInSecs > int64(periodicDetectionPluginUtil.requestFrequencyInSecs) {
-		lomcommon.LogError(fmt.Sprintf("Skipping heartbeat for %s. DurationOfLatestRunInSecs %d", periodicDetectionPluginUtil.PluginName, durationOfLatestRunInSecs))
-		return
-	} else if !currentRunStartTimeInUtc.IsZero() { /* Indicates a request is running currently */
-		durationTillNow := int64(time.Since(currentRunStartTimeInUtc).Seconds())
-		if durationTillNow > int64(periodicDetectionPluginUtil.requestFrequencyInSecs) {
-			lomcommon.LogError(fmt.Sprintf("Skipping heartbeat for %s. Duration of current execution in secs %d", periodicDetectionPluginUtil.PluginName, durationTillNow))
-			return
-		}
-	}
+    if numConsecutiveErrors >= uint64(lomcommon.GetConfigMgr().GetGlobalCfgInt(min_err_cnt_to_skip_hb_key)) {
+        lomcommon.LogError(fmt.Sprintf("Skipping heartbeat for %s. numConsecutiveErrors %d", periodicDetectionPluginUtil.PluginName, numConsecutiveErrors))
+        return
+    } else if durationOfLatestRunInSecs > int64(periodicDetectionPluginUtil.requestFrequencyInSecs) {
+        lomcommon.LogError(fmt.Sprintf("Skipping heartbeat for %s. DurationOfLatestRunInSecs %d", periodicDetectionPluginUtil.PluginName, durationOfLatestRunInSecs))
+        return
+    } else if !currentRunStartTimeInUtc.IsZero() { /* Indicates a request is running currently */
+        durationTillNow := int64(time.Since(currentRunStartTimeInUtc).Seconds())
+        if durationTillNow > int64(periodicDetectionPluginUtil.requestFrequencyInSecs) {
+            lomcommon.LogError(fmt.Sprintf("Skipping heartbeat for %s. Duration of current execution in secs %d", periodicDetectionPluginUtil.PluginName, durationTillNow))
+            return
+        }
+    }
 
-	/* Publish heartbeat only after above validations pass.*/
-	pluginHeartBeat := PluginHeartBeat{PluginName: periodicDetectionPluginUtil.PluginName, EpochTime: time.Now().Unix()}
-	hbchan <- pluginHeartBeat
+    /* Publish heartbeat only after above validations pass.*/
+    pluginHeartBeat := PluginHeartBeat{PluginName: periodicDetectionPluginUtil.PluginName, EpochTime: time.Now().Unix()}
+    hbchan <- pluginHeartBeat
 }
-
 
 /* Hanldes detection logic execution and honors shutdown as well */
 func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) handleRequest(request *lomipc.ActionRequestData) {
 
-	detectionTicker := time.NewTicker(time.Duration(periodicDetectionPluginUtil.requestFrequencyInSecs) * time.Second)
-	defer detectionTicker.Stop()
-	lomcommon.LogInfo(fmt.Sprintf("Detection Timer initialized for plugin (%s)", periodicDetectionPluginUtil.PluginName))
-	isExecutionHealthy := false
+    detectionTicker := time.NewTicker(time.Duration(periodicDetectionPluginUtil.requestFrequencyInSecs) * time.Second)
+    defer detectionTicker.Stop()
+    lomcommon.LogInfo(fmt.Sprintf("Detection Timer initialized for plugin (%s)", periodicDetectionPluginUtil.PluginName))
+    isExecutionHealthy := false
 loop:
-	for {
-		// Start immediately before the select.
-		if !periodicDetectionPluginUtil.shutDownInitiated.Load() {
-			periodicDetectionPluginUtil.detectionRunInfo.mutex.Lock()
-			startTimeInUtc := time.Now().UTC()
-			periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc = &startTimeInUtc
-			periodicDetectionPluginUtil.detectionRunInfo.durationOfLatestRunInSeconds = 0
-			periodicDetectionPluginUtil.detectionRunInfo.mutex.Unlock()
+    for {
+        // Start immediately before the select.
+        if !periodicDetectionPluginUtil.shutDownInitiated.Load() {
+            periodicDetectionPluginUtil.detectionRunInfo.mutex.Lock()
+            startTimeInUtc := time.Now().UTC()
+            periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc = &startTimeInUtc
+            periodicDetectionPluginUtil.detectionRunInfo.durationOfLatestRunInSeconds = 0
+            periodicDetectionPluginUtil.detectionRunInfo.mutex.Unlock()
 
-			/* Perform detection logic periodically */
-			response := periodicDetectionPluginUtil.requestFunc(request, &isExecutionHealthy, periodicDetectionPluginUtil.ctx)
-			if response != nil {
-				periodicDetectionPluginUtil.responseChannel <- response
-				return
-			}
+            /* Perform detection logic periodically */
+            response := periodicDetectionPluginUtil.requestFunc(request, &isExecutionHealthy, periodicDetectionPluginUtil.ctx)
+            if response != nil {
+                periodicDetectionPluginUtil.responseChannel <- response
+                return
+            }
 
-			if !isExecutionHealthy {
-				periodicDetectionPluginUtil.numOfConsecutiveErrors.Add(1)
-				lomcommon.LogError(fmt.Sprintf("Incremented consecutiveError count for plugin (%s)", periodicDetectionPluginUtil.PluginName))
-			} else {
-				periodicDetectionPluginUtil.numOfConsecutiveErrors.Store(0)
-			}
+            if !isExecutionHealthy {
+                periodicDetectionPluginUtil.numOfConsecutiveErrors.Add(1)
+                lomcommon.LogError(fmt.Sprintf("Incremented consecutiveError count for plugin (%s)", periodicDetectionPluginUtil.PluginName))
+            } else {
+                periodicDetectionPluginUtil.numOfConsecutiveErrors.Store(0)
+            }
 
-			elapsedTime := int64(time.Since(startTimeInUtc).Seconds())
-			periodicDetectionPluginUtil.detectionRunInfo.mutex.Lock()
-			periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc = nil
-			periodicDetectionPluginUtil.detectionRunInfo.durationOfLatestRunInSeconds = elapsedTime
-			periodicDetectionPluginUtil.detectionRunInfo.mutex.Unlock()
+            elapsedTime := int64(time.Since(startTimeInUtc).Seconds())
+            periodicDetectionPluginUtil.detectionRunInfo.mutex.Lock()
+            periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc = nil
+            periodicDetectionPluginUtil.detectionRunInfo.durationOfLatestRunInSeconds = elapsedTime
+            periodicDetectionPluginUtil.detectionRunInfo.mutex.Unlock()
 
-			if elapsedTime > int64(periodicDetectionPluginUtil.requestFrequencyInSecs) {
-				// Reset the timer.
-				lomcommon.LogInfo(fmt.Sprintf("Resetting timer for plugin (%s)", periodicDetectionPluginUtil.PluginName))
-				detectionTicker.Reset(time.Duration(periodicDetectionPluginUtil.requestFrequencyInSecs) * time.Second)
-			}
-		}
+            if elapsedTime > int64(periodicDetectionPluginUtil.requestFrequencyInSecs) {
+                // Reset the timer.
+                lomcommon.LogInfo(fmt.Sprintf("Resetting timer for plugin (%s)", periodicDetectionPluginUtil.PluginName))
+                detectionTicker.Reset(time.Duration(periodicDetectionPluginUtil.requestFrequencyInSecs) * time.Second)
+            }
+        }
 
-		select {
-		case <-detectionTicker.C:
-			continue
+        select {
+        case <-detectionTicker.C:
+            continue
 
-		case <-periodicDetectionPluginUtil.ctx.Done():
-			/* Shutdown stops the periodic detection */
-			lomcommon.LogInfo(fmt.Sprintf("Aborting Request for (%s)", periodicDetectionPluginUtil.PluginName))
-			break loop
-		}
-	}
+        case <-periodicDetectionPluginUtil.ctx.Done():
+            /* Shutdown stops the periodic detection */
+            lomcommon.LogInfo(fmt.Sprintf("Aborting Request for (%s)", periodicDetectionPluginUtil.PluginName))
+            break loop
+        }
+    }
 }
 
 /* Shutdown that aborts the request. It also cleans up plugin defined cleanUp at the end */
 func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Shutdown() error {
-	lomcommon.LogInfo(fmt.Sprintf("Shutdown called for plugin (%s)", periodicDetectionPluginUtil.PluginName))
-	periodicDetectionPluginUtil.cancelCtxFunc()
-	periodicDetectionPluginUtil.shutDownInitiated.Store(true)
-	periodicDetectionPluginUtil.shutdownFunc()
-	lomcommon.LogInfo(fmt.Sprintf("Shutdown successful for plugin (%s)", periodicDetectionPluginUtil.PluginName))
-	return nil
+    lomcommon.LogInfo(fmt.Sprintf("Shutdown called for plugin (%s)", periodicDetectionPluginUtil.PluginName))
+    periodicDetectionPluginUtil.cancelCtxFunc()
+    periodicDetectionPluginUtil.shutDownInitiated.Store(true)
+    periodicDetectionPluginUtil.shutdownFunc()
+    lomcommon.LogInfo(fmt.Sprintf("Shutdown successful for plugin (%s)", periodicDetectionPluginUtil.PluginName))
+    return nil
 }
 
 func GetResponse(request *lomipc.ActionRequestData, anomalyKey string, response string, resultCode int, resultString string) *lomipc.ActionResponseData {

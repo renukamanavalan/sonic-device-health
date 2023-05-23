@@ -1,6 +1,7 @@
 package linkcrc
 
 import (
+    "context"
     "errors"
     "github.com/stretchr/testify/assert"
     "github.com/stretchr/testify/mock"
@@ -9,7 +10,6 @@ import (
     "lom/src/plugins/sonic/client/dbclient"
     "testing"
     "time"
-    "context"
 )
 
 func init() {
@@ -25,7 +25,7 @@ type MockCounterRepository struct {
     mock.Mock
 }
 
-func (mockCounterRepository *MockCounterRepository) GetCountersForActiveInterfaces(ctx context.Context) (dbclient.InterfaceCountersMap, error) {
+func (mockCounterRepository *MockCounterRepository) GetCountersForAllInterfaces(ctx context.Context) (dbclient.InterfaceCountersMap, error) {
     args := mockCounterRepository.Called(ctx)
     return args.Get(0).(dbclient.InterfaceCountersMap), args.Error(1)
 }
@@ -148,7 +148,7 @@ func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForError(t *testing.T) {
     linkCRCDetectionPlugin.Init(&actionConfig)
     mockCounterRepository := new(MockCounterRepository)
     ctx, _ := context.WithCancel(context.Background())
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(dbclient.InterfaceCountersMap(nil), errors.New("Some Error"))
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(dbclient.InterfaceCountersMap(nil), errors.New("Some Error"))
     linkCRCDetectionPlugin.counterRepository = mockCounterRepository
     request := &lomipc.ActionRequestData{Action: "action", InstanceId: "InstanceId", AnomalyInstanceId: "AnmlyInstId", Timeout: 0}
     isHealthy := true
@@ -158,7 +158,7 @@ func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForError(t *testing.T) {
     // Assert
     assert.Nil(response, "response is expected to be nil")
     assert.False(isHealthy, "isHealthy is expected to be False")
-    mockCounterRepository.AssertNumberOfCalls(t, "GetCountersForActiveInterfaces", 1)
+    mockCounterRepository.AssertNumberOfCalls(t, "GetCountersForAllInterfaces", 1)
     mockCounterRepository.AssertExpectations(t)
 }
 
@@ -171,7 +171,7 @@ func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForEmptyInterfacesFromRedis(
     mockCounterRepository := new(MockCounterRepository)
     interfaceCountersMap := new(dbclient.InterfaceCountersMap)
     ctx, _ := context.WithCancel(context.Background())
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(*interfaceCountersMap, nil)
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(*interfaceCountersMap, nil)
     linkCRCDetectionPlugin.counterRepository = mockCounterRepository
     // Act
     request := &lomipc.ActionRequestData{Action: "action", InstanceId: "InstanceId", AnomalyInstanceId: "AnmlyInstId", Timeout: 0}
@@ -181,7 +181,7 @@ func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForEmptyInterfacesFromRedis(
     assert := assert.New(t)
     assert.Nil(response, "response is expected to be nil")
     assert.False(isHealthy, "isHealthy is expected to be False")
-    mockCounterRepository.AssertNumberOfCalls(t, "GetCountersForActiveInterfaces", 1)
+    mockCounterRepository.AssertNumberOfCalls(t, "GetCountersForAllInterfaces", 1)
     mockCounterRepository.AssertExpectations(t)
 }
 
@@ -194,7 +194,7 @@ func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForEmptyInterfaceCountersFro
     mockCounterRepository := new(MockCounterRepository)
     interfaceCountersMap := dbclient.InterfaceCountersMap{"ethernet0": nil}
     ctx, _ := context.WithCancel(context.Background())
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(interfaceCountersMap, nil)
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(interfaceCountersMap, nil)
     linkCRCDetectionPlugin.counterRepository = mockCounterRepository
     request := &lomipc.ActionRequestData{Action: "action", InstanceId: "InstanceId", AnomalyInstanceId: "AnmlyInstId", Timeout: 0}
     isHealthy := true
@@ -205,7 +205,7 @@ func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForEmptyInterfaceCountersFro
     assert.Nil(response, "response is expected to be nil")
     assert.False(isHealthy, "isHealthy is expected to be False")
     assert.Equal(0, len(linkCRCDetectionPlugin.currentMonitoredInterfaces), "Monitored interfaces length is expected to be 0")
-    mockCounterRepository.AssertNumberOfCalls(t, "GetCountersForActiveInterfaces", 1)
+    mockCounterRepository.AssertNumberOfCalls(t, "GetCountersForAllInterfaces", 1)
     mockCounterRepository.AssertExpectations(t)
 }
 
@@ -273,11 +273,11 @@ func Test_LinkCrcDetectionPlugin_CrcDetectionDetectsSuccessfuly(t *testing.T) {
     counterMap5 := dbclient.InterfaceCountersMap{"Ethernet1": map5, "Ethernet2": map5}
     mockCounterRepository := new(MockCounterRepository)
     ctx, _ := context.WithCancel(context.Background())
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(counterMap1, nil).Once()
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(counterMap2, nil).Once()
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(counterMap3, nil).Once()
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(counterMap4, nil).Once()
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(counterMap5, nil).Once()
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap1, nil).Once()
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap2, nil).Once()
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap3, nil).Once()
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap4, nil).Once()
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap5, nil).Once()
 
     mockCounterRepository.On("IsInterfaceActive", "Ethernet1").Return(true, nil).Once()
     mockCounterRepository.On("IsInterfaceActive", "Ethernet2").Return(true, nil).Once()
@@ -344,11 +344,11 @@ func Test_LinkCrcDetectionPlugin_CrcDetectionReportsForOnlyOneInterface(t *testi
     counterMap5 := dbclient.InterfaceCountersMap{"Ethernet1": map5, "Ethernet2": map5}
     mockCounterRepository := new(MockCounterRepository)
     ctx, _ := context.WithCancel(context.Background())
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(counterMap1, nil).Once()
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(counterMap2, nil).Once()
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(counterMap3, nil).Once()
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(counterMap4, nil).Once()
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(counterMap5, nil).Once()
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap1, nil).Once()
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap2, nil).Once()
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap3, nil).Once()
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap4, nil).Once()
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap5, nil).Once()
     mockCounterRepository.On("IsInterfaceActive", "Ethernet1").Return(true, nil).Once()
     linkCRCDetectionPlugin.counterRepository = mockCounterRepository
     // Act
@@ -395,11 +395,11 @@ func Test_LinkCrcDetectionPlugin_CrcDetectionReportsNone(t *testing.T) {
     counterMap5 := dbclient.InterfaceCountersMap{"Ethernet1": map5, "Ethernet2": map5}
     mockCounterRepository := new(MockCounterRepository)
     ctx, _ := context.WithCancel(context.Background())
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(counterMap1, nil).Once()
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(counterMap2, nil).Once()
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(counterMap3, nil).Once()
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(counterMap4, nil).Once()
-    mockCounterRepository.On("GetCountersForActiveInterfaces", ctx).Return(counterMap5, nil).Once()
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap1, nil).Once()
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap2, nil).Once()
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap3, nil).Once()
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap4, nil).Once()
+    mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap5, nil).Once()
     linkCRCDetectionPlugin.counterRepository = mockCounterRepository
 
     request := &lomipc.ActionRequestData{Action: "action", InstanceId: "InstanceId", AnomalyInstanceId: "AnmlyInstId", Timeout: 0}

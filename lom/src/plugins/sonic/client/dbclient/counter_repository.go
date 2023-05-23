@@ -37,7 +37,7 @@ type InterfaceCountersMap map[string]map[string]uint64
 var interfaceToOidMapping map[string]string
 
 type CounterRepositoryInterface interface {
-    GetCountersForActiveInterfaces(ctx context.Context) (InterfaceCountersMap, error)
+    GetCountersForAllInterfaces(ctx context.Context) (InterfaceCountersMap, error)
     IsInterfaceActive(interfaceName string) (bool, error)
 }
 
@@ -45,7 +45,7 @@ type CounterRepositoryInterface interface {
 Returns interface counters for all interfaces on the Sonic device.
 First it gets all oids for interfaces and then gets counters for each interface by performing redis hmGet calls.
 */
-func (counterRepository *CounterRepository) GetCountersForActiveInterfaces(ctx context.Context) (InterfaceCountersMap, error) {
+func (counterRepository *CounterRepository) GetCountersForAllInterfaces(ctx context.Context) (InterfaceCountersMap, error) {
     var interfaceCountersMap = make(InterfaceCountersMap)
     var err error
     if interfaceToOidMapping == nil {
@@ -57,7 +57,7 @@ func (counterRepository *CounterRepository) GetCountersForActiveInterfaces(ctx c
     for interfaceName, interfaceOid := range interfaceToOidMapping {
         select {
         case <-ctx.Done():
-            return nil, errors.New("counter_repository.GetCountersForActiveInterfaces aborted")
+            return nil, errors.New("counter_repository.GetCountersForAllInterfaces aborted")
         default:
             interfaceCountersKey := counters_db_table_name + interfaceOid
             fields := []string{sai_port_stat_if_in_errors_field, sai_port_stat_if_in_ucast_pkts_field, sai_port_stat_if_out_ucast_pkts_field, sai_port_stat_if_out_errors_field}

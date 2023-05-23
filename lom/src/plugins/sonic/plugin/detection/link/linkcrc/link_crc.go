@@ -2,6 +2,7 @@
 package linkcrc
 
 import (
+    "context"
     "fmt"
     "lom/src/lib/lomcommon"
     "lom/src/lib/lomipc"
@@ -9,7 +10,6 @@ import (
     "lom/src/plugins/sonic/client/dbclient"
     "strings"
     "time"
-    "context"
 )
 
 const (
@@ -76,13 +76,16 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) Init(actionConfig *lomcomm
     return nil
 }
 
-/* Executes the crc detection logic. isExecutionHealthy is marked false when there is an issue in detecting the anomaly
-   This is the logic that is periodically executed to detect crc anoamlies */
+/*
+Executes the crc detection logic. isExecutionHealthy is marked false when there is an issue in detecting the anomaly
+
+    This is the logic that is periodically executed to detect crc anoamlies
+*/
 func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeCrcDetection(request *lomipc.ActionRequestData, isExecutionHealthy *bool, ctx context.Context) *lomipc.ActionResponseData {
     lomcommon.LogInfo(fmt.Sprintf(link_crc_prefix + "ExecuteCrcDetection Starting"))
     ifAnyInterfaceHasCrcError := false
     var listOfInterfacesWithCrcError strings.Builder
-    currentInterfaceCounters, err := linkCrcDetectionPlugin.counterRepository.GetCountersForActiveInterfaces(ctx)
+    currentInterfaceCounters, err := linkCrcDetectionPlugin.counterRepository.GetCountersForAllInterfaces(ctx)
     if err != nil {
         /* If redis call fails, there can be no detection that can be performed. Mark it unhealthy */
         lomcommon.LogError(link_crc_prefix + "Error fetching interface counters for LinkCrc detection")

@@ -1,9 +1,9 @@
 package dbclient
 
 import (
+    "context"
     "errors"
     "testing"
-    "context"
 
     "github.com/stretchr/testify/assert"
     "github.com/stretchr/testify/mock"
@@ -89,7 +89,7 @@ func Test_GetInterfaceCounters_ReturnsAllCountersSuccessfuly(t *testing.T) {
     // Act
     counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
     ctx, _ := context.WithCancel(context.Background())
-    result, err := counterDBClient.GetCountersForActiveInterfaces(ctx)
+    result, err := counterDBClient.GetCountersForAllInterfaces(ctx)
 
     // Assert
     mockRedisProvider.AssertNumberOfCalls(t, HmGetMethod, 3)
@@ -122,7 +122,7 @@ func Test_GetInterfaceCounters_ReturnsErrorWhenHGetAllMethodFails(t *testing.T) 
     // Act
     counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
     ctx, _ := context.WithCancel(context.Background())
-    result, err := counterDBClient.GetCountersForActiveInterfaces(ctx)
+    result, err := counterDBClient.GetCountersForAllInterfaces(ctx)
 
     // Assert
     if result != nil {
@@ -149,7 +149,7 @@ func Test_GetInterfaceCounters_ReturnsErrorWhenHmGetFails(t *testing.T) {
     // Act
     counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
     ctx, _ := context.WithCancel(context.Background())
-    result, err := counterDBClient.GetCountersForActiveInterfaces(ctx)
+    result, err := counterDBClient.GetCountersForAllInterfaces(ctx)
 
     // Assert
     mockRedisProvider.AssertExpectations(t)
@@ -181,7 +181,7 @@ func Test_GetInterfaceCounters_ReturnsErrorWhenIfInErrorsCastingFails(t *testing
     // Act
     counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
     ctx, _ := context.WithCancel(context.Background())
-    result, err := counterDBClient.GetCountersForActiveInterfaces(ctx)
+    result, err := counterDBClient.GetCountersForAllInterfaces(ctx)
 
     // Assert
     mockRedisProvider.AssertExpectations(t)
@@ -213,7 +213,7 @@ func Test_GetInterfaceCounters_ReturnsErrorWhenInUnicastPacketsCastingFails(t *t
     // Act
     counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
     ctx, _ := context.WithCancel(context.Background())
-    result, err := counterDBClient.GetCountersForActiveInterfaces(ctx)
+    result, err := counterDBClient.GetCountersForAllInterfaces(ctx)
 
     // Assert
     mockRedisProvider.AssertExpectations(t)
@@ -245,7 +245,7 @@ func Test_GetInterfaceCounters_ReturnsErrorWhenOutUnicastPacketsCastingFails(t *
     // Act
     counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
     ctx, _ := context.WithCancel(context.Background())
-    result, err := counterDBClient.GetCountersForActiveInterfaces(ctx)
+    result, err := counterDBClient.GetCountersForAllInterfaces(ctx)
     mockRedisProvider.AssertExpectations(t)
 
     // Assert
@@ -302,20 +302,20 @@ func Test_isInterfaceActive_ReturnsFalseWhenRedisCallFails(t *testing.T) {
 
 /* Test GetInterfaceCounters returns error when context is cancelled. */
 func Test_GetInterfaceCounters_ErrorsWhenContextCancelled(t *testing.T) {
-	// Mock
-	mockRedisProvider := new(MockRedisProvider)
-	newMap := getInterfaceToODIMapping()
-	(mockRedisProvider).On(HGetAllMethod, 2, COUNTERS_PORT_NAME_MAP).Maybe().Return(newMap, nil)
+    // Mock
+    mockRedisProvider := new(MockRedisProvider)
+    newMap := getInterfaceToODIMapping()
+    (mockRedisProvider).On(HGetAllMethod, 2, COUNTERS_PORT_NAME_MAP).Maybe().Return(newMap, nil)
 
-	// Act
-	counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	cancelFunc()
-	result, err := counterDBClient.GetCountersForActiveInterfaces(ctx)
+    // Act
+    counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
+    ctx, cancelFunc := context.WithCancel(context.Background())
+    cancelFunc()
+    result, err := counterDBClient.GetCountersForAllInterfaces(ctx)
 
-	// Assert
-	if result != nil {
-		t.Errorf("result is expected to be nil")
-	}
-	assert.NotEqual(t, nil, err, "err is exptected to be non nil")
+    // Assert
+    if result != nil {
+        t.Errorf("result is expected to be nil")
+    }
+    assert.NotEqual(t, nil, err, "err is exptected to be non nil")
 }
