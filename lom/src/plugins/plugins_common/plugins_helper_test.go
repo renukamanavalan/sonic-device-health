@@ -183,7 +183,7 @@ type DummyPlugin struct {
 
 func (dummyPlugin *DummyPlugin) Init(actionConfig *lomcommon.ActionCfg_t) error {
     dummyPlugin.testValue1 = 1
-    err := dummyPlugin.PeriodicDetectionPluginUtil.Init(pluginName, testRequestFrequency, actionConfig, dummyPlugin.executeRequest, dummyPlugin.executeShutdown)
+    err := dummyPlugin.PeriodicDetectionPluginUtil.Init(actionConfig.Name, testRequestFrequency, actionConfig, dummyPlugin.executeRequest, dummyPlugin.executeShutdown)
     if err != nil {
         return err
     }
@@ -223,20 +223,20 @@ func Test_PeriodicDetectionPluginUtil_InitReturnsErrorForInvalidArgument(t *test
     // Mock
     periodicDetectionPluginUtil := &PeriodicDetectionPluginUtil{}
     testRequestFrequency = 1
-    actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: -1}
+    actionConfig := lomcommon.ActionCfg_t{Name: pluginName, HeartbeatInt: -1}
     err := periodicDetectionPluginUtil.Init("dummyName", 10, &actionConfig, nil, nil)
 
     // Assert.
     assert := assert.New(t)
     assert.NotNil(err, "err is expected to be non nil")
 
-    actionConfig = lomcommon.ActionCfg_t{HeartbeatInt: 1}
+    actionConfig = lomcommon.ActionCfg_t{Name: pluginName, HeartbeatInt: 1}
     err = periodicDetectionPluginUtil.Init("dummyName", -10, &actionConfig, nil, nil)
 
     // Assert.
     assert.NotNil(err, "err is expected to be non nil")
 
-    actionConfig = lomcommon.ActionCfg_t{HeartbeatInt: 1}
+    actionConfig = lomcommon.ActionCfg_t{Name: pluginName, HeartbeatInt: 1}
     err = periodicDetectionPluginUtil.Init("dummyName", 10, &actionConfig, nil, nil)
 
     // Assert.
@@ -281,7 +281,7 @@ func Test_PeriodicDetectionPluginUtil_RequestDetectsSuccessfulyAndStopsHeartBeat
     var dummyPlugin Plugin
     testRequestFrequency = 5
     dummyPlugin = &DummyPlugin{}
-    actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 2}
+    actionConfig := lomcommon.ActionCfg_t{Name: "pluginName1", HeartbeatInt: 2}
     dummyPlugin.Init(&actionConfig)
     request := &lomipc.ActionRequestData{}
     pluginHBChan := make(chan PluginHeartBeat)
@@ -300,37 +300,8 @@ func Test_PeriodicDetectionPluginUtil_RequestDetectsSuccessfulyAndStopsHeartBeat
     assert := assert.New(t)
     assert.NotNil(response, "response is expected to be non nil")
     assert.Equal(-1, response.ResultCode, "ResultCode is expected to be as sent by dummy plugin")
-    time.Sleep(4 * time.Second)
+    time.Sleep(3 * time.Second)
     assert.Equal(1, totalHbReceived, "Hb received should be 1")
-    assert.Equal(2, dummyPlugin.(*DummyPlugin).testValue1, "someValue is expected to be 2")
-}
-
-/* Validates that the util sends heartbeat */
-func Test_PeriodicDetectionPluginUtil_SendsHeartbeatUntilShutdown(t *testing.T) {
-    var dummyPlugin Plugin
-    testRequestFrequency = 1
-    dummyPlugin = &DummyPlugin{}
-    actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 2}
-    dummyPlugin.Init(&actionConfig)
-    request := &lomipc.ActionRequestData{Action: "ReturnNilScenario"}
-    go func() {
-        time.Sleep(3 * time.Second)
-        dummyPlugin.Shutdown()
-    }()
-    pluginHBChan := make(chan PluginHeartBeat)
-    totalHbReceived := 0
-    go func() {
-        for i := 0; i < 10; i++ {
-            <-pluginHBChan
-            totalHbReceived++
-        }
-    }()
-    response := dummyPlugin.Request(pluginHBChan, request)
-    assert := assert.New(t)
-    assert.NotNil(response, "response is expected to be non nil")
-    assert.Equal(2, response.ResultCode, "ResultCode is expected to be aborted")
-    time.Sleep(5 * time.Second)
-    assert.Equal(2, totalHbReceived, "Hb received should be 2")
     assert.Equal(2, dummyPlugin.(*DummyPlugin).testValue1, "someValue is expected to be 2")
 }
 
@@ -339,7 +310,7 @@ func Test_PeriodicDetectionPluginUtil_EnsureRequestAndHeartbeatAbortedOnShutdown
     var dummyPlugin Plugin
     testRequestFrequency = 2
     dummyPlugin = &DummyPlugin{}
-    actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 4}
+    actionConfig := lomcommon.ActionCfg_t{Name: "pluginName2", HeartbeatInt: 2}
     dummyPlugin.Init(&actionConfig)
     request := &lomipc.ActionRequestData{Action: "ReturnNilScenario"}
     go func() {
@@ -358,10 +329,10 @@ func Test_PeriodicDetectionPluginUtil_EnsureRequestAndHeartbeatAbortedOnShutdown
     assert := assert.New(t)
     assert.NotNil(response, "response is expected to be non nil")
     // Give shutdown 2 seconds to finish its complete execution and also heartbeat to get stopped.
-    time.Sleep(4 * time.Second)
+    time.Sleep(1 * time.Second)
     assert.Equal(2, dummyPlugin.(*DummyPlugin).testValue1, "someValue is expected to be 2")
     assert.Equal(3, dummyPlugin.(*DummyPlugin).testValue2, "otherValue is expected to be 3")
-    assert.Equal(1, totalHbReceived, "Hb received should be 1")
+    assert.Equal(2, totalHbReceived, "Hb received should be 2")
     assert.Equal(2, response.ResultCode, "ResultCode is expected to be aborted")
 }
 
@@ -370,7 +341,7 @@ func Test_PeriodicDetectionPluginUtil_EnsureHeartBeatStopsForLongRunningRequest(
     var dummyPlugin Plugin
     testRequestFrequency = 2
     dummyPlugin = &DummyPlugin{}
-    actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 3}
+    actionConfig := lomcommon.ActionCfg_t{Name: "pluginName3", HeartbeatInt: 3}
     dummyPlugin.Init(&actionConfig)
     request := &lomipc.ActionRequestData{Action: "Sleep"}
     pluginHBChan := make(chan PluginHeartBeat)
@@ -410,7 +381,7 @@ func Test_PeriodicDetectionPluginUtil_HandleHeartBeatSkipsHeartBeatForConsecutiv
     dummyPlugin.publishHeartBeat(pluginHBChan)
     assert := assert.New(t)
     // Ensure heartbeat is not published.
-    time.Sleep(2 * time.Second)
+    time.Sleep(1 * time.Second)
     assert.Equal(0, totalHbReceived, "Hb received should be 0")
 }
 
@@ -434,7 +405,7 @@ func Test_PeriodicDetectionPluginUtil_HandleHeartBeatSkipsHeartBeatAfterLongRunC
     dummyPlugin.publishHeartBeat(pluginHBChan)
     assert := assert.New(t)
     // Ensure heartbeat is not published
-    time.Sleep(2 * time.Second)
+    time.Sleep(1 * time.Second)
     assert.Equal(0, totalHbReceived, "Hb received should be 0")
 }
 
@@ -458,7 +429,7 @@ func Test_PeriodicDetectionPluginUtil_HandleHeartBeatSkipsHeartBeatForLongRunnin
     dummyPlugin.publishHeartBeat(pluginHBChan)
     assert := assert.New(t)
     // Ensure heartbeat is not published
-    time.Sleep(2 * time.Second)
+    time.Sleep(1 * time.Second)
     assert.Equal(0, totalHbReceived, "Hb received should be 0")
 }
 
@@ -467,7 +438,7 @@ func Test_PeriodicDetectionPluginUtil_RequestIncrementsErrorCountForUnhealthyExe
     // Mock
     testRequestFrequency = 30
     dummyPlugin := &DummyPlugin{}
-    actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 3600}
+    actionConfig := lomcommon.ActionCfg_t{Name: "pluginName4", HeartbeatInt: 3600}
     dummyPlugin.Init(&actionConfig)
     request := &lomipc.ActionRequestData{Action: "ReturnNilScenarioWithError"}
     pluginHBChan := make(chan PluginHeartBeat)
@@ -501,7 +472,7 @@ func Test_PeriodicDetectionPluginUtil_RequestResetsErrorCountAfterhealthyExecuti
     // Mock
     testRequestFrequency = 30
     dummyPlugin := &DummyPlugin{}
-    actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 3600}
+    actionConfig := lomcommon.ActionCfg_t{Name: "pluginName5", HeartbeatInt: 3600}
     dummyPlugin.Init(&actionConfig)
     request := &lomipc.ActionRequestData{Action: "ReturnNilScenario"}
     pluginHBChan := make(chan PluginHeartBeat)

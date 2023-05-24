@@ -330,7 +330,7 @@ loop:
 
         case <-periodicDetectionPluginUtil.ctx.Done():
             /* Shutdown stops the periodic detection */
-            lomcommon.LogInfo(fmt.Sprintf("Aborting Request for (%s)", periodicDetectionPluginUtil.PluginName))
+            lomcommon.LogInfo(fmt.Sprintf("Aborting handleRequest for (%s)", periodicDetectionPluginUtil.PluginName))
             break loop
         }
     }
