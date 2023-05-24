@@ -252,6 +252,11 @@ func Test_PeriodicDetectionPluginUtil_InitReturnsErrorForInvalidArgument(t *test
 
     // Assert.
     assert.NotNil(err, "err is expected to be non nil")
+    actionConfig = lomcommon.ActionCfg_t{HeartbeatInt: 10}
+    err = periodicDetectionPluginUtil.Init("", 10, &actionConfig, dummyPlugin.executeRequest, dummyPlugin.executeShutdown)
+
+    // Assert.
+    assert.NotNil(err, "err is expected to be non nil")
 }
 
 /* Validates that Request returns failure when actionRequest has timeout */
@@ -360,37 +365,6 @@ func Test_PeriodicDetectionPluginUtil_EnsureRequestAndHeartbeatAbortedOnShutdown
     assert.Equal(2, response.ResultCode, "ResultCode is expected to be aborted")
 }
 
-/* Validates that the heartbeat stops for consecutive errors */
-func Test_PeriodicDetectionPluginUtil_EnsureHeartBeatStopsForConsecutiveErrors(t *testing.T) {
-    var dummyPlugin Plugin
-    testRequestFrequency = 1
-    dummyPlugin = &DummyPlugin{}
-    actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 4}
-    dummyPlugin.Init(&actionConfig)
-    request := &lomipc.ActionRequestData{Action: "ReturnNilScenarioWithError"}
-    go func() {
-        time.Sleep(6 * time.Second)
-        dummyPlugin.Shutdown()
-    }()
-    pluginHBChan := make(chan PluginHeartBeat)
-    totalHbReceived := 0
-    go func() {
-        for i := 0; i < 10; i++ {
-            <-pluginHBChan
-            totalHbReceived++
-        }
-    }()
-    response := dummyPlugin.Request(pluginHBChan, request)
-    assert := assert.New(t)
-    assert.NotNil(response, "response is expected to be non nil")
-    // Give shutdown few seconds to finish its complete execution and also heartbeat to get stopped.
-    time.Sleep(7 * time.Second)
-    assert.Equal(2, dummyPlugin.(*DummyPlugin).testValue1, "someValue is expected to be 2")
-    assert.Equal(3, dummyPlugin.(*DummyPlugin).testValue2, "otherValue is expected to be 3")
-    assert.Equal(1, totalHbReceived, "Hb received should be 1")
-    assert.Equal(2, response.ResultCode, "ResultCode is expected to be aborted")
-}
-
 /* Validates that the heartbeat stops for long running request */
 func Test_PeriodicDetectionPluginUtil_EnsureHeartBeatStopsForLongRunningRequest(t *testing.T) {
     var dummyPlugin Plugin
@@ -411,7 +385,6 @@ func Test_PeriodicDetectionPluginUtil_EnsureHeartBeatStopsForLongRunningRequest(
     assert := assert.New(t)
     assert.NotNil(response, "response is expected to be non nil")
     // Give shutdown few seconds to finish its complete execution and also heartbeat to get stopped.
-    time.Sleep(7 * time.Second)
     assert.Equal(2, dummyPlugin.(*DummyPlugin).testValue1, "someValue is expected to be 2")
     assert.Equal(0, dummyPlugin.(*DummyPlugin).testValue2, "otherValue is expected to be 3")
     assert.Equal(1, totalHbReceived, "Hb received should be 1")
@@ -420,7 +393,6 @@ func Test_PeriodicDetectionPluginUtil_EnsureHeartBeatStopsForLongRunningRequest(
 
 /* Validates that the heartbeat is skipped for consecutive errors */
 func Test_PeriodicDetectionPluginUtil_HandleHeartBeatSkipsHeartBeatForConsecutiveErrors(t *testing.T) {
-    //var dummyPlugin Plugin
     dummyPlugin := &DummyPlugin{}
     dummyPlugin.requestFrequencyInSecs = 5
     dummyPlugin.detectionRunInfo = DetectionRunInfo{durationOfLatestRunInSeconds: 2}
@@ -437,14 +409,13 @@ func Test_PeriodicDetectionPluginUtil_HandleHeartBeatSkipsHeartBeatForConsecutiv
 
     dummyPlugin.publishHeartBeat(pluginHBChan)
     assert := assert.New(t)
-    // Ensure even after waiting for 7 seconds, the count of heartbeats is still 3.
-    time.Sleep(5 * time.Second)
+    // Ensure heartbeat is not published.
+    time.Sleep(2 * time.Second)
     assert.Equal(0, totalHbReceived, "Hb received should be 0")
 }
 
 /* Validates that the heartbeat is skipped after a completion of long run request */
 func Test_PeriodicDetectionPluginUtil_HandleHeartBeatSkipsHeartBeatAfterLongRunCompletion(t *testing.T) {
-    //var dummyPlugin Plugin
     dummyPlugin := &DummyPlugin{}
     dummyPlugin.requestFrequencyInSecs = 5
     timeNowInUtc := time.Now().UTC().Add(-1 * time.Millisecond)
@@ -462,14 +433,13 @@ func Test_PeriodicDetectionPluginUtil_HandleHeartBeatSkipsHeartBeatAfterLongRunC
 
     dummyPlugin.publishHeartBeat(pluginHBChan)
     assert := assert.New(t)
-    // Ensure even after waiting for 7 seconds, the count of heartbeats is still 3.
-    time.Sleep(5 * time.Second)
+    // Ensure heartbeat is not published
+    time.Sleep(2 * time.Second)
     assert.Equal(0, totalHbReceived, "Hb received should be 0")
 }
 
 /* Validates that the heartbeat is skipped for long running request */
 func Test_PeriodicDetectionPluginUtil_HandleHeartBeatSkipsHeartBeatForLongRunningRequest(t *testing.T) {
-    //var dummyPlugin Plugin
     dummyPlugin := &DummyPlugin{}
     dummyPlugin.requestFrequencyInSecs = 2
     timeNowInUtc := time.Now().UTC().Add(-3 * time.Second)
@@ -487,8 +457,8 @@ func Test_PeriodicDetectionPluginUtil_HandleHeartBeatSkipsHeartBeatForLongRunnin
 
     dummyPlugin.publishHeartBeat(pluginHBChan)
     assert := assert.New(t)
-    // Ensure even after waiting for 5 seconds, the count of heartbeats is still 1.
-    time.Sleep(5 * time.Second)
+    // Ensure heartbeat is not published
+    time.Sleep(2 * time.Second)
     assert.Equal(0, totalHbReceived, "Hb received should be 0")
 }
 

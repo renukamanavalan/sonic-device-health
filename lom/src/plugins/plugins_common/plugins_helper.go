@@ -252,8 +252,8 @@ func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Request(
 /* Publishes heartbeat after performing validations */
 func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) publishHeartBeat(hbchan chan PluginHeartBeat) {
 
-    periodicDetectionPluginUtil.detectionRunInfo.mutex.Lock()
     numConsecutiveErrors := periodicDetectionPluginUtil.numOfConsecutiveErrors.Load()
+    periodicDetectionPluginUtil.detectionRunInfo.mutex.Lock()
     durationOfLatestRunInSecs := periodicDetectionPluginUtil.detectionRunInfo.durationOfLatestRunInSeconds
     var currentRunStartTimeInUtc time.Time
     if periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc != nil {
