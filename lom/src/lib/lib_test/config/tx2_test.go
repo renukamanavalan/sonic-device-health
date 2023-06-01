@@ -186,7 +186,7 @@ func TestGoroutineTracker(t *testing.T) {
 
         // Check that the goroutine is no longer running after waiting for it
         wg.Wait()
-        time.Sleep(1000 * time.Millisecond)
+        time.Sleep(100 * time.Millisecond)
         running, _ = mygoroutinetracker.IsRunning("test_goroutine5")
         assert.False(t, running)
 

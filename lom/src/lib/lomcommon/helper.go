@@ -689,7 +689,7 @@ func (p *oneShotTimer_t) runOneShotTimer() {
 
         case <-time.After(time.Duration(tout) * time.Second):
 
-        case <- chAbort:
+        case <-chAbort:
             LogInfo("runOneShotTimer: System abort called. terminating...")
             return
         }
