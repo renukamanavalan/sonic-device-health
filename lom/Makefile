@@ -36,7 +36,7 @@ CMN_C_LIB=$(BUILD_DIR)/lib/cmn_c_lib.so
 
 # Binaries used in LoM system
 ENGINE_BIN := $(BIN_DIR)/LoMEngine
-PLUGIN_MANAGER_BIN := $(BIN_DIR)/pluginmgr
+PLUGIN_MANAGER_BIN := $(BIN_DIR)/LoMPluginMgr
 
 # Test binaries/flags
 LIB_TEST = $(TEST_DIR)/LibTested
@@ -74,7 +74,10 @@ endef
 
 .PHONY: all clean
 
-all: | format_code $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST) $(PY_TEST) $(PLUGIN_MANAGER_BIN)
+all: format_code $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) \
+	$(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST) $(PY_TEST) \
+	$(PLUGIN_MANAGER_BIN)
+
 
 $(CMN_C_LIB): $(SRC_FILES)
 	mkdir -p $(LIB_DIR)

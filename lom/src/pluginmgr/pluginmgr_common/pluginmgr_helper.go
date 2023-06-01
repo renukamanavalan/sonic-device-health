@@ -41,7 +41,7 @@ const (
     PLUGIN_LOADING_TIMEOUT_DEFAULT           = 30 * time.Second
     PLUGIN_SHUTDOWN_TIMEOUT_DEFAULT          = 30 * time.Second
     GOROUTINE_CLEANUP_TIMEOUT_DEFAULT        = 30 * time.Second
-    APP_NAME_DEAULT                          = "plgMgr"
+    APP_NAME_DEAULT                          = "PluginMgr"
 )
 
 var LogInfo = lomcommon.LogInfo
@@ -118,7 +118,7 @@ func GetPluginManager(clientTx IClientTx) *PluginManager {
     }
 
     // register for system shutdown
-    schan := RegisterForSysShutdown(APP_NAME_DEAULT + ProcID)
+    schan := RegisterForSysShutdown(APP_NAME_DEAULT + "_" + ProcID)
 
     vpluginMgr := &PluginManager{
         clientTx:         clientTx,
@@ -935,7 +935,7 @@ func SetupPluginManager() error {
     ParseArguments()
 
     // setup application prefix for logging
-    lomcommon.SetPrefix(APP_NAME_DEAULT + ProcID)
+    lomcommon.SetPrefix(APP_NAME_DEAULT + "_" + ProcID)
 
     //syslog level change from UNIX signals
     SetupSignals()

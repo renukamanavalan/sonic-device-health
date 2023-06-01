@@ -31,5 +31,12 @@
 			"version": "1.0",
 			"path": ""
 		}
+	},
+	"proc_4": {
+		"GenericPluginDetection": {
+			"name": "GenericPluginDetection",
+			"version": "1.0",
+			"path": ""
+		}
 	}
 }

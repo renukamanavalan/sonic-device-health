@@ -119,6 +119,8 @@ func (m *MockPluginMetadata) CheckMisbehavingPlugins(pluginKey string) bool {
 
 // ------------------------------------------ Logger -------------------------------------------------------------//
 
+var loggerPrint bool = true
+
 type myLogger struct {
     data []string
     pid  string
@@ -130,7 +132,9 @@ func (m *myLogger) LogInfo(s string, a ...interface{}) {
     m.mu.Lock()
     defer m.mu.Unlock()
     m.data = append(m.data, msg)
-    //fmt.Println(m.pid + " : " + msg)
+    if loggerPrint {
+        fmt.Println(m.pid + " : " + msg)
+    }
 }
 
 func (m *myLogger) LogError(s string, a ...interface{}) error {
@@ -139,7 +143,9 @@ func (m *myLogger) LogError(s string, a ...interface{}) error {
     defer m.mu.Unlock()
     m.data = append(m.data, msg)
     err := errors.New(msg)
-    //fmt.Println(m.pid + " : " + msg)
+    if loggerPrint {
+        fmt.Println(m.pid + " : " + msg)
+    }
     return err
 }
 
@@ -148,7 +154,9 @@ func (m *myLogger) LogDebug(s string, a ...interface{}) {
     m.mu.Lock()
     defer m.mu.Unlock()
     m.data = append(m.data, msg)
-    //fmt.Println(m.pid + " : " + msg)
+    if loggerPrint {
+        fmt.Println(m.pid + " : " + msg)
+    }
 }
 
 func (m *myLogger) LogWarning(s string, a ...interface{}) {
@@ -156,7 +164,9 @@ func (m *myLogger) LogWarning(s string, a ...interface{}) {
     m.mu.Lock()
     defer m.mu.Unlock()
     m.data = append(m.data, msg)
-    //fmt.Println(m.pid + " : " + msg)
+    if loggerPrint {
+        fmt.Println(m.pid + " : " + msg)
+    }
 }
 
 func (m *myLogger) LogPanic(s string, a ...interface{}) {
@@ -164,7 +174,9 @@ func (m *myLogger) LogPanic(s string, a ...interface{}) {
     m.mu.Lock()
     defer m.mu.Unlock()
     m.data = append(m.data, msg)
-    //fmt.Println(m.pid + " : " + msg)
+    if loggerPrint {
+        fmt.Println(m.pid + " : " + msg)
+    }
 }
 
 func (m *myLogger) FindPrefix(prefix string) bool {
@@ -209,7 +221,9 @@ func (m *myLogger) myAddPeriodicLogWithTimeouts(ID string, message string, short
     m.mu.Lock()
     defer m.mu.Unlock()
     m.data = append(m.data, message)
-    fmt.Println(m.pid + " : " + message)
+    if loggerPrint {
+        fmt.Println(m.pid + " : " + message)
+    }
 
     return doneChan
 }
@@ -274,7 +288,7 @@ func SearchGoroutineTracker(namePrefix string) bool {
 // ------------------------------------------ Tests -------------------------------------------------------------//
 
 // Test Run() function
-func TestNewPluginManager(t *testing.T) {
+func Test_NewPluginManager(t *testing.T) {
     // Setup
     setup()
     mockClient := new(mockClientTx)
@@ -293,7 +307,8 @@ func TestNewPluginManager(t *testing.T) {
     assert.Equal(t, obj, obj2)
 }
 
-func TestNewPluginManager2(t *testing.T) {
+// tests the case when RegisterClient() returns error
+func Test_NewPluginManager2(t *testing.T) {
     // Setup
     logger := setup()
     mockClient := new(mockClientTx)
@@ -308,7 +323,8 @@ func TestNewPluginManager2(t *testing.T) {
     mockClient.AssertExpectations(t)
 }
 
-func TestGetPlugin(t *testing.T) {
+// tests valid and invalid plugin names
+func Test_GetPlugin(t *testing.T) {
     // Create a PluginManager object
     pluginManager := &PluginManager{
         plugins: map[string]plugins_common.Plugin{
@@ -332,7 +348,8 @@ func TestGetPlugin(t *testing.T) {
     assert.False(t, ok)
 }
 
-func TestGetPluginMetadata(t *testing.T) {
+// tests valid and invalid plugin names with focus on plugin metadata
+func Test_GetPluginMetadata(t *testing.T) {
     // Create a PluginManager object
     pluginManager := &PluginManager{
         pluginMetadata: map[string]plugins_common.IPluginMetadata{
@@ -356,7 +373,8 @@ func TestGetPluginMetadata(t *testing.T) {
     assert.False(t, ok)
 }
 
-func TestSetShutdownStatus(t *testing.T) {
+// tests set shutdown status
+func Test_SetShutdownStatus(t *testing.T) {
     // Create a PluginManager object
     pluginManager := &PluginManager{}
 
@@ -373,7 +391,8 @@ func TestSetShutdownStatus(t *testing.T) {
     assert.False(t, pluginManager.getShutdownStatus())
 }
 
-func TestGetShutdownStatus(t *testing.T) {
+// tests get shutdown status
+func Test_GetShutdownStatus(t *testing.T) {
     // Create a PluginManager object
     pluginManager := &PluginManager{}
 
@@ -387,22 +406,22 @@ func TestGetShutdownStatus(t *testing.T) {
     assert.True(t, isActiveShutdown)
 }
 
-func TestRun(t *testing.T) {
+func Test_Run(t *testing.T) {
 
+    // RecvServerRequest() with empty message and no error
     t.Run("Run test start goroutine 1", func(t *testing.T) {
         logger := setup()
         // Create the mock objects
         clientTx := new(mockClientTx)
         clientTx.On("RegisterClient", mock.Anything).Return(nil) // pass anything as first argument
 
-        //logger := setupMockLogger()
         syschan := make(chan int, 1)
         RegisterForSysShutdown = func(caller string) <-chan int {
             return syschan
         }
 
         // Set up the expectations for the mock objects
-        clientTx.On("RecvServerRequest").Return(&lomipc.ServerRequestData{}, nil)
+        clientTx.On("RecvServerRequest").Return(&lomipc.ServerRequestData{}, nil) //empty request, no error
 
         // Create the PluginManager instance with the mock objects
         plmgr := GetPluginManager(clientTx)
@@ -422,7 +441,7 @@ func TestRun(t *testing.T) {
             t.Errorf("Expected log message not found")
         }
 
-        if !logger.FindPrefix("In run() RecvServerRequest: Shutdown is active, ignoring request:") {
+        if !logger.FindPrefixWait("In run() RecvServerRequest: Shutdown is active, ignoring request:", 2*time.Second) {
             t.Errorf("Expected log message not found")
         }
 
@@ -435,6 +454,7 @@ func TestRun(t *testing.T) {
         clientTx.AssertExpectations(t)
     })
 
+    // RecvServerRequest with empty message and error
     t.Run("Run test start goroutine 2", func(t *testing.T) {
         logger := setup()
         // Create the mock objects
@@ -448,7 +468,7 @@ func TestRun(t *testing.T) {
         }
 
         // Set up the expectations for the mock objects
-        clientTx.On("RecvServerRequest").Return(&lomipc.ServerRequestData{}, errors.New("some error"))
+        clientTx.On("RecvServerRequest").Return(&lomipc.ServerRequestData{}, errors.New("some error")) // empty request, error
 
         // Create the PluginManager instance with the mock objects
         plmgr := GetPluginManager(clientTx)
@@ -468,11 +488,11 @@ func TestRun(t *testing.T) {
             t.Errorf("Expected log message not found")
         }
 
-        if !logger.FindPrefix("In run() RecvServerRequest: Shutdown is active, ignoring request:") {
+        if !logger.FindPrefixWait("In run() RecvServerRequest: Shutdown is active, ignoring request:", 2*time.Second) {
             t.Errorf("Expected log message not found")
         }
 
-        if !logger.FindPrefix("RecvServerRequest() : Received system shutdown. Stopping plugin manager run loop") {
+        if !logger.FindPrefixWait("RecvServerRequest() : Received system shutdown. Stopping plugin manager run loop", 2*time.Second) {
             t.Errorf("Expected log message not found")
         }
 
@@ -481,6 +501,7 @@ func TestRun(t *testing.T) {
         clientTx.AssertExpectations(t)
     })
 
+    // RecvServerRequest with nil message and nil error
     t.Run("Run test start goroutine 3", func(t *testing.T) {
         logger := setup()
         // Create the mock objects
@@ -514,11 +535,11 @@ func TestRun(t *testing.T) {
             t.Errorf("Expected log message not found")
         }
 
-        if !logger.FindPrefix("In run() RecvServerRequest: Shutdown is active, ignoring request:") {
+        if !logger.FindPrefixWait("In run() RecvServerRequest: Shutdown is active, ignoring request:", 2*time.Second) {
             t.Errorf("Expected log message not found")
         }
 
-        if !logger.FindPrefix("RecvServerRequest() : Received system shutdown. Stopping plugin manager run loop") {
+        if !logger.FindPrefixWait("RecvServerRequest() : Received system shutdown. Stopping plugin manager run loop", 2*time.Second) {
             t.Errorf("Expected log message not found")
         }
 
@@ -526,6 +547,7 @@ func TestRun(t *testing.T) {
         clientTx.AssertExpectations(t)
     })
 
+    // RecvServerRequest with TypeServerRequestAction and invalid plugin name
     t.Run("Run test main goroutine  TypeServerRequestAction 1", func(t *testing.T) {
         logger := setup()
         // Create the mock objects
@@ -569,6 +591,7 @@ func TestRun(t *testing.T) {
         clientTx.AssertExpectations(t)
     })
 
+    // RecvServerRequest with TypeServerRequestAction and request data is nil
     t.Run("Run test main goroutine TypeServerRequestAction 2", func(t *testing.T) {
         logger := setup()
         // Create the mock objects
@@ -610,6 +633,7 @@ func TestRun(t *testing.T) {
         clientTx.AssertExpectations(t)
     })
 
+    // RecvServerRequest with  TypeServerRequestShutdown and valid request data
     t.Run("Run test main goroutine  TypeServerRequestShutdown 1", func(t *testing.T) {
         logger := setup()
         // Create the mock objects
@@ -668,6 +692,7 @@ func TestRun(t *testing.T) {
         clientTx.AssertExpectations(t)
     })
 
+    // RecvServerRequest with  TypeServerRequestShutdown and invalid request data
     t.Run("Run test main goroutine  TypeServerRequestShutdown 2", func(t *testing.T) {
         logger := setup()
         // Create the mock objects
@@ -720,6 +745,7 @@ func TestRun(t *testing.T) {
         clientTx.AssertExpectations(t)
     })
 
+    // test responseChan with MsgNotifyHeartbeat and  error
     t.Run("Run test main goroutine  responseChan  MsgNotifyHeartbeat 1", func(t *testing.T) {
         logger := setup()
         // Create the mock objects
@@ -770,6 +796,7 @@ func TestRun(t *testing.T) {
         clientTx.AssertExpectations(t)
     })
 
+    // test responseChan with MsgNotifyHeartbeat and  non error call
     t.Run("Run test main goroutine  responseChan  MsgNotifyHeartbeat 2", func(t *testing.T) {
         logger := setup()
         // Create the mock objects
@@ -820,6 +847,8 @@ func TestRun(t *testing.T) {
         clientTx.AssertExpectations(t)
     })
 
+    // test responseChan with MsgSendServerResponse with ReqType as TypeServerRequestAction and data as valid and
+    // SendServerResponse returns error
     t.Run("Run test main goroutine  responseChan 1", func(t *testing.T) {
         logger := setup()
         // Create the mock objects
@@ -876,6 +905,8 @@ func TestRun(t *testing.T) {
         clientTx.AssertExpectations(t)
     })
 
+    // test responseChan with MsgSendServerResponse with ReqType as TypeServerRequestAction and data as valid and
+    // SendServerResponse returns nil
     t.Run("Run test main goroutine  responseChan 2", func(t *testing.T) {
         logger := setup()
         // Create the mock objects
@@ -930,7 +961,8 @@ func TestRun(t *testing.T) {
     })
 }
 
-func TestVerifyRequestMsg(t *testing.T) {
+// TestVerifyRequestMsg tests the verifyRequestMsg() function
+func Test_VerifyRequestMsg(t *testing.T) {
     // Create a mock logger
     logger := setup()
 
@@ -1048,7 +1080,9 @@ func TestVerifyRequestMsg(t *testing.T) {
     assert.NoError(t, err)
 }
 
-func TestHandleMisbehavingPlugins(t *testing.T) {
+// TestHandleMisbehavingPlugins tests the handleMisbehavingPlugins() function
+func Test_HandleMisbehavingPlugins(t *testing.T) {
+    // test for plugin which is mis behaving
     t.Run("TestHandleMisbehavingPlugins 1", func(t *testing.T) {
 
         // Create a mock logger
@@ -1099,6 +1133,7 @@ func TestHandleMisbehavingPlugins(t *testing.T) {
         clientTx.AssertExpectations(t)
     })
 
+    // test for plugin which is not misbehaving
     t.Run("TestHandleMisbehavingPlugins 2", func(t *testing.T) {
         // Create a mock logger
         setup()
@@ -1127,6 +1162,7 @@ func TestHandleMisbehavingPlugins(t *testing.T) {
         clientTx.AssertExpectations(t)
     })
 
+    // test for plugin which is not misbehaving
     t.Run("TestHandleMisbehavingPlugins 3", func(t *testing.T) {
         // Create a mock logger
         setup()
@@ -1154,8 +1190,10 @@ func TestHandleMisbehavingPlugins(t *testing.T) {
     })
 }
 
-func TestHandleRequestWithHeartbeats(t *testing.T) {
+// TestHandleRequestWithHeartbeats tests the handleRequestWithHeartbeats() function
+func Test_HandleRequestWithHeartbeats(t *testing.T) {
 
+    // heardtbeat received with valid plugin
     t.Run("TestshandleRequestWithHeartbeats 1", func(t *testing.T) {
 
         logger := setup()
@@ -1206,6 +1244,7 @@ func TestHandleRequestWithHeartbeats(t *testing.T) {
         clientTx.AssertExpectations(t)
     })
 
+    // heardtbeat received with invalid plugin
     t.Run("TestshandleRequestWithHeartbeats 2", func(t *testing.T) {
 
         logger := setup()
@@ -1252,6 +1291,7 @@ func TestHandleRequestWithHeartbeats(t *testing.T) {
         clientTx.AssertExpectations(t)
     })
 
+    // valid plugin and test response
     t.Run("TestshandleRequestWithHeartbeats 3", func(t *testing.T) {
         setup()
         clientTx := new(mockClientTx)
@@ -1295,7 +1335,9 @@ func TestHandleRequestWithHeartbeats(t *testing.T) {
     })
 }
 
-func TestHandleRequestWithTimeouts(t *testing.T) {
+// Test_HandleRequestWithTimeouts tests the handleRequestWithTimeouts() function
+func Test_HandleRequestWithTimeouts(t *testing.T) {
+    // valid plugin and test response
     t.Run("TestHandleRequestWithTimeouts 1", func(t *testing.T) {
         setup()
         clientTx := new(mockClientTx)
@@ -1346,6 +1388,7 @@ func TestHandleRequestWithTimeouts(t *testing.T) {
         clientTx.AssertExpectations(t)
     })
 
+    // valid plugin and test response with timeout
     t.Run("TestHandleRequestWithTimeouts 2", func(t *testing.T) {
         logger := setup()
         clientTx := new(mockClientTx)
@@ -1404,7 +1447,8 @@ func TestHandleRequestWithTimeouts(t *testing.T) {
     })
 }
 
-func TestHandleShutdown(t *testing.T) {
+// Test_HandleShutdown tests the handleShutdown() functions
+func Test_HandleShutdown(t *testing.T) {
 
     syschan := make(chan int, 1)
     RegisterForSysShutdown = func(caller string) <-chan int {
@@ -1422,6 +1466,7 @@ func TestHandleShutdown(t *testing.T) {
     DoSysShutdown = func(toutSecs int) {
         // do nothing
     }
+
     t.Run("TesthandleShutdown successful", func(t *testing.T) {
         logger := setup()
         clientTx := new(mockClientTx)
@@ -1611,7 +1656,7 @@ func TestHandleShutdown(t *testing.T) {
     })
 }
 
-func TestShutdownPlugin(t *testing.T) {
+func Test_ShutdownPlugin(t *testing.T) {
     t.Run("TestShutdownPlugin ShutdownSuccessful", func(t *testing.T) {
         logger := setup()
         clientTx := new(mockClientTx)
@@ -1669,7 +1714,8 @@ func TestShutdownPlugin(t *testing.T) {
     })
 }
 
-func TestHandleRequest(t *testing.T) {
+// Test_HandleRequest tests the handleRequest function
+func Test_HandleRequest(t *testing.T) {
     syschan := make(chan int, 1)
     RegisterForSysShutdown = func(caller string) <-chan int {
         return syschan
@@ -1705,7 +1751,7 @@ func TestHandleRequest(t *testing.T) {
         clientTx.AssertExpectations(t)
     })
 
-    t.Run("TestHandleRequest timeout zero 1", func(t *testing.T) {
+    t.Run("TestHandleRequest timeout zero - Request started and finished", func(t *testing.T) {
         logger := setup()
         clientTx := new(mockClientTx)
 
@@ -1765,7 +1811,7 @@ func TestHandleRequest(t *testing.T) {
         mockPluginMetadata1.AssertExpectations(t)
     })
 
-    t.Run("TestHandleRequest timeout zero 2", func(t *testing.T) {
+    t.Run("TestHandleRequest timeout zero - Request just started", func(t *testing.T) {
         logger := setup()
         clientTx := new(mockClientTx)
 
@@ -1826,7 +1872,7 @@ func TestHandleRequest(t *testing.T) {
         mockPluginMetadata1.AssertExpectations(t)
     })
 
-    t.Run("TestHandleRequest timeout zero invalid response plugion name ", func(t *testing.T) {
+    t.Run("TestHandleRequest timeout zero invalid response plugin name ", func(t *testing.T) {
         logger := setup()
         clientTx := new(mockClientTx)
 
@@ -1942,7 +1988,8 @@ func TestHandleRequest(t *testing.T) {
     })
 }
 
-func TestSendResponseToEngine(t *testing.T) {
+// TestSendResponseToEngine tests the sendResponseToEngine() function
+func Test_SendResponseToEngine(t *testing.T) {
     syschan := make(chan int, 1)
     RegisterForSysShutdown = func(caller string) <-chan int {
         return syschan
@@ -2058,7 +2105,7 @@ func (gpl *test_plugin_001_bad) GetPluginID() plugins_common.PluginId {
 
 //--------------- Test plugin -------------------------
 
-func TestLoadAddPlugin(t *testing.T) {
+func Test_LoadAddPlugin(t *testing.T) {
     syschan := make(chan int, 1)
     RegisterForSysShutdown = func(caller string) <-chan int {
         return syschan
@@ -2248,7 +2295,8 @@ func TestLoadAddPlugin(t *testing.T) {
 
 }
 
-func TestDeregisterPLugin(t *testing.T) {
+// TestDeregisterPLugin tests the deregister plugin functionality
+func Test_DeregisterPLugin(t *testing.T) {
 
     t.Run("TestDeregisterPLugin nil response", func(t *testing.T) {
 
@@ -2289,7 +2337,7 @@ func TestDeregisterPLugin(t *testing.T) {
 
 // ------------------------------------ TestSetupSyslogSignals -----------------------------------------------//
 // Test for the `SetupSyslogSignals` function
-func TestSetupSyslogSignals(t *testing.T) {
+func Test_SetupSyslogSignals(t *testing.T) {
     logger := setup()
     SetupSignals()
     time.Sleep(500 * time.Millisecond)
@@ -2303,9 +2351,9 @@ func TestSetupSyslogSignals(t *testing.T) {
     }
 }
 
-//------------------------------------ ParseArguments -----------------------------------------------//
-
-func TestParseArguments(t *testing.T) {
+// ------------------------------------ ParseArguments -----------------------------------------------//
+// Test for the `ParseArguments` function
+func Test_ParseArguments(t *testing.T) {
 
     t.Run("TestParseArguments valid arguments", func(t *testing.T) {
 
@@ -2417,7 +2465,7 @@ func (gpl *test_startup_plugin_001) GetPluginID() plugins_common.PluginId {
 
 //--------------- Test plugin -------------------------
 
-func TestStartPluginManager(t *testing.T) {
+func Test_StartPluginManager(t *testing.T) {
 
     syschan := make(chan int, 1)
     RegisterForSysShutdown = func(caller string) <-chan int {
@@ -2560,7 +2608,7 @@ func TestStartPluginManager(t *testing.T) {
     })
 }
 
-func TestSetupPluginManager(t *testing.T) {
+func Test_SetupPluginManager(t *testing.T) {
 
     t.Run("TestSetupPluginManager valid path", func(t *testing.T) {
 
