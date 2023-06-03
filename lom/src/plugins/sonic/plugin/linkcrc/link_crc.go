@@ -3,6 +3,7 @@ package linkcrc
 
 import (
     "context"
+    "encoding/json"
     "fmt"
     "lom/src/lib/lomcommon"
     "lom/src/lib/lomipc"
@@ -13,7 +14,7 @@ import (
 )
 
 const (
-    /* Default values to be used for the detection, in case configuration could not be read */
+    /* Default values to be used for the detection, in case configuration does not set it */
     detection_freq_in_secs_default        = 30
     if_in_errors_diff_min_value_default   = 0
     in_unicast_packets_min_value_default  = 100
@@ -32,7 +33,7 @@ const (
     min_crc_error_config_key                 = "MinCrcError"
     min_outliers_for_detection_config_key    = "MinOutliersForDetection"
     look_back_period_in_secs_config_key      = "LookBackPeriodInSecs"
-    plugin_version                           = "1.0.0.0"
+    link_crc_plugin_version                  = "1.0.0.0"
     link_crc_prefix                          = "link_crc: "
 )
 
@@ -44,30 +45,56 @@ var minCrcError float64
 var minOutliersForDetection int
 var lookBackPeriodInSecs int
 
+type LinkCrcDetectionActionKnob struct {
+    DetectionFreqInSecs       int     `json:"DetectionFreqInSecs"`
+    IfInErrorsDiffMinValue    int     `json:"IfInErrorsDiffMinValue"`
+    InUnicastPacketsMinValue  int     `json:"InUnicastPacketsMinValue"`
+    OutUnicastPacketsMinValue int     `json:"OutUnicastPacketsMinValue"`
+    OutlierRollingWindowSize  int     `json:"OutlierRollingWindowSize"`
+    MinCrcError               float64 `json:"MinCrcError"`
+    MinOutliersForDetection   int     `json:"MinOutliersForDetection"`
+    LookBackPeriodInSecs      int     `json:"LookBackPeriodInSecs"`
+}
+
 type LinkCRCDetectionPlugin struct {
     counterRepository          dbclient.CounterRepositoryInterface
     currentMonitoredInterfaces map[string]LinkCrcDetectorInterface
     reportingFreqLimiter       plugins_common.PluginReportingFrequencyLimiterInterface
     plugins_common.PeriodicDetectionPluginUtil
+    plugin_version string
 }
 
 /* Inheritied from Plugin */
 func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) Init(actionConfig *lomcommon.ActionCfg_t) error {
     // Get config settings or assign default values.
-    actionKnobsJsonString := actionConfig.ActionKnobs
-    detectionFreqInSecs := lomcommon.GetIntConfigurationFromJson(actionKnobsJsonString, detection_freq_in_secs_config_key, detection_freq_in_secs_default)
-    ifInErrorsDiffMinValue = lomcommon.GetIntConfigurationFromJson(actionKnobsJsonString, if_in_errors_diff_min_value_config_key, if_in_errors_diff_min_value_default)
-    inUnicastPacketsMinValue = lomcommon.GetIntConfigurationFromJson(actionKnobsJsonString, in_unicast_packets_min_value_config_key, in_unicast_packets_min_value_default)
-    outUnicastPacketsMinValue = lomcommon.GetIntConfigurationFromJson(actionKnobsJsonString, out_unicast_packets_min_value_config_key, out_unicast_packets_min_value_default)
-    outlierRollingWindowSize = lomcommon.GetIntConfigurationFromJson(actionKnobsJsonString, outlier_rolling_window_size_config_key, outlier_rolling_window_size_default)
-    minCrcError = lomcommon.GetFloatConfigurationFromJson(actionKnobsJsonString, min_crc_error_config_key, min_crc_error_default)
-    minOutliersForDetection = lomcommon.GetIntConfigurationFromJson(actionKnobsJsonString, min_outliers_for_detection_config_key, min_outliers_for_detection_default)
-    lookBackPeriodInSecs = lomcommon.GetIntConfigurationFromJson(actionKnobsJsonString, look_back_period_in_secs_config_key, look_back_period_in_secs_default)
+    var linkCrcDetectionActionKnob LinkCrcDetectionActionKnob
+    jsonErr := json.Unmarshal([]byte(actionConfig.ActionKnobs), &linkCrcDetectionActionKnob)
+    var detectionFreqInSecs int
+    if jsonErr == nil {
+        detectionFreqInSecs = linkCrcDetectionActionKnob.DetectionFreqInSecs
+        ifInErrorsDiffMinValue = linkCrcDetectionActionKnob.IfInErrorsDiffMinValue
+        inUnicastPacketsMinValue = linkCrcDetectionActionKnob.InUnicastPacketsMinValue
+        outUnicastPacketsMinValue = linkCrcDetectionActionKnob.OutUnicastPacketsMinValue
+        outlierRollingWindowSize = linkCrcDetectionActionKnob.OutlierRollingWindowSize
+        minCrcError = linkCrcDetectionActionKnob.MinCrcError
+        minOutliersForDetection = linkCrcDetectionActionKnob.MinOutliersForDetection
+        lookBackPeriodInSecs = linkCrcDetectionActionKnob.LookBackPeriodInSecs
+    } else {
+        detectionFreqInSecs = detection_freq_in_secs_default
+        ifInErrorsDiffMinValue = if_in_errors_diff_min_value_default
+        inUnicastPacketsMinValue = in_unicast_packets_min_value_default
+        outUnicastPacketsMinValue = out_unicast_packets_min_value_default
+        outlierRollingWindowSize = outlier_rolling_window_size_default
+        minCrcError = min_crc_error_default
+        minOutliersForDetection = min_outliers_for_detection_default
+        lookBackPeriodInSecs = look_back_period_in_secs_default
+    }
 
     // Initialize values.
     linkCrcDetectionPlugin.counterRepository = &dbclient.CounterRepository{RedisProvider: &dbclient.RedisProvider{}}
     linkCrcDetectionPlugin.currentMonitoredInterfaces = map[string]LinkCrcDetectorInterface{}
     linkCrcDetectionPlugin.reportingFreqLimiter = plugins_common.GetDefaultDetectionFrequencyLimiter()
+    linkCrcDetectionPlugin.plugin_version = link_crc_plugin_version
     err := linkCrcDetectionPlugin.PeriodicDetectionPluginUtil.Init(actionConfig.Name, detectionFreqInSecs, actionConfig, linkCrcDetectionPlugin.executeCrcDetection, linkCrcDetectionPlugin.executeShutdown)
     if err != nil {
         lomcommon.LogError(fmt.Sprintf(link_crc_prefix+"Plugin initialization failed. (%s), err: (%v)", actionConfig.Name, err))
@@ -83,7 +110,6 @@ Executes the crc detection logic. isExecutionHealthy is marked false when there 
 */
 func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeCrcDetection(request *lomipc.ActionRequestData, isExecutionHealthy *bool, ctx context.Context) *lomipc.ActionResponseData {
     lomcommon.LogInfo(fmt.Sprintf(link_crc_prefix + "ExecuteCrcDetection Starting"))
-    ifAnyInterfaceHasCrcError := false
     var listOfInterfacesWithCrcError strings.Builder
     currentInterfaceCounters, err := linkCrcDetectionPlugin.counterRepository.GetCountersForAllInterfaces(ctx)
     if err != nil {
@@ -118,14 +144,12 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeCrcDetection(reques
             if linkCrcDetector.AddInterfaceCountersAndDetectCrc(interfaceCounters, time.Now().UTC()) {
                 /* Consider reporting only if it was not reported recently based on the rate limiter settings */
                 if linkCrcDetectionPlugin.reportingFreqLimiter.ShouldReport(interfaceName) {
-                    isIfActive, err := linkCrcDetectionPlugin.counterRepository.IsInterfaceActive(interfaceName)
+                    adminStatus, operStatus, err := linkCrcDetectionPlugin.counterRepository.GetInterfaceStatus(interfaceName)
                     if err != nil {
-                        /* Log Error but still continue to report, assuming the link is up */
+                        /* Log Error */
                         lomcommon.LogError(fmt.Sprintf(link_crc_prefix+"Error getting link status from redis for interface %s. Err: %v", interfaceName, err))
-                    }
-
-                    if isIfActive {
-                        ifAnyInterfaceHasCrcError = true
+                        *isExecutionHealthy = false
+                    } else if adminStatus && operStatus { /* If both are active, consider adding it to the list of final reported errors */
                         listOfInterfacesWithCrcError.WriteString(interfaceName)
                         listOfInterfacesWithCrcError.WriteString(",")
                     }
@@ -140,7 +164,7 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeCrcDetection(reques
            then we will start detecting the crc for that link */
     }
 
-    if ifAnyInterfaceHasCrcError {
+    if len(listOfInterfacesWithCrcError.String()) != 0 {
         lomcommon.LogInfo(link_crc_prefix + "executeCrcDetection Anomaly Detected")
         return plugins_common.GetResponse(request, strings.TrimSuffix(listOfInterfacesWithCrcError.String(), ","), "Detected Crc", plugins_common.ResultCodeSuccess, plugins_common.ResultStringSuccess)
     }
@@ -149,12 +173,11 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeCrcDetection(reques
 
 /* Contains Clean up that needs to be done when Shutdown() is invoked. This will be invoked after ensuring request is aborted. */
 func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeShutdown() error {
-    linkCrcDetectionPlugin.currentMonitoredInterfaces = nil
     return nil
 }
 
 func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) GetPluginId() *plugins_common.PluginId {
-    return &plugins_common.PluginId{Name: linkCrcDetectionPlugin.PluginName, Version: plugin_version}
+    return &plugins_common.PluginId{Name: linkCrcDetectionPlugin.PluginName, Version: linkCrcDetectionPlugin.plugin_version}
 }
 
 type LinkCrcDetectorInterface interface {
@@ -226,6 +249,8 @@ func (linkCrcDetector *RollingWindowLinkCrcDetector) AddInterfaceCountersAndDete
                             if outliersCount == minOutliersForDetection {
                                 return true
                             }
+                        } else {
+                            break
                         }
                     }
                 }

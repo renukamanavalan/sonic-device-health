@@ -7,6 +7,7 @@ import (
     "github.com/stretchr/testify/mock"
     "lom/src/lib/lomcommon"
     "lom/src/lib/lomipc"
+    "lom/src/plugins/plugins_common"
     "lom/src/plugins/sonic/client/dbclient"
     "testing"
     "time"
@@ -14,10 +15,10 @@ import (
 
 func init() {
     configFiles := &lomcommon.ConfigFiles_t{}
-    configFiles.GlobalFl = "../../../../../../lib/lib_test/config/globals.conf.json"
-    configFiles.ActionsFl = "../../../../../../lib/lib_test/config/actions.conf.json"
-    configFiles.BindingsFl = "../../../../../../lib/lib_test/config/bindings.conf.json"
-    configFiles.ProcsFl = "../../../../../../lib/lib_test/config/procs.conf.json"
+    configFiles.GlobalFl = "../../../../lib/lib_test/config/globals.conf.json"
+    configFiles.ActionsFl = "../../../../lib/lib_test/config/actions.conf.json"
+    configFiles.BindingsFl = "../../../../lib/lib_test/config/bindings.conf.json"
+    configFiles.ProcsFl = "../../../../lib/lib_test/config/procs.conf.json"
     lomcommon.InitConfigMgr(configFiles)
 }
 
@@ -30,9 +31,9 @@ func (mockCounterRepository *MockCounterRepository) GetCountersForAllInterfaces(
     return args.Get(0).(dbclient.InterfaceCountersMap), args.Error(1)
 }
 
-func (mockCounterRepository *MockCounterRepository) IsInterfaceActive(interfaceName string) (bool, error) {
+func (mockCounterRepository *MockCounterRepository) GetInterfaceStatus(interfaceName string) (bool, bool, error) {
     args := mockCounterRepository.Called(interfaceName)
-    return args.Get(0).(bool), args.Error(1)
+    return args.Get(0).(bool), args.Get(1).(bool), args.Error(2)
 }
 
 /* Validate AddInterfaceCounter detects crc successfuly */
@@ -140,6 +141,33 @@ func Test_LinkCrcDetector_AddInterfaceCountersReturnsFalseForInvalidCountersDiff
     assert.False(isDetected, "isDetected is expected to be false for when InUnicastPackets is less than previous value")
 }
 
+/* Validates Link crc plugin initialized with actions knobs */
+func Test_LinkCrcDetectionPlugin_InitializesWithActionsKnobs(t *testing.T) {
+    linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
+    actionKnobs := `{
+    "DetectionFreqInSecs": 35,
+    "IfInErrorsDiffMinValue": 5,
+    "InUnicastPacketsMinValue": 105,
+    "OutUnicastPacketsMinValue": 105,
+    "OutlierRollingWindowSize": 6,
+    "MinCrcError": 0.000002,
+    "MinOutliersForDetection": 3,
+    "LookBackPeriodInSecs": 127
+    }`
+
+    actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 10, ActionKnobs: actionKnobs}
+    linkCRCDetectionPlugin.Init(&actionConfig)
+
+    assert := assert.New(t)
+    assert.Equal(5, ifInErrorsDiffMinValue, "IfInErrorsDiffMinValue is expected to be 5")
+    assert.Equal(105, inUnicastPacketsMinValue, "InUnicastPacketsMinValue is expected to be 105")
+    assert.Equal(105, outUnicastPacketsMinValue, "OutUnicastPacketsMinValue is expected to be 105")
+    assert.Equal(6, outlierRollingWindowSize, "OutlierRollingWindowSize is expected to be 6")
+    assert.Equal(0.000002, minCrcError, "MinCrcError is expected to be 0.000002")
+    assert.Equal(3, minOutliersForDetection, "MinOutliersForDetection is expected to be 3")
+    assert.Equal(127, lookBackPeriodInSecs, "LookBackPeriodInSecs is expected to be 127")
+}
+
 /* Validates DetectCrc returns nil for error */
 func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForError(t *testing.T) {
     // Mock
@@ -224,7 +252,7 @@ func Test_LinkCrcDetectionPlugin_GetPluginIdReturnsPluginDetails(t *testing.T) {
     assert.Equal("1.0.0.0", pluginId.Version, "PluginId.version  is expected to be 1.0.0.0")
 }
 
-/* Validates executeShutdown returns successfully and clears monitoredInterfaces*/
+/* Validates executeShutdown returns successfully */
 func Test_LinkCrcDetectionPlugin_ExecuteShutdownReturnsSuccessfuly(t *testing.T) {
     // Mock
     linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
@@ -236,7 +264,6 @@ func Test_LinkCrcDetectionPlugin_ExecuteShutdownReturnsSuccessfuly(t *testing.T)
     assert := assert.New(t)
     assert.Nil(initErr, "initErr is expected to be nil")
     assert.Nil(shutDownErr, "shutDownErr is expected to be nil")
-    assert.Nil(linkCRCDetectionPlugin.currentMonitoredInterfaces, "monitoredInterfaces is expected to be nil")
 }
 
 /* Validates DetectCrc returns error when ActionConfig is invalid */
@@ -279,8 +306,8 @@ func Test_LinkCrcDetectionPlugin_CrcDetectionDetectsSuccessfuly(t *testing.T) {
     mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap4, nil).Once()
     mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap5, nil).Once()
 
-    mockCounterRepository.On("IsInterfaceActive", "Ethernet1").Return(true, nil).Once()
-    mockCounterRepository.On("IsInterfaceActive", "Ethernet2").Return(true, nil).Once()
+    mockCounterRepository.On("GetInterfaceStatus", "Ethernet1").Return(true, true, nil).Once()
+    mockCounterRepository.On("GetInterfaceStatus", "Ethernet2").Return(true, true, nil).Once()
     linkCRCDetectionPlugin.counterRepository = mockCounterRepository
 
     request := &lomipc.ActionRequestData{Action: "action", InstanceId: "InstanceId", AnomalyInstanceId: "AnmlyInstId", Timeout: 0}
@@ -318,6 +345,11 @@ func (mockLimitDetectionReportingFrequency *MockLimitDetectionReportingFrequency
     mockLimitDetectionReportingFrequency.Called(anomalyKey)
 }
 
+func (mockLimitDetectionReportingFrequency *MockLimitDetectionReportingFrequency) IsNotWithinFrequency(reportingDetails plugins_common.ReportingDetails) bool {
+    args := mockLimitDetectionReportingFrequency.Called(reportingDetails)
+    return args.Get(0).(bool)
+}
+
 /* Validates executeCrcDetection reports only for one interface */
 func Test_LinkCrcDetectionPlugin_CrcDetectionReportsForOnlyOneInterface(t *testing.T) {
     // Mock
@@ -349,7 +381,7 @@ func Test_LinkCrcDetectionPlugin_CrcDetectionReportsForOnlyOneInterface(t *testi
     mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap3, nil).Once()
     mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap4, nil).Once()
     mockCounterRepository.On("GetCountersForAllInterfaces", ctx).Return(counterMap5, nil).Once()
-    mockCounterRepository.On("IsInterfaceActive", "Ethernet1").Return(true, nil).Once()
+    mockCounterRepository.On("GetInterfaceStatus", "Ethernet1").Return(true, true, nil).Once()
     linkCRCDetectionPlugin.counterRepository = mockCounterRepository
     // Act
     request := &lomipc.ActionRequestData{Action: "action", InstanceId: "InstanceId", AnomalyInstanceId: "AnmlyInstId", Timeout: 0}

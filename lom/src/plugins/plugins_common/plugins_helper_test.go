@@ -42,8 +42,8 @@ func Test_DetectionReportingFreqLimiter_DoesNotReportForInitialFrequency(t *test
 
     assert := assert.New(t)
     assert.False(shouldReport, "ShouldReport is expected to be false")
-    assert.False(currentTimeMinusTwoMins.Equal(detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"].lastReported), "Cache is expected to have updated.")
-    assert.Equal(9, detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"].countOfTimesReported, "CountOfTimesReported is expected to be 9")
+    assert.True(currentTimeMinusTwoMins.Equal(detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"].lastReported), "Cache is expected to be same.")
+    assert.Equal(8, detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"].countOfTimesReported, "CountOfTimesReported is expected to be 8")
 }
 
 /* Validate that reportingLimiter reports in initial freq */
@@ -70,8 +70,8 @@ func Test_DetectionReportingFreqLimiter_DoesNotReportForSubsequentFrequency(t *t
 
     assert := assert.New(t)
     assert.False(shouldReport, "ShouldReport is expected to be false")
-    assert.False(currentTimeMinusTwoMins.Equal(detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"].lastReported), "Cache is expected to have updated.")
-    assert.Equal(16, detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"].countOfTimesReported, "CountOfTimesReported is expected to be 16")
+    assert.True(currentTimeMinusTwoMins.Equal(detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"].lastReported), "Cache is expected to be same.")
+    assert.Equal(15, detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"].countOfTimesReported, "CountOfTimesReported is expected to be 15")
 }
 
 /* Validates that reportingLimiter does report in subsequent Frequency */
@@ -86,6 +86,58 @@ func Test_LimitDetectionReportingFreq_ReportsInSubsequentFrequency(t *testing.T)
     assert.True(shouldReport, "ShouldReport is expected to be True")
     assert.False(currentTimeMinusTwoMins.Equal(detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"].lastReported), "Cache is expected to have updated.")
     assert.Equal(16, detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"].countOfTimesReported, "CountOfTimesReported is expected to be 16")
+}
+
+/* Validate that ResetCache does not delete entry  in initial freq */
+func Test_DetectionReportingFreqLimiter_ResetsCacheDoesNotRemoveEntryInInitialFrequency(t *testing.T) {
+    detectionReportingFrequencyLimiter := GetDefaultDetectionFrequencyLimiter()
+    currentTimeMinusTwoMins := time.Now().Add(-2 * time.Minute)
+    reportingDetails := ReportingDetails{lastReported: currentTimeMinusTwoMins, countOfTimesReported: 8}
+    detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"] = &reportingDetails
+    detectionReportingFrequencyLimiter.ResetCache("Ethernet0")
+
+    assert := assert.New(t)
+    assert.NotNil(detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"], "Cache entry is expected to be removed")
+    assert.True(currentTimeMinusTwoMins.Equal(detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"].lastReported), "Cache is expected to be same.")
+    assert.Equal(8, detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"].countOfTimesReported, "CountOfTimesReported is expected to be 8")
+}
+
+/* Validate that ResetCache deletes entry in initial freq */
+func Test_DetectionReportingFreqLimiter_ResetsCacheSucceedsInInitialFrequency(t *testing.T) {
+    detectionReportingFrequencyLimiter := GetDefaultDetectionFrequencyLimiter()
+    currentTimeMinusTwoMins := time.Now().Add(-7 * time.Minute)
+    reportingDetails := ReportingDetails{lastReported: currentTimeMinusTwoMins, countOfTimesReported: 8}
+    detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"] = &reportingDetails
+    detectionReportingFrequencyLimiter.ResetCache("Ethernet0")
+
+    assert := assert.New(t)
+    assert.Nil(detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"], "Cache entry is expected to be removed")
+}
+
+/* Validate that ResetCache does not delete entry  in subsequent freq */
+func Test_DetectionReportingFreqLimiter_ResetCacheDoesNotRemoveEntryInSubsequentFrequency(t *testing.T) {
+    detectionReportingFrequencyLimiter := GetDefaultDetectionFrequencyLimiter()
+    currentTimeMinusTwoMins := time.Now().Add(-2 * time.Minute)
+    reportingDetails := ReportingDetails{lastReported: currentTimeMinusTwoMins, countOfTimesReported: 15}
+    detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"] = &reportingDetails
+    detectionReportingFrequencyLimiter.ResetCache("Ethernet0")
+
+    assert := assert.New(t)
+    assert.NotNil(detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"], "Cache entry is expected to be removed")
+    assert.True(currentTimeMinusTwoMins.Equal(detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"].lastReported), "Cache is expected to be same.")
+    assert.Equal(15, detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"].countOfTimesReported, "CountOfTimesReported is expected to be 15")
+}
+
+/* Validate that ResetCache deletes entry in subsequent freq */
+func Test_DetectionReportingFreqLimiter_ResetCacheSucceedsInSubsequentFrequency(t *testing.T) {
+    detectionReportingFrequencyLimiter := GetDefaultDetectionFrequencyLimiter()
+    currentTimeMinusTwoMins := time.Now().Add(-62 * time.Minute)
+    reportingDetails := ReportingDetails{lastReported: currentTimeMinusTwoMins, countOfTimesReported: 15}
+    detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"] = &reportingDetails
+    detectionReportingFrequencyLimiter.ResetCache("Ethernet0")
+
+    assert := assert.New(t)
+    assert.Nil(detectionReportingFrequencyLimiter.(*PluginReportingFrequencyLimiter).cache["Ethernet0"], "Cache entry is expected to be removed")
 }
 
 type MockElement struct {
@@ -179,6 +231,9 @@ type DummyPlugin struct {
     testValue1 int
     testValue2 int
     PeriodicDetectionPluginUtil
+    iteration            int
+    firstTimeInvocation  time.Time
+    secondTimeInvocation time.Time
 }
 
 func (dummyPlugin *DummyPlugin) Init(actionConfig *lomcommon.ActionCfg_t) error {
@@ -200,6 +255,19 @@ func (dummyPlugin *DummyPlugin) executeRequest(request *lomipc.ActionRequestData
 
     if request.Action == "ReturnNilScenarioWithError" {
         *isHealthy = false
+        return nil
+    }
+
+    if request.Action == "ReturnNilAfterLongSleep" {
+        if dummyPlugin.iteration == 0 {
+            dummyPlugin.firstTimeInvocation = time.Now()
+            dummyPlugin.iteration = dummyPlugin.iteration + 1
+            time.Sleep(5 * time.Second)
+        } else if dummyPlugin.iteration == 1 {
+            dummyPlugin.secondTimeInvocation = time.Now()
+            dummyPlugin.iteration = dummyPlugin.iteration + 1
+            time.Sleep(5 * time.Second)
+        }
         return nil
     }
 
@@ -499,4 +567,37 @@ func Test_PeriodicDetectionPluginUtil_RequestResetsErrorCountAfterhealthyExecuti
     assert.Nil(dummyPlugin.detectionRunInfo.currentRunStartTimeInUtc, "currentRunStartTimeInUtc is expected to be nil")
     assert.Equal(2, response.ResultCode, "ResultCode is expected to be 2")
     assert.Equal(2, dummyPlugin.testValue1, "someValue is expected to be 2")
+}
+
+/* Functional test -> Validates that the detection is performed immediately after a long run execution. */
+func Test_PeriodicDetectionPluginUtil_DetectionIsPerformedImmediatelyAfterALongExecution(t *testing.T) {
+    // Mock
+    testRequestFrequency = 4
+    dummyPlugin := &DummyPlugin{}
+    actionConfig := lomcommon.ActionCfg_t{Name: "DummyPlugin10", HeartbeatInt: 3600}
+    dummyPlugin.Init(&actionConfig)
+    request := &lomipc.ActionRequestData{Action: "ReturnNilAfterLongSleep"}
+    pluginHBChan := make(chan PluginHeartBeat)
+
+    go func() {
+        time.Sleep(7 * time.Second)
+        dummyPlugin.cancelCtxFunc()
+    }()
+
+    go func() {
+        /* read first heartbeat */
+        <-pluginHBChan
+    }()
+
+    // Act
+    response := dummyPlugin.Request(pluginHBChan, request)
+
+    // Assert.
+    assert := assert.New(t)
+    assert.NotNil(response, "response is expected to be non nil")
+    assert.Equal(uint64(0), dummyPlugin.numOfConsecutiveErrors.Load(), "NumOfConsecutiveErrors is expected to be 0")
+    assert.NotNil(dummyPlugin.detectionRunInfo.currentRunStartTimeInUtc, "currentRunStartTimeInUtc is expected to be nil")
+    assert.True(dummyPlugin.secondTimeInvocation.Sub(dummyPlugin.firstTimeInvocation).Seconds() <= 6, "The invocation after a long running job is expected to be immediate")
+    fmt.Println(dummyPlugin.detectionRunInfo.durationOfLatestRunInSeconds)
+    assert.True(dummyPlugin.detectionRunInfo.durationOfLatestRunInSeconds >= 5, "The duration of latest run is expected to be greater than or equal to 5 seconds")
 }
