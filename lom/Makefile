@@ -48,18 +48,12 @@ SONIC_LINK_CRC_TEST = $(TEST_DIR)/SonicLinkCrcTested
 PLUGINS_COMMON_TEST = $(TEST_DIR)/PluginsCommonTested
 
 format_code:
-	@if which $(GOFMT) > /dev/null; then \
-		$(GOFMT) -l ./ | xargs -I {} $(GOFMT) -w {}; \
-	else \
-		echo "Installing gofmt..."; \
-		$(GO) get golang.org/x/tools/cmd/gofmt; \
-	fi
-	@if which sed > /dev/null; then \
-		sed -i 's/\t/    /g' $$(find ./ -type f -name '*.go'); \
-	else \
+	@if ! which sed > /dev/null; then \
 		echo "Installing sed..."; \
 		apt-get update && apt-get install -y sed; \
 	fi
+	@$(GOFMT) -l ./ | xargs -I {} $(GOFMT) -w {};
+	@sed -i 's/\t/    /g' $$(find ./ -type f -name '*.go');
 
 # Define the file coverage extraction function
 define extract_file_coverage
@@ -72,7 +66,7 @@ define extract_file_coverage
 	@echo ""
 endef
 
-.PHONY: all clean
+.PHONY: all clean format_code
 
 all: format_code $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) \
 	$(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST) $(PY_TEST) \
@@ -97,7 +91,7 @@ $(PLUGIN_MANAGER_BIN): $(SRC_FILES) $(TEST_FILES)
 
 $(LIB_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
-	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/LibCoverprofile.out \
+	${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/LibCoverprofile.out \
 		-coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon \
 		-covermode=atomic ./src/lib/lib_test ./src/lib/lib_test/config || (echo "LibTest failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/LibCoverprofile.out -o $(TEST_DIR)/LibCoverprofile.html
@@ -115,7 +109,7 @@ $(ENGINE_TEST): $(SRC_FILES) $(TEST_FILES)
 
 $(PLUGIN_MANAGER_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
-	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginManagerCoverprofile.out \
+	${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginManagerCoverprofile.out \
 		-coverpkg lom/src/pluginmgr/pluginmgr_common \
 		-covermode=atomic ./src/pluginmgr/pluginmgr_common  || (echo "Plugin manager test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/PluginManagerCoverprofile.out -o $(TEST_DIR)/PluginManagerCoverprofile.html
