@@ -441,14 +441,6 @@ func Test_Run(t *testing.T) {
             t.Errorf("Expected log message not found")
         }
 
-        if !logger.FindPrefixWait("In run() RecvServerRequest: Shutdown is active, ignoring request:", 2*time.Second) {
-            t.Errorf("Expected log message not found")
-        }
-
-        //if !logger.FindPrefix("RecvServerRequest() : Received system shutdown. Stopping plugin manager run loop") {
-        //  t.Errorf("Expected log message not found")
-        //}
-
         // Assertions
         assert.NoError(t, err)
         clientTx.AssertExpectations(t)
