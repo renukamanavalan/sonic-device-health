@@ -1110,7 +1110,7 @@ func runColl(cArgs *callArgs, collPath string, te *testCollectionEntry_t) {
 func testRPCListener(t *testing.T) {
     /*
      * LibTest extensively test JSON-RPC APIs.
-     * The RPC APIs use SendToServer for redirecting requests to server as 
+     * The RPC APIs use SendToServer for redirecting requests to server as
      * done in HTTP APIs
      *
      * All the tests above are HTTP based and extensively test engine via
@@ -1120,16 +1120,15 @@ func testRPCListener(t *testing.T) {
      * or not. So a sample register would do.
      */
 
-
-    servAddr := "localhost:"+strconv.Itoa(RPC_JSON_PORT)
+    servAddr := "localhost:" + strconv.Itoa(RPC_JSON_PORT)
     rpcResp := map[string]any{}
     resp := LoMResponse{}
     received := make([]byte, 1024)
 
     type RPCReq struct {
-        Id      int
-        Method  string
-        Params  []string
+        Id     int
+        Method string
+        Params []string
     }
     req := &LoMRequest{TypeRegClient, "test", 0, struct{}{}}
     if out, err := json.Marshal(req); err != nil {
@@ -1157,7 +1156,6 @@ func testRPCListener(t *testing.T) {
     LogDebug("testRPCListener COMPLETE")
 }
 
-    
 /* Creates the conf files as per data in this code */
 var initConfigDone = false
 
