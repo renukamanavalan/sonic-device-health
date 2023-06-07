@@ -8,6 +8,7 @@ GUID = $(shell id -g)
 
 
 GO := /usr/local/go/bin/go
+GOFMT := $(GO)fmt
 INSTALL := /usr/bin/install
 
 BUILD_DIR := build
@@ -36,7 +37,7 @@ CMN_C_LIB=$(BUILD_DIR)/lib/cmn_c_lib.so
 
 # Binaries used in LoM system
 ENGINE_BIN := $(BIN_DIR)/LoMEngine
-PLUGIN_MANAGER_BIN := $(BIN_DIR)/pluginmgr
+PLUGIN_MANAGER_BIN := $(BIN_DIR)/LoMPluginMgr
 
 # Test binaries/flags
 LIB_TEST = $(TEST_DIR)/LibTested
@@ -48,21 +49,29 @@ SONIC_LINK_CRC_TEST = $(TEST_DIR)/SonicLinkCrcTested
 PLUGINS_COMMON_TEST = $(TEST_DIR)/PluginsCommonTested
 
 format_code:
-	@if which gofmt > /dev/null; then \
-		gofmt -l ./ | xargs -I {} gofmt -w {}; \
-	else \
-		echo "gofmt command not found, skipping code formatting"; \
+	@if ! which sed > /dev/null; then \
+		echo "Installing sed..."; \
+		apt-get update && apt-get install -y sed; \
 	fi
-	@if which sed > /dev/null; then \
-		sed -i 's/\t/    /g' $$(find ./ -type f -name '*.go'); \
-	else \
-		echo "sed command not found, skipping code formatting"; \
-	fi
+	@$(GOFMT) -l ./ | xargs -I {} $(GOFMT) -w {};
+	@sed -i 's/\t/    /g' $$(find ./ -type f -name '*.go');
 
-.PHONY: all clean
+# Define the file coverage extraction function
+define extract_file_coverage
+	@echo "*******************************************************"
+	@echo "Extracting file coverages:"
+	@file_coverage="$$(sed -n 's/.*<option value="[^"]\+">\([^<]\+\).* (\([^)]\+\%.*\)<\/option>.*/\1 (\2)/p' $(1))"; 
+	echo "$${file_coverage}"
+	@echo "*******************************************************"
+	@echo ""
+	@echo ""
+endef
 
-all: | format_code $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST) $(PY_TEST)
-tall: $(PY_TEST)
+.PHONY: all clean format_code
+
+all: format_code $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) \
+	$(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST) $(PY_TEST) \
+	$(PLUGIN_MANAGER_BIN)
 
 $(CMN_C_LIB): $(SRC_FILES)
 	mkdir -p $(LIB_DIR)
@@ -82,10 +91,11 @@ $(PLUGIN_MANAGER_BIN): $(SRC_FILES) $(TEST_FILES)
 
 $(LIB_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
-	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/LibCoverprofile.out \
+	${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/LibCoverprofile.out \
 		-coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon \
 		-covermode=atomic ./src/lib/lib_test ./src/lib/lib_test/config || (echo "LibTest failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/LibCoverprofile.out -o $(TEST_DIR)/LibCoverprofile.html
+	$(call extract_file_coverage,$(TEST_DIR)/LibCoverprofile.html)
 	touch $@
 
 $(ENGINE_TEST): $(SRC_FILES) $(TEST_FILES)
@@ -94,15 +104,16 @@ $(ENGINE_TEST): $(SRC_FILES) $(TEST_FILES)
 		-coverpkg lom/src/engine \
 		-covermode=atomic lom/src/engine || (echo "EngineTest failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/EngineCoverprofile.out -o $(TEST_DIR)/EngineCoverprofile.html
+	$(call extract_file_coverage,$(TEST_DIR)/EngineCoverprofile.html)
 	touch $@
 
 $(PLUGIN_MANAGER_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
-	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginManagerCoverprofile.out \
+	${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginManagerCoverprofile.out \
 		-coverpkg lom/src/pluginmgr/pluginmgr_common \
-		-coverpkg lom/src/plugins/plugins_common \
 		-covermode=atomic ./src/pluginmgr/pluginmgr_common  || (echo "Plugin manager test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/PluginManagerCoverprofile.out -o $(TEST_DIR)/PluginManagerCoverprofile.html
+	$(call extract_file_coverage,$(TEST_DIR)/PluginManagerCoverprofile.html)
 	touch $@
 
 $(SONIC_DBCLIENT_TEST): $(SRC_FILES) $(TEST_FILES)
@@ -111,6 +122,7 @@ $(SONIC_DBCLIENT_TEST): $(SRC_FILES) $(TEST_FILES)
 		-coverpkg lom/src/plugins/sonic/client/dbclient \
 		-covermode=atomic lom/src/plugins/sonic/client/dbclient || (echo "SonicDbClient Test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/SonicDbClientCoverprofile.out -o $(TEST_DIR)/SonicDbClientCoverprofile.html
+	$(call extract_file_coverage,$(TEST_DIR)/SonicDbClientCoverprofile.html)
 	touch $@
 
 $(PY_TEST): $(SRC_FILES) $(PY_FILES)
@@ -125,6 +137,7 @@ $(SONIC_LINK_CRC_TEST): $(SRC_FILES) $(TEST_FILES)
 				-coverpkg lom/src/plugins/sonic/plugin/detection/link/linkcrc \
 				-covermode=atomic lom/src/plugins/sonic/plugin/detection/link/linkcrc || (echo "SonicLinkCrc plugin Test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/SonicLinkCrcCoverprofile.out -o $(TEST_DIR)/SonicLinkCrcCoverprofile.html
+	$(call extract_file_coverage,$(TEST_DIR)/SonicLinkCrcCoverprofile.html)
 	touch $@
 	
 $(PLUGINS_COMMON_TEST): $(SRC_FILES) $(TEST_FILES)
@@ -133,6 +146,7 @@ $(PLUGINS_COMMON_TEST): $(SRC_FILES) $(TEST_FILES)
 		-coverpkg lom/src/plugins/plugins_common \
 				-covermode=atomic lom/src/plugins/plugins_common || (echo "PluginsCommon Tests failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/PluginsCommonCoverprofile.out -o $(TEST_DIR)/PluginsCommonCoverprofile.html
+	$(call extract_file_coverage,$(TEST_DIR)/PluginsCommonCoverprofile.html)
 	touch $@
 
 clean:
