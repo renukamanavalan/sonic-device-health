@@ -6,7 +6,7 @@ import (
     "fmt"
     . "lom/src/lib/lomcommon"
     . "lom/src/lib/lomipc"
-    "lom/src/engine"
+    "lom/src/engine/engine"
 )
 
 
