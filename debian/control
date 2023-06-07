@@ -1,13 +1,13 @@
-Source: sonic-dh-lom
+Source: sonic-device-health
 Section: devel
 Priority: optional
 Maintainer: Renuka Manavalan <remanava@microsoft.com>
 Build-Depends: debhelper (>= 12.0.0),
 Standards-Version: 3.9.3
-Homepage: https://github.com/Azure/sonic-dh-lom
-XS-Go-Import-Path: github.com/Azure/sonic-dh-lom
+Homepage: https://github.com/Azure/sonic-device-health
+XS-Go-Import-Path: github.com/Azure/sonic-device-health
 
-Package: sonic-dh-lom
+Package: sonic-device-health
 Architecture: any
 Built-Using: ${misc:Built-Using}
 Depends: ${shlibs:Depends}
