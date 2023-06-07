@@ -24,7 +24,8 @@ PYTEST_VERBOSE= --addopts "-s"
 endif
 
 export GO111MODULE=on
-export LOM_LIB_PATH=/lom-root/lom/build/lib
+export LOM_LIB_PATH=$(PWD)/build/lib
+$(info "LOM_LIB_PATH aaa" =$(LOM_LIB_PATH))
 
 SRC_FILES=$(shell find . -name '*.go' | grep -v '_test.go' | grep -v '/tests/')
 PY_FILES=$(shell find . -name '*.py' | grep -v '_test.py' | grep -v '/tests/')
@@ -61,6 +62,7 @@ format_code:
 .PHONY: all clean
 
 all: | format_code $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST) $(PY_TEST)
+tall: $(PY_TEST)
 
 $(CMN_C_LIB): $(SRC_FILES)
 	mkdir -p $(LIB_DIR)
@@ -113,7 +115,7 @@ $(SONIC_DBCLIENT_TEST): $(SRC_FILES) $(TEST_FILES)
 
 $(PY_TEST): $(SRC_FILES) $(PY_FILES)
 	mkdir -p $(TEST_DIR)
-	pushd /lom-root/lom/python; \
+	pushd python; \
 	python3 setup.py test $(PYTEST_VERBOSE); \
 	popd
 
