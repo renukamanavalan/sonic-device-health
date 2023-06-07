@@ -179,7 +179,6 @@ func EngineStartup(path string) (*engine_t, error) {
     return engineInst, nil
 }
 
-
 func startUp(progname string, args []string) (*engine_t, error) {
 
     /* Parse args for path */
@@ -197,8 +196,7 @@ func startUp(progname string, args []string) (*engine_t, error) {
     return EngineStartup(p)
 }
 
-
-func main() {
+func Main() {
 
     engine, err := startUp(os.Args[0], os.Args[1:])
     if err != nil {
