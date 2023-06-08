@@ -660,20 +660,20 @@ func InitConfigPath(path string) error {
 
 /* Gets settings of float64 type from mapping. Else returns defaultValue */
 func GetFloatConfigFromMapping(mapping map[string]interface{}, configurationKey string, defaultValue float64) float64 {
-	if len(mapping) == 0 {
-		return defaultValue
-	}
+    if len(mapping) == 0 {
+        return defaultValue
+    }
 
-	configurationVal, ok := mapping[configurationKey]
-	if !ok {
-		LogError("key %s not present in mapping", configurationKey)
-		return defaultValue
-	}
+    configurationVal, ok := mapping[configurationKey]
+    if !ok {
+        LogError("key %s not present in mapping", configurationKey)
+        return defaultValue
+    }
 
-	configurationValFloat64, ok := configurationVal.(float64)
-	if !ok {
-		LogError("key %s not of type float64 in mapping", configurationKey)
-		return defaultValue
-	}
-	return configurationValFloat64
+    configurationValFloat64, ok := configurationVal.(float64)
+    if !ok {
+        LogError("key %s not of type float64 in mapping", configurationKey)
+        return defaultValue
+    }
+    return configurationValFloat64
 }
