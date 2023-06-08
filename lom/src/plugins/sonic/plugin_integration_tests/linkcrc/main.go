@@ -8,7 +8,7 @@ import (
     "lom/src/lib/lomcommon"
     "lom/src/lib/lomipc"
     "lom/src/plugins/plugins_common"
-    "lom/src/plugins/sonic/plugin/detection/link/linkcrc"
+    "lom/src/plugins/sonic/plugin/linkcrc"
     "lom/src/plugins/sonic/plugin_integration_tests/utils"
     "os"
     "os/exec"
