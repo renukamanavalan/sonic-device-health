@@ -642,7 +642,8 @@ func InitConfigMgr(p *ConfigFiles_t) (*ConfigMgr_t, error) {
 
 func InitConfigPath(path string) error {
     if len(path) == 0 {
-        path, exists := GetEnvVarString("ENV_lom_conf_location")
+        exists := false
+        path, exists = GetEnvVarString("ENV_lom_conf_location")
         if !exists || len(path) == 0 {
             return LogError("LOM_CONF_LOCATION environment variable not set")
         }
