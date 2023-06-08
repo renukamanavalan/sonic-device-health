@@ -45,17 +45,6 @@ var minCrcError float64
 var minOutliersForDetection int
 var lookBackPeriodInSecs int
 
-type LinkCrcDetectionActionKnob struct {
-    DetectionFreqInSecs       int     `json:"DetectionFreqInSecs"`
-    IfInErrorsDiffMinValue    int     `json:"IfInErrorsDiffMinValue"`
-    InUnicastPacketsMinValue  int     `json:"InUnicastPacketsMinValue"`
-    OutUnicastPacketsMinValue int     `json:"OutUnicastPacketsMinValue"`
-    OutlierRollingWindowSize  int     `json:"OutlierRollingWindowSize"`
-    MinCrcError               float64 `json:"MinCrcError"`
-    MinOutliersForDetection   int     `json:"MinOutliersForDetection"`
-    LookBackPeriodInSecs      int     `json:"LookBackPeriodInSecs"`
-}
-
 type LinkCRCDetectionPlugin struct {
     counterRepository          dbclient.CounterRepositoryInterface
     currentMonitoredInterfaces map[string]LinkCrcDetectorInterface
@@ -67,18 +56,18 @@ type LinkCRCDetectionPlugin struct {
 /* Inheritied from Plugin */
 func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) Init(actionConfig *lomcommon.ActionCfg_t) error {
     // Get config settings or assign default values.
-    var linkCrcDetectionActionKnob LinkCrcDetectionActionKnob
-    jsonErr := json.Unmarshal([]byte(actionConfig.ActionKnobs), &linkCrcDetectionActionKnob)
+    var resultMap map[string]interface{}
+    jsonErr := json.Unmarshal([]byte(actionConfig.ActionKnobs), &resultMap)
     var detectionFreqInSecs int
     if jsonErr == nil {
-        detectionFreqInSecs = linkCrcDetectionActionKnob.DetectionFreqInSecs
-        ifInErrorsDiffMinValue = linkCrcDetectionActionKnob.IfInErrorsDiffMinValue
-        inUnicastPacketsMinValue = linkCrcDetectionActionKnob.InUnicastPacketsMinValue
-        outUnicastPacketsMinValue = linkCrcDetectionActionKnob.OutUnicastPacketsMinValue
-        outlierRollingWindowSize = linkCrcDetectionActionKnob.OutlierRollingWindowSize
-        minCrcError = linkCrcDetectionActionKnob.MinCrcError
-        minOutliersForDetection = linkCrcDetectionActionKnob.MinOutliersForDetection
-        lookBackPeriodInSecs = linkCrcDetectionActionKnob.LookBackPeriodInSecs
+        detectionFreqInSecs = int(lomcommon.GetFloatConfigFromMapping(resultMap, detection_freq_in_secs_config_key, detection_freq_in_secs_default))
+        ifInErrorsDiffMinValue = int(lomcommon.GetFloatConfigFromMapping(resultMap, if_in_errors_diff_min_value_config_key, if_in_errors_diff_min_value_default))
+        inUnicastPacketsMinValue = int(lomcommon.GetFloatConfigFromMapping(resultMap, in_unicast_packets_min_value_config_key, in_unicast_packets_min_value_default))
+        outUnicastPacketsMinValue = int(lomcommon.GetFloatConfigFromMapping(resultMap, out_unicast_packets_min_value_config_key, out_unicast_packets_min_value_default))
+        outlierRollingWindowSize = int(lomcommon.GetFloatConfigFromMapping(resultMap, outlier_rolling_window_size_config_key, outlier_rolling_window_size_default))
+        minCrcError = lomcommon.GetFloatConfigFromMapping(resultMap, min_crc_error_config_key, min_crc_error_default)
+        minOutliersForDetection = int(lomcommon.GetFloatConfigFromMapping(resultMap, min_outliers_for_detection_config_key, min_outliers_for_detection_default))
+        lookBackPeriodInSecs = int(lomcommon.GetFloatConfigFromMapping(resultMap, look_back_period_in_secs_config_key, look_back_period_in_secs_default))
     } else {
         detectionFreqInSecs = detection_freq_in_secs_default
         ifInErrorsDiffMinValue = if_in_errors_diff_min_value_default
