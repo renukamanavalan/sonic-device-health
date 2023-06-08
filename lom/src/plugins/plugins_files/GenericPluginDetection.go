@@ -29,7 +29,9 @@ func NewGenericPluginDetection(...interface{}) plugins_common.Plugin {
 
 func init() {
     // ... register the plugin with plugin manager
-    plugins_common.RegisterPlugin("GenericPluginDetection", NewGenericPluginDetection)
+    if lomcommon.GetLoMRunMode() == lomcommon.LoMRunMode_Test {
+        plugins_common.RegisterPlugin("GenericPluginDetection", NewGenericPluginDetection)
+    }
 }
 
 func (gpl *GenericPluginDetection) Init(actionCfg *lomcommon.ActionCfg_t) error {

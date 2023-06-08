@@ -689,7 +689,7 @@ func (p *oneShotTimer_t) runOneShotTimer() {
 
         case <-time.After(time.Duration(tout) * time.Second):
 
-        case <- chAbort:
+        case <-chAbort:
             LogInfo("runOneShotTimer: System abort called. terminating...")
             return
         }
@@ -719,18 +719,9 @@ func (p *oneShotTimer_t) runOneShotTimer() {
 
 var goroutineTracker *GoroutineTracker = nil
 
-type GoroutineStatus bool
-
-const (
-    GoroutineStatusRunning  GoroutineStatus = false
-    GoroutineStatusFinished GoroutineStatus = true
-)
-
 type Goroutine struct {
-    Status    GoroutineStatus
     done      chan struct{}
     StartTime time.Time
-    EndTime   time.Time
 }
 
 type GoroutineInfo struct {
@@ -784,16 +775,10 @@ func (grt *GoroutineTracker) Start(name string, fn interface{}, args ...interfac
 
     if _, ok := grt.goroutines[name]; ok {
         /* Goroutine with same name already exists & active */
-        if grt.goroutines[name].Status == GoroutineStatusRunning {
-            panic(fmt.Sprintf("Cannot start goroutine, %q as its active", name))
-        } else {
-            /* Goroutine with same name already exists & finished */
-            LogInfo("Goroutine %s is finished. Deleting it from goroutine tracker", name)
-            delete(grt.goroutines, name)
-        }
+        panic(fmt.Sprintf("Cannot start goroutine, %q as its active", name))
     }
 
-    g := &Goroutine{Status: GoroutineStatusRunning, done: make(chan struct{}), StartTime: time.Now()}
+    g := &Goroutine{done: make(chan struct{}), StartTime: time.Now()}
     grt.goroutines[name] = g
     grt.waitGroup.Add(1)
 
@@ -803,10 +788,13 @@ func (grt *GoroutineTracker) Start(name string, fn interface{}, args ...interfac
             grt.mlock.Lock()
             defer grt.mlock.Unlock()
 
-            g.Status = GoroutineStatusFinished
-            g.EndTime = time.Now()
-            close(g.done)
             grt.waitGroup.Done()
+
+            /* Delete the goroutine from the map if it is finished */
+            LogDebug("Goroutine %s is finished at %q. Deleting it from goroutine tracker", name, time.Now().Format("January 02, 2006 15:04:05.000000"))
+            delete(grt.goroutines, name)
+
+            close(g.done)
         }()
 
         /* Get the reflect.Value of the function */
@@ -818,6 +806,7 @@ func (grt *GoroutineTracker) Start(name string, fn interface{}, args ...interfac
         }
 
         /* If arguments are provided, call the function with the arguments */
+        LogDebug("Goroutine %s started at %q", name, time.Now().Format("January 02, 2006 15:04:05.000000"))
         if len(args) > 0 {
             /* Convert the arguments to a slice of reflect.Value */
             argVals := make([]reflect.Value, len(args))
@@ -856,7 +845,7 @@ func (grt *GoroutineTracker) Wait(name string) {
 
 /*
  * Wait for a all the goroutine to finish.
- * CAUTION : This blocks as intended. Do only call per process.
+ * CAUTION : This blocks as intended. Do only one call per process.
  * Do not create any goroutines after this call
  * Parameters:
  * - timeout: timeout in seconds. If timeout is 0, then it waits forever
@@ -865,19 +854,19 @@ func (grt *GoroutineTracker) Wait(name string) {
  * - bool: true if all goroutines finished within timeout, false otherwise
  */
 func (grt *GoroutineTracker) WaitAll(timeout time.Duration) bool {
-    c := make(chan struct{})
+    finishchan := make(chan struct{})
     go func() {
         grt.waitGroup.Wait()
-        close(c)
+        close(finishchan)
     }()
 
     if timeout == 0 {
-        <-c
+        <-finishchan
         return true
     }
 
     select {
-    case <-c:
+    case <-finishchan:
         return true
     case <-time.After(timeout):
         LogInfo("WaitAll timed out after %v", timeout)
@@ -900,8 +889,8 @@ func (grt *GoroutineTracker) IsRunning(name string) (bool, error) {
     grt.mlock.Lock()
     defer grt.mlock.Unlock()
 
-    if g, ok := grt.goroutines[name]; ok {
-        return g.Status == GoroutineStatusRunning, nil
+    if _, ok := grt.goroutines[name]; ok {
+        return true, nil
     }
 
     /* Goroutine with given name doesn't exist */
@@ -909,7 +898,7 @@ func (grt *GoroutineTracker) IsRunning(name string) (bool, error) {
 }
 
 /*
- * Gets the start time of a goroutine with the given name. It may be runnning or completed
+ * Gets the start time of a goroutine with the given name. It must be running
  * Parameters:
  * - name: the name of the goroutine
  *
@@ -944,12 +933,7 @@ func (grt *GoroutineTracker) InfoList(name *string) []interface{} {
 
     /* Create a function to extract info for a given goroutine */
     extractInfo := func(name string, g *Goroutine) GoroutineInfo {
-        duration := time.Duration(0)
-        if g.Status == GoroutineStatusRunning {
-            duration = time.Since(g.StartTime)
-        } else if g.Status == GoroutineStatusFinished {
-            duration = g.EndTime.Sub(g.StartTime)
-        }
+        duration := time.Since(g.StartTime)
         return GoroutineInfo{
             Goroutine: *g,
             Name:      name,
@@ -958,7 +942,7 @@ func (grt *GoroutineTracker) InfoList(name *string) []interface{} {
     }
 
     /* If name is given, return info for that goroutine */
-    if name != nil {
+    if name != nil && *name != "" {
         if g, ok := grt.goroutines[*name]; ok {
             return []interface{}{extractInfo(*name, g)}
         }
@@ -980,11 +964,10 @@ func (grt *GoroutineTracker) InfoList(name *string) []interface{} {
  * PrintGoroutineInfo prints the information of all goroutines to syslog
  * Parameters:
  * - name: the name of the goroutine. If name is empty, then info for all goroutines is printed
- * - runningOnly: if true, only print info for running goroutines. Otherwise print info for all goroutines
  * Returns:
  * - None
  */
-func PrintGoroutineInfo(name string, runningOnly bool) {
+func PrintGoroutineInfo(name string) {
     if goroutineTracker == nil {
         LogInfo("GoroutineTracker is not initialized.")
         return
@@ -1001,16 +984,13 @@ func PrintGoroutineInfo(name string, runningOnly bool) {
         goroutineInfo, ok := info.(GoroutineInfo)
         if ok {
             if name == "" || goroutineInfo.Name == name {
-                if !runningOnly || goroutineInfo.Status != GoroutineStatusFinished {
-                    LogInfo("Name:", goroutineInfo.Name)
-                    LogInfo("Status:", goroutineInfo.Status)
-                    LogInfo("Duration:", goroutineInfo.Duration)
-                    LogInfo("Goroutine:")
-                    LogInfo("  Status:", goroutineInfo.Goroutine.Status)
-                    LogInfo("  StartTime:", goroutineInfo.Goroutine.StartTime)
-                    LogInfo("  EndTime:", goroutineInfo.Goroutine.EndTime)
-                    LogInfo("------------------------------")
-                }
+                LogInfo("------------------------------")
+                LogInfo("Goroutine:")
+                LogInfo("  Name:%q", goroutineInfo.Name)
+                LogInfo("  Status: Running")
+                LogInfo("  StartTime:%q:", goroutineInfo.Goroutine.StartTime.Format("January 02, 2006 15:04:05.000000"))
+                LogInfo("  Duration:%q", goroutineInfo.Duration)
+                LogInfo("------------------------------")
             }
         }
     }

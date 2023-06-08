@@ -4,11 +4,10 @@ import (
     "C"
     "encoding/json"
     "fmt"
+    "lom/src/engine/engine"
     . "lom/src/lib/lomcommon"
     . "lom/src/lib/lomipc"
-    "lom/src/engine"
 )
-
 
 /*
  * C-bindings for non-go clients.
@@ -58,16 +57,16 @@ func GetGlobalCfgStrC(keyPtr *C.char) *C.char {
 func GetGlobalCfgIntC(keyPtr *C.char) C.int {
     key := C.GoString(keyPtr)
     val := GetConfigMgr().GetGlobalCfgAny(key)
-    iVal, ok := val.(float64) 
+    iVal, ok := val.(float64)
     if !ok {
         LogError("Failed key=%s expect float64 val (%T)/(%v)", key, val, val)
     }
-    return C.int(iVal)     /* Defaults to 0 on failed conversion */
+    return C.int(iVal) /* Defaults to 0 on failed conversion */
 }
 
 //export GetSequenceAsJsonC
 func GetSequenceAsJsonC(namePtr *C.char) *C.char {
-    name:= C.GoString(namePtr)
+    name := C.GoString(namePtr)
     ret := ""
     if v, err := GetConfigMgr().GetSequence(name); err != nil {
         LogError("Failed to find sequence for (%s) (%v)", name, err)
@@ -81,7 +80,7 @@ func GetSequenceAsJsonC(namePtr *C.char) *C.char {
 
 //export GetActionConfigAsJsonC
 func GetActionConfigAsJsonC(namePtr *C.char) *C.char {
-    name:= C.GoString(namePtr)
+    name := C.GoString(namePtr)
     ret := ""
     if v, err := GetConfigMgr().GetActionConfig(name); err != nil {
         LogError("Failed to get conf for action (%s) (%v)", name, err)
@@ -108,7 +107,7 @@ func GetActionsListAsJsonC() *C.char {
 
 //export GetProcsConfigC
 func GetProcsConfigC(namePtr *C.char) *C.char {
-    name:= C.GoString(namePtr)
+    name := C.GoString(namePtr)
     ret := ""
 
     if v, err := GetConfigMgr().GetProcsConfig(name); err != nil {
@@ -121,8 +120,7 @@ func GetProcsConfigC(namePtr *C.char) *C.char {
     return C.CString(ret)
 }
 
-//export 
-
+//export
 
 /*
  * ----------------------------------------------------------------
@@ -133,15 +131,15 @@ func GetProcsConfigC(namePtr *C.char) *C.char {
  *  {
  *      "retCode":  <int>       // return value. 0 implies success
  *      "retStr":   <string>    // Human readable string
- *      "response": <string>    // JSONified o/p of the API, if any. 
+ *      "response": <string>    // JSONified o/p of the API, if any.
  *                              // Response expected only for receive server req
  *  }
  *
  * ----------------------------------------------------------------
  */
 
-
 // Required only for test code.
+//
 //export EngineStartC
 func EngineStartC(cfgPath *C.char) C.int {
 
@@ -156,9 +154,9 @@ func EngineStartC(cfgPath *C.char) C.int {
 var clientSessTx = GetClientTx(0)
 
 type RetResponse struct {
-    ResultCode  int
-    ResultStr   string
-    RespData    interface{}
+    ResultCode int
+    ResultStr  string
+    RespData   interface{}
 }
 
 var UnkRetStr = `{"ResultCode":-1,"ResultStr":"Unknown error","RespData":null}`
@@ -184,10 +182,9 @@ func GetRetResponse(err error) string {
     return GetRetResponseWithData(err, nil)
 }
 
-
 //export RegisterClientC
 func RegisterClientC(namePtr *C.char) *C.char {
-    name:= C.GoString(namePtr)
+    name := C.GoString(namePtr)
 
     ret := GetRetResponse(clientSessTx.RegisterClient(name))
     return C.CString(ret)
@@ -200,14 +197,14 @@ func DeregisterClientC() *C.char {
 
 //export RegisterActionC
 func RegisterActionC(namePtr *C.char) *C.char {
-    name:= C.GoString(namePtr)
+    name := C.GoString(namePtr)
 
     return C.CString(GetRetResponse(clientSessTx.RegisterAction(name)))
 }
 
 //export DeregisterActionC
 func DeregisterActionC(namePtr *C.char) *C.char {
-    name:= C.GoString(namePtr)
+    name := C.GoString(namePtr)
 
     return C.CString(GetRetResponse(clientSessTx.DeregisterAction(name)))
 }
@@ -241,11 +238,10 @@ func SendServerResponseC(respPtr *C.char) *C.char {
 
 //export NotifyHeartbeatC
 func NotifyHeartbeatC(namePtr *C.char, tstamp C.longlong) *C.char {
-    name:= C.GoString(namePtr)
+    name := C.GoString(namePtr)
 
     return C.CString(GetRetResponse(clientSessTx.NotifyHeartbeat(name, int64(tstamp))))
 }
 
 func main() {
 }
-

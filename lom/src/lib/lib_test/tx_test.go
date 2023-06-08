@@ -818,135 +818,135 @@ type ConfigData_t struct {
     Reason    string
 }
 
-var testConfigData = []ConfigData_t {
-        {
-            "",
-            "",
-            "",
-            "",
-            true,
-            false,
-            "Missing global file",
-        },
-        {
-            "{}",
-            "",
-            "",
-            "",
-            true,
-            false,
-            "Missing actions file",
-        },
-        {
-            "{}",
-            "{}",
-            "",
-            "",
-            true,
-            false,
-            "Missing bindings file",
-        },
-        {
-            "{}",
-            "{}",
-            "{}",
-            "",
-            true,
-            false,
-            "Missing procs file",
-        },
-        {
-            "eee",
-            "",
-            "",
-            "",
-            true,
-            false,
-            "Invalid global Json data",
-        },
-        {
-            "{}",
-            "eee",
-            "",
-            "",
-            true,
-            false,
-            "Invalid actions Json data",
-        },
-        {
-            "{}",
-            "{}",
-            "eee",
-            "",
-            true,
-            false,
-            "Invalid bindings Json data",
-        },
-        {
-            "{}",
-            "{}",
-            "{}",
-            "eee",
-            true,
-            false,
-            "Invalid procs Json data",
-        },
-        {
-            `{}`,
-            `{ "actions": [ { "name": "xxx" } ] }`,
-            `{ "bindings": [ { "name": "Test", "actions": [ {"name": "YYY"} ] } ] }`,
-            `{}`,
-            true,
-            false,
-            "Action name YYY not in actions",
-        },
-        {
-            `{}`,
-            `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
-            `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 0 }, {"name": "yyy"}] } ] }`,
-            `{}`,
-            true,
-            false,
-            "Duplicate sequence",
-        },
-        {
-            `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
-            `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
-            `{ "bindings": [ { "name": "Test", "actions": [ ] } ] }`,
-            `{}`,
-            true,
-            false,
-            "No actions in sequence",
-        },
-        {
-            `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
-            `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
-            `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
-            `{}`,
-            false,
-            false,
-            "",
-        },
-        {
-            `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
-            `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
-            `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
-            `{ "proc_0": { "Detect-0": { "name": "Detect-0", "version": "00.01.1", "path": " /path/" }}, "proc_1": { "Mitigate-0": { "name": "Mitigate-0", "version": "02_1", "path": " /path/" }}}`,
-            false,
-            true,
-            "",
-        },
-    }
+var testConfigData = []ConfigData_t{
+    {
+        "",
+        "",
+        "",
+        "",
+        true,
+        false,
+        "Missing global file",
+    },
+    {
+        "{}",
+        "",
+        "",
+        "",
+        true,
+        false,
+        "Missing actions file",
+    },
+    {
+        "{}",
+        "{}",
+        "",
+        "",
+        true,
+        false,
+        "Missing bindings file",
+    },
+    {
+        "{}",
+        "{}",
+        "{}",
+        "",
+        true,
+        false,
+        "Missing procs file",
+    },
+    {
+        "eee",
+        "",
+        "",
+        "",
+        true,
+        false,
+        "Invalid global Json data",
+    },
+    {
+        "{}",
+        "eee",
+        "",
+        "",
+        true,
+        false,
+        "Invalid actions Json data",
+    },
+    {
+        "{}",
+        "{}",
+        "eee",
+        "",
+        true,
+        false,
+        "Invalid bindings Json data",
+    },
+    {
+        "{}",
+        "{}",
+        "{}",
+        "eee",
+        true,
+        false,
+        "Invalid procs Json data",
+    },
+    {
+        `{}`,
+        `{ "actions": [ { "name": "xxx" } ] }`,
+        `{ "bindings": [ { "name": "Test", "actions": [ {"name": "YYY"} ] } ] }`,
+        `{}`,
+        true,
+        false,
+        "Action name YYY not in actions",
+    },
+    {
+        `{}`,
+        `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+        `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 0 }, {"name": "yyy"}] } ] }`,
+        `{}`,
+        true,
+        false,
+        "Duplicate sequence",
+    },
+    {
+        `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
+        `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+        `{ "bindings": [ { "name": "Test", "actions": [ ] } ] }`,
+        `{}`,
+        true,
+        false,
+        "No actions in sequence",
+    },
+    {
+        `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
+        `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+        `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
+        `{}`,
+        false,
+        false,
+        "",
+    },
+    {
+        `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
+        `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+        `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
+        `{ "proc_0": { "Detect-0": { "name": "Detect-0", "version": "00.01.1", "path": " /path/" }}, "proc_1": { "Mitigate-0": { "name": "Mitigate-0", "version": "02_1", "path": " /path/" }}}`,
+        false,
+        true,
+        "",
+    },
+}
 
 type testAPIData_t struct {
-    GlobalStr       string
-    ActionStr       string
-    BindStr         string
-    ProcStr         string
-    Seq             map[string]bool
-    Sequence        BindingSequence_t
-    ActionsCfg      map[string]ActionCfg_t
-    procInfo        map[string]ProcPluginConfigList_t
+    GlobalStr  string
+    ActionStr  string
+    BindStr    string
+    ProcStr    string
+    Seq        map[string]bool
+    Sequence   BindingSequence_t
+    ActionsCfg map[string]ActionCfg_t
+    procInfo   map[string]ProcPluginConfigList_t
 }
 
 var testApiData = testAPIData_t{
@@ -954,7 +954,7 @@ var testApiData = testAPIData_t{
     `{ "actions": [ { "name": "foo", "timeout":77 }, { "name": "bar" } ] }`,
     `{ "bindings": [ { "sequencename": "TestFoo", "timeout": 60, "actions": [ {"name": "foo", "sequence": 1 }, {"name": "bar"}] } ] }`,
     `{ "proc_0": { "Detect-0": { "name": "Detect-0", "version": "00.01.1", "path": " /path/" }}, "proc_1": { "Mitigate-0": { "name": "Mitigate-0", "version": "02_1", "path": " /path/" }}}`,
-    map[string]bool {
+    map[string]bool{
         "foo": false,
         "bar": true,
     },
@@ -997,7 +997,7 @@ var testApiData = testAPIData_t{
             "",
         },
     },
-    map[string]ProcPluginConfigList_t {
+    map[string]ProcPluginConfigList_t{
         "proc_0": {
             "Detect-0": {
                 "Detect-0",
@@ -1231,12 +1231,12 @@ func TestConfig(t *testing.T) {
             if rplst, e := mgr.GetProcsConfig(procName); e != nil {
                 t.Errorf("%s: Failed to get proc cfg", procName)
             } else {
-                for vPlName, vPlData := range vplst {    /* From test data */
+                for vPlName, vPlData := range vplst { /* From test data */
                     if rplData, ok := rplst[vPlName]; !ok {
                         t.Errorf("proc:%s plugin:%s missing", procName, vPlName)
                     } else if vPlData != rplData {
                         t.Errorf("%s/%s: config mismatch (%v) != (%v)",
-                                procName, vPlName, vPlData, rplData)
+                            procName, vPlName, vPlData, rplData)
                     }
                 }
             }
@@ -1462,7 +1462,7 @@ func TestShutdown(t *testing.T) {
 
 func TestMisc(t *testing.T) {
     prf := "Hello:"
-    SetPrefix(prf[0:len(prf)-1])
+    SetPrefix(prf[0 : len(prf)-1])
     if s := LogMessage(syslog.LOG_INFO, "test"); s[0:len(prf)] != prf {
         t.Errorf("Incorrect prefix(%s) in log message (%s)", prf, s)
     }
@@ -1472,4 +1472,3 @@ func TestMisc(t *testing.T) {
     }
 
 }
-
