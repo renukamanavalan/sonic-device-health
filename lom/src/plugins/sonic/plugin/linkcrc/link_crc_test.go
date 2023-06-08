@@ -168,6 +168,31 @@ func Test_LinkCrcDetectionPlugin_InitializesWithActionsKnobs(t *testing.T) {
     assert.Equal(127, lookBackPeriodInSecs, "LookBackPeriodInSecs is expected to be 127")
 }
 
+/* Validates Link crc plugin initialized with actions knobs from defaults when json field missing */
+func Test_LinkCrcDetectionPlugin_InitializesWithActionsKnobsAndDefaults(t *testing.T) {
+    linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
+    actionKnobs := `{
+    "DetectionFreqInSecs": 35,
+    "IfInErrorsDiffMinValue": 5,
+    "InUnicastPacketsMinValue": 105,
+    "OutUnicastPacketsMinValue": 105,
+    "MinOutliersForDetection": 3,
+    "LookBackPeriodInSecs": 127
+    }`
+
+    actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 10, ActionKnobs: actionKnobs}
+    linkCRCDetectionPlugin.Init(&actionConfig)
+
+    assert := assert.New(t)
+    assert.Equal(5, ifInErrorsDiffMinValue, "IfInErrorsDiffMinValue is expected to be 5")
+    assert.Equal(105, inUnicastPacketsMinValue, "InUnicastPacketsMinValue is expected to be 105")
+    assert.Equal(105, outUnicastPacketsMinValue, "OutUnicastPacketsMinValue is expected to be 105")
+    assert.Equal(5, outlierRollingWindowSize, "OutlierRollingWindowSize is expected to be 6")
+    assert.Equal(0.000001, minCrcError, "MinCrcError is expected to be 0.000002")
+    assert.Equal(3, minOutliersForDetection, "MinOutliersForDetection is expected to be 3")
+    assert.Equal(127, lookBackPeriodInSecs, "LookBackPeriodInSecs is expected to be 127")
+}
+
 /* Validates DetectCrc returns nil for error */
 func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForError(t *testing.T) {
     // Mock
