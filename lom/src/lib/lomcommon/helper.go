@@ -18,6 +18,8 @@ import (
     "time"
 )
 
+type any = interface{}
+
 var writers = make(map[syslog.Priority]*syslog.Writer)
 
 var log_level = syslog.LOG_DEBUG

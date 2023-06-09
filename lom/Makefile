@@ -69,9 +69,11 @@ endef
 
 .PHONY: all clean format_code
 
-all: format_code $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) \
+origall: format_code $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) \
 	$(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST) $(PY_TEST) \
 	$(PLUGIN_MANAGER_BIN)
+
+all: $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN)
 
 $(CMN_C_LIB): $(SRC_FILES)
 	mkdir -p $(LIB_DIR)

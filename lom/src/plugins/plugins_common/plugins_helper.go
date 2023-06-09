@@ -6,6 +6,7 @@ import (
     "context"
     "lom/src/lib/lomcommon"
     "lom/src/lib/lomipc"
+    "sync"
     "time"
 )
 
@@ -164,7 +165,7 @@ type PeriodicDetectionPluginUtil struct {
     PluginName              string
     shutDownInitiated       bool
     detectionRunInfo        DetectionRunInfo
-    numOfConsecutiveErrors  Uint64
+    numOfConsecutiveErrors  uint64
     responseChannel         chan *lomipc.ActionResponseData
     ctx                     context.Context
     cancelCtxFunc           context.CancelFunc
@@ -298,7 +299,7 @@ loop:
             }
 
             if !isExecutionHealthy {
-                periodicDetectionPluginUtil.numOfConsecutiveErrors.Add(1)
+                periodicDetectionPluginUtil.numOfConsecutiveErrors += 1
                 lomcommon.LogError("Incremented consecutiveError count for plugin (%s)", periodicDetectionPluginUtil.PluginName)
             } else {
                 periodicDetectionPluginUtil.numOfConsecutiveErrors = 0

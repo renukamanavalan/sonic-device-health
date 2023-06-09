@@ -5,7 +5,7 @@ SHELL = /bin/bash
 
 GO_BUILD_DIR := lom/build
 ENGINE_TARGET := $(GO_BUILD_DIR)/bin/LoMEngine
-PLMGR_TARGET := $(GO_BUILD_DIR)/bin/pluginmgr
+PLMGR_TARGET := $(GO_BUILD_DIR)/bin/LoMPluginMgr
 ENGINE_CONFIG := config/*.conf.json
 
 MKDIR := mkdir
