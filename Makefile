@@ -14,15 +14,13 @@ RM := rm
 
 all: go-all
 
-ifeq ($(DESTDIR),)
-	override DESTDIR := /lom-root/debian/tmp
-endif
-
 go-all:
 	@echo "+++ --- Making Go --- +++"
 	cd lom && $(MAKE) -f Makefile all
 
-# e.g. make -j16 install DESTDIR=/sonic/src/sonic-eventd/debian/tmp AM_UPDATE_INFO_DIR=no "INSTALL=install --strip-program=true"
+# e.g. make -j16 install DESTDIR=/sonic/src/sonic-eventd/debian/tmp
+#            AM_UPDATE_INFO_DIR=no "INSTALL=install --strip-program=true"
+#
 install:
 	@echo 'install: Destdir:$(DESTDIR)'
 	$(RM) -rf $(DESTDIR)

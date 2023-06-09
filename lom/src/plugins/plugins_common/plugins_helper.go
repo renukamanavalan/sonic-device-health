@@ -6,9 +6,10 @@ import (
     "fmt"
     "lom/src/lib/lomcommon"
     "lom/src/lib/lomipc"
-    "sync/atomic"
     "time"
 )
+
+type any = interface{}
 
 /* Interface for limiting reporting frequency of plugin */
 type PluginReportingFrequencyLimiterInterface interface {
@@ -84,13 +85,13 @@ func GetDefaultDetectionFrequencyLimiter() PluginReportingFrequencyLimiterInterf
 }
 
 /* A generic rolling window data structure with fixed size */
-type FixedSizeRollingWindow[T any] struct {
+type FixedSizeRollingWindow struct {
     orderedDataPoints    *list.List
     maxRollingWindowSize int
 }
 
 /* Initalizes the datastructure with size */
-func (fxdSizeRollingWindow *FixedSizeRollingWindow[T]) Initialize(maxSize int) error {
+func (fxdSizeRollingWindow *FixedSizeRollingWindow) Initialize(maxSize int) error {
     if maxSize <= 0 {
         return lomcommon.LogError(fmt.Sprintf("%d Invalid size for fxd size rolling window", maxSize))
     }
@@ -100,7 +101,7 @@ func (fxdSizeRollingWindow *FixedSizeRollingWindow[T]) Initialize(maxSize int) e
 }
 
 /* Adds element to rolling window */
-func (fxdSizeRollingWindow *FixedSizeRollingWindow[T]) AddElement(value T) {
+func (fxdSizeRollingWindow *FixedSizeRollingWindow) AddElement(value any) {
     if fxdSizeRollingWindow.orderedDataPoints.Len() < fxdSizeRollingWindow.maxRollingWindowSize {
         fxdSizeRollingWindow.orderedDataPoints.PushBack(value)
         return
@@ -113,7 +114,7 @@ func (fxdSizeRollingWindow *FixedSizeRollingWindow[T]) AddElement(value T) {
 }
 
 /* Gets all current elements as list */
-func (fxdSizeRollingWindow *FixedSizeRollingWindow[T]) GetElements() *list.List {
+func (fxdSizeRollingWindow *FixedSizeRollingWindow) GetElements() *list.List {
     return fxdSizeRollingWindow.orderedDataPoints
 }
 
@@ -141,7 +142,7 @@ type PeriodicDetectionPluginUtil struct {
     requestFrequencyInSecs  int
     heartBeatIntervalInSecs int
     shutDownChannel         chan interface{}
-    requestAborted          atomic.Bool
+    requestAborted          bool
     requestFunc             func(*lomipc.ActionRequestData, *bool) *lomipc.ActionResponseData
     shutdownFunc            func() error
     PluginName              string
@@ -164,7 +165,7 @@ func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Init(pluginName 
     }
     periodicDetectionPluginUtil.requestFrequencyInSecs = requestFrequencyInSecs
     periodicDetectionPluginUtil.heartBeatIntervalInSecs = actionConfig.HeartbeatInt
-    periodicDetectionPluginUtil.requestAborted = atomic.Bool{}
+    periodicDetectionPluginUtil.requestAborted = false
     periodicDetectionPluginUtil.shutDownChannel = make(chan interface{})
     periodicDetectionPluginUtil.requestFunc = requestFunction
     periodicDetectionPluginUtil.shutdownFunc = shutDownFunction
@@ -189,13 +190,13 @@ func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Request(
         select {
         case <-heartBeatTicker.C:
             /* Send heartbeat only when the request is healthy and is not aborted yet */
-            if !periodicDetectionPluginUtil.requestAborted.Load() && isExecutionHealthy {
+            if !periodicDetectionPluginUtil.requestAborted && isExecutionHealthy {
                 pluginHeartBeat := PluginHeartBeat{PluginName: periodicDetectionPluginUtil.PluginName, EpochTime: time.Now().Unix()}
                 hbchan <- pluginHeartBeat
             }
         case <-detectionTicker.C:
             /* Perform detection logic periodically */
-            if !periodicDetectionPluginUtil.requestAborted.Load() {
+            if !periodicDetectionPluginUtil.requestAborted {
                 response := periodicDetectionPluginUtil.requestFunc(request, &isExecutionHealthy)
                 if response != nil {
                     return response
@@ -206,7 +207,7 @@ func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Request(
             /* Shutdown stops the periodic detection */
             lomcommon.LogInfo(fmt.Sprintf("Aborting Request for (%s)", periodicDetectionPluginUtil.PluginName))
             responseData := GetResponse(request, "", "", ResultCodeAborted, ResultStringFailure)
-            periodicDetectionPluginUtil.requestAborted.Store(true)
+            periodicDetectionPluginUtil.requestAborted = true
             return responseData
         }
     }
@@ -218,7 +219,7 @@ func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Shutdown() error
     close(periodicDetectionPluginUtil.shutDownChannel)
     startTime := time.Now()
     for {
-        if periodicDetectionPluginUtil.requestAborted.Load() {
+        if periodicDetectionPluginUtil.requestAborted {
             break
         }
 

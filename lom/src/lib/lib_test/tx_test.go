@@ -35,6 +35,8 @@ import (
     "time"
 )
 
+type any = interface{}
+
 type TestClientData struct {
     ReqType  ReqDataType /* Req type to call */
     Args     []string    /* Args needed for the call */

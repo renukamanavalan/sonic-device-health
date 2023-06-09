@@ -2,7 +2,6 @@ package lomcommon
 
 import (
     "encoding/json"
-    "io"
     "io/ioutil"
     "os"
     "path/filepath"
@@ -128,18 +127,10 @@ func (p *GlobalConfig_t) readGlobalsConf(fl string) error {
 
     v := make(map[string]any)
 
-    jsonFile, err := os.Open(fl)
-    if err != nil {
-        LogError("Failed to open (%s) (%v)", fl, err)
-        return err
-    }
-
-    defer jsonFile.Close()
-
-    if byteValue, err := io.ReadAll(jsonFile); err != nil {
-        return LogError("Failed to read (%s) (%v)", jsonFile, err)
+    if byteValue, err := FileReadAll(fl); err != nil {
+        return LogError("Failed to read (%s) (%v)", fl, err)
     } else if err := json.Unmarshal(byteValue, &v); err != nil {
-        return LogError("Failed to parse (%s) (%v)", jsonFile, err)
+        return LogError("Failed to parse (%s) (%v)", fl, err)
     } else {
         for k, v := range v {
             p.anyVal[k] = v
@@ -299,14 +290,7 @@ func (p *ConfigMgr_t) readActionsConf(fl string) error {
         Actions []ActionCfg_t
     }{}
 
-    jsonFile, err := os.Open(fl)
-    if err != nil {
-        return err
-    }
-
-    defer jsonFile.Close()
-
-    if byteValue, err := io.ReadAll(jsonFile); err != nil {
+    if byteValue, err := FileReadAll(fl); err != nil {
         return err
     } else if err := json.Unmarshal(byteValue, &actions); err != nil {
         return err
@@ -352,14 +336,7 @@ func (p *ConfigMgr_t) readBindingsConf(fl string) error {
         Bindings []BindingSequence_t
     }{}
 
-    jsonFile, err := os.Open(fl)
-    if err != nil {
-        return err
-    }
-
-    defer jsonFile.Close()
-
-    if byteValue, err := io.ReadAll(jsonFile); err != nil {
+    if byteValue, err := FileReadAll(fl); err != nil {
         return err
     } else if err := json.Unmarshal(byteValue, &bindings); err != nil {
         return err
@@ -399,7 +376,7 @@ func (p *ConfigMgr_t) readBindingsConf(fl string) error {
                 p.bindingsConfig[firstAction] = b
             } else {
                 return LogError("Internal Error: Missing actions in bindings for (%s) fl(%s)",
-                    b.SequenceName, jsonFile)
+                    b.SequenceName, fl)
             }
         }
         return nil

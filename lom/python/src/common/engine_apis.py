@@ -45,6 +45,8 @@ def lom_lib_init():
             lomLib = CDLL(os.path.join(DLL_PATH, DLL_NAME))
         except OSError as e:
             log_panic("Failed to load error:{}".format(e))
+        except Exception as e:
+            log_panic("Load failure: {}".format(e))
 
 
     lomLibFunctionsMetaData = {

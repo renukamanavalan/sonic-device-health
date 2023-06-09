@@ -4,6 +4,7 @@ import (
     "encoding/json"
     "errors"
     "fmt"
+    "io"
     "log"
     "log/syslog"
     "math"
@@ -1043,3 +1044,26 @@ func GetEnvVarString(envname string) (string, bool) {
     value, exists := envMap[envname]
     return value, exists
 }
+
+func FileReadAll(fl string) ([]byte, error) {
+
+    if fp, err := os.Open(fl); err != nil {
+        LogError("Failed to open (%s) (%v)", fl, err)
+        return nil, err
+    } else {
+        defer fp.Close()
+
+        if info, err := fp.Stat(); err != nil {
+            return nil, LogError("Failed to stat file (fl) err=(%v)", fl, err)
+        } else {
+            byteValue := make([]byte, info.Size())
+
+            if _, err := io.ReadFull(fp, byteValue); err != nil {
+                return nil, LogError("Failed to read (%s) (%v)", fl, err)
+            } else {
+                return byteValue, nil
+            }
+        }
+    }
+}
+

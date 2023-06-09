@@ -94,7 +94,7 @@ type MockElement struct {
 /* Validates FixedSizeRollingWindow AddElement does not add more than max allowed elements into the rolling window */
 func Test_FixedSizeRollingWindow_AddElementDoesNotAddMoreThanMaxElements(t *testing.T) {
     // Mock
-    fixedSizeRollingWindow := FixedSizeRollingWindow[MockElement]{}
+    fixedSizeRollingWindow := FixedSizeRollingWindow{}
     fixedSizeRollingWindow.Initialize(4)
 
     mockElement1 := MockElement{key: 1}
@@ -134,7 +134,7 @@ func Test_FixedSizeRollingWindow_AddElementDoesNotAddMoreThanMaxElements(t *test
 /* Validates that FixedSizeRollingWindow Initialize returns error for invalid maxSize */
 func Test_FixedSizeRollingWindow_InitializeReturnsErrorForInvalidMaxSize(t *testing.T) {
     // Mock
-    fixedSizeRollingWindow := FixedSizeRollingWindow[MockElement]{}
+    fixedSizeRollingWindow := FixedSizeRollingWindow{}
     // Act
     err := fixedSizeRollingWindow.Initialize(0)
     // Assert.
@@ -150,7 +150,7 @@ func Test_FixedSizeRollingWindow_InitializeReturnsErrorForInvalidMaxSize(t *test
 /* Validates that FixedSizeRollingWindow returns empty list for no addition of elements */
 func Test_FixedSizeRollingWindow_InitializeReturnsEmptyListForNoAdditionOfElements(t *testing.T) {
     // Mock
-    fixedSizeRollingWindow := FixedSizeRollingWindow[MockElement]{}
+    fixedSizeRollingWindow := FixedSizeRollingWindow{}
 
     // Act
     err := fixedSizeRollingWindow.Initialize(4)
@@ -302,7 +302,7 @@ func Test_PeriodicDetectionPluginUtil_SendsHeartbeat(t *testing.T) {
     assert := assert.New(t)
     assert.NotNil(response, "response is expected to be non nil")
     assert.Equal(2, dummyPlugin.(*DummyPlugin).testValue1, "someValue is expected to be 2")
-    assert.True(dummyPlugin.(*DummyPlugin).requestAborted.Load(), "requestAborted is expected to be true")
+    assert.True(dummyPlugin.(*DummyPlugin).requestAborted, "requestAborted is expected to be true")
 }
 
 /* Validates that the request is aborted on shutdown */
@@ -325,7 +325,7 @@ func Test_PeriodicDetectionPluginUtil_EnsureRequestAbortedOnShutdown(t *testing.
     time.Sleep(2 * time.Second)
     assert.Equal(2, dummyPlugin.(*DummyPlugin).testValue1, "someValue is expected to be 2")
     assert.Equal(3, dummyPlugin.(*DummyPlugin).testValue2, "otherValue is expected to be 3")
-    assert.True(dummyPlugin.(*DummyPlugin).requestAborted.Load(), "requestAborted is expected to be true")
+    assert.True(dummyPlugin.(*DummyPlugin).requestAborted, "requestAborted is expected to be true")
 }
 
 /* Validates that shutdown timesout when request is still active for a long time */
@@ -346,5 +346,5 @@ func Test_PeriodicDetectionPluginUtil_EnsureShutDownTimesOut(t *testing.T) {
     assert.NotNil(err, "err is expected to be non nil")
     assert.Equal(2, dummyPlugin.(*DummyPlugin).testValue1, "someValue is expected to be 2")
     assert.Equal(0, dummyPlugin.(*DummyPlugin).testValue2, "otherValue is expected to be 0")
-    assert.False(dummyPlugin.(*DummyPlugin).requestAborted.Load(), "requestAborted is expected to be false")
+    assert.False(dummyPlugin.(*DummyPlugin).requestAborted, "requestAborted is expected to be false")
 }
