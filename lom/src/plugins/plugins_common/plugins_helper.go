@@ -301,7 +301,7 @@ loop:
                 periodicDetectionPluginUtil.numOfConsecutiveErrors.Add(1)
                 lomcommon.LogError("Incremented consecutiveError count for plugin (%s)", periodicDetectionPluginUtil.PluginName)
             } else {
-                periodicDetectionPluginUtil.numOfConsecutiveErrors.Store(0)
+                periodicDetectionPluginUtil.numOfConsecutiveErrors = 0
             }
 
             elapsedTime := int64(time.Since(startTimeInUtc).Seconds())
@@ -333,7 +333,7 @@ loop:
 func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Shutdown() error {
     lomcommon.LogInfo("Shutdown called for plugin (%s)", periodicDetectionPluginUtil.PluginName)
     periodicDetectionPluginUtil.cancelCtxFunc()
-    periodicDetectionPluginUtil.shutDownInitiated.Store(true)
+    periodicDetectionPluginUtil.shutDownInitiated = true
     periodicDetectionPluginUtil.shutdownFunc()
     lomcommon.LogInfo("Shutdown successful for plugin (%s)", periodicDetectionPluginUtil.PluginName)
     return nil
