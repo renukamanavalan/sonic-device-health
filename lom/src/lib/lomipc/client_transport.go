@@ -6,6 +6,8 @@ import (
     "strconv"
 )
 
+type any = interface{}
+
 const server_address = "localhost"
 
 var RPCDialHttp = rpc.DialHTTP
