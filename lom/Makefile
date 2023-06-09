@@ -134,8 +134,8 @@ $(PY_TEST): $(SRC_FILES) $(PY_FILES)
 $(SONIC_LINK_CRC_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/SonicLinkCrcCoverprofile.out \
-				-coverpkg lom/src/plugins/sonic/plugin/detection/link/linkcrc \
-				-covermode=atomic lom/src/plugins/sonic/plugin/detection/link/linkcrc || (echo "SonicLinkCrc plugin Test failed $$?"; exit 1)
+				-coverpkg lom/src/plugins/sonic/plugin/linkcrc \
+				-covermode=atomic lom/src/plugins/sonic/plugin/linkcrc || (echo "SonicLinkCrc plugin Test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/SonicLinkCrcCoverprofile.out -o $(TEST_DIR)/SonicLinkCrcCoverprofile.html
 	$(call extract_file_coverage,$(TEST_DIR)/SonicLinkCrcCoverprofile.html)
 	touch $@

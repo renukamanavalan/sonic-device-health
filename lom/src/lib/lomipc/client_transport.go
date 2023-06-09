@@ -59,6 +59,8 @@ func (tx *ClientTx) RegisterClient(client string) error {
         return err
     }
 
+    init_encoding()
+
     defer func() {
         if err != nil {
             tx.clientRpc = nil

@@ -1,6 +1,7 @@
 package dbclient
 
 import (
+    "context"
     "errors"
     "testing"
 
@@ -71,8 +72,6 @@ func Test_GetInterfaceCounters_ReturnsAllCountersSuccessfuly(t *testing.T) {
     mockRedisProvider := new(MockRedisProvider)
     newMap := getInterfaceToODIMapping()
     (mockRedisProvider).On(HGetAllMethod, 2, COUNTERS_PORT_NAME_MAP).Maybe().Return(newMap, nil)
-    ifStatuses := []string{"up", "up"}
-    (mockRedisProvider).On(HmGetMethod, 0, mock.Anything, mock.Anything).Return(convertStringToInterfaceType(ifStatuses), nil)
 
     strs := []string{"110", "111", "112", "113"}
     counters := convertStringToInterfaceType(strs)
@@ -89,10 +88,11 @@ func Test_GetInterfaceCounters_ReturnsAllCountersSuccessfuly(t *testing.T) {
 
     // Act
     counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
-    result, err := counterDBClient.GetCountersForActiveInterfaces()
+    ctx, _ := context.WithCancel(context.Background())
+    result, err := counterDBClient.GetCountersForAllInterfaces(ctx)
 
     // Assert
-    mockRedisProvider.AssertNumberOfCalls(t, HmGetMethod, 6)
+    mockRedisProvider.AssertNumberOfCalls(t, HmGetMethod, 3)
     mockRedisProvider.AssertExpectations(t)
     assert := assert.New(t)
     assert.NotEqual(nil, result, "Result is expected to be non nil")
@@ -121,7 +121,8 @@ func Test_GetInterfaceCounters_ReturnsErrorWhenHGetAllMethodFails(t *testing.T) 
 
     // Act
     counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
-    result, err := counterDBClient.GetCountersForActiveInterfaces()
+    ctx, _ := context.WithCancel(context.Background())
+    result, err := counterDBClient.GetCountersForAllInterfaces(ctx)
 
     // Assert
     if result != nil {
@@ -136,9 +137,7 @@ func Test_GetInterfaceCounters_ReturnsErrorWhenHmGetFails(t *testing.T) {
     mockRedisProvider := new(MockRedisProvider)
     newMap := getInterfaceToODIMapping()
     (mockRedisProvider).On(HGetAllMethod, 2, COUNTERS_PORT_NAME_MAP).Maybe().Return(newMap, nil)
-    ifStatuses := []string{"up", "up"}
 
-    (mockRedisProvider).On(HmGetMethod, 0, mock.Anything, mock.Anything).Return(convertStringToInterfaceType(ifStatuses), nil)
     strs := []string{"110", "111", "112", "113"}
     counters := convertStringToInterfaceType(strs)
     mockRedisProvider.On(HmGetMethod, 2, ethernet1_redis_key, mock.MatchedBy(validateOrderOfFields)).Maybe().Return(counters, nil)
@@ -149,7 +148,8 @@ func Test_GetInterfaceCounters_ReturnsErrorWhenHmGetFails(t *testing.T) {
 
     // Act
     counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
-    result, err := counterDBClient.GetCountersForActiveInterfaces()
+    ctx, _ := context.WithCancel(context.Background())
+    result, err := counterDBClient.GetCountersForAllInterfaces(ctx)
 
     // Assert
     mockRedisProvider.AssertExpectations(t)
@@ -165,8 +165,6 @@ func Test_GetInterfaceCounters_ReturnsErrorWhenIfInErrorsCastingFails(t *testing
     mockRedisProvider := new(MockRedisProvider)
     newMap := getInterfaceToODIMapping()
     (mockRedisProvider).On(HGetAllMethod, 2, COUNTERS_PORT_NAME_MAP).Maybe().Return(newMap, nil)
-    ifStatuses := []string{"up", "up"}
-    (mockRedisProvider).On(HmGetMethod, 0, mock.Anything, mock.Anything).Return(convertStringToInterfaceType(ifStatuses), nil)
 
     strs := []string{"abc", "111", "112", "113"}
     counters := convertStringToInterfaceType(strs)
@@ -182,7 +180,8 @@ func Test_GetInterfaceCounters_ReturnsErrorWhenIfInErrorsCastingFails(t *testing
 
     // Act
     counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
-    result, err := counterDBClient.GetCountersForActiveInterfaces()
+    ctx, _ := context.WithCancel(context.Background())
+    result, err := counterDBClient.GetCountersForAllInterfaces(ctx)
 
     // Assert
     mockRedisProvider.AssertExpectations(t)
@@ -198,8 +197,6 @@ func Test_GetInterfaceCounters_ReturnsErrorWhenInUnicastPacketsCastingFails(t *t
     mockRedisProvider := new(MockRedisProvider)
     newMap := getInterfaceToODIMapping()
     (mockRedisProvider).On(HGetAllMethod, 2, COUNTERS_PORT_NAME_MAP).Maybe().Return(newMap, nil)
-    ifStatuses := []string{"up", "up"}
-    (mockRedisProvider).On(HmGetMethod, 0, mock.Anything, mock.Anything).Return(convertStringToInterfaceType(ifStatuses), nil)
 
     strs := []string{"110", "abc", "112", "113"}
     counters := convertStringToInterfaceType(strs)
@@ -215,7 +212,8 @@ func Test_GetInterfaceCounters_ReturnsErrorWhenInUnicastPacketsCastingFails(t *t
 
     // Act
     counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
-    result, err := counterDBClient.GetCountersForActiveInterfaces()
+    ctx, _ := context.WithCancel(context.Background())
+    result, err := counterDBClient.GetCountersForAllInterfaces(ctx)
 
     // Assert
     mockRedisProvider.AssertExpectations(t)
@@ -231,8 +229,6 @@ func Test_GetInterfaceCounters_ReturnsErrorWhenOutUnicastPacketsCastingFails(t *
     mockRedisProvider := new(MockRedisProvider)
     newMap := getInterfaceToODIMapping()
     (mockRedisProvider).On(HGetAllMethod, 2, COUNTERS_PORT_NAME_MAP).Maybe().Return(newMap, nil)
-    ifStatuses := []string{"up", "up"}
-    (mockRedisProvider).On(HmGetMethod, 0, mock.Anything, mock.Anything).Return(convertStringToInterfaceType(ifStatuses), nil)
 
     strs := []string{"110", "111", "abc", "113"}
     counters := convertStringToInterfaceType(strs)
@@ -248,7 +244,8 @@ func Test_GetInterfaceCounters_ReturnsErrorWhenOutUnicastPacketsCastingFails(t *
 
     // Act
     counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
-    result, err := counterDBClient.GetCountersForActiveInterfaces()
+    ctx, _ := context.WithCancel(context.Background())
+    result, err := counterDBClient.GetCountersForAllInterfaces(ctx)
     mockRedisProvider.AssertExpectations(t)
 
     // Assert
@@ -271,9 +268,10 @@ func Test_isInterfaceActive_ReturnsTrueForActiveInterface(t *testing.T) {
     // Act
     counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
     // Assert
-    result, err := counterDBClient.IsInterfaceActive(ethernet1)
+    adminStatus, operStatus, err := counterDBClient.GetInterfaceStatus(ethernet1)
     assert.Equal(t, nil, err, "err is exptected to be nil")
-    assert.True(t, result, "result is exptected to be true")
+    assert.True(t, adminStatus, "adminStatus is expected to be true")
+    assert.True(t, operStatus, "operStatus is expected to be true")
 }
 
 /* Validates isInterfaceActive returns false when either admin and oper status is not up */
@@ -285,9 +283,10 @@ func Test_isInterfaceActive_ReturnsFalseForInActiveInterface(t *testing.T) {
     // Act
     counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
     // Assert
-    result, err := counterDBClient.IsInterfaceActive(ethernet1)
+    adminStatus, operStatus, err := counterDBClient.GetInterfaceStatus(ethernet1)
     assert.Equal(t, nil, err, "err is exptected to be nil")
-    assert.False(t, result, "result is exptected to be False")
+    assert.False(t, adminStatus, "adminStatus is exptected to be False")
+    assert.True(t, operStatus, "operStatus is expected to be true")
 }
 
 /* Validates isInterfaceActive returns false when redis call fails */
@@ -298,7 +297,28 @@ func Test_isInterfaceActive_ReturnsFalseWhenRedisCallFails(t *testing.T) {
     // Act
     counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
     // Assert
-    result, err := counterDBClient.IsInterfaceActive(ethernet1)
+    adminStatus, operStatus, err := counterDBClient.GetInterfaceStatus(ethernet1)
     assert.NotEqual(t, nil, err, "err is exptected to be nil")
-    assert.False(t, result, "result is exptected to be False")
+    assert.False(t, adminStatus, "adminStatus is exptected to be False")
+    assert.False(t, operStatus, "operStatus is exptected to be False")
+}
+
+/* Test GetInterfaceCounters returns error when context is cancelled. */
+func Test_GetInterfaceCounters_ErrorsWhenContextCancelled(t *testing.T) {
+    // Mock
+    mockRedisProvider := new(MockRedisProvider)
+    newMap := getInterfaceToODIMapping()
+    (mockRedisProvider).On(HGetAllMethod, 2, COUNTERS_PORT_NAME_MAP).Maybe().Return(newMap, nil)
+
+    // Act
+    counterDBClient := CounterRepository{RedisProvider: mockRedisProvider}
+    ctx, cancelFunc := context.WithCancel(context.Background())
+    cancelFunc()
+    result, err := counterDBClient.GetCountersForAllInterfaces(ctx)
+
+    // Assert
+    if result != nil {
+        t.Errorf("result is expected to be nil")
+    }
+    assert.NotEqual(t, nil, err, "err is exptected to be non nil")
 }

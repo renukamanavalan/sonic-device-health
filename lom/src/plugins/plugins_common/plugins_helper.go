@@ -3,7 +3,7 @@ package plugins_common
 
 import (
     "container/list"
-    "fmt"
+    "context"
     "lom/src/lib/lomcommon"
     "lom/src/lib/lomipc"
     "time"
@@ -16,6 +16,7 @@ type PluginReportingFrequencyLimiterInterface interface {
     ShouldReport(anomalyKey string) bool
     ResetCache(anomalyKey string)
     Initialize(initialReportingFreqInMins int, subsequentReportingFreqInMins int, initialReportingMaxCount int)
+    IsNotWithinFrequency(reportingDetails ReportingDetails) bool
 }
 
 /* Contains when detection was last reported and the count of reports so far */
@@ -54,19 +55,12 @@ func (pluginReportingFrequencyLimiter *PluginReportingFrequencyLimiter) ShouldRe
         pluginReportingFrequencyLimiter.cache[anomalyKey] = &reportingDetails
         return true
     } else {
-        defer func() {
-            reportingDetails.countOfTimesReported = reportingDetails.countOfTimesReported + 1
-            reportingDetails.lastReported = time.Now()
-        }()
-
-        if reportingDetails.countOfTimesReported <= pluginReportingFrequencyLimiter.initialReportingMaxCount {
-            if time.Since(reportingDetails.lastReported).Minutes() > float64(pluginReportingFrequencyLimiter.initialReportingFreqInMins) {
-                return true
-            }
-        } else if reportingDetails.countOfTimesReported > pluginReportingFrequencyLimiter.initialReportingMaxCount {
-            if time.Since(reportingDetails.lastReported).Minutes() > float64(pluginReportingFrequencyLimiter.SubsequentReportingFreqInMins) {
-                return true
-            }
+        if pluginReportingFrequencyLimiter.IsNotWithinFrequency(*reportingDetails) {
+            defer func() {
+                reportingDetails.countOfTimesReported = reportingDetails.countOfTimesReported + 1
+                reportingDetails.lastReported = time.Now()
+            }()
+            return true
         }
         return false
     }
@@ -74,7 +68,26 @@ func (pluginReportingFrequencyLimiter *PluginReportingFrequencyLimiter) ShouldRe
 
 /* Resets cache for anomaly Key. This needs to be used when anomaly is not detected for an anomaly key */
 func (pluginReportingFrequencyLimiter *PluginReportingFrequencyLimiter) ResetCache(anomalyKey string) {
-    delete(pluginReportingFrequencyLimiter.cache, anomalyKey)
+    reportingDetails, ok := pluginReportingFrequencyLimiter.cache[anomalyKey]
+
+    if ok {
+        if pluginReportingFrequencyLimiter.IsNotWithinFrequency(*reportingDetails) {
+            delete(pluginReportingFrequencyLimiter.cache, anomalyKey)
+        }
+    }
+}
+
+func (pluginReportingFrequencyLimiter *PluginReportingFrequencyLimiter) IsNotWithinFrequency(reportingDetails ReportingDetails) bool {
+    if reportingDetails.countOfTimesReported <= pluginReportingFrequencyLimiter.initialReportingMaxCount {
+        if time.Since(reportingDetails.lastReported).Minutes() > float64(pluginReportingFrequencyLimiter.initialReportingFreqInMins) {
+            return true
+        }
+    } else {
+        if time.Since(reportingDetails.lastReported).Minutes() > float64(pluginReportingFrequencyLimiter.SubsequentReportingFreqInMins) {
+            return true
+        }
+    }
+    return false
 }
 
 /* Factory method to get default detection reporting limiter instance */
@@ -93,7 +106,7 @@ type FixedSizeRollingWindow struct {
 /* Initalizes the datastructure with size */
 func (fxdSizeRollingWindow *FixedSizeRollingWindow) Initialize(maxSize int) error {
     if maxSize <= 0 {
-        return lomcommon.LogError(fmt.Sprintf("%d Invalid size for fxd size rolling window", maxSize))
+        return lomcommon.LogError("%d Invalid size for fxd size rolling window", maxSize)
     }
     fxdSizeRollingWindow.maxRollingWindowSize = maxSize
     fxdSizeRollingWindow.orderedDataPoints = list.New()
@@ -129,6 +142,11 @@ const (
     ResultStringFailure = "Failure"
 )
 
+const (
+    min_err_cnt_to_skip_hb_key = "PLUGIN_MIN_ERR_CNT_TO_SKIP_HEARTBEAT"
+    plugin_prefix              = "plugin_"
+)
+
 /*
 This util can be used by detection plugins which needs to detect anomalies periodically and send heartbeat to plugin manager.
 This util takes care of executing detection logic periodically and shutting down the request when shutdown is invoked on the plugin.
@@ -141,96 +159,183 @@ Guidence for requestFunc
 type PeriodicDetectionPluginUtil struct {
     requestFrequencyInSecs  int
     heartBeatIntervalInSecs int
-    shutDownChannel         chan interface{}
-    requestAborted          bool
-    requestFunc             func(*lomipc.ActionRequestData, *bool) *lomipc.ActionResponseData
+    requestFunc             func(*lomipc.ActionRequestData, *bool, context.Context) *lomipc.ActionResponseData
     shutdownFunc            func() error
     PluginName              string
+    shutDownInitiated       bool
+    detectionRunInfo        DetectionRunInfo
+    numOfConsecutiveErrors  Uint64
+    responseChannel         chan *lomipc.ActionResponseData
+    ctx                     context.Context
+    cancelCtxFunc           context.CancelFunc
+}
+
+type DetectionRunInfo struct {
+    /* If this value is nil, it indicates there is no current run in execution. Non-nil value signifies a current run in execution. */
+    currentRunStartTimeInUtc *time.Time
+    /* Duration of the latest completed run in seconds */
+    durationOfLatestRunInSeconds int64
+    mutex                        sync.Mutex
 }
 
 /* This method needs to be called to initialize fields present in PeriodicDetectionPluginUtil struct */
-func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Init(pluginName string, requestFrequencyInSecs int, actionConfig *lomcommon.ActionCfg_t, requestFunction func(*lomipc.ActionRequestData, *bool) *lomipc.ActionResponseData, shutDownFunction func() error) error {
+func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Init(pluginName string, requestFrequencyInSecs int, actionConfig *lomcommon.ActionCfg_t, requestFunction func(*lomipc.ActionRequestData, *bool, context.Context) *lomipc.ActionResponseData, shutDownFunction func() error) error {
     if actionConfig.HeartbeatInt <= 0 {
         // Do not use a default heartbeat interval. Validate and honor the one passed from plugin manager.
-        return lomcommon.LogError(fmt.Sprintf("Invalid heartbeat interval %d", actionConfig.HeartbeatInt))
+        return lomcommon.LogError("Invalid heartbeat interval %d", actionConfig.HeartbeatInt)
     }
     if requestFrequencyInSecs <= 0 {
-        return lomcommon.LogError(fmt.Sprintf("Invalid requestFreq %d", requestFrequencyInSecs))
+        return lomcommon.LogError("Invalid requestFreq %d", requestFrequencyInSecs)
     }
     if requestFunction == nil || shutDownFunction == nil {
-        return lomcommon.LogError(fmt.Sprintf("requestFunction or shutDownFunction is not initialized"))
+        return lomcommon.LogError("requestFunction or shutDownFunction is not initialized")
     }
     if pluginName == "" {
-        return lomcommon.LogError(fmt.Sprintf("PluginName invalid"))
+        return lomcommon.LogError("PluginName invalid")
     }
     periodicDetectionPluginUtil.requestFrequencyInSecs = requestFrequencyInSecs
     periodicDetectionPluginUtil.heartBeatIntervalInSecs = actionConfig.HeartbeatInt
-    periodicDetectionPluginUtil.requestAborted = false
-    periodicDetectionPluginUtil.shutDownChannel = make(chan interface{})
+    /* Size of responseChannel should be 2, so that the go routine handling request can be terminated on shutdown if the Request method has already terminated. */
+    periodicDetectionPluginUtil.responseChannel = make(chan *lomipc.ActionResponseData, 2)
     periodicDetectionPluginUtil.requestFunc = requestFunction
     periodicDetectionPluginUtil.shutdownFunc = shutDownFunction
     periodicDetectionPluginUtil.PluginName = pluginName
-    lomcommon.LogInfo(fmt.Sprintf("Initialized periodicDetectionPluginUtil successfuly for (%s)", pluginName))
+    periodicDetectionPluginUtil.detectionRunInfo = DetectionRunInfo{}
+    periodicDetectionPluginUtil.ctx, periodicDetectionPluginUtil.cancelCtxFunc = context.WithCancel(context.Background())
+    lomcommon.LogInfo("Initialized periodicDetectionPluginUtil successfuly for (%s)", pluginName)
     return nil
 }
 
-// TODO: Enhance logic in this method to immediately start ticker, ensure hearbeat and request are not blocked by each other.
-/* This method is promoted to the plugin Periodically invokes detection logic and send heartbeat as well. Honors shutdown when shutdown is invoked on plugin */
+/*
+This method immediately starts heartbeat and request execution.
+This method is promoted to the plugin. Honors shutdown when shutdown is invoked on plugin.
+*/
 func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Request(
     hbchan chan PluginHeartBeat,
     request *lomipc.ActionRequestData) *lomipc.ActionResponseData {
     if request.Timeout > 0 {
         return GetResponse(request, "", "", ResultCodeInvalidArgument, "Invalid Timeout value for detection plugin")
     }
-    detectionTicker := time.NewTicker(time.Duration(periodicDetectionPluginUtil.requestFrequencyInSecs) * time.Second)
+
+    // Publish a heartbeat immediately.
+    pluginHeartBeat := PluginHeartBeat{PluginName: periodicDetectionPluginUtil.PluginName, EpochTime: time.Now().Unix()}
+    hbchan <- pluginHeartBeat
+
+    lomcommon.GetGoroutineTracker().Start(plugin_prefix+periodicDetectionPluginUtil.PluginName, periodicDetectionPluginUtil.handleRequest, request)
     heartBeatTicker := time.NewTicker(time.Duration(periodicDetectionPluginUtil.heartBeatIntervalInSecs) * time.Second)
-    lomcommon.LogInfo(fmt.Sprintf("Timers initialized for plugin (%s)", periodicDetectionPluginUtil.PluginName))
-    isExecutionHealthy := false
+    defer heartBeatTicker.Stop()
+
     for {
         select {
+
         case <-heartBeatTicker.C:
-            /* Send heartbeat only when the request is healthy and is not aborted yet */
-            if !periodicDetectionPluginUtil.requestAborted && isExecutionHealthy {
-                pluginHeartBeat := PluginHeartBeat{PluginName: periodicDetectionPluginUtil.PluginName, EpochTime: time.Now().Unix()}
-                hbchan <- pluginHeartBeat
-            }
-        case <-detectionTicker.C:
+            periodicDetectionPluginUtil.publishHeartBeat(hbchan)
+
+        case resp := <-periodicDetectionPluginUtil.responseChannel:
+            return resp
+
+        case <-periodicDetectionPluginUtil.ctx.Done():
+            /* Shutdown stops the periodic detection */
+            lomcommon.LogInfo("Aborting Request for (%s)", periodicDetectionPluginUtil.PluginName)
+            responseData := GetResponse(request, "", "", ResultCodeAborted, ResultStringFailure)
+            return responseData
+        }
+    }
+}
+
+/* Publishes heartbeat after performing validations */
+func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) publishHeartBeat(hbchan chan PluginHeartBeat) {
+
+    numConsecutiveErrors := periodicDetectionPluginUtil.numOfConsecutiveErrors
+    periodicDetectionPluginUtil.detectionRunInfo.mutex.Lock()
+    durationOfLatestRunInSecs := periodicDetectionPluginUtil.detectionRunInfo.durationOfLatestRunInSeconds
+    var currentRunStartTimeInUtc time.Time
+    if periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc != nil {
+        currentRunStartTimeInUtc = *periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc
+    }
+    periodicDetectionPluginUtil.detectionRunInfo.mutex.Unlock()
+
+    if numConsecutiveErrors >= uint64(lomcommon.GetConfigMgr().GetGlobalCfgInt(min_err_cnt_to_skip_hb_key)) {
+        lomcommon.LogError("Skipping heartbeat for %s. numConsecutiveErrors %d", periodicDetectionPluginUtil.PluginName, numConsecutiveErrors)
+        return
+    } else if durationOfLatestRunInSecs > int64(periodicDetectionPluginUtil.requestFrequencyInSecs) {
+        lomcommon.LogError("Skipping heartbeat for %s. DurationOfLatestRunInSecs %d", periodicDetectionPluginUtil.PluginName, durationOfLatestRunInSecs)
+        return
+    } else if !currentRunStartTimeInUtc.IsZero() { /* Indicates a request is running currently */
+        durationTillNow := int64(time.Since(currentRunStartTimeInUtc).Seconds())
+        if durationTillNow > int64(periodicDetectionPluginUtil.requestFrequencyInSecs) {
+            lomcommon.LogError("Skipping heartbeat for %s. Duration of current execution in secs %d", periodicDetectionPluginUtil.PluginName, durationTillNow)
+            return
+        }
+    }
+
+    /* Publish heartbeat only after above validations pass.*/
+    pluginHeartBeat := PluginHeartBeat{PluginName: periodicDetectionPluginUtil.PluginName, EpochTime: time.Now().Unix()}
+    hbchan <- pluginHeartBeat
+}
+
+/* Hanldes detection logic execution and honors shutdown as well. This is called in a goRoutine in the Request method */
+func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) handleRequest(request *lomipc.ActionRequestData) {
+
+    detectionTicker := time.NewTicker(time.Duration(periodicDetectionPluginUtil.requestFrequencyInSecs) * time.Second)
+    defer detectionTicker.Stop()
+    lomcommon.LogInfo("Detection Timer initialized for plugin (%s)", periodicDetectionPluginUtil.PluginName)
+    isExecutionHealthy := false
+loop:
+    for {
+        // Start immediately before the select.
+        if !periodicDetectionPluginUtil.shutDownInitiated {
+            periodicDetectionPluginUtil.detectionRunInfo.mutex.Lock()
+            startTimeInUtc := time.Now().UTC()
+            periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc = &startTimeInUtc
+            periodicDetectionPluginUtil.detectionRunInfo.mutex.Unlock()
+
             /* Perform detection logic periodically */
-            if !periodicDetectionPluginUtil.requestAborted {
-                response := periodicDetectionPluginUtil.requestFunc(request, &isExecutionHealthy)
-                if response != nil {
-                    return response
-                }
+            response := periodicDetectionPluginUtil.requestFunc(request, &isExecutionHealthy, periodicDetectionPluginUtil.ctx)
+            if response != nil {
+                periodicDetectionPluginUtil.responseChannel <- response
+                return
             }
 
-        case <-periodicDetectionPluginUtil.shutDownChannel:
+            if !isExecutionHealthy {
+                periodicDetectionPluginUtil.numOfConsecutiveErrors.Add(1)
+                lomcommon.LogError("Incremented consecutiveError count for plugin (%s)", periodicDetectionPluginUtil.PluginName)
+            } else {
+                periodicDetectionPluginUtil.numOfConsecutiveErrors.Store(0)
+            }
+
+            elapsedTime := int64(time.Since(startTimeInUtc).Seconds())
+            periodicDetectionPluginUtil.detectionRunInfo.mutex.Lock()
+            periodicDetectionPluginUtil.detectionRunInfo.currentRunStartTimeInUtc = nil
+            periodicDetectionPluginUtil.detectionRunInfo.durationOfLatestRunInSeconds = elapsedTime
+            periodicDetectionPluginUtil.detectionRunInfo.mutex.Unlock()
+
+            if elapsedTime > int64(periodicDetectionPluginUtil.requestFrequencyInSecs) {
+                // Reset the timer.
+                lomcommon.LogInfo("Resetting timer for plugin (%s)", periodicDetectionPluginUtil.PluginName)
+                detectionTicker.Reset(time.Duration(periodicDetectionPluginUtil.requestFrequencyInSecs) * time.Second)
+            }
+        }
+
+        select {
+        case <-detectionTicker.C:
+            continue
+
+        case <-periodicDetectionPluginUtil.ctx.Done():
             /* Shutdown stops the periodic detection */
-            lomcommon.LogInfo(fmt.Sprintf("Aborting Request for (%s)", periodicDetectionPluginUtil.PluginName))
-            responseData := GetResponse(request, "", "", ResultCodeAborted, ResultStringFailure)
-            periodicDetectionPluginUtil.requestAborted = true
-            return responseData
+            lomcommon.LogInfo("Aborting handleRequest for (%s)", periodicDetectionPluginUtil.PluginName)
+            break loop
         }
     }
 }
 
 /* Shutdown that aborts the request. It also cleans up plugin defined cleanUp at the end */
 func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Shutdown() error {
-    lomcommon.LogInfo(fmt.Sprintf("Shutdown called for plugin (%s)", periodicDetectionPluginUtil.PluginName))
-    close(periodicDetectionPluginUtil.shutDownChannel)
-    startTime := time.Now()
-    for {
-        if periodicDetectionPluginUtil.requestAborted {
-            break
-        }
-
-        time.Sleep(1 * time.Second)
-        elapsedTimeInSeconds := time.Since(startTime).Seconds()
-        if elapsedTimeInSeconds > float64(periodicDetectionPluginUtil.requestFrequencyInSecs) {
-            return lomcommon.LogError(fmt.Sprintf("Request could not be aborted"))
-        }
-    }
+    lomcommon.LogInfo("Shutdown called for plugin (%s)", periodicDetectionPluginUtil.PluginName)
+    periodicDetectionPluginUtil.cancelCtxFunc()
+    periodicDetectionPluginUtil.shutDownInitiated.Store(true)
     periodicDetectionPluginUtil.shutdownFunc()
-    lomcommon.LogInfo(fmt.Sprintf("Shutdown successful for plugin (%s)", periodicDetectionPluginUtil.PluginName))
+    lomcommon.LogInfo("Shutdown successful for plugin (%s)", periodicDetectionPluginUtil.PluginName)
     return nil
 }
 
