@@ -220,11 +220,11 @@ type ProcPluginConfig_t struct {
 type ActionCfg_t struct {
     Name         string
     Type         string
-    Timeout      int    /* Timeout recommended for this action */
-    HeartbeatInt int    /* Heartbeat interval */
-    Disable      bool   /* true - Disabled */
-    Mimic        bool   /* true - Run but don't write/update device */
-    ActionKnobs  string /* Json String with action specific knobs */
+    Timeout      int             /* Timeout recommended for this action */
+    HeartbeatInt int             /* Heartbeat interval */
+    Disable      bool            /* true - Disabled */
+    Mimic        bool            /* true - Run but don't write/update device */
+    ActionKnobs  json.RawMessage /* Json String with action specific knobs */
 }
 
 /* Map with action name */
@@ -295,11 +295,9 @@ type ConfigMgr_t struct {
 }
 
 func (p *ConfigMgr_t) readActionsConf(fl string) error {
-    actions := struct {
-        Actions []ActionCfg_t
-    }{}
-
+    actions := ActionsConfigList_t{}
     jsonFile, err := os.Open(fl)
+
     if err != nil {
         return err
     }
@@ -311,9 +309,7 @@ func (p *ConfigMgr_t) readActionsConf(fl string) error {
     } else if err := json.Unmarshal(byteValue, &actions); err != nil {
         return err
     } else {
-        for _, a := range actions.Actions {
-            p.actionsConfig[a.Name] = a
-        }
+        p.actionsConfig = actions
         return nil
     }
 }

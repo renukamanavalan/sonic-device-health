@@ -19,6 +19,7 @@ package lib_test
  */
 
 import (
+    "bytes"
     "encoding/json"
     "errors"
     "fmt"
@@ -893,7 +894,7 @@ var testConfigData = []ConfigData_t{
     },
     {
         `{}`,
-        `{ "actions": [ { "name": "xxx" } ] }`,
+        `{ "xxx" :{ "name": "xxx" } }`,
         `{ "bindings": [ { "name": "Test", "actions": [ {"name": "YYY"} ] } ] }`,
         `{}`,
         true,
@@ -902,7 +903,7 @@ var testConfigData = []ConfigData_t{
     },
     {
         `{}`,
-        `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+        `{"xxx": {"name": "xxx"}, "yyy": { "name": "yyy" }}`,
         `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 0 }, {"name": "yyy"}] } ] }`,
         `{}`,
         true,
@@ -911,7 +912,7 @@ var testConfigData = []ConfigData_t{
     },
     {
         `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
-        `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+        `{"xxx": {"name": "xxx"}, "yyy": { "name": "yyy" }}`,
         `{ "bindings": [ { "name": "Test", "actions": [ ] } ] }`,
         `{}`,
         true,
@@ -920,7 +921,7 @@ var testConfigData = []ConfigData_t{
     },
     {
         `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
-        `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+        `{"xxx": {"name": "xxx"}, "yyy": { "name": "yyy" }}`,
         `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
         `{}`,
         false,
@@ -929,7 +930,7 @@ var testConfigData = []ConfigData_t{
     },
     {
         `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
-        `{ "actions": [ { "name": "xxx" }, { "name": "yyy" } ] }`,
+        `{"xxx": {"name": "xxx"}, "yyy": { "name": "yyy" }}`,
         `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
         `{ "proc_0": { "Detect-0": { "name": "Detect-0", "version": "00.01.1", "path": " /path/" }}, "proc_1": { "Mitigate-0": { "name": "Mitigate-0", "version": "02_1", "path": " /path/" }}}`,
         false,
@@ -951,7 +952,7 @@ type testAPIData_t struct {
 
 var testApiData = testAPIData_t{
     `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 22, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
-    `{ "actions": [ { "name": "foo", "timeout":77 }, { "name": "bar" } ] }`,
+    `{"foo": {"name": "foo","timeout": 77},"bar": {"name": "bar"}}`,
     `{ "bindings": [ { "sequencename": "TestFoo", "timeout": 60, "actions": [ {"name": "foo", "sequence": 1 }, {"name": "bar"}] } ] }`,
     `{ "proc_0": { "Detect-0": { "name": "Detect-0", "version": "00.01.1", "path": " /path/" }}, "proc_1": { "Mitigate-0": { "name": "Mitigate-0", "version": "02_1", "path": " /path/" }}}`,
     map[string]bool{
@@ -985,7 +986,7 @@ var testApiData = testAPIData_t{
             0,
             false,
             false,
-            "",
+            json.RawMessage(``),
         },
         "bar": {
             "bar",
@@ -994,7 +995,7 @@ var testApiData = testAPIData_t{
             0,
             false,
             false,
-            "",
+            json.RawMessage(``),
         },
     },
     map[string]ProcPluginConfigList_t{
@@ -1038,6 +1039,7 @@ func createFile(name string, s string) (string, error) {
 }
 
 func getConfigMgrTest(t *testing.T, gl, ac, bi, pr string, testMode bool) (*ConfigMgr_t, error) {
+    LogError("111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111")
     if flG, err := createFile(GLOBALS_CONF_FILE, gl); err != nil {
         t.Errorf("TestConfig: Failed to create Global file")
     } else if _, err := createFile(ACTIONS_CONF_FILE, ac); err != nil {
@@ -1059,6 +1061,7 @@ func getConfigMgrTest(t *testing.T, gl, ac, bi, pr string, testMode bool) (*Conf
             return GetConfigMgr(), nil
         }
     }
+
     return nil, LogError("Failed to init Cfg Manager")
 }
 
@@ -1173,7 +1176,7 @@ func TestConfig(t *testing.T) {
                 }
             }
         }
-
+        LogError("3333333333333333333333333333333333333333333333333333333333333333333333333333333")
         startSeqAct := ""
 
         lst := mgr.GetActionsList()
@@ -1218,8 +1221,12 @@ func TestConfig(t *testing.T) {
         for k, v := range testApiData.ActionsCfg {
             if a, e := mgr.GetActionConfig(k); e != nil {
                 t.Errorf("%s: Failed to get action cfg", k)
-            } else if *a != v {
-                t.Errorf("%s: config mismatch (%v) != (%v)", k, a, v)
+            } else {
+                // Compare the ActionKnobs fields as []byte slices
+                LogError("4444444444444444444444444444444444 a.ActionKnobs(%v) v.ActionKnobs(%v)", a, v)
+                if !bytes.Equal(a.ActionKnobs, v.ActionKnobs) {
+                    t.Errorf("%s: config mismatch (%v) != (%v)", k, a, v)
+                }
             }
         }
 

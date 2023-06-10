@@ -2,6 +2,7 @@ package linkcrc
 
 import (
     "context"
+    "encoding/json"
     "errors"
     "github.com/stretchr/testify/assert"
     "github.com/stretchr/testify/mock"
@@ -144,7 +145,7 @@ func Test_LinkCrcDetector_AddInterfaceCountersReturnsFalseForInvalidCountersDiff
 /* Validates Link crc plugin initialized with actions knobs */
 func Test_LinkCrcDetectionPlugin_InitializesWithActionsKnobs(t *testing.T) {
     linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
-    actionKnobs := `{
+    actionKnobs := json.RawMessage(`{
     "DetectionFreqInSecs": 35,
     "IfInErrorsDiffMinValue": 5,
     "InUnicastPacketsMinValue": 105,
@@ -153,7 +154,7 @@ func Test_LinkCrcDetectionPlugin_InitializesWithActionsKnobs(t *testing.T) {
     "MinCrcError": 0.000002,
     "MinOutliersForDetection": 3,
     "LookBackPeriodInSecs": 127
-    }`
+    }`)
 
     actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 10, ActionKnobs: actionKnobs}
     linkCRCDetectionPlugin.Init(&actionConfig)
@@ -171,14 +172,14 @@ func Test_LinkCrcDetectionPlugin_InitializesWithActionsKnobs(t *testing.T) {
 /* Validates Link crc plugin initialized with actions knobs from defaults when json field missing */
 func Test_LinkCrcDetectionPlugin_InitializesWithActionsKnobsAndDefaults(t *testing.T) {
     linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
-    actionKnobs := `{
+    actionKnobs := json.RawMessage(`{
     "DetectionFreqInSecs": 35,
     "IfInErrorsDiffMinValue": 5,
     "InUnicastPacketsMinValue": 105,
     "OutUnicastPacketsMinValue": 105,
     "MinOutliersForDetection": 3,
     "LookBackPeriodInSecs": 127
-    }`
+    }`)
 
     actionConfig := lomcommon.ActionCfg_t{HeartbeatInt: 10, ActionKnobs: actionKnobs}
     linkCRCDetectionPlugin.Init(&actionConfig)

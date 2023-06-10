@@ -208,7 +208,8 @@ func (plmgr *PluginManager) run() error {
                         return
                     }
                 } else if err != nil {
-                    LogError("Error in run() RecvServerRequest: %v", err)
+                    LogError("Error in run() RecvServerRequest: %v, Exiting process ...", err)
+                    osExit(0)
                 } else if serverReq == nil {
                     LogError("run() RecvServerRequest returned : %v", serverReq)
                 } else {
@@ -681,7 +682,7 @@ func (plmgr *PluginManager) addPlugin(pluginName string, pluginVersion string) e
     // 2.Get plugin specific details from actions config file and add any additional info(future) to pass to plugin's init() call
     actionCfg, err := lomcommon.GetConfigMgr().GetActionConfig(pluginName)
     if err != nil {
-        retMsg = fmt.Sprintf("addPlugin : plugin %s not found in actions config file", pluginName)
+        retMsg = fmt.Sprintf("addPlugin : plugin %s not found in actions config file, error : %s", pluginName, err)
         return LogError(retMsg)
     }
 
@@ -907,7 +908,8 @@ func StartPluginManager(waittime time.Duration) error {
     for pluginname, plconfig := range procInfo {
         LogInfo("StartPluginManager : Initializing plugin %s version %s", pluginname, plconfig.Version)
         errv := vpluginManager.loadPlugin(pluginname, plconfig.Version)
-        if errv != nil {
+        _, ok := vpluginManager.plugins[pluginname] // check for plugin registeration(for disabled case loadPlugin() reutrns nil)
+        if errv != nil || !ok {
             LogError("StartPluginManager : Error Initializing plugin %s version %s : %v", pluginname, plconfig.Version, errv)
         } else {
             vpluginManager.pluginMetadata[pluginname].SetPluginStage(plugins_common.PluginStageLoadingSuccess)
