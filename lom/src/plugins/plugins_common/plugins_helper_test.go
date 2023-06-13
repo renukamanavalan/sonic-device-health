@@ -600,5 +600,4 @@ func Test_PeriodicDetectionPluginUtil_DetectionIsPerformedImmediatelyAfterALongE
     assert.True(dummyPlugin.secondTimeInvocation.Sub(dummyPlugin.firstTimeInvocation).Seconds() <= 6, "The invocation after a long running job is expected to be immediate")
     fmt.Println(dummyPlugin.detectionRunInfo.durationOfLatestRunInSeconds)
     assert.True(dummyPlugin.detectionRunInfo.durationOfLatestRunInSeconds >= 5, "The duration of latest run is expected to be greater than or equal to 5 seconds")
->>>>>>> origin/LoM-Prod
 }

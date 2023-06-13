@@ -181,12 +181,12 @@ It uses same algorithm that is currently used by Event hub pipelines today
 */
 type RollingWindowLinkCrcDetector struct {
     latestCounters       map[string]uint64 // This will be nil for the very first time.
-    outlierRollingWindow plugins_common.FixedSizeRollingWindow[CrcOutlierInfo]
+    outlierRollingWindow plugins_common.FixedSizeRollingWindow
 }
 
 /* Initializes the detector instance with config values */
 func (linkCrcDetector *RollingWindowLinkCrcDetector) Initialize() {
-    linkCrcDetector.outlierRollingWindow = plugins_common.FixedSizeRollingWindow[CrcOutlierInfo]{}
+    linkCrcDetector.outlierRollingWindow = plugins_common.FixedSizeRollingWindow{}
     linkCrcDetector.outlierRollingWindow.Initialize(outlierRollingWindowSize)
 }
 
