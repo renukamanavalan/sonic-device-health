@@ -4,7 +4,7 @@ import (
     "encoding/json"
     "errors"
     "fmt"
-    "log"
+    log "github.com/golang/glog"
     "log/syslog"
     "math"
     "os"
@@ -17,7 +17,7 @@ import (
     "time"
 )
 
-var writers = make(map[syslog.Priority]*syslog.Writer)
+// var writers = make(map[syslog.Priority]*syslog.Writer)
 
 var log_level = syslog.LOG_DEBUG
 
@@ -30,6 +30,7 @@ func RunPanic(m string) {
 
 var DoPanic = RunPanic
 
+/*
 func init() {
 
     for i := syslog.LOG_EMERG; i <= syslog.LOG_DEBUG; i++ {
@@ -40,13 +41,14 @@ func init() {
         writers[i] = writer
     }
 
-    /*
+    *
      * Samples:
      *  fmt.Fprintf(writers[syslog.LOG_WARNING], "This is a daemon warning message")
      *  fmt.Fprintf(writers[syslog.LOG_ERR], "This is a daemon ERROR message")
      *  fmt.Fprintf(writers[syslog.LOG_INFO], "This is a daemon INFO message")
-     */
+     *
 }
+*/
 
 /* Return currently set log level */
 func GetLogLevel() syslog.Priority {
@@ -112,7 +114,8 @@ func LogMessageWithSkip(skip int, lvl syslog.Priority, s string, a ...interface{
     ct_lvl := GetLogLevel()
     m := fmt.Sprintf(getPrefix(skip+2)+s, a...)
     if lvl <= ct_lvl {
-        FmtFprintf(writers[lvl], m)
+        // FmtFprintf(writers[lvl], m)
+        log.V(2).Info(m)            // s/2/lvl/
         if ct_lvl >= syslog.LOG_DEBUG {
             /* Debug messages gets printed out to STDOUT */
             fmt.Printf(m)

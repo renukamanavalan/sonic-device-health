@@ -47,6 +47,8 @@ PY_TEST = $(TEST_DIR)/pytested
 SONIC_LINK_CRC_TEST = $(TEST_DIR)/SonicLinkCrcTested
 PLUGINS_COMMON_TEST = $(TEST_DIR)/PluginsCommonTested
 
+.NOTPARALLEL:
+
 format_code:
 	@if ! which sed > /dev/null; then \
 		echo "Installing sed..."; \
@@ -72,9 +74,7 @@ origall: | $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGE
 	$(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST) $(PY_TEST) \
 	$(PLUGIN_MANAGER_BIN)
 
-all: | $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) \
-	$(SONIC_DBCLIENT_TEST) $(PLUGINS_COMMON_TEST) \
-	$(PLUGIN_MANAGER_BIN)
+all: $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST)
 
 
 $(CMN_C_LIB): $(SRC_FILES)
