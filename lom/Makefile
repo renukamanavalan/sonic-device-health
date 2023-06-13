@@ -20,7 +20,8 @@ TEST_DIR := $(BUILD_DIR)/test
 # export TEST_FLAG=-v in shell before calling make or
 # TEST_FLAG=-v make all
 
-TEST_FLAG := "-v"
+# TEST_FLAG := "-v" Set it for verbose test o/p
+
 ifeq "${TEST_FLAG}" "-v"
 PYTEST_VERBOSE= --addopts "-s"
 endif
