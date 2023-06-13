@@ -96,7 +96,7 @@ $(LIB_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/LibCoverprofile.out \
 		-coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon \
-		-covermode=atomic ./src/lib/lib_test ./src/lib/lib_test/config || (echo "LibTest failed $$?"; exit 1)
+		-covermode=atomic ./src/lib/lib_test || (echo "LibTest failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/LibCoverprofile.out -o $(TEST_DIR)/LibCoverprofile.html
 	$(call extract_file_coverage,$(TEST_DIR)/LibCoverprofile.html)
 	touch $@
