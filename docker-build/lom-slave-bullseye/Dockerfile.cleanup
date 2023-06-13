@@ -1,11 +1,11 @@
 # Base docker build
-FROM lom-slave-bullseye:1234
+FROM lom-slave-bullseye:11515
 
 # Copy the cache data to host
 From scratch as output
-COPY --from=lom-slave-bullseye:1234 /cache.tgz cache.tgz
+COPY --from=lom-slave-bullseye:11515 /cache.tgz cache.tgz
 
 # Clean up the cache data
-FROM lom-slave-bullseye:1234 as final
+FROM lom-slave-bullseye:11515 as final
 RUN rm /cache.tgz
 

@@ -357,8 +357,9 @@ RUN sudo augtool --autosave "set /files/etc/dpkg/dpkg.cfg/force-confold"
 RUN apt-get -y build-dep linux
 
 # Install golang
-RUN wget -O golang-go.tar.gz https://go.dev/dl/go1.20.3.linux-amd64.tar.gz
-RUN tar -C /usr/local -xzf golang-go.tar.gz
+# RUN wget -O golang-go.tar.gz https://go.dev/dl/go1.20.3.linux-amd64.tar.gz
+# RUN tar -C /usr/local -xzf golang-go.tar.gz
+RUN apt-get install -y golang-1.15 && ln -s /usr/lib/go-1.15 /usr/local/go
 
 RUN pip3 install --upgrade pip
 RUN apt-get purge -y python3-pip python3-yaml

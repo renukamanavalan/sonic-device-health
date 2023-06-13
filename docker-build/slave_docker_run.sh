@@ -8,4 +8,4 @@ docker run --rm=true --privileged --init \
     -v "${PWD}:/lom-root" \
     -v "/tmp/docklock:/tmp/docklock"\
     -w "/lom-root" -e "http_proxy=" -e "https_proxy=" -e "no_proxy=" -it \
-    lom-slave-bullseye-admin:1234
+    lom-slave-bullseye-admin:11515

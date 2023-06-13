@@ -1,4 +1,4 @@
-FROM lom-slave-bullseye:1234
+FROM lom-slave-bullseye:11515
 
 # Add user
 ARG user
