@@ -3,8 +3,9 @@ package lomcommon
 import (
     "encoding/json"
     "errors"
+    "flag"
     "fmt"
-    log "github.com/golang/glog"
+    "io"
     "log/syslog"
     "math"
     "os"
@@ -17,7 +18,12 @@ import (
     "time"
 )
 
-// var writers = make(map[syslog.Priority]*syslog.Writer)
+/* "go test" must use "-v" option to turn on testmode */
+var RunningTestMode = false
+var logSuffix = ""
+
+var writers = make(map[syslog.Priority]io.Writer)
+var logInitDone = false
 
 var log_level = syslog.LOG_DEBUG
 
@@ -30,25 +36,50 @@ func RunPanic(m string) {
 
 var DoPanic = RunPanic
 
-/*
 func init() {
+    for i := syslog.LOG_EMERG; i <= syslog.LOG_DEBUG; i++ {
+        writers[i] = os.Stderr
+    }
+    logSuffix = "\n"
+}
+
+func LogInit() {
+    if logInitDone {
+        return
+    }
+
+    if !flag.Parsed() {
+        flag.Parse()
+    }
+
+    /* "-v" flag passed via "go test" sets this "test.v" flag */
+    RunningTestMode = flag.Lookup("test.v") != nil
+    if RunningTestMode {
+        fmt.Fprintf(writers[syslog.LOG_ERR], "RunningTestMode=(%v)\n", RunningTestMode)
+        /* TestMode use stderr as done in init */
+        return
+    }
+    /* No need for newline with syslog */
+    logSuffix = ""
 
     for i := syslog.LOG_EMERG; i <= syslog.LOG_DEBUG; i++ {
         writer, err := syslog.Dial("", "", (i | syslog.LOG_LOCAL7), "")
         if err != nil {
-            log.Fatal(err)
+            fmt.Fprintf(os.Stderr, "Failed to get syslog writer. Exiting ...\n")
+            OSExit(-1)
         }
         writers[i] = writer
     }
 
-    *
+    /*
      * Samples:
      *  fmt.Fprintf(writers[syslog.LOG_WARNING], "This is a daemon warning message")
      *  fmt.Fprintf(writers[syslog.LOG_ERR], "This is a daemon ERROR message")
      *  fmt.Fprintf(writers[syslog.LOG_INFO], "This is a daemon INFO message")
      *
+     */
+     logInitDone = true
 }
-*/
 
 /* Return currently set log level */
 func GetLogLevel() syslog.Priority {
@@ -112,10 +143,9 @@ func getPrefix(skip int) string {
  */
 func LogMessageWithSkip(skip int, lvl syslog.Priority, s string, a ...interface{}) string {
     ct_lvl := GetLogLevel()
-    m := fmt.Sprintf(getPrefix(skip+2)+s, a...)
+    m := fmt.Sprintf(getPrefix(skip+2)+s+logSuffix, a...)
     if lvl <= ct_lvl {
-        // FmtFprintf(writers[lvl], m)
-        log.V(2).Info(m)            // s/2/lvl/
+        FmtFprintf(writers[lvl], m)
         if ct_lvl >= syslog.LOG_DEBUG {
             /* Debug messages gets printed out to STDOUT */
             fmt.Printf(m)
