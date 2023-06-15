@@ -143,9 +143,9 @@ func getPrefix(skip int) string {
  */
 func LogMessageWithSkip(skip int, lvl syslog.Priority, s string, a ...interface{}) string {
     ct_lvl := GetLogLevel()
-    m := fmt.Sprintf(getPrefix(skip+2)+s+logSuffix, a...)
+    m := fmt.Sprintf(getPrefix(skip+2)+s, a...)
     if lvl <= ct_lvl {
-        FmtFprintf(writers[lvl], m)
+        FmtFprintf(writers[lvl], m+logSuffix)
         if ct_lvl >= syslog.LOG_DEBUG {
             /* Debug messages gets printed out to STDOUT */
             fmt.Printf(m)
