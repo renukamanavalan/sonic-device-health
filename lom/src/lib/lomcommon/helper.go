@@ -78,7 +78,7 @@ func LogInit() {
      *  fmt.Fprintf(writers[syslog.LOG_INFO], "This is a daemon INFO message")
      *
      */
-     logInitDone = true
+    logInitDone = true
 }
 
 /* Return currently set log level */

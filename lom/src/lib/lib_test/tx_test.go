@@ -22,6 +22,7 @@ import (
     "encoding/json"
     "errors"
     "fmt"
+    "io"
     "log/syslog"
     . "lom/src/lib/lomcommon"
     . "lom/src/lib/lomipc"
@@ -745,11 +746,9 @@ func TestServerFail(t *testing.T) {
     }
 }
 
-/*
-TODO: Redo this as part of syslog to glog migration
-commented func TestHelper(t *testing.T) {
+func TestHelper(t *testing.T) {
     {
-        * Test logger helper *
+        /* Test logger helper */
         FmtFprintfCnt := 0
 
         v := FmtFprintf
@@ -785,7 +784,7 @@ commented func TestHelper(t *testing.T) {
     }
 
     {
-        * Test log_panic to exit *
+        /* Test log_panic to exit */
         ExitCnt := 0
         panicMsg := ""
         e := OSExit
@@ -806,9 +805,7 @@ commented func TestHelper(t *testing.T) {
         OSExit = e
         DoPanic = p
     }
-
 }
-*/
 
 type ConfigData_t struct {
     GlobalStr string
