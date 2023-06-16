@@ -77,7 +77,10 @@ var lomRunMode = LoMRunMode_NotSet
 
 func GetLoMRunMode() LoMRunMode_t {
     if lomRunMode == LoMRunMode_NotSet {
-        if val, ok := os.LookupEnv(LOM_TESTMODE_NAME); ok {
+        if RunningTestMode {
+            /* Set by pytest */
+            lomRunMode = LoMRunMode_Test
+        } else if val, ok := os.LookupEnv(LOM_TESTMODE_NAME); ok {
             if val == "yes" {
                 lomRunMode = LoMRunMode_Test
             } else {
@@ -337,12 +340,14 @@ func (p *ConfigMgr_t) readProcsConf(filename string) error {
         return err
     }
 
-    var jsonData ProcPluginConfigListAll_t // map [procID] ProcPluginConfigList_t
+    var jsonData map[string]ProcPluginConfigListAll_t
     err = json.Unmarshal(data, &jsonData)
     if err != nil {
         return err
     }
-    p.procsConfig = jsonData
+    if val, ok := jsonData["procs"]; ok {
+        p.procsConfig = val
+    }
 
     return nil
 }

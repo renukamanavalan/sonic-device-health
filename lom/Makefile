@@ -31,7 +31,7 @@ export LOM_LIB_PATH=$(PWD)/build/lib
 
 SRC_FILES=$(shell find . -name '*.go' | grep -v '_test.go' | grep -v '/tests/')
 PY_FILES=$(shell find . -name '*.py' | grep -v '_test.py' | grep -v '/tests/')
-TEST_FILES=$(wildcard *_test.go)
+TEST_FILES=$(shell find . -name '*test.go')
 
 CMN_C_LIB_FILES=src/lib/clib/lom_clib.go
 CMN_C_LIB=$(BUILD_DIR)/lib/cmn_c_lib.so
@@ -72,7 +72,12 @@ endef
 
 .PHONY: all clean format_code
 
-all: format_code $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) \
+origall: format_code $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) \
+	$(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST) $(PY_TEST) \
+	$(PLUGIN_MANAGER_BIN)
+
+
+all: $(CMN_C_LIB) $(ENGINE_BIN) $(LIB_TEST) $(ENGINE_TEST) $(PLUGIN_MANAGER_TEST) \
 	$(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST) $(PY_TEST) \
 	$(PLUGIN_MANAGER_BIN)
 
@@ -82,12 +87,12 @@ $(CMN_C_LIB): $(SRC_FILES)
 	$(GO) build -buildmode=c-shared -o $@ $(CMN_C_LIB_FILES)
 	$(info "Built $(CMN_C_LIB)")
 
-$(ENGINE_BIN): $(SRC_FILES) $(TEST_FILES)
+$(ENGINE_BIN): $(SRC_FILES)
 	mkdir -p $(BIN_DIR)
 	$(GO) build  -o $@ lom/src/engine
 	$(info "Built lom-engine")
 
-$(PLUGIN_MANAGER_BIN): $(SRC_FILES) $(TEST_FILES)
+$(PLUGIN_MANAGER_BIN): $(SRC_FILES)
 	mkdir -p $(BIN_DIR)
 	$(GO) build -o $@ lom/src/pluginmgr
 	$(info "Built plugin manager")

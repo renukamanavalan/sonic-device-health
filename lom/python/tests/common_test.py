@@ -61,6 +61,7 @@ class cfgInit:
 }',
         "procs.conf.json": '\
 {\
+    "procs": {\
         "proc_0": {\
             "Detect-0": {\
                 "name": "Detect-0",\
@@ -95,6 +96,7 @@ class cfgInit:
                 "path": " /path/"\
             }\
         }\
+    }\
 }'
         }
 
