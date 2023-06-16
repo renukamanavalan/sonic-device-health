@@ -218,11 +218,11 @@ func (linkCrcDetector *RollingWindowLinkCrcDetector) AddInterfaceCountersAndDete
 
     // Start evaluating the outliers and detect CRC anomaly.
     if ifInErrorsDiff > uint64(ifInErrorsDiffMinValue) && (inUnicastPacketsDiff > uint64(inUnicastPacketsMinValue) || outUnicastPacketsDiff > uint64(outUnicastPacketsMinValue)) {
-        errorMetric := float64(ifInErrorsDiff) / (float64(inUnicastPacketsDiff) + float64(outUnicastPacketsDiff))
+        errorMetric := float64(ifInErrorsDiff) / (float64(inUnicastPacketsDiff) + float64(ifInErrorsDiff))
         if errorMetric > minCrcError {
             if inUnicastPacketsDiff > 0 {
                 totalLinkErrors := ifInErrorsDiff - ifOutErrorsDiff
-                fcsErrorRate := totalLinkErrors / inUnicastPacketsDiff
+                fcsErrorRate := float64(totalLinkErrors) / float64(inUnicastPacketsDiff)
                 if fcsErrorRate > 0 {
                     /* if fcsErrorRate is > 0, the diff counter considered an outlier */
                     crcOutlier := CrcOutlierInfo{TimeStamp: localTimeStampUtc}

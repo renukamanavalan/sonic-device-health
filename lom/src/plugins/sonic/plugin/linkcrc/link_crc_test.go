@@ -52,9 +52,9 @@ func Test_LinkCrcDetector_AddInterfaceCountersDetectsSuccessfuly(t *testing.T) {
 
     map1 := map[string]uint64{"IfInErrors": 100, "InUnicastPackets": 101, "OutUnicastPackets": 1100, "IfOutErrors": 1}
     map2 := map[string]uint64{"IfInErrors": 450, "InUnicastPackets": 222, "OutUnicastPackets": 2100, "IfOutErrors": 2}
-    map3 := map[string]uint64{"IfInErrors": 850, "InUnicastPackets": 333, "OutUnicastPackets": 3100000000, "IfOutErrors": 3}
-    map4 := map[string]uint64{"IfInErrors": 1220, "InUnicastPackets": 444, "OutUnicastPackets": 4100000000, "IfOutErrors": 4}
-    map5 := map[string]uint64{"IfInErrors": 1650, "InUnicastPackets": 555, "OutUnicastPackets": 4100004000, "IfOutErrors": 5}
+    map3 := map[string]uint64{"IfInErrors": 850, "InUnicastPackets": 3100000000, "OutUnicastPackets": 3100000000, "IfOutErrors": 3}
+    map4 := map[string]uint64{"IfInErrors": 1220, "InUnicastPackets": 4100000000, "OutUnicastPackets": 4100000000, "IfOutErrors": 4}
+    map5 := map[string]uint64{"IfInErrors": 1650, "InUnicastPackets": 4100000555, "OutUnicastPackets": 4100004000, "IfOutErrors": 5}
 
     // Assert
     assert := assert.New(t)
@@ -314,9 +314,9 @@ func Test_LinkCrcDetectionPlugin_CrcDetectionDetectsSuccessfuly(t *testing.T) {
 
     map1 := map[string]uint64{"IfInErrors": 100, "InUnicastPackets": 101, "OutUnicastPackets": 1100, "IfOutErrors": 1}
     map2 := map[string]uint64{"IfInErrors": 450, "InUnicastPackets": 222, "OutUnicastPackets": 2100, "IfOutErrors": 2}
-    map3 := map[string]uint64{"IfInErrors": 850, "InUnicastPackets": 333, "OutUnicastPackets": 3100000000, "IfOutErrors": 3}
-    map4 := map[string]uint64{"IfInErrors": 1220, "InUnicastPackets": 444, "OutUnicastPackets": 4100000000, "IfOutErrors": 4}
-    map5 := map[string]uint64{"IfInErrors": 1650, "InUnicastPackets": 555, "OutUnicastPackets": 4100004000, "IfOutErrors": 5}
+    map3 := map[string]uint64{"IfInErrors": 850, "InUnicastPackets": 3100000000, "OutUnicastPackets": 3100000000, "IfOutErrors": 3}
+    map4 := map[string]uint64{"IfInErrors": 1220, "InUnicastPackets": 4100000000, "OutUnicastPackets": 4100000000, "IfOutErrors": 4}
+    map5 := map[string]uint64{"IfInErrors": 1650, "InUnicastPackets": 4100000555, "OutUnicastPackets": 4100004000, "IfOutErrors": 5}
 
     counterMap1 := dbclient.InterfaceCountersMap{"Ethernet1": map1, "Ethernet2": map1}
     counterMap2 := dbclient.InterfaceCountersMap{"Ethernet1": map2, "Ethernet2": map2}
@@ -390,9 +390,9 @@ func Test_LinkCrcDetectionPlugin_CrcDetectionReportsForOnlyOneInterface(t *testi
 
     map1 := map[string]uint64{"IfInErrors": 100, "InUnicastPackets": 101, "OutUnicastPackets": 1100, "IfOutErrors": 1}
     map2 := map[string]uint64{"IfInErrors": 450, "InUnicastPackets": 222, "OutUnicastPackets": 2100, "IfOutErrors": 2}
-    map3 := map[string]uint64{"IfInErrors": 850, "InUnicastPackets": 333, "OutUnicastPackets": 3100000000, "IfOutErrors": 3}
-    map4 := map[string]uint64{"IfInErrors": 1220, "InUnicastPackets": 444, "OutUnicastPackets": 4100000000, "IfOutErrors": 4}
-    map5 := map[string]uint64{"IfInErrors": 1650, "InUnicastPackets": 555, "OutUnicastPackets": 4100004000, "IfOutErrors": 5}
+    map3 := map[string]uint64{"IfInErrors": 850, "InUnicastPackets": 3100000000, "OutUnicastPackets": 3100000000, "IfOutErrors": 3}
+    map4 := map[string]uint64{"IfInErrors": 1220, "InUnicastPackets": 4100000000, "OutUnicastPackets": 4100000000, "IfOutErrors": 4}
+    map5 := map[string]uint64{"IfInErrors": 1650, "InUnicastPackets": 4100000555, "OutUnicastPackets": 4100004000, "IfOutErrors": 5}
 
     counterMap1 := dbclient.InterfaceCountersMap{"Ethernet1": map1, "Ethernet2": map1}
     counterMap2 := dbclient.InterfaceCountersMap{"Ethernet1": map2, "Ethernet2": map2}
