@@ -4,7 +4,7 @@
 		"Type": "Detection",
 		"Timeout": 0,
 		"HeartbeatInt": 30,
-		"Disable": true,
+		"Disable": false,
 		"Mimic": false,
 		"ActionKnobs": {
 			"DetectionFreqInSecs": 30,

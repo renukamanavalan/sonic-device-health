@@ -2,7 +2,7 @@
 
 # Function to kill LoMEngine
 kill_lomengine() {
-  engine_pid=$(pgrep -f "LoMEngine")
+  engine_pid=$(pgrep -f "LoMEngine -path=")
   if [ -n "$engine_pid" ]; then
     echo "Killing LoMEngine (PID: $engine_pid)..."
     kill $engine_pid
@@ -14,7 +14,7 @@ kill_lomengine() {
 
 # Function to kill all LoMPluginMgr instances
 kill_lompluginmgr() {
-  pluginmgr_pids=$(pgrep -f "LoMPluginMgr")
+  pluginmgr_pids=$(pgrep -f "LoMPluginMgr -proc_id=")
   if [ -n "$pluginmgr_pids" ]; then
     echo "Killing LoMPluginMgr instances..."
     echo "$pluginmgr_pids" | while read -r pid; do

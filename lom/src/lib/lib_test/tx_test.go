@@ -1039,7 +1039,6 @@ func createFile(name string, s string) (string, error) {
 }
 
 func getConfigMgrTest(t *testing.T, gl, ac, bi, pr string, testMode bool) (*ConfigMgr_t, error) {
-    LogError("111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111")
     if flG, err := createFile(GLOBALS_CONF_FILE, gl); err != nil {
         t.Errorf("TestConfig: Failed to create Global file")
     } else if _, err := createFile(ACTIONS_CONF_FILE, ac); err != nil {
@@ -1176,7 +1175,7 @@ func TestConfig(t *testing.T) {
                 }
             }
         }
-        LogError("3333333333333333333333333333333333333333333333333333333333333333333333333333333")
+
         startSeqAct := ""
 
         lst := mgr.GetActionsList()
@@ -1223,7 +1222,6 @@ func TestConfig(t *testing.T) {
                 t.Errorf("%s: Failed to get action cfg", k)
             } else {
                 // Compare the ActionKnobs fields as []byte slices
-                LogError("4444444444444444444444444444444444 a.ActionKnobs(%v) v.ActionKnobs(%v)", a, v)
                 if !bytes.Equal(a.ActionKnobs, v.ActionKnobs) {
                     t.Errorf("%s: config mismatch (%v) != (%v)", k, a, v)
                 }

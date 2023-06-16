@@ -1,6 +1,10 @@
 {
-
-"link_crc": []
-
+	"bindings": [{
+		"SequenceName": "link_crc_bind-0",
+		"Priority": 0,
+		"Timeout": 2,
+		"Actions": [{
+			"name": "link_crc"
+		}]
+	}]
 }
-

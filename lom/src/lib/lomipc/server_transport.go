@@ -374,6 +374,47 @@ func (tr *LoMTransport) ReadClientRequest(chAbort chan interface{}) (*LoMRequest
     }
 }
 
+func PrintActionRequest(request *ActionRequestData, includeResponses bool) string {
+    if request == nil {
+        return "Invalid request"
+    }
+
+    output := fmt.Sprintf("Action: %s InstanceId: %s AnomalyInstanceId: %s AnomalyKey: %s Timeout: %d",
+        request.Action, request.InstanceId, request.AnomalyInstanceId, request.AnomalyKey, request.Timeout)
+
+    if includeResponses {
+        responseOutput := "Responses:\n"
+        for i, response := range request.Context {
+            responseOutput += fmt.Sprintf("Response %d:\n", i+1)
+            responseOutput += fmt.Sprintf("Action: %s InstanceId: %s AnomalyInstanceId: %s AnomalyKey: %s Response: %s ResultCode: %d ResultStr: %s",
+                response.Action, response.InstanceId, response.AnomalyInstanceId, response.AnomalyKey, response.Response, response.ResultCode, response.ResultStr)
+        }
+        output += responseOutput
+    }
+
+    return output
+}
+
+func PrintServerRequest(request *ServerRequestData, includeResponses bool) string {
+    if request == nil {
+        return "Invalid request"
+    }
+
+    switch reqData := request.ReqData.(type) {
+    case ActionRequestData:
+        return PrintActionRequest(&reqData, includeResponses)
+    case ShutdownRequestData:
+        return "Shutdown request"
+    default:
+        return fmt.Sprintf("Unknown request type: %T", reqData)
+    }
+}
+
+func PrintActionResponseData(response *ActionResponseData) string {
+    return fmt.Sprintf("Action: %s InstanceId: %s AnomalyInstanceId: %s AnomalyKey: %s Response: %s ResultCode: %d ResultStr: %s",
+        response.Action, response.InstanceId, response.AnomalyInstanceId, response.AnomalyKey, response.Response, response.ResultCode, response.ResultStr)
+}
+
 func init_encoding() {
     gob.Register(MsgRegClient{})
     gob.Register(MsgDeregClient{})
