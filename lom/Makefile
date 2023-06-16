@@ -7,7 +7,7 @@ UID = $(shell id -u)
 GUID = $(shell id -g)
 
 
-GO := /usr/local/go/bin/go
+GO := /usr/local/go1.20.3/go/bin/go
 GOFMT := $(GO)fmt
 INSTALL := /usr/bin/install
 
@@ -29,7 +29,7 @@ export LOM_LIB_PATH=/lom-root/lom/build/lib
 
 SRC_FILES=$(shell find . -name '*.go' | grep -v '_test.go' | grep -v '/tests/')
 PY_FILES=$(shell find . -name '*.py' | grep -v '_test.py' | grep -v '/tests/')
-TEST_FILES=$(wildcard *_test.go)
+TEST_FILES=$(shell find . -name '*test.go')
 
 CMN_C_LIB_FILES=src/lib/clib/lom_clib.go
 CMN_C_LIB=$(BUILD_DIR)/lib/cmn_c_lib.so
@@ -88,12 +88,12 @@ $(CMN_C_LIB): $(SRC_FILES)
 	$(GO) build -buildmode=c-shared -o $@ $(CMN_C_LIB_FILES)
 	@echo -e "Successfully Build c lib\n\n"
 
-$(ENGINE_BIN): $(SRC_FILES) $(TEST_FILES)
+$(ENGINE_BIN): $(SRC_FILES)
 	mkdir -p $(BIN_DIR)
 	$(GO) build  -o $@ lom/src/engine
 	@echo -e "Successfully Build lom-engine\n\n"
 
-$(PLUGIN_MANAGER_BIN): $(SRC_FILES) $(TEST_FILES)
+$(PLUGIN_MANAGER_BIN): $(SRC_FILES)
 	mkdir -p $(BIN_DIR)
 	$(GO) build -o $@ lom/src/pluginmgr
 	@echo -e "Successfully build plugin manager\n\n"
