@@ -103,7 +103,7 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeCrcDetection(reques
     currentInterfaceCounters, err := linkCrcDetectionPlugin.counterRepository.GetCountersForAllInterfaces(ctx)
     if err != nil {
         /* If redis call fails, there can be no detection that can be performed. Mark it unhealthy */
-	lomcommon.LogError(link_crc_prefix + "Error fetching interface counters for LinkCrc detection. Err: %v", err)
+        lomcommon.LogError(link_crc_prefix+"Error fetching interface counters for LinkCrc detection. Err: %v", err)
         *isExecutionHealthy = false
         return nil
     }
@@ -208,7 +208,7 @@ func (linkCrcDetector *RollingWindowLinkCrcDetector) AddInterfaceCountersAndDete
 
     // validate if all diff counters are valid.
     if !linkCrcDetector.validateCountersDiff(linkCrcDetector.latestCounters, currentCounters) {
-        lomcommon.LogError(fmt.Sprintf(link_crc_prefix + "Invalid counters for interface %s", linkCrcDetector.interfaceName))
+        lomcommon.LogError(fmt.Sprintf(link_crc_prefix+"Invalid counters for interface %s", linkCrcDetector.interfaceName))
         return false
     }
 
@@ -227,7 +227,7 @@ func (linkCrcDetector *RollingWindowLinkCrcDetector) AddInterfaceCountersAndDete
                 fcsErrorRate := float64(totalLinkErrors) / float64(inUnicastPacketsDiff)
                 if fcsErrorRate > 0 {
                     /* if fcsErrorRate is > 0, the diff counter considered an outlier */
-		    lomcommon.LogError(link_crc_prefix + "FcsErrorRate for interface %s is %f", linkCrcDetector.interfaceName, fcsErrorRate)
+                    lomcommon.LogError(link_crc_prefix+"FcsErrorRate for interface %s is %f", linkCrcDetector.interfaceName, fcsErrorRate)
                     crcOutlier := CrcOutlierInfo{TimeStamp: localTimeStampUtc}
                     linkCrcDetector.outlierRollingWindow.AddElement(crcOutlier)
 
