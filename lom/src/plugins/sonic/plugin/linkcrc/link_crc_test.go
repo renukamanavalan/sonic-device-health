@@ -48,7 +48,7 @@ func Test_LinkCrcDetector_AddInterfaceCountersDetectsSuccessfuly(t *testing.T) {
     lookBackPeriodInSecs = look_back_period_in_secs_default
 
     rollingWindowCrcDetector := RollingWindowLinkCrcDetector{}
-    rollingWindowCrcDetector.Initialize()
+    rollingWindowCrcDetector.Initialize("interfaceabc")
 
     map1 := map[string]uint64{"IfInErrors": 100, "InUnicastPackets": 101, "OutUnicastPackets": 1100, "IfOutErrors": 1}
     map2 := map[string]uint64{"IfInErrors": 450, "InUnicastPackets": 222, "OutUnicastPackets": 2100, "IfOutErrors": 2}
@@ -78,6 +78,7 @@ func Test_LinkCrcDetector_AddInterfaceCountersDetectsSuccessfuly(t *testing.T) {
 
     outlierRollingWindow := rollingWindowCrcDetector.outlierRollingWindow
     assert.Equal(2, outlierRollingWindow.GetElements().Len(), "Length of rolling window is expected to be 2")
+    assert.Equal("interfaceabc", rollingWindowCrcDetector.interfaceName, "InterfaceName is expected to be interfaceabc")
 }
 
 /* Validate AddInterfaceCountersAndDetectCrc returns false for nil counters */
@@ -92,12 +93,13 @@ func Test_LinkCrcDetector_AddInterfaceCountersReturnsFalseForNilCounters(t *test
     lookBackPeriodInSecs = look_back_period_in_secs_default
     // Act
     rollingWindowCrcDetector := RollingWindowLinkCrcDetector{}
-    rollingWindowCrcDetector.Initialize()
+    rollingWindowCrcDetector.Initialize("interfaceabc")
     // Assert
     assert := assert.New(t)
 
     isDetected := rollingWindowCrcDetector.AddInterfaceCountersAndDetectCrc(nil, time.Now())
     assert.False(isDetected, "isDetected is expected to be false for nil interface coutners")
+    assert.Equal("interfaceabc", rollingWindowCrcDetector.interfaceName, "InterfaceName is expected to be interfaceabc")
 }
 
 /* Validate AddInterfaceCountersAndDetectCrc returns false for invalid diff counters */
@@ -112,7 +114,7 @@ func Test_LinkCrcDetector_AddInterfaceCountersReturnsFalseForInvalidCountersDiff
     lookBackPeriodInSecs = look_back_period_in_secs_default
     // Act
     rollingWindowCrcDetector := RollingWindowLinkCrcDetector{}
-    rollingWindowCrcDetector.Initialize()
+    rollingWindowCrcDetector.Initialize("interfaceabc")
     // Assert
     assert := assert.New(t)
 
@@ -139,6 +141,7 @@ func Test_LinkCrcDetector_AddInterfaceCountersReturnsFalseForInvalidCountersDiff
 
     isDetected = rollingWindowCrcDetector.AddInterfaceCountersAndDetectCrc(currentCounters, time.Now())
     assert.False(isDetected, "isDetected is expected to be false for when InUnicastPackets is less than previous value")
+    assert.Equal("interfaceabc", rollingWindowCrcDetector.interfaceName, "InterfaceName is expected to be interfaceabc")
 }
 
 /* Validates Link crc plugin initialized with actions knobs */
