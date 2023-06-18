@@ -103,7 +103,7 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeCrcDetection(reques
     currentInterfaceCounters, err := linkCrcDetectionPlugin.counterRepository.GetCountersForAllInterfaces(ctx)
     if err != nil {
         /* If redis call fails, there can be no detection that can be performed. Mark it unhealthy */
-        lomcommon.LogError(link_crc_prefix + "Error fetching interface counters for LinkCrc detection")
+	lomcommon.LogError(link_crc_prefix + "Error fetching interface counters for LinkCrc detection. Err: %v", err)
         *isExecutionHealthy = false
         return nil
     }
