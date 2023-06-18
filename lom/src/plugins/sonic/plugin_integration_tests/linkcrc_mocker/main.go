@@ -35,10 +35,10 @@ func main() {
     } else {
         utils.PrintInfo("Successfuly Disabled counterpoll")
     }
-    MockRedisWithLinkCrcCountersIndefinitely()
+    MockRedisWithLinkCrcCounters()
 }
 
-func MockRedisWithLinkCrcCountersIndefinitely() {
+func MockRedisWithLinkCrcCounters() {
         var countersDbClient = redis.NewClient(&redis.Options{
 		Addr:     redis_address,
 		Password: redis_password,
