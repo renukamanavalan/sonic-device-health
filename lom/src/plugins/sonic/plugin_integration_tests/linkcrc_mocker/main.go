@@ -97,8 +97,8 @@ loop:
 				ifOutUnicastPackets = ifOutUnicastPackets + 67
 				ifOutErrors = ifOutErrors + 2
 			} else {
-				ifInErrors = ifInErrors + 40
-				ifInUnicastPackets = ifInUnicastPackets + 2000001
+				ifInErrors = ifInErrors + 14
+				ifInUnicastPackets = ifInUnicastPackets + 20000001
 				ifOutUnicastPackets = ifOutUnicastPackets + 67
 				ifOutErrors = ifOutErrors + 2
 			}
