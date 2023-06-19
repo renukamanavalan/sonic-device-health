@@ -7,7 +7,7 @@ UID = $(shell id -u)
 GUID = $(shell id -g)
 
 
-GO := /usr/local/go/bin/go
+GO := /usr/local/go1.20.3/go/bin/go
 GOFMT := $(GO)fmt
 INSTALL := /usr/bin/install
 
@@ -20,16 +20,18 @@ TEST_DIR := $(BUILD_DIR)/test
 # export TEST_FLAG=-v in shell before calling make or
 # TEST_FLAG=-v make all
 
+# TEST_FLAG := "-v" Set it for verbose test o/p
+
 ifeq "${TEST_FLAG}" "-v"
 PYTEST_VERBOSE= --addopts "-s"
 endif
 
 export GO111MODULE=on
-export LOM_LIB_PATH=/lom-root/lom/build/lib
+export LOM_LIB_PATH=$(PWD)/build/lib
 
 SRC_FILES=$(shell find . -name '*.go' | grep -v '_test.go' | grep -v '/tests/')
 PY_FILES=$(shell find . -name '*.py' | grep -v '_test.py' | grep -v '/tests/')
-TEST_FILES=$(wildcard *_test.go)
+TEST_FILES=$(shell find . -name '*test.go')
 
 CMN_C_LIB_FILES=src/lib/clib/lom_clib.go
 CMN_C_LIB=$(BUILD_DIR)/lib/cmn_c_lib.so
@@ -46,6 +48,8 @@ SONIC_DBCLIENT_TEST =$(TEST_DIR)/SonicDbClientTested
 PY_TEST = $(TEST_DIR)/pytested
 SONIC_LINK_CRC_TEST = $(TEST_DIR)/SonicLinkCrcTested
 PLUGINS_COMMON_TEST = $(TEST_DIR)/PluginsCommonTested
+
+.NOTPARALLEL:
 
 format_code:
 	@if ! which sed > /dev/null; then \
@@ -78,12 +82,12 @@ $(CMN_C_LIB): $(SRC_FILES)
 	$(GO) build -buildmode=c-shared -o $@ $(CMN_C_LIB_FILES)
 	$(info "Built $(CMN_C_LIB)")
 
-$(ENGINE_BIN): $(SRC_FILES) $(TEST_FILES)
+$(ENGINE_BIN): $(SRC_FILES)
 	mkdir -p $(BIN_DIR)
 	$(GO) build  -o $@ lom/src/engine
 	$(info "Built lom-engine")
 
-$(PLUGIN_MANAGER_BIN): $(SRC_FILES) $(TEST_FILES)
+$(PLUGIN_MANAGER_BIN): $(SRC_FILES)
 	mkdir -p $(BIN_DIR)
 	$(GO) build -o $@ lom/src/pluginmgr
 	$(info "Built plugin manager")
@@ -93,7 +97,7 @@ $(LIB_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/LibCoverprofile.out \
 		-coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon \
-		-covermode=atomic ./src/lib/lib_test ./src/lib/lib_test/config || (echo "LibTest failed $$?"; exit 1)
+		-covermode=atomic -v ./src/lib/lib_test ./src/lib/lib_test/config || (echo "LibTest failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/LibCoverprofile.out -o $(TEST_DIR)/LibCoverprofile.html
 	$(call extract_file_coverage,$(TEST_DIR)/LibCoverprofile.html)
 	touch $@
@@ -102,7 +106,7 @@ $(ENGINE_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/EngineCoverprofile.out \
 		-coverpkg lom/src/engine \
-		-covermode=atomic lom/src/engine || (echo "EngineTest failed $$?"; exit 1)
+		-covermode=atomic -v lom/src/engine || (echo "EngineTest failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/EngineCoverprofile.out -o $(TEST_DIR)/EngineCoverprofile.html
 	$(call extract_file_coverage,$(TEST_DIR)/EngineCoverprofile.html)
 	touch $@
@@ -111,7 +115,7 @@ $(PLUGIN_MANAGER_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginManagerCoverprofile.out \
 		-coverpkg lom/src/pluginmgr/pluginmgr_common \
-		-covermode=atomic ./src/pluginmgr/pluginmgr_common  || (echo "Plugin manager test failed $$?"; exit 1)
+		-covermode=atomic -v ./src/pluginmgr/pluginmgr_common  || (echo "Plugin manager test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/PluginManagerCoverprofile.out -o $(TEST_DIR)/PluginManagerCoverprofile.html
 	$(call extract_file_coverage,$(TEST_DIR)/PluginManagerCoverprofile.html)
 	touch $@
@@ -120,14 +124,14 @@ $(SONIC_DBCLIENT_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/SonicDbClientCoverprofile.out \
 		-coverpkg lom/src/plugins/sonic/client/dbclient \
-		-covermode=atomic lom/src/plugins/sonic/client/dbclient || (echo "SonicDbClient Test failed $$?"; exit 1)
+		-covermode=atomic -v lom/src/plugins/sonic/client/dbclient || (echo "SonicDbClient Test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/SonicDbClientCoverprofile.out -o $(TEST_DIR)/SonicDbClientCoverprofile.html
 	$(call extract_file_coverage,$(TEST_DIR)/SonicDbClientCoverprofile.html)
 	touch $@
 
 $(PY_TEST): $(SRC_FILES) $(PY_FILES)
 	mkdir -p $(TEST_DIR)
-	pushd /lom-root/lom/python; \
+	pushd python; \
 	python3 setup.py test $(PYTEST_VERBOSE); \
 	popd
 
@@ -135,7 +139,7 @@ $(SONIC_LINK_CRC_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/SonicLinkCrcCoverprofile.out \
 				-coverpkg lom/src/plugins/sonic/plugin/linkcrc \
-				-covermode=atomic lom/src/plugins/sonic/plugin/linkcrc || (echo "SonicLinkCrc plugin Test failed $$?"; exit 1)
+				-covermode=atomic -v lom/src/plugins/sonic/plugin/linkcrc || (echo "SonicLinkCrc plugin Test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/SonicLinkCrcCoverprofile.out -o $(TEST_DIR)/SonicLinkCrcCoverprofile.html
 	$(call extract_file_coverage,$(TEST_DIR)/SonicLinkCrcCoverprofile.html)
 	touch $@
@@ -144,7 +148,7 @@ $(PLUGINS_COMMON_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginsCommonCoverprofile.out \
 		-coverpkg lom/src/plugins/plugins_common \
-				-covermode=atomic lom/src/plugins/plugins_common || (echo "PluginsCommon Tests failed $$?"; exit 1)
+				-covermode=atomic -v lom/src/plugins/plugins_common || (echo "PluginsCommon Tests failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/PluginsCommonCoverprofile.out -o $(TEST_DIR)/PluginsCommonCoverprofile.html
 	$(call extract_file_coverage,$(TEST_DIR)/PluginsCommonCoverprofile.html)
 	touch $@
