@@ -42,7 +42,7 @@ func main() {
         utils.PrintInfo("Successfuly Disabled counterpoll")
     }
 
-    outliersArray := []string{"1,0,0,0,1", "1,0,1,0,0", "0,0,0,0,0"}
+    outliersArray := []string{"1,0,0,0", "1,0,1,0,0", "1,0,0,0,0"}
     shouldDetectCrc := []bool{true, true, false}
 
     for index := 0; index < len(outliersArray); index++ {
