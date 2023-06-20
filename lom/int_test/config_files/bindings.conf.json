@@ -4,7 +4,7 @@
 		"Priority": 0,
 		"Timeout": 2,
 		"Actions": [{
-			"name": "link_flap"
+			"name": "link_crc"
 		}]
 	}]
 }

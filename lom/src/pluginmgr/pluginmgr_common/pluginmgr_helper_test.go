@@ -119,7 +119,7 @@ func (m *MockPluginMetadata) CheckMisbehavingPlugins(pluginKey string) bool {
 
 // ------------------------------------------ Logger -------------------------------------------------------------//
 
-var loggerPrint bool = true
+var loggerPrint bool = false
 
 type myLogger struct {
     data []string
@@ -462,6 +462,10 @@ func Test_Run(t *testing.T) {
         // Set up the expectations for the mock objects
         clientTx.On("RecvServerRequest").Return(&lomipc.ServerRequestData{}, errors.New("some error")) // empty request, error
 
+        osExit = func(code int) {
+            LogInfo("My osExit called")
+        }
+
         // Create the PluginManager instance with the mock objects
         plmgr := GetPluginManager(clientTx)
         plmgr.setShutdownStatus(false)
@@ -485,6 +489,10 @@ func Test_Run(t *testing.T) {
         }
 
         if !logger.FindPrefixWait("RecvServerRequest() : Received system shutdown. Stopping plugin manager run loop", 2*time.Second) {
+            t.Errorf("Expected log message not found")
+        }
+
+        if !logger.FindPrefixWait("My osExit called", 60*time.Second) {
             t.Errorf("Expected log message not found")
         }
 
@@ -775,7 +783,7 @@ func Test_Run(t *testing.T) {
 
         time.Sleep(10 * time.Millisecond)
 
-        if !logger.FindPrefix("In run() : Received response object : ") {
+        if !logger.FindPrefix("In run() : Sending response to engine : ") {
             t.Errorf("Expected log message not found")
         }
 
@@ -826,7 +834,7 @@ func Test_Run(t *testing.T) {
 
         time.Sleep(10 * time.Millisecond)
 
-        if !logger.FindPrefix("In run() : Received response object : ") {
+        if !logger.FindPrefix("In run() : Sending response to engine : ") {
             t.Errorf("Expected log message not found")
         }
 
@@ -866,7 +874,7 @@ func Test_Run(t *testing.T) {
         }
 
         // Set up the expectations for the logger mock
-        //expectedLogInfoArg := "run() : Received response object : %v"
+        //expectedLogInfoArg := "run() : Sending response to engine : %v"
 
         go func() {
             time.Sleep(5 * time.Millisecond)
@@ -880,7 +888,7 @@ func Test_Run(t *testing.T) {
 
         time.Sleep(10 * time.Millisecond)
 
-        if !logger.FindPrefix("In run() : Received response object :") {
+        if !logger.FindPrefix("In run() : Sending response to engine :") {
             t.Errorf("Expected log message not found")
         }
 
@@ -935,7 +943,7 @@ func Test_Run(t *testing.T) {
 
         time.Sleep(10 * time.Millisecond)
 
-        if !logger.FindPrefix("In run() : Received response object :") {
+        if !logger.FindPrefix("In run() : Sending response to engine :") {
             t.Errorf("Expected log message not found")
         }
 
