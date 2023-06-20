@@ -8,6 +8,7 @@ import (
     "lom/src/plugins/plugins_common"
     "lom/src/plugins/sonic/plugin/linkcrc"
     "lom/src/plugins/sonic/plugin_integration_tests/utils"
+    "lom/src/plugins/sonic/plugin_integration_tests/linkcrc_mocker/linkcrc_utils"
     "os"
     "os/exec"
     "strings"
@@ -41,13 +42,13 @@ func main() {
         utils.PrintInfo("Successfuly Disabled counterpoll")
     }
 
-    outliersArray := [][]int{[]int{1, 0, 0, 0, 1}, []int{1, 0, 1, 0, 0}, []int{0, 0, 0, 0, 0}}
+    outliersArray := []string{"1,0,0,0,1", "1,0,1,0,0", "0,0,0,0,0"}
     shouldDetectCrc := []bool{true, true, false}
 
     for index := 0; index < len(outliersArray); index++ {
         ctx, cancelFunc := context.WithCancel(context.Background())
         shouldDetect := shouldDetectCrc[index]
-        go InvokeLinkCrcDetectionPlugin(outliersArray[index], cancelFunc, shouldDetect)
+        go InvokeLinkCrcDetectionPlugin(outliersArray[index], ctx, cancelFunc, shouldDetect)
         timeoutTimer := time.NewTimer(time.Duration(3) * time.Minute)
     loop:
         for {
@@ -79,8 +80,8 @@ func main() {
     utils.PrintInfo("Its exepcted not to receive any heartbeat or plugin logs from now as the anomaly is detected")
 }
 
-func InvokeLinkCrcDetectionPlugin(outliers []int, cancelFunc context.CancelFunc, shouldDetect bool) {
-    go MockRedisData(outliers)
+func InvokeLinkCrcDetectionPlugin(pattern string, ctx context.Context, cancelFunc context.CancelFunc, shouldDetect bool) {
+    go linkcrc_utils.MockRedisWithLinkCrcCounters(pattern, 10, os.Args[1:], ctx)
     linkCrcDetectionPlugin := linkcrc.LinkCRCDetectionPlugin{}
     actionCfg := lomcommon.ActionCfg_t{Name: action_name, Type: detection_type, Timeout: 0, HeartbeatInt: 10, Disable: false, Mimic: false, ActionKnobs: ""}
     linkCrcDetectionPlugin.Init(&actionCfg)

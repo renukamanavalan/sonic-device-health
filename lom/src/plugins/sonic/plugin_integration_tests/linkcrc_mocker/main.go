@@ -1,6 +1,7 @@
 package main
 
 import (
+    "context"
     "os"
     "os/exec"
     "lom/src/plugins/sonic/plugin_integration_tests/linkcrc_mocker/linkcrc_utils"
@@ -23,19 +24,20 @@ func main() {
 
 	testId := os.Args[1]
 	interfaces := os.Args[2:]
+	ctx, _ := context.WithCancel(context.Background())
 
 	switch testId {
 	case "0":
-		linkcrc_utils.MockRedisWithLinkCrcCounters("1", 10, interfaces)
+		linkcrc_utils.MockRedisWithLinkCrcCounters("1", 10, interfaces, ctx)
 		break
 	case "1":
-		linkcrc_utils.MockRedisWithLinkCrcCounters("0", 10, interfaces)
+		linkcrc_utils.MockRedisWithLinkCrcCounters("0", 10, interfaces, ctx)
 		break
 	case "2":
-		linkcrc_utils.MockRedisWithLinkCrcCounters("1,0,0,0", 10, interfaces)
+		linkcrc_utils.MockRedisWithLinkCrcCounters("1,0,0,0", 10, interfaces, ctx)
 		break
 	case "3":
-		linkcrc_utils.MockRedisWithLinkCrcCounters("1,0,0,0,0", 2, interfaces)
+		linkcrc_utils.MockRedisWithLinkCrcCounters("1,0,0,0,0", 10, interfaces, ctx)
 		break
 	default:
 		utils.PrintError("Invalid test Id %d", testId)

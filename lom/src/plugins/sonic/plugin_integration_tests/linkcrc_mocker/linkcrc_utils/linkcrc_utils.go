@@ -3,6 +3,7 @@ package linkcrc_utils
 import (
        "github.com/go-redis/redis"
        "time"
+       "context"
        "strings"
        "lom/src/plugins/sonic/plugin_integration_tests/utils"
 )
@@ -24,7 +25,7 @@ const (
     counters_db                      = "COUNTERS:"
 )
 
-func MockRedisWithLinkCrcCounters(pattern string, mockTimeInMinutes int, interfaces []string) {
+func MockRedisWithLinkCrcCounters(pattern string, mockTimeInMinutes int, interfaces []string, ctx context.Context) {
 	var countersDbClient = redis.NewClient(&redis.Options{
 		Addr:     redis_address,
 		Password: redis_password,
@@ -110,6 +111,8 @@ loop:
 			break loop
 		case <-mockIntervalTicker.C:
 			continue
+		case <-ctx.Done():
+			break loop
 		}
 	}
 	utils.PrintInfo("Done mocking redis")
