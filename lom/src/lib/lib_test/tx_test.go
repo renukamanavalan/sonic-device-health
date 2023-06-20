@@ -806,7 +806,6 @@ func TestHelper(t *testing.T) {
         OSExit = e
         DoPanic = p
     }
-
 }
 
 type ConfigData_t struct {
@@ -932,7 +931,7 @@ var testConfigData = []ConfigData_t{
         `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 11, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
         `{"xxx": {"name": "xxx"}, "yyy": { "name": "yyy" }}`,
         `{ "bindings": [ { "name": "Test", "actions": [ {"name": "xxx", "sequence": 1 }, {"name": "yyy"}] } ] }`,
-        `{ "proc_0": { "Detect-0": { "name": "Detect-0", "version": "00.01.1", "path": " /path/" }}, "proc_1": { "Mitigate-0": { "name": "Mitigate-0", "version": "02_1", "path": " /path/" }}}`,
+        `{ "procs": { "proc_0": { "Detect-0": { "name": "Detect-0", "version": "00.01.1", "path": " /path/" }}, "proc_1": { "Mitigate-0": { "name": "Mitigate-0", "version": "02_1", "path": " /path/" }}}}`,
         false,
         true,
         "",
@@ -954,7 +953,7 @@ var testApiData = testAPIData_t{
     `{ "foo": "bar", "ENGINE_HB_INTERVAL_SECS": 22, "list": [ "hello", "world" ], "MAX_SEQ_TIMEOUT_SECS":"77"}`,
     `{"foo": {"name": "foo","timeout": 77},"bar": {"name": "bar"}}`,
     `{ "bindings": [ { "sequencename": "TestFoo", "timeout": 60, "actions": [ {"name": "foo", "sequence": 1 }, {"name": "bar"}] } ] }`,
-    `{ "proc_0": { "Detect-0": { "name": "Detect-0", "version": "00.01.1", "path": " /path/" }}, "proc_1": { "Mitigate-0": { "name": "Mitigate-0", "version": "02_1", "path": " /path/" }}}`,
+    `{ "procs": {"proc_0": { "Detect-0": { "name": "Detect-0", "version": "00.01.1", "path": " /path/" }}, "proc_1": { "Mitigate-0": { "name": "Mitigate-0", "version": "02_1", "path": " /path/" }}}}`,
     map[string]bool{
         "foo": false,
         "bar": true,

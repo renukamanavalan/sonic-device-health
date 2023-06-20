@@ -67,7 +67,7 @@ def _log_write(lvl: int, msg:str):
 
 def log_panic(msg:str):
     _log_write(syslog.LOG_CRIT, msg+" Exiting ...")
-    os.exit(-1)
+    sys.exit(-1)
 
 def log_error(msg:str):
     _log_write(syslog.LOG_ERR, msg)

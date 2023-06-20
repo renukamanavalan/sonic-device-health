@@ -49,13 +49,13 @@ func Test_LinkCrcDetector_AddInterfaceCountersDetectsSuccessfuly(t *testing.T) {
     lookBackPeriodInSecs = look_back_period_in_secs_default
 
     rollingWindowCrcDetector := RollingWindowLinkCrcDetector{}
-    rollingWindowCrcDetector.Initialize()
+    rollingWindowCrcDetector.Initialize("interfaceabc")
 
     map1 := map[string]uint64{"IfInErrors": 100, "InUnicastPackets": 101, "OutUnicastPackets": 1100, "IfOutErrors": 1}
     map2 := map[string]uint64{"IfInErrors": 450, "InUnicastPackets": 222, "OutUnicastPackets": 2100, "IfOutErrors": 2}
-    map3 := map[string]uint64{"IfInErrors": 850, "InUnicastPackets": 333, "OutUnicastPackets": 3100000000, "IfOutErrors": 3}
-    map4 := map[string]uint64{"IfInErrors": 1220, "InUnicastPackets": 444, "OutUnicastPackets": 4100000000, "IfOutErrors": 4}
-    map5 := map[string]uint64{"IfInErrors": 1650, "InUnicastPackets": 555, "OutUnicastPackets": 4100004000, "IfOutErrors": 5}
+    map3 := map[string]uint64{"IfInErrors": 850, "InUnicastPackets": 3100000000, "OutUnicastPackets": 3100000000, "IfOutErrors": 3}
+    map4 := map[string]uint64{"IfInErrors": 1220, "InUnicastPackets": 4100000000, "OutUnicastPackets": 4100000000, "IfOutErrors": 4}
+    map5 := map[string]uint64{"IfInErrors": 1650, "InUnicastPackets": 4100000555, "OutUnicastPackets": 4100004000, "IfOutErrors": 5}
 
     // Assert
     assert := assert.New(t)
@@ -79,6 +79,7 @@ func Test_LinkCrcDetector_AddInterfaceCountersDetectsSuccessfuly(t *testing.T) {
 
     outlierRollingWindow := rollingWindowCrcDetector.outlierRollingWindow
     assert.Equal(2, outlierRollingWindow.GetElements().Len(), "Length of rolling window is expected to be 2")
+    assert.Equal("interfaceabc", rollingWindowCrcDetector.interfaceName, "InterfaceName is expected to be interfaceabc")
 }
 
 /* Validate AddInterfaceCountersAndDetectCrc returns false for nil counters */
@@ -93,12 +94,13 @@ func Test_LinkCrcDetector_AddInterfaceCountersReturnsFalseForNilCounters(t *test
     lookBackPeriodInSecs = look_back_period_in_secs_default
     // Act
     rollingWindowCrcDetector := RollingWindowLinkCrcDetector{}
-    rollingWindowCrcDetector.Initialize()
+    rollingWindowCrcDetector.Initialize("interfaceabc")
     // Assert
     assert := assert.New(t)
 
     isDetected := rollingWindowCrcDetector.AddInterfaceCountersAndDetectCrc(nil, time.Now())
     assert.False(isDetected, "isDetected is expected to be false for nil interface coutners")
+    assert.Equal("interfaceabc", rollingWindowCrcDetector.interfaceName, "InterfaceName is expected to be interfaceabc")
 }
 
 /* Validate AddInterfaceCountersAndDetectCrc returns false for invalid diff counters */
@@ -113,7 +115,7 @@ func Test_LinkCrcDetector_AddInterfaceCountersReturnsFalseForInvalidCountersDiff
     lookBackPeriodInSecs = look_back_period_in_secs_default
     // Act
     rollingWindowCrcDetector := RollingWindowLinkCrcDetector{}
-    rollingWindowCrcDetector.Initialize()
+    rollingWindowCrcDetector.Initialize("interfaceabc")
     // Assert
     assert := assert.New(t)
 
@@ -140,6 +142,7 @@ func Test_LinkCrcDetector_AddInterfaceCountersReturnsFalseForInvalidCountersDiff
 
     isDetected = rollingWindowCrcDetector.AddInterfaceCountersAndDetectCrc(currentCounters, time.Now())
     assert.False(isDetected, "isDetected is expected to be false for when InUnicastPackets is less than previous value")
+    assert.Equal("interfaceabc", rollingWindowCrcDetector.interfaceName, "InterfaceName is expected to be interfaceabc")
 }
 
 /* Validates Link crc plugin initialized with actions knobs */
@@ -315,9 +318,9 @@ func Test_LinkCrcDetectionPlugin_CrcDetectionDetectsSuccessfuly(t *testing.T) {
 
     map1 := map[string]uint64{"IfInErrors": 100, "InUnicastPackets": 101, "OutUnicastPackets": 1100, "IfOutErrors": 1}
     map2 := map[string]uint64{"IfInErrors": 450, "InUnicastPackets": 222, "OutUnicastPackets": 2100, "IfOutErrors": 2}
-    map3 := map[string]uint64{"IfInErrors": 850, "InUnicastPackets": 333, "OutUnicastPackets": 3100000000, "IfOutErrors": 3}
-    map4 := map[string]uint64{"IfInErrors": 1220, "InUnicastPackets": 444, "OutUnicastPackets": 4100000000, "IfOutErrors": 4}
-    map5 := map[string]uint64{"IfInErrors": 1650, "InUnicastPackets": 555, "OutUnicastPackets": 4100004000, "IfOutErrors": 5}
+    map3 := map[string]uint64{"IfInErrors": 850, "InUnicastPackets": 3100000000, "OutUnicastPackets": 3100000000, "IfOutErrors": 3}
+    map4 := map[string]uint64{"IfInErrors": 1220, "InUnicastPackets": 4100000000, "OutUnicastPackets": 4100000000, "IfOutErrors": 4}
+    map5 := map[string]uint64{"IfInErrors": 1650, "InUnicastPackets": 4100000555, "OutUnicastPackets": 4100004000, "IfOutErrors": 5}
 
     counterMap1 := dbclient.InterfaceCountersMap{"Ethernet1": map1, "Ethernet2": map1}
     counterMap2 := dbclient.InterfaceCountersMap{"Ethernet1": map2, "Ethernet2": map2}
@@ -391,9 +394,9 @@ func Test_LinkCrcDetectionPlugin_CrcDetectionReportsForOnlyOneInterface(t *testi
 
     map1 := map[string]uint64{"IfInErrors": 100, "InUnicastPackets": 101, "OutUnicastPackets": 1100, "IfOutErrors": 1}
     map2 := map[string]uint64{"IfInErrors": 450, "InUnicastPackets": 222, "OutUnicastPackets": 2100, "IfOutErrors": 2}
-    map3 := map[string]uint64{"IfInErrors": 850, "InUnicastPackets": 333, "OutUnicastPackets": 3100000000, "IfOutErrors": 3}
-    map4 := map[string]uint64{"IfInErrors": 1220, "InUnicastPackets": 444, "OutUnicastPackets": 4100000000, "IfOutErrors": 4}
-    map5 := map[string]uint64{"IfInErrors": 1650, "InUnicastPackets": 555, "OutUnicastPackets": 4100004000, "IfOutErrors": 5}
+    map3 := map[string]uint64{"IfInErrors": 850, "InUnicastPackets": 3100000000, "OutUnicastPackets": 3100000000, "IfOutErrors": 3}
+    map4 := map[string]uint64{"IfInErrors": 1220, "InUnicastPackets": 4100000000, "OutUnicastPackets": 4100000000, "IfOutErrors": 4}
+    map5 := map[string]uint64{"IfInErrors": 1650, "InUnicastPackets": 4100000555, "OutUnicastPackets": 4100004000, "IfOutErrors": 5}
 
     counterMap1 := dbclient.InterfaceCountersMap{"Ethernet1": map1, "Ethernet2": map1}
     counterMap2 := dbclient.InterfaceCountersMap{"Ethernet1": map2, "Ethernet2": map2}

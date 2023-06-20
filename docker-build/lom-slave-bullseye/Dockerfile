@@ -358,7 +358,8 @@ RUN apt-get -y build-dep linux
 
 # Install golang
 RUN wget -O golang-go.tar.gz https://go.dev/dl/go1.20.3.linux-amd64.tar.gz
-RUN tar -C /usr/local -xzf golang-go.tar.gz
+RUN mkdir -p /usr/local/go1.20.3
+RUN tar -C /usr/local/go1.20.3 -xzf golang-go.tar.gz
 
 RUN pip3 install --upgrade pip
 RUN apt-get purge -y python3-pip python3-yaml

@@ -2,15 +2,15 @@
 package linkcrc
 
 import (
-    "context"
-    "encoding/json"
-    "fmt"
-    "lom/src/lib/lomcommon"
-    "lom/src/lib/lomipc"
-    "lom/src/plugins/plugins_common"
-    "lom/src/plugins/plugins_files/sonic/client/dbclient"
-    "strings"
-    "time"
+	"context"
+	"encoding/json"
+	"fmt"
+	"lom/src/lib/lomcommon"
+	"lom/src/lib/lomipc"
+	"lom/src/plugins/plugins_common"
+	"lom/src/plugins/plugins_files/sonic/client/dbclient"
+	"strings"
+	"time"
 )
 
 const (
@@ -114,7 +114,7 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeCrcDetection(reques
     currentInterfaceCounters, err := linkCrcDetectionPlugin.counterRepository.GetCountersForAllInterfaces(ctx)
     if err != nil {
         /* If redis call fails, there can be no detection that can be performed. Mark it unhealthy */
-        lomcommon.LogError(link_crc_prefix+"Error fetching interface counters for LinkCrc detection, %v", err)
+        lomcommon.LogError(link_crc_prefix+"Error fetching interface counters for LinkCrc detection. Err: %v", err)
         *isExecutionHealthy = false
         return nil
     }
@@ -138,7 +138,7 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeCrcDetection(reques
             /* For very first time, create an entry in the mapping for interface with linkCrcDetector */
             linkCrcDetector := &RollingWindowLinkCrcDetector{}
             linkCrcDetectionPlugin.currentMonitoredInterfaces[interfaceName] = linkCrcDetector
-            linkCrcDetector.Initialize()
+            linkCrcDetector.Initialize(interfaceName)
             linkCrcDetector.AddInterfaceCountersAndDetectCrc(interfaceCounters, time.Now().UTC())
         } else {
             if linkCrcDetector.AddInterfaceCountersAndDetectCrc(interfaceCounters, time.Now().UTC()) {
@@ -181,7 +181,7 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) GetPluginID() plugins_comm
 }
 
 type LinkCrcDetectorInterface interface {
-    Initialize()
+    Initialize(interfaceName string)
     AddInterfaceCountersAndDetectCrc(currentCounters map[string]uint64, localTimeStampUtc time.Time) bool
     validateCountersDiff(previousCounter map[string]uint64, currentCounters map[string]uint64) bool
 }
@@ -191,12 +191,14 @@ Contains logic for detecting CRC on an interface using a rolling window based ap
 It uses same algorithm that is currently used by Event hub pipelines today
 */
 type RollingWindowLinkCrcDetector struct {
+    interfaceName        string
     latestCounters       map[string]uint64 // This will be nil for the very first time.
     outlierRollingWindow plugins_common.FixedSizeRollingWindow[CrcOutlierInfo]
 }
 
 /* Initializes the detector instance with config values */
-func (linkCrcDetector *RollingWindowLinkCrcDetector) Initialize() {
+func (linkCrcDetector *RollingWindowLinkCrcDetector) Initialize(interfaceName string) {
+    linkCrcDetector.interfaceName = interfaceName
     linkCrcDetector.outlierRollingWindow = plugins_common.FixedSizeRollingWindow[CrcOutlierInfo]{}
     linkCrcDetector.outlierRollingWindow.Initialize(outlierRollingWindowSize)
 }
@@ -217,7 +219,7 @@ func (linkCrcDetector *RollingWindowLinkCrcDetector) AddInterfaceCountersAndDete
 
     // validate if all diff counters are valid.
     if !linkCrcDetector.validateCountersDiff(linkCrcDetector.latestCounters, currentCounters) {
-        lomcommon.LogError(fmt.Sprintf(link_crc_prefix + "Invalid counters"))
+        lomcommon.LogError(fmt.Sprintf(link_crc_prefix+"Invalid counters for interface %s", linkCrcDetector.interfaceName))
         return false
     }
 
@@ -229,13 +231,14 @@ func (linkCrcDetector *RollingWindowLinkCrcDetector) AddInterfaceCountersAndDete
 
     // Start evaluating the outliers and detect CRC anomaly.
     if ifInErrorsDiff > uint64(ifInErrorsDiffMinValue) && (inUnicastPacketsDiff > uint64(inUnicastPacketsMinValue) || outUnicastPacketsDiff > uint64(outUnicastPacketsMinValue)) {
-        errorMetric := float64(ifInErrorsDiff) / (float64(inUnicastPacketsDiff) + float64(outUnicastPacketsDiff))
+        errorMetric := float64(ifInErrorsDiff) / (float64(inUnicastPacketsDiff) + float64(ifInErrorsDiff))
         if errorMetric > minCrcError {
             if inUnicastPacketsDiff > 0 {
                 totalLinkErrors := ifInErrorsDiff - ifOutErrorsDiff
-                fcsErrorRate := totalLinkErrors / inUnicastPacketsDiff
+                fcsErrorRate := float64(totalLinkErrors) / float64(inUnicastPacketsDiff)
                 if fcsErrorRate > 0 {
                     /* if fcsErrorRate is > 0, the diff counter considered an outlier */
+                    lomcommon.LogError(link_crc_prefix+"FcsErrorRate for interface %s is %f", linkCrcDetector.interfaceName, fcsErrorRate)
                     crcOutlier := CrcOutlierInfo{TimeStamp: localTimeStampUtc}
                     linkCrcDetector.outlierRollingWindow.AddElement(crcOutlier)
 
