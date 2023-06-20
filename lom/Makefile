@@ -180,4 +180,4 @@ $(PLUGINS_COMMON_TEST): $(SRC_FILES) $(TEST_FILES)
 clean: clean-extract_file_coverage
 	rm -rf $(BUILD_DIR)
 
-all_skiptests: format_code $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN)
+bin_skiptests: format_code $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN)

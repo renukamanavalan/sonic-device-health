@@ -6,18 +6,18 @@
 package pluginmgr_common
 
 import (
-    "flag"
-    "fmt"
-    "log/syslog"
-    "lom/src/lib/lomcommon"
-    "lom/src/lib/lomipc"
-    "lom/src/plugins/plugins_common"
-    "os"
-    "os/signal"
-    "sync"
-    "sync/atomic"
-    "syscall"
-    "time"
+	"flag"
+	"fmt"
+	"log/syslog"
+	"lom/src/lib/lomcommon"
+	"lom/src/lib/lomipc"
+	"lom/src/plugins/plugins_common"
+	"os"
+	"os/signal"
+	"sync"
+	"sync/atomic"
+	"syscall"
+	"time"
 )
 
 /*
@@ -35,13 +35,13 @@ var (
  * Constants for plugin manager with default values
  */
 const (
-    GOLIB_TIMEOUT_DEFAULT                    = 0 * time.Millisecond /* Default GoLIB API timeouts */
-    PLUGIN_PERIODIC_FALLBACK_TIMEOUT_DEFAULT = 3600 * time.Second   /* Default Periodic logging long timeout */
-    PLUGIN_PERIODIC_TIMEOUT_DEFAULT          = 300 * time.Second    /* Default periodic logging short timeout */
-    PLUGIN_LOADING_TIMEOUT_DEFAULT           = 30 * time.Second
-    PLUGIN_SHUTDOWN_TIMEOUT_DEFAULT          = 30 * time.Second
-    GOROUTINE_CLEANUP_TIMEOUT_DEFAULT        = 30 * time.Second
-    APP_NAME_DEAULT                          = "PluginMgr"
+    GOLIB_TIMEOUT_DEFAULT                    = 0 * time.Millisecond // Time until initial connection to golib
+    PLUGIN_PERIODIC_FALLBACK_TIMEOUT_DEFAULT = 3600 * time.Second   // Default fallback timeout for periodic logging
+    PLUGIN_PERIODIC_TIMEOUT_DEFAULT          = 300 * time.Second    // Default timeout for periodic logging
+    PLUGIN_LOADING_TIMEOUT_DEFAULT           = 30 * time.Second     // Time to wait for plugin to load
+    PLUGIN_SHUTDOWN_TIMEOUT_DEFAULT          = 30 * time.Second     // Time to wait for plugin to shutdown
+    GOROUTINE_CLEANUP_TIMEOUT_DEFAULT        = 30 * time.Second     // Time to wait for goroutines to cleanup at systemshutdown
+    APP_NAME_DEAULT                          = "PluginMgr"          // Default name for the application
 )
 
 var LogInfo = lomcommon.LogInfo
@@ -203,7 +203,7 @@ func (plmgr *PluginManager) run() error {
             for {
                 serverReq, err := plmgr.clientTx.RecvServerRequest()
                 if plmgr.getShutdownStatus() {
-                    LogInfo("In run() RecvServerRequest: Shutdown is active, ignoring request: %v", serverReq)
+                    LogInfo("In run() RecvServerRequest: Shutdown is active, ignoring request: %s", lomipc.PrintServerRequest(serverReq, false))
                     if lomcommon.GetLoMRunMode() == lomcommon.LoMRunMode_Test {
                         return
                     }
@@ -226,10 +226,10 @@ func (plmgr *PluginManager) run() error {
         case respObj := <-plmgr.responseChan: // response from plugin are received here and sent to engine via clientTx interface
             // If plugin manager is shutting down, do not send response to engine
             if plmgr.getShutdownStatus() {
-                LogInfo("In run(): Plugin manager is shutdown. Not sending response to engine %v", respObj)
+                LogInfo("In run(): Plugin manager is shutdown. Not sending response to engine %s", lomipc.PrintServerResponse(respObj))
                 //return nil
             } else {
-                LogInfo("In run() : Received response object : %v", respObj)
+                LogInfo("In run() : Sending response to engine : %s", lomipc.PrintServerResponse(respObj))
                 switch resp := respObj.(type) {
                 case *lomipc.MsgSendServerResponse:
                     if err := plmgr.clientTx.SendServerResponse(resp); err != nil {
