@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Run 'make all' in the current directory
-make all
+make all-silent
 
 # Check if the build succeeded
 if [ $? -eq 0 ]; then

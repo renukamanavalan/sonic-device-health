@@ -38,6 +38,7 @@ echo "LOM_CONF_LOCATION=$LOM_CONF_LOCATION, LOM_TESTMODE_NAME=$LOM_TESTMODE_NAME
 
 # Check if LoMEngine is already running
 engine_pid=$(pgrep -f "LoMEngine -path=")
+#engine_pid=$(pgrep -f "LoMEngine")
 if [ -n "$engine_pid" ]; then
     echo "Error: LoMEngine is already running with PID $engine_pid. Exiting test now"
     echo "To kill the process, run: kill $engine_pid"
@@ -55,6 +56,7 @@ fi
 
 # Start LoMEngine with 'path' argument as the conf file location, running it in the background
 ./bin/LoMEngine -path="$LOM_CONF_LOCATION" >/dev/null 2>&1 &
+#./bin/LoMEngine  >/dev/null 2>&1 &
 
 # Store the PID of the LoMEngine process
 engine_pid=$!

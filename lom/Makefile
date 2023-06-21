@@ -101,8 +101,7 @@ echo "__________________________________________________________________________
 endef
 export aggregate_file_coverage
 
-
-
+# Print all the source fiules coverages at one place
 add-aggregate_file_coverage: 
 	$(shell mkdir -p $(BUILD_DIR))
 	$(shell rm -f  $(BUILD_DIR)/aggregate_file_coverage.sh)
