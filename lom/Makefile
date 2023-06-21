@@ -65,18 +65,19 @@ format_code:
 # Define the file coverage extraction function
 define extract_file_coverage
 #!/bin/bash
-echo "*******************************************************"
-echo -e "Detail file coverage from $$1 :\n"
+echo "====================================================================================="
+echo -e "Detail file coverage from $$1 :"
+echo "_____________________________________________________________________________________"
 file_coverage="$$(sed -n 's/.*<option value="[^"]\+">\([^<]\+\).* (\([^)]\+\%.*\)<\/option>.*/\1 (\2)/p' "$$1")"; 
 echo "$${file_coverage}"
-echo "*******************************************************"
+echo "====================================================================================="
 endef
 export extract_file_coverage
 
 add-extract_file_coverage: 
 	$(shell mkdir -p $(BUILD_DIR))
 	$(shell rm -f  $(BUILD_DIR)/extract_file_coverage.sh)
-	$(shell echo "#!/bin/bash" > $(BUILD_DIR)/extract_file_coverage.sh && echo >> $(BUILD_DIR)/extract_file_coverage.sh)
+	$(shell echo >> $(BUILD_DIR)/extract_file_coverage.sh)
 	@echo "$$extract_file_coverage" >> $(BUILD_DIR)/extract_file_coverage.sh
 	$(shell chmod 777 $(BUILD_DIR)/extract_file_coverage.sh 2>/dev/null || :)
 
@@ -84,18 +85,50 @@ add-extract_file_coverage:
 clean-extract_file_coverage:
 	rm -f $(BUILD_DIR)/extract_file_coverage.sh
 
-.PHONY: all clean format_code clean-extract_file_coverage add-extract_file_coverage
+# Define the aggregate file coverage extraction function
+define aggregate_file_coverage
+#!/bin/bash
+echo "====================================================================================="
+echo -e "Aggregate file coverages : "
+echo "_____________________________________________________________________________________"
+for file in $(TEST_DIR)/*.html; do
+    if [ -f "$$file" ]; then
+        file_coverage=$$(sed -n 's/.*<option value="[^"]\+">\([^<]\+\).* (\([^)]\+\%.*\)<\/option>.*/\1 (\2)/p' "$$file")
+        echo "$$file_coverage"
+    fi
+done
+echo "_____________________________________________________________________________________"
+endef
+export aggregate_file_coverage
 
-COMMON_DEPS := format_code add-extract_file_coverage $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(LIB_TEST) $(ENGINE_TEST) \
+
+
+add-aggregate_file_coverage: 
+	$(shell mkdir -p $(BUILD_DIR))
+	$(shell rm -f  $(BUILD_DIR)/aggregate_file_coverage.sh)
+	$(shell echo >> $(BUILD_DIR)/aggregate_file_coverage.sh)
+	@echo "$$aggregate_file_coverage" >> $(BUILD_DIR)/aggregate_file_coverage.sh
+	$(shell chmod 777 $(BUILD_DIR)/aggregate_file_coverage.sh 2>/dev/null || :)
+
+# Clean up the script file
+clean-aggregate-file_coverage:
+	rm -f $(BUILD_DIR)/aggregate_file_coverage.sh
+
+.PHONY: all clean format_code clean-extract_file_coverage add-extract_file_coverage clean-aggregate-file_coverage add-aggregate_file_coverage
+
+COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(LIB_TEST) $(ENGINE_TEST) \
 	$(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST) \
-	$(PY_TEST) 
+	$(PY_TEST)
 
 all: $(COMMON_DEPS)
+	$(BUILD_DIR)/aggregate_file_coverage.sh
 
 all-silent: LIB_TEST_FLAGS :=
 all-silent: $(COMMON_DEPS)
+	$(BUILD_DIR)/aggregate_file_coverage.sh
 
-all_skiptests: format_code $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN)
+all-skiptests: format_code $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN)
+	$(BUILD_DIR)/aggregate_file_coverage.sh
 
 $(CMN_C_LIB): $(SRC_FILES)
 	mkdir -p $(LIB_DIR)
@@ -170,7 +203,7 @@ $(PY_TEST): $(SRC_FILES) $(PY_FILES)
 $(SONIC_LINK_CRC_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/SonicLinkCrcCoverprofile.out \
-				-coverpkg lom/src/plugins/plugin_files/sonic/plugin/linkcrc \
+				-coverpkg lom/src/plugins/plugins_files/sonic/plugin/linkcrc \
 				-covermode=atomic $(LIB_TEST_FLAGS) lom/src/plugins/plugins_files/sonic/plugin/linkcrc || (echo "SonicLinkCrc plugin Test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/SonicLinkCrcCoverprofile.out -o $(TEST_DIR)/SonicLinkCrcCoverprofile.html
 	@if [ -f "$(TEST_DIR)/SonicLinkCrcCoverprofile.html" ]; then \
@@ -191,5 +224,5 @@ $(PLUGINS_COMMON_TEST): $(SRC_FILES) $(TEST_FILES)
 	touch $@
 	@echo -e "Successfully completed plugins common Test\n\n"
 
-clean: clean-extract_file_coverage
+clean: clean-extract_file_coverage clean-aggregate-file_coverage
 	rm -rf $(BUILD_DIR)
