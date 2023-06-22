@@ -16,7 +16,7 @@ const (
     MIN_PERIODIC_LOG_PERIOD_SECS = "MIN_PERIODIC_LOG_PERIOD_SECS"
 
     /* Look for this name in Env or file */
-    LOM_TESTMODE_NAME = "LoMTestMode"
+    LOM_RUN_MODE = "LoMRunMode"
 )
 
 const (
@@ -77,10 +77,9 @@ var lomRunMode = LoMRunMode_NotSet
 
 func GetLoMRunMode() LoMRunMode_t {
     if lomRunMode == LoMRunMode_NotSet {
-        if val, ok := os.LookupEnv(LOM_TESTMODE_NAME); ok {
-            if val == "yes" {
-                lomRunMode = LoMRunMode_Test
-            } else {
+        lomRunMode = LoMRunMode_Test
+        if val, ok := os.LookupEnv(LOM_RUN_MODE); ok {
+            if val == "PROD" {
                 lomRunMode = LoMRunMode_Prod
             }
         }
@@ -88,27 +87,6 @@ func GetLoMRunMode() LoMRunMode_t {
     return lomRunMode
 }
 
-/*
-func SetLoMRunMode(mode LoMRunMode_t) error {
-    if (mode != LoMRunMode_Test) && (mode != LoMRunMode_Prod) {
-        return LogError("mode=(%v) is invalid", mode)
-    }
-
-    /* Call get to ensure, Env is checked first */
-/*    ctMode := GetLoMRunMode()
-
-if ctMode == LoMRunMode_NotSet {
-    /* LOM_TESTMODE_NAME ("LoMTestMode") is not set in Env */
-/*       lomRunMode = mode
-    } else if ctMode != mode {
-        return LogError("Mode already set(%v) != new mode(%v)", ctMode, mode)
-    }
-    return nil
-}
-
-func ResetLoMMode() {
-    lomRunMode = LoMRunMode_NotSet
-}*/
 
 /*
  * NOTE: This will be deprecated soon.
@@ -418,14 +396,6 @@ func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
     if err := p.readProcsConf(cfgFiles.ProcsFl); err != nil {
         return LogError("Procs: %s: %v", cfgFiles.ProcsFl, err)
     }
-    /*test_mode_fl := filepath.Join(filepath.Dir(cfgFiles.GlobalFl), LOM_TESTMODE_NAME)
-      ResetLoMMode()
-      if _, err := os.Stat(test_mode_fl); os.IsNotExist(err) {
-          SetLoMRunMode(LoMRunMode_Prod)
-      } else {
-          LogDebug("Run in Test mode as fl(%s) exists. err(%v)", test_mode_fl, err)
-          SetLoMRunMode(LoMRunMode_Test)
-      }*/
     return nil
 }
 
