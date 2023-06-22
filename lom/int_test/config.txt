@@ -1,4 +1,0 @@
-remote_host=10.3.147.17
-remote_user=admin
-remote_password=password
-remote_path=/home/admin

@@ -267,7 +267,8 @@ func setup() *myLogger {
     resetMockLogger()
     myLogger := setupMockLogger(ProcID)
     //os.Setenv("LOM_TESTMODE_NAME", "yes")
-    lomcommon.SetLoMRunMode(lomcommon.LoMRunMode_Test)
+    //lomcommon.SetLoMRunMode(lomcommon.LoMRunMode_Test)
+    os.Setenv("LoMTestMode", "yes")
 
     return myLogger
 }

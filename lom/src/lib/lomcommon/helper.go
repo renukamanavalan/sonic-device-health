@@ -3,7 +3,6 @@ package lomcommon
 import (
     "encoding/json"
     "errors"
-    "flag"
     "fmt"
     "io"
     "log/syslog"
@@ -19,7 +18,7 @@ import (
 )
 
 /* "go test" must use "-v" option to turn on testmode */
-var RunningTestMode = false
+//var RunningTestMode = false
 var logSuffix = ""
 
 var writers = make(map[syslog.Priority]io.Writer)
@@ -48,14 +47,8 @@ func LogInit() {
         return
     }
 
-    if !flag.Parsed() {
-        flag.Parse()
-    }
-
-    /* "-v" flag passed via "go test" sets this "test.v" flag */
-    RunningTestMode = flag.Lookup("test.v") != nil
-    if RunningTestMode {
-        fmt.Fprintf(writers[syslog.LOG_ERR], "RunningTestMode=(%v)\n", RunningTestMode)
+    if GetLoMRunMode() == LoMRunMode_Test {
+        fmt.Fprintf(writers[syslog.LOG_ERR], "Running in Test Mode)\n")
         /* TestMode use stderr as done in init */
         return
     }

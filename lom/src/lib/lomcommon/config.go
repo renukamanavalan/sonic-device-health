@@ -77,10 +77,7 @@ var lomRunMode = LoMRunMode_NotSet
 
 func GetLoMRunMode() LoMRunMode_t {
     if lomRunMode == LoMRunMode_NotSet {
-        if RunningTestMode {
-            /* Set by pytest */
-            lomRunMode = LoMRunMode_Test
-        } else if val, ok := os.LookupEnv(LOM_TESTMODE_NAME); ok {
+        if val, ok := os.LookupEnv(LOM_TESTMODE_NAME); ok {
             if val == "yes" {
                 lomRunMode = LoMRunMode_Test
             } else {
@@ -91,17 +88,18 @@ func GetLoMRunMode() LoMRunMode_t {
     return lomRunMode
 }
 
+/*
 func SetLoMRunMode(mode LoMRunMode_t) error {
     if (mode != LoMRunMode_Test) && (mode != LoMRunMode_Prod) {
         return LogError("mode=(%v) is invalid", mode)
     }
 
     /* Call get to ensure, Env is checked first */
-    ctMode := GetLoMRunMode()
+/*    ctMode := GetLoMRunMode()
 
-    if ctMode == LoMRunMode_NotSet {
-        /* LOM_TESTMODE_NAME ("LoMTestMode") is not set in Env */
-        lomRunMode = mode
+if ctMode == LoMRunMode_NotSet {
+    /* LOM_TESTMODE_NAME ("LoMTestMode") is not set in Env */
+/*       lomRunMode = mode
     } else if ctMode != mode {
         return LogError("Mode already set(%v) != new mode(%v)", ctMode, mode)
     }
@@ -110,7 +108,7 @@ func SetLoMRunMode(mode LoMRunMode_t) error {
 
 func ResetLoMMode() {
     lomRunMode = LoMRunMode_NotSet
-}
+}*/
 
 /*
  * NOTE: This will be deprecated soon.
@@ -221,8 +219,8 @@ type ProcPluginConfig_t struct {
 
 /* Action config as read from actions.conf.json */
 type ActionCfg_t struct {
-    Name         string
-    Type         string
+    Name         string          /* Action name e.g. link_crc*/
+    Type         string          /* Action type. can be Detection, Mitigation or Safety */
     Timeout      int             /* Timeout recommended for this action */
     HeartbeatInt int             /* Heartbeat interval */
     Disable      bool            /* true - Disabled */
@@ -420,14 +418,14 @@ func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
     if err := p.readProcsConf(cfgFiles.ProcsFl); err != nil {
         return LogError("Procs: %s: %v", cfgFiles.ProcsFl, err)
     }
-    test_mode_fl := filepath.Join(filepath.Dir(cfgFiles.GlobalFl), LOM_TESTMODE_NAME)
-    ResetLoMMode()
-    if _, err := os.Stat(test_mode_fl); os.IsNotExist(err) {
-        SetLoMRunMode(LoMRunMode_Prod)
-    } else {
-        LogDebug("Run in Test mode as fl(%s) exists. err(%v)", test_mode_fl, err)
-        SetLoMRunMode(LoMRunMode_Test)
-    }
+    /*test_mode_fl := filepath.Join(filepath.Dir(cfgFiles.GlobalFl), LOM_TESTMODE_NAME)
+      ResetLoMMode()
+      if _, err := os.Stat(test_mode_fl); os.IsNotExist(err) {
+          SetLoMRunMode(LoMRunMode_Prod)
+      } else {
+          LogDebug("Run in Test mode as fl(%s) exists. err(%v)", test_mode_fl, err)
+          SetLoMRunMode(LoMRunMode_Test)
+      }*/
     return nil
 }
 

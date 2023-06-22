@@ -31,7 +31,7 @@ var t2 = linkcrc.NewLinkCRCDetectionPlugin
 *
 * Environment Variable :
 *       LOM_TESTMODE_NAME - LoM run mode
-*               - Optional (default: "no")
+*               - Optional (default: "no", "yes" for production)
 *       LOM_CONF_LOCATION - LoM configuration file location
 *               - Mandatory
 *
