@@ -52,6 +52,7 @@ import (
  */
 func main() {
     // setup logging
+    lomcommon.LogInit()
     lomcommon.SetLogLevel(syslog.LOG_INFO)
 
     lomcommon.LogInfo("plugin_mgr : Starting Plugin Manager")

@@ -1,42 +1,44 @@
 {
-	"proc_0": {
-		"link_crc": {
-			"name": "link_crc",
-			"version": "00.01.1",
-			"path": " /path/"
-		},
-		"link_flap": {
-			"name": "link_flap",
-			"version": "02.00.1",
-			"path": " /path/"
-		}
-	},
-	"proc_1": {
-		"bgp_holddown": {
-			"name": "bgp_holddown",
-			"version": "02_1",
-			"path": " /path/"
-		}
-	},
-	"proc_2": {
-		"test_startup_plugin_001": {
-			"name": "test_startup_plugin_001",
-			"version": "1.0",
-			"path": ""
-		}
-	},
-	"proc_3": {
-		"invalid_plugin": {
-			"name": "invalid_plugin",
-			"version": "1.0",
-			"path": ""
-		}
-	},
-	"proc_4": {
-		"GenericPluginDetection": {
-			"name": "GenericPluginDetection",
-			"version": "1.0",
-			"path": ""
-		}
-	}
+    "procs": {
+        "proc_0": {
+            "link_crc": {
+                "name": "link_crc",
+                "version": "00.01.1",
+                "path": " /path/"
+            },
+            "link_flap": {
+                "name": "link_flap",
+                "version": "02.00.1",
+                "path": " /path/"
+            }
+        },
+        "proc_1": {
+            "bgp_holddown": {
+                "name": "bgp_holddown",
+                "version": "02_1",
+                "path": " /path/"
+            }
+        },
+        "proc_2": {
+            "test_startup_plugin_001": {
+                "name": "test_startup_plugin_001",
+                "version": "1.0",
+                "path": ""
+            }
+        },
+        "proc_3": {
+            "invalid_plugin": {
+                "name": "invalid_plugin",
+                "version": "1.0",
+                "path": ""
+            }
+        },
+        "proc_4": {
+            "GenericPluginDetection": {
+                "name": "GenericPluginDetection",
+                "version": "1.0",
+                "path": ""
+            }
+        }
+    }
 }
