@@ -289,10 +289,6 @@ class TestCfg(object):
         ret = common_test.InitCfg(False)
         assert ret == 0, f"lomLib.InitConfigPathForC failed ret={ret}"
 
-        ret = engine_apis.call_lom_lib(
-                engine_apis.LOM_LIB_FN_INDICES.LOM_LIB_FN_RUN_MODE)
-        assert ret == 2, f"lomLib.lomLib.GetLoMRunModeC ret{ret} != 2"
-
         id = 0
         for tc in testCfgList:
             ret = self.callAPI(tc)

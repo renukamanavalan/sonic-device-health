@@ -22,7 +22,6 @@ import (
 var logSuffix = ""
 
 var writers = make(map[syslog.Priority]io.Writer)
-var logInitDone = false
 
 var log_level = syslog.LOG_DEBUG
 
@@ -36,43 +35,26 @@ func RunPanic(m string) {
 var DoPanic = RunPanic
 
 func init() {
-    for i := syslog.LOG_EMERG; i <= syslog.LOG_DEBUG; i++ {
-        writers[i] = os.Stderr
-    }
-    logSuffix = "\n"
-}
-
-func LogInit() {
-    if logInitDone {
-        return
-    }
-
+    isTest := false
     if GetLoMRunMode() == LoMRunMode_Test {
-        fmt.Fprintf(writers[syslog.LOG_ERR], "Running in Test Mode)\n")
-        /* TestMode use stderr as done in init */
-        return
+        logSuffix = "\n"
+        isTest = true
     }
-    /* No need for newline with syslog */
-    logSuffix = ""
 
     for i := syslog.LOG_EMERG; i <= syslog.LOG_DEBUG; i++ {
-        writer, err := syslog.Dial("", "", (i | syslog.LOG_LOCAL7), "")
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Failed to get syslog writer. Exiting ...\n")
-            OSExit(-1)
+        if !isTest {
+            if w, err := syslog.Dial("", "", (i | syslog.LOG_LOCAL7), ""); err != nil {
+                fmt.Fprintf(os.Stderr, "Failed to get syslog writer. Exiting ...\n")
+                OSExit(-1)
+            } else {
+                writers[i] = w
+            }
+        } else {
+            writers[i] = os.Stderr
         }
-        writers[i] = writer
     }
-
-    /*
-     * Samples:
-     *  fmt.Fprintf(writers[syslog.LOG_WARNING], "This is a daemon warning message")
-     *  fmt.Fprintf(writers[syslog.LOG_ERR], "This is a daemon ERROR message")
-     *  fmt.Fprintf(writers[syslog.LOG_INFO], "This is a daemon INFO message")
-     *
-     */
-    logInitDone = true
 }
+
 
 /* Return currently set log level */
 func GetLogLevel() syslog.Priority {
