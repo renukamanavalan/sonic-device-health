@@ -16,7 +16,7 @@ const (
     MIN_PERIODIC_LOG_PERIOD_SECS = "MIN_PERIODIC_LOG_PERIOD_SECS"
 
     /* Look for this name in Env or file */
-    LOM_RUN_MODE = "LoMRunMode"
+    LOM_RUN_MODE = "LOM_RUN_MODE"
 )
 
 const (
@@ -86,7 +86,6 @@ func GetLoMRunMode() LoMRunMode_t {
     }
     return lomRunMode
 }
-
 
 /*
  * NOTE: This will be deprecated soon.

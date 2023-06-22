@@ -30,8 +30,8 @@ var t2 = linkcrc.NewLinkCRCDetectionPlugin
 *        ./LoMpluginMgr -proc_id="proc_0" -syslog_level=5
 *
 * Environment Variable :
-*       LOM_TESTMODE_NAME - LoM run mode
-*               - Optional (default: "no", "yes" for production)
+*       LOM_RUN_MODE - LoM run mode
+*               - Optional (default: "test", set "PROD" for production)
 *       LOM_CONF_LOCATION - LoM configuration file location
 *               - Mandatory
 *

@@ -55,7 +55,6 @@ func init() {
     }
 }
 
-
 /* Return currently set log level */
 func GetLogLevel() syslog.Priority {
     return log_level

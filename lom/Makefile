@@ -146,7 +146,7 @@ $(PLUGIN_MANAGER_BIN): $(SRC_FILES)
 
 $(LIB_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
-	LoMTestMode="yes" ${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/LibCoverprofile.out \
+	${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/LibCoverprofile.out \
 		-coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon \
 		-covermode=atomic $(LIB_TEST_FLAGS) ./src/lib/lib_test ./src/lib/lib_test/config || (echo "LibTest failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/LibCoverprofile.out -o $(TEST_DIR)/LibCoverprofile.html
@@ -158,7 +158,7 @@ $(LIB_TEST): $(SRC_FILES) $(TEST_FILES)
 
 $(ENGINE_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
-	LoMTestMode="yes" ${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/EngineCoverprofile.out \
+	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/EngineCoverprofile.out \
 		-coverpkg lom/src/engine/engine \
 		-covermode=atomic $(LIB_TEST_FLAGS) lom/src/engine/engine || (echo "EngineTest failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/EngineCoverprofile.out -o $(TEST_DIR)/EngineCoverprofile.html
@@ -170,7 +170,7 @@ $(ENGINE_TEST): $(SRC_FILES) $(TEST_FILES)
 
 $(PLUGIN_MANAGER_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
-	LoMTestMode="yes" ${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginManagerCoverprofile.out \
+	${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginManagerCoverprofile.out \
 		-coverpkg lom/src/pluginmgr/pluginmgr_common \
 		-covermode=atomic $(LIB_TEST_FLAGS) ./src/pluginmgr/pluginmgr_common  || (echo "Plugin manager test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/PluginManagerCoverprofile.out -o $(TEST_DIR)/PluginManagerCoverprofile.html
@@ -182,7 +182,7 @@ $(PLUGIN_MANAGER_TEST): $(SRC_FILES) $(TEST_FILES)
 
 $(SONIC_DBCLIENT_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
-	LoMTestMode="yes" ${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/SonicDbClientCoverprofile.out \
+	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/SonicDbClientCoverprofile.out \
 		-coverpkg lom/src/plugins/plugins_files/sonic/client/dbclient \
 		-covermode=atomic $(LIB_TEST_FLAGS) lom/src/plugins/plugins_files/sonic/client/dbclient || (echo "SonicDbClient Test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/SonicDbClientCoverprofile.out -o $(TEST_DIR)/SonicDbClientCoverprofile.html
@@ -201,7 +201,7 @@ $(PY_TEST): $(SRC_FILES) $(PY_FILES)
 
 $(SONIC_LINK_CRC_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
-	LoMTestMode="yes" ${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/SonicLinkCrcCoverprofile.out \
+	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/SonicLinkCrcCoverprofile.out \
 				-coverpkg lom/src/plugins/plugins_files/sonic/plugin/linkcrc \
 				-covermode=atomic $(LIB_TEST_FLAGS) lom/src/plugins/plugins_files/sonic/plugin/linkcrc || (echo "SonicLinkCrc plugin Test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/SonicLinkCrcCoverprofile.out -o $(TEST_DIR)/SonicLinkCrcCoverprofile.html
@@ -213,7 +213,7 @@ $(SONIC_LINK_CRC_TEST): $(SRC_FILES) $(TEST_FILES)
 	
 $(PLUGINS_COMMON_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
-	LoMTestMode="yes" ${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginsCommonCoverprofile.out \
+	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginsCommonCoverprofile.out \
 		-coverpkg lom/src/plugins/plugins_common \
 				-covermode=atomic $(LIB_TEST_FLAGS) lom/src/plugins/plugins_common || (echo "PluginsCommon Tests failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/PluginsCommonCoverprofile.out -o $(TEST_DIR)/PluginsCommonCoverprofile.html
