@@ -76,10 +76,9 @@ export extract_file_coverage
 
 add-extract_file_coverage: 
 	$(shell mkdir -p $(BUILD_DIR))
-	$(shell rm -f  $(BUILD_DIR)/extract_file_coverage.sh)
-	$(shell echo >> $(BUILD_DIR)/extract_file_coverage.sh)
+	$(shell echo > $(BUILD_DIR)/extract_file_coverage.sh)
 	@echo "$$extract_file_coverage" >> $(BUILD_DIR)/extract_file_coverage.sh
-	$(shell chmod 777 $(BUILD_DIR)/extract_file_coverage.sh 2>/dev/null || :)
+	$(shell chmod 777 $(BUILD_DIR)/extract_file_coverage.sh)
 
 # Clean up the script file
 clean-extract_file_coverage:
@@ -104,10 +103,9 @@ export aggregate_file_coverage
 # Print all the source fiules coverages at one place
 add-aggregate_file_coverage: 
 	$(shell mkdir -p $(BUILD_DIR))
-	$(shell rm -f  $(BUILD_DIR)/aggregate_file_coverage.sh)
-	$(shell echo >> $(BUILD_DIR)/aggregate_file_coverage.sh)
+	$(shell echo > $(BUILD_DIR)/aggregate_file_coverage.sh)
 	@echo "$$aggregate_file_coverage" >> $(BUILD_DIR)/aggregate_file_coverage.sh
-	$(shell chmod 777 $(BUILD_DIR)/aggregate_file_coverage.sh 2>/dev/null || :)
+	$(shell chmod 777 $(BUILD_DIR)/aggregate_file_coverage.sh)
 
 # Clean up the script file
 clean-aggregate-file_coverage:

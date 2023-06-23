@@ -18,7 +18,6 @@ import (
 )
 
 /* "go test" must use "-v" option to turn on testmode */
-//var RunningTestMode = false
 var logSuffix = ""
 
 var writers = make(map[syslog.Priority]io.Writer)
