@@ -3,18 +3,19 @@ package main
 import (
     "context"
     "fmt"
-    "github.com/go-redis/redis"
     "io/ioutil"
     "lom/src/lib/lomcommon"
     "lom/src/lib/lomipc"
     "lom/src/plugins/plugins_common"
-    "lom/src/plugins/sonic/plugin/linkcrc"
-    "lom/src/plugins/sonic/plugin_integration_tests/utils"
+    "lom/src/plugins/plugins_files/sonic/plugin/linkcrc"
+    "lom/src/plugins/plugins_files/sonic/plugin_integration_tests/utils"
     "os"
     "os/exec"
     "strconv"
     "strings"
     "time"
+
+    "github.com/go-redis/redis"
 )
 
 const (
