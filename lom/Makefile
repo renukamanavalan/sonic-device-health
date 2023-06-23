@@ -124,9 +124,6 @@ all-silent: LIB_TEST_FLAGS :=
 all-silent: $(COMMON_DEPS)
 	$(BUILD_DIR)/aggregate_file_coverage.sh
 
-all-skiptests: format_code $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN)
-	$(BUILD_DIR)/aggregate_file_coverage.sh
-
 $(CMN_C_LIB): $(SRC_FILES)
 	mkdir -p $(LIB_DIR)
 	$(GO) build -buildmode=c-shared -o $@ $(CMN_C_LIB_FILES)
