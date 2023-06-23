@@ -2,8 +2,8 @@ package main
 
 import (
     "context"
-    "lom/src/plugins/sonic/plugin_integration_tests/linkcrc_mocker/linkcrc_utils"
-    "lom/src/plugins/sonic/plugin_integration_tests/utils"
+    "lom/src/plugins/plugins_files/sonic/plugin_integration_tests/linkcrc_mocker/linkcrc_utils"
+    "lom/src/plugins/plugins_files/sonic/plugin_integration_tests/utils"
     "os"
     "os/exec"
 )

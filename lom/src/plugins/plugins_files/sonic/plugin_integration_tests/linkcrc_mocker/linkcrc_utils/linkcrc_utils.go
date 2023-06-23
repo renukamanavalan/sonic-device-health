@@ -3,7 +3,7 @@ package linkcrc_utils
 import (
     "context"
     "github.com/go-redis/redis"
-    "lom/src/plugins/sonic/plugin_integration_tests/utils"
+    "lom/src/plugins/plugins_files/sonic/plugin_integration_tests/utils"
     "strings"
     "time"
 )

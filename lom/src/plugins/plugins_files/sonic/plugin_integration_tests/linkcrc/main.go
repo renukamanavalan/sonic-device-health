@@ -6,13 +6,14 @@ import (
     "lom/src/lib/lomcommon"
     "lom/src/lib/lomipc"
     "lom/src/plugins/plugins_common"
-    "lom/src/plugins/sonic/plugin/linkcrc"
-    "lom/src/plugins/sonic/plugin_integration_tests/linkcrc_mocker/linkcrc_utils"
-    "lom/src/plugins/sonic/plugin_integration_tests/utils"
+    "lom/src/plugins/plugins_files/sonic/plugin/linkcrc"
+    "lom/src/plugins/plugins_files/sonic/plugin_integration_tests/linkcrc_mocker/linkcrc_utils"
+    "lom/src/plugins/plugins_files/sonic/plugin_integration_tests/utils"
     "os"
     "os/exec"
     "strings"
     "time"
+    "encoding/json"
 )
 
 const (
@@ -83,7 +84,8 @@ func main() {
 func InvokeLinkCrcDetectionPlugin(pattern string, ctx context.Context, cancelFunc context.CancelFunc, shouldDetect bool) {
     go linkcrc_utils.MockRedisWithLinkCrcCounters(pattern, 10, os.Args[1:], ctx)
     linkCrcDetectionPlugin := linkcrc.LinkCRCDetectionPlugin{}
-    actionCfg := lomcommon.ActionCfg_t{Name: action_name, Type: detection_type, Timeout: 0, HeartbeatInt: 10, Disable: false, Mimic: false, ActionKnobs: ""}
+    actionKnobs := json.RawMessage(``)
+    actionCfg := lomcommon.ActionCfg_t{Name: action_name, Type: detection_type, Timeout: 0, HeartbeatInt: 10, Disable: false, Mimic: false, ActionKnobs: actionKnobs}
     linkCrcDetectionPlugin.Init(&actionCfg)
     actionRequest := lomipc.ActionRequestData{Action: action_name, InstanceId: "InstId", AnomalyInstanceId: "AnInstId", AnomalyKey: "", Timeout: 0}
     pluginHBChan := make(chan plugins_common.PluginHeartBeat, 10)
