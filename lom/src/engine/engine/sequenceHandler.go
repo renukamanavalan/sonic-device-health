@@ -695,7 +695,7 @@ func (p *SeqHandler_t) resumeSequence(seq *sequenceState_t) (errCode LoMResponse
             errStr = fmt.Sprintf("Expect to hit here for empty seq only (%v)", *seq)
         } else {
             errCode = LoMSequenceEmpty
-            errStr = fmt.Sprintf("Configured as empty (%v)", *seq)
+            errStr = fmt.Sprintf("No follow up actions (seq:%s)", seq.sequence.SequenceName)
         }
         return
     }

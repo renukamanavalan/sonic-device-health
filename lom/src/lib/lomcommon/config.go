@@ -15,6 +15,12 @@ const (
     MAX_SEQ_TIMEOUT_SECS         = "MAX_SEQ_TIMEOUT_SECS"
     MIN_PERIODIC_LOG_PERIOD_SECS = "MIN_PERIODIC_LOG_PERIOD_SECS"
 
+    MAX_PLUGIN_RESPONSES = "MAX_PLUGIN_RESPONSES" /* Max number of reesponses that plugin can send per
+       anamolykey during last MAX_PLUGIN_RESPONSES_WINDOW_TIMEOUT
+       before plugin manager mark it as disabled. Applicable for plugin's with timeout */
+    MAX_PLUGIN_RESPONSES_WINDOW_TIMEOUT_SECS = "MAX_PLUGIN_RESPONSES_WINDOW_TIMEOUT_SECS" /* Interval in which plugin can send
+       MAX_PLUGIN_RESPONSES_DEFAULT responses per anamoly key */
+
     /* Look for this name in Env or file */
     LOM_RUN_MODE = "LOM_RUN_MODE"
 )
@@ -99,6 +105,15 @@ func (p *GlobalConfig_t) setDefaults() {
     p.ints["MAX_SEQ_TIMEOUT_SECS"] = 120
     p.ints["MIN_PERIODIC_LOG_PERIOD_SECS"] = 15
     p.ints["ENGINE_HB_INTERVAL_SECS"] = 10
+
+    p.ints["INITIAL_DETECTION_REPORTING_FREQ_IN_MINS"] = 5
+    p.ints["SUBSEQUENT_DETECTION_REPORTING_FREQ_IN_MINS"] = 60
+    p.ints["INITIAL_DETECTION_REPORTING_MAX_COUNT"] = 5
+    p.ints["PLUGIN_MIN_ERR_CNT_TO_SKIP_HEARTBEAT"] = 3
+
+    p.ints["MAX_PLUGIN_RESPONSES"] = 100
+    p.ints["MAX_PLUGIN_RESPONSES_WINDOW_TIMEOUT_SECS"] = 60
+
 }
 
 func (p *GlobalConfig_t) readGlobalsConf(fl string) error {

@@ -1095,7 +1095,6 @@ func Test_HandleMisbehavingPlugins(t *testing.T) {
         clientTx.On("DeregisterAction", mock.Anything).Return(nil) // pass anything as first argument
 
         mockMetadata.On("CheckMisbehavingPlugins", "pluginAanomaly1").Return(true)
-        mockMetadata.On("SetPluginStage", plugins_common.PluginStageDisabled)
 
         // Create the PluginManager instance with the mock objects
         plmgr := GetPluginManager(clientTx)
@@ -1111,7 +1110,6 @@ func Test_HandleMisbehavingPlugins(t *testing.T) {
         if !logger.FindPrefix("In handleMisbehavingPlugins(): Plugin pluginA is misbehaving for anamoly key anomaly1. Ignoring the response") {
             t.Errorf("Expected log message not found")
         }
-        mockMetadata.AssertCalled(t, "SetPluginStage", plugins_common.PluginStageDisabled)
         mockMetadata.AssertCalled(t, "CheckMisbehavingPlugins", "pluginAanomaly1")
 
         // Perform the search for the specified duration with the given interval
@@ -1620,7 +1618,7 @@ func Test_HandleShutdown(t *testing.T) {
 
         // start dummy goroutine
         dummyChan := make(chan int)
-        lomcommon.GetGoroutineTracker().Start("dummy_plugin_"+lomcommon.GetUUID(),
+        lomcommon.GetGoroutineTracker().Start("dummy_plugin_"+plugins_common.GetUniqueID(),
             func() {
                 <-dummyChan
             })
