@@ -119,11 +119,6 @@ func LogMessageWithSkip(skip int, lvl syslog.Priority, s string, a ...interface{
     m := fmt.Sprintf(getPrefix(skip+2)+s, a...)
     if lvl <= ct_lvl {
         FmtFprintf(writers[lvl], m+logSuffix)
-        if ct_lvl >= syslog.LOG_DEBUG {
-            /* Debug messages gets printed out to STDOUT */
-            fmt.Printf(m)
-            fmt.Println("")
-        }
     }
     return m
 }
@@ -525,7 +520,7 @@ func AddPeriodicLogWithTimeouts(ID string, message string, shortTimeout time.Dur
     // Create a channel to listen for stop signals to kill timer
     stopchannel := make(chan bool)
 
-    GetGoroutineTracker().Start("AddPeriodicLogWithTimeouts"+ID+GetUUID(), func() {
+    GetGoroutineTracker().Start("AddPeriodicLogWithTimeouts_"+ID, func() {
         // First add periodic log with short timeout
         AddPeriodicLogInfo(ID, message, int(math.Round(shortTimeout.Seconds()))) // call lomcommon framework
 

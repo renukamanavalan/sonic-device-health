@@ -2,6 +2,7 @@ package main
 
 import (
     "context"
+    "encoding/json"
     "github.com/go-redis/redis"
     "lom/src/lib/lomcommon"
     "lom/src/lib/lomipc"
@@ -13,7 +14,6 @@ import (
     "os/exec"
     "strings"
     "time"
-    "encoding/json"
 )
 
 const (
