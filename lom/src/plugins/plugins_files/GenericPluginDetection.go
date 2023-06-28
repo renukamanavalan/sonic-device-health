@@ -47,7 +47,7 @@ func (gpl *GenericPluginDetection) Request(hbchan chan plugins_common.PluginHear
     gpl.stopSignal = make(chan struct{})
     gpl.ticker = time.NewTicker(2 * time.Second) // Heartbeat interval: 2 seconds
 
-    lomcommon.GetGoroutineTracker().Start("GenericPluginDetection_request_"+"_"+lomcommon.GetUUID(), func() {
+    lomcommon.GetGoroutineTracker().Start("GenericPluginDetection_request_"+"_"+plugins_common.GetUniqueID(), func() {
         defer gpl.wg.Done() // Mark the goroutine as completed when it exits
 
         for {
