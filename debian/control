@@ -2,7 +2,7 @@ Source: sonic-device-health
 Section: devel
 Priority: optional
 Maintainer: Renuka Manavalan <remanava@microsoft.com>
-Build-Depends: debhelper (>= 8.0.0),
+Build-Depends: debhelper (>= 12.0.0),
 Standards-Version: 3.9.3
 Homepage: https://github.com/renukamanavalan/sonic-device-health
 XS-Go-Import-Path: github.com/renukamanavalan/sonic-device-health
@@ -13,4 +13,3 @@ Built-Using: ${misc:Built-Using}
 Depends: ${misc:Depends},
          ${shlibs:Depends}
 Description: SONiC Device-Health LoM
- sonic-device-health
