@@ -236,7 +236,7 @@ $(PLUGINS_COMMON_TEST): $(SRC_FILES) $(TEST_FILES)
 $(GENERATE_CONFIG_FILES):
 	mkdir -p $(CONFIG_DIR)
 	cd $(CONFIG_DIR)
-	go build ../../src/lib/lomcommon/yang_parser/main.go
+	${GO} build ../../src/lib/lomcommon/yang_parser/main.go
 	./main ../../src/lib/lomcommon/yang_parser/yang_prod_configs .
 	rm main
 	count=$$(ls|wc -l)
