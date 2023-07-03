@@ -1,4 +1,4 @@
-module bindings-invalid-leaf-type-value {
+module bindings-invalid-leaf-type-value1 {
 
     yang-version 1.1;
 

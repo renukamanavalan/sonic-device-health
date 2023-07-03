@@ -142,7 +142,24 @@ func Test_GetMappingForGlobalsYangConfig_ReturnsErrorForInvalidLeaf(t *testing.T
     assert.Equal(t, map[string]interface{}(nil), mapping, "Expecting mapping to be nil for GetMappingForBindingsYangConfig")
     assert.NotEqual(t, nil, err, "Error is expected to be non nil for GetMappingForBindingsYangConfig")
 
-    mapping, err = GetMappingForBindingsYangConfig("bindings-invalid-leaf-type-value", "./yang_test_files/bindings-invalid-leaf-type-value.yang")
+    mapping, err = GetMappingForBindingsYangConfig("bindings-invalid-leaf-type-value1", "./yang_test_files/bindings-invalid-leaf-type-value1.yang")
     assert.Equal(t, map[string]interface{}(nil), mapping, "Expecting mapping to be nil for GetMappingForBindingsYangConfig")
     assert.NotEqual(t, nil, err, "Error is expected to be non nil for GetMappingForBindingsYangConfig")
+
+    mapping, err = GetMappingForProcsYangConfig("procs-invalid-hierarchy", "./yang_test_files/procs-invalid-hierarchy.yang")
+    assert.Equal(t, map[string]interface{}(nil), mapping, "Expecting mapping to be nil for GetMappingForProcsYangConfig")
+    assert.NotEqual(t, nil, err, "Error is expected to be non nil for GetMappingForProcsYangConfig")
+
+    mapping, err = GetMappingForProcsYangConfig("procs-invalid-hierarchy1", "./yang_test_files/procs-invalid-hierarchy1.yang")
+    assert.Equal(t, map[string]interface{}(nil), mapping, "Expecting mapping to be nil for GetMappingForProcsYangConfig")
+    assert.NotEqual(t, nil, err, "Error is expected to be non nil for GetMappingForProcsYangConfig")
+
+    mapping, err = GetMappingForActionsYangConfig("actions-invalid-actionKnobs-container", "./yang_test_files/actions-invalid-actionKnobs-container.yang")
+    assert.Equal(t, map[string]interface{}(nil), mapping, "Expecting mapping to be nil for GetMappingForActionsYangConfig")
+    assert.NotEqual(t, nil, err, "Error is expected to be non nil for GetMappingForActionsYangConfig")
+}
+
+func Test_WriteJsonIntoFile_ReturnsErrorForInvalidFolder(t *testing.T) {
+    err := WriteJsonIntoFile(nil, "temp", "testFile")
+    assert.NotEqual(t, err, nil, "Error is expected to be non nil")
 }
