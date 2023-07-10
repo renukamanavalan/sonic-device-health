@@ -35,6 +35,7 @@ const (
     look_back_period_in_secs_config_key      = "LookBackPeriodInSecs"
     link_crc_plugin_version                  = "1.0.0.0"
     link_crc_prefix                          = "link_crc: "
+    link_crc_plugin_name                     = "link_crc"
 )
 
 var ifInErrorsDiffMinValue int
@@ -94,6 +95,9 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) Init(actionConfig *lomcomm
     linkCrcDetectionPlugin.counterRepository = &dbclient.CounterRepository{RedisProvider: &dbclient.RedisProvider{}}
     linkCrcDetectionPlugin.currentMonitoredInterfaces = map[string]LinkCrcDetectorInterface{}
     linkCrcDetectionPlugin.reportingFreqLimiter = plugins_common.GetDefaultDetectionFrequencyLimiter()
+    if actionConfig.Name != link_crc_plugin_name {
+	    return lomcommon.LogError("Invalid plugin name passed. actionConfig.Name: %s", actionConfig.Name)
+    }
     err := linkCrcDetectionPlugin.PeriodicDetectionPluginUtil.Init(actionConfig.Name, detectionFreqInSecs, actionConfig, linkCrcDetectionPlugin.executeCrcDetection, linkCrcDetectionPlugin.executeShutdown)
     if err != nil {
         lomcommon.LogError(fmt.Sprintf(link_crc_prefix+"Plugin initialization failed. (%s), err: (%v)", actionConfig.Name, err))
@@ -177,7 +181,7 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeShutdown() error {
 }
 
 func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) GetPluginID() plugins_common.PluginId {
-    return plugins_common.PluginId{Name: "link_crc", Version: "1.0.0.0"}
+    return plugins_common.PluginId{Name: link_crc_plugin_name, Version: link_crc_plugin_version}
 }
 
 type LinkCrcDetectorInterface interface {
