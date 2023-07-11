@@ -201,7 +201,7 @@ func Test_LinkCrcDetectionPlugin_InitializesWithActionsKnobsAndDefaults(t *testi
 func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForError(t *testing.T) {
     // Mock
     linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
-    actionConfig := lomcommon.ActionCfg_t{Name: "linkCrc", HeartbeatInt: 10}
+    actionConfig := lomcommon.ActionCfg_t{Name: "link_crc", HeartbeatInt: 10}
     linkCRCDetectionPlugin.Init(&actionConfig)
     mockCounterRepository := new(MockCounterRepository)
     ctx, _ := context.WithCancel(context.Background())
@@ -223,7 +223,7 @@ func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForError(t *testing.T) {
 func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForEmptyInterfacesFromRedis(t *testing.T) {
     // Mock
     linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
-    actionConfig := lomcommon.ActionCfg_t{Name: "linkCrc", HeartbeatInt: 10}
+    actionConfig := lomcommon.ActionCfg_t{Name: "link_crc", HeartbeatInt: 10}
     linkCRCDetectionPlugin.Init(&actionConfig)
     mockCounterRepository := new(MockCounterRepository)
     interfaceCountersMap := new(dbclient.InterfaceCountersMap)
@@ -246,7 +246,7 @@ func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForEmptyInterfacesFromRedis(
 func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForEmptyInterfaceCountersFromRedis(t *testing.T) {
     // Mock
     linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
-    actionConfig := lomcommon.ActionCfg_t{Name: "LinkCrc", HeartbeatInt: 10}
+    actionConfig := lomcommon.ActionCfg_t{Name: "link_crc", HeartbeatInt: 10}
     linkCRCDetectionPlugin.Init(&actionConfig)
     mockCounterRepository := new(MockCounterRepository)
     interfaceCountersMap := dbclient.InterfaceCountersMap{"ethernet0": nil}
@@ -270,14 +270,14 @@ func Test_LinkCrcDetectionPlugin_DetectCrcReturnsNilForEmptyInterfaceCountersFro
 func Test_LinkCrcDetectionPlugin_GetPluginIdReturnsPluginDetails(t *testing.T) {
     // Mock
     linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
-    actionConfig := lomcommon.ActionCfg_t{Name: "LinkCrc", HeartbeatInt: 10}
+    actionConfig := lomcommon.ActionCfg_t{Name: "link_crc", HeartbeatInt: 10}
     linkCRCDetectionPlugin.Init(&actionConfig)
     // Act
     pluginId := linkCRCDetectionPlugin.GetPluginID()
     // Assert
     assert := assert.New(t)
     assert.NotNil(pluginId, "pluginId is expected to be non nil")
-    //assert.Equal("LinkCrc", pluginId.Name, "PluginId.Name is expected to be LinkCrc")
+    assert.Equal("link_crc", pluginId.Name, "PluginId.Name is expected to be link_crc")
     assert.Equal("1.0.0.0", pluginId.Version, "PluginId.version  is expected to be 1.0.0.0")
 }
 
@@ -285,7 +285,7 @@ func Test_LinkCrcDetectionPlugin_GetPluginIdReturnsPluginDetails(t *testing.T) {
 func Test_LinkCrcDetectionPlugin_ExecuteShutdownReturnsSuccessfuly(t *testing.T) {
     // Mock
     linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
-    actionConfig := lomcommon.ActionCfg_t{Name: "LinkCrc", HeartbeatInt: 10}
+    actionConfig := lomcommon.ActionCfg_t{Name: "link_crc", HeartbeatInt: 10}
     initErr := linkCRCDetectionPlugin.Init(&actionConfig)
     // Act
     shutDownErr := linkCRCDetectionPlugin.executeShutdown()
@@ -313,7 +313,7 @@ func Test_LinkCrcDetectionPlugin_InitReturnsErrorForInvalidActionConfig(t *testi
 func Test_LinkCrcDetectionPlugin_CrcDetectionDetectsSuccessfuly(t *testing.T) {
     // Mock
     linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
-    actionConfig := lomcommon.ActionCfg_t{Name: "linkCrc", HeartbeatInt: 10}
+    actionConfig := lomcommon.ActionCfg_t{Name: "link_crc", HeartbeatInt: 10}
     linkCRCDetectionPlugin.Init(&actionConfig)
 
     map1 := map[string]uint64{"IfInErrors": 100, "InUnicastPackets": 101, "OutUnicastPackets": 1100, "IfOutErrors": 1}
@@ -383,7 +383,7 @@ func (mockLimitDetectionReportingFrequency *MockLimitDetectionReportingFrequency
 func Test_LinkCrcDetectionPlugin_CrcDetectionReportsForOnlyOneInterface(t *testing.T) {
     // Mock
     linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
-    actionConfig := lomcommon.ActionCfg_t{Name: "linkCrc", HeartbeatInt: 10}
+    actionConfig := lomcommon.ActionCfg_t{Name: "link_crc", HeartbeatInt: 10}
     mockLimitDetectionReportingFrequency := new(MockLimitDetectionReportingFrequency)
     mockLimitDetectionReportingFrequency.On("ShouldReport", "Ethernet1").Return(true)
     mockLimitDetectionReportingFrequency.On("ShouldReport", "Ethernet2").Return(false)
@@ -434,7 +434,7 @@ func Test_LinkCrcDetectionPlugin_CrcDetectionReportsForOnlyOneInterface(t *testi
 func Test_LinkCrcDetectionPlugin_CrcDetectionReportsNone(t *testing.T) {
     // Mock
     linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
-    actionConfig := lomcommon.ActionCfg_t{Name: "linkCrc", HeartbeatInt: 10}
+    actionConfig := lomcommon.ActionCfg_t{Name: "link_crc", HeartbeatInt: 10}
     mockLimitDetectionReportingFrequency := new(MockLimitDetectionReportingFrequency)
     mockLimitDetectionReportingFrequency.On("ShouldReport", "Ethernet1").Return(false)
     mockLimitDetectionReportingFrequency.On("ShouldReport", "Ethernet2").Return(false)

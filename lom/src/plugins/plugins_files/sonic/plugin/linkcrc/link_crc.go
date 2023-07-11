@@ -51,7 +51,6 @@ type LinkCRCDetectionPlugin struct {
     currentMonitoredInterfaces map[string]LinkCrcDetectorInterface
     reportingFreqLimiter       plugins_common.PluginReportingFrequencyLimiterInterface
     plugins_common.PeriodicDetectionPluginUtil
-    plugin_version string
 }
 
 func NewLinkCRCDetectionPlugin(...interface{}) plugins_common.Plugin {
@@ -61,7 +60,7 @@ func NewLinkCRCDetectionPlugin(...interface{}) plugins_common.Plugin {
 
 func init() {
     // Register the plugin with plugin manager
-    plugins_common.RegisterPlugin("link_crc", NewLinkCRCDetectionPlugin)
+    plugins_common.RegisterPlugin(link_crc_plugin_name, NewLinkCRCDetectionPlugin)
 }
 
 /* Inheritied from Plugin */
@@ -92,12 +91,12 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) Init(actionConfig *lomcomm
     }
 
     // Initialize values.
+    if actionConfig.Name != link_crc_plugin_name {
+            return lomcommon.LogError("Invalid plugin name passed. actionConfig.Name: %s", actionConfig.Name)
+    }
     linkCrcDetectionPlugin.counterRepository = &dbclient.CounterRepository{RedisProvider: &dbclient.RedisProvider{}}
     linkCrcDetectionPlugin.currentMonitoredInterfaces = map[string]LinkCrcDetectorInterface{}
     linkCrcDetectionPlugin.reportingFreqLimiter = plugins_common.GetDefaultDetectionFrequencyLimiter()
-    if actionConfig.Name != link_crc_plugin_name {
-	    return lomcommon.LogError("Invalid plugin name passed. actionConfig.Name: %s", actionConfig.Name)
-    }
     err := linkCrcDetectionPlugin.PeriodicDetectionPluginUtil.Init(actionConfig.Name, detectionFreqInSecs, actionConfig, linkCrcDetectionPlugin.executeCrcDetection, linkCrcDetectionPlugin.executeShutdown)
     if err != nil {
         lomcommon.LogError(fmt.Sprintf(link_crc_prefix+"Plugin initialization failed. (%s), err: (%v)", actionConfig.Name, err))
