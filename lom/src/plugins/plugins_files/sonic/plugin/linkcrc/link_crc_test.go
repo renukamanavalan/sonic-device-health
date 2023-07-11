@@ -281,6 +281,18 @@ func Test_LinkCrcDetectionPlugin_GetPluginIdReturnsPluginDetails(t *testing.T) {
     assert.Equal("1.0.0.0", pluginId.Version, "PluginId.version  is expected to be 1.0.0.0")
 }
 
+/* Validates Init returns error for invalid action name argument */
+func Test_LinkCrcDetectionPlugin_InitReturnsErrorForInvalidActionName(t *testing.T) {
+    // Mock
+    linkCRCDetectionPlugin := LinkCRCDetectionPlugin{}
+    actionConfig := lomcommon.ActionCfg_t{Name: "invalid_link_crc", HeartbeatInt: 10}
+    // Act
+    err := linkCRCDetectionPlugin.Init(&actionConfig)
+    // Assert
+    assert := assert.New(t)
+    assert.NotNil(err, "err is expected to be non nil")
+}
+
 /* Validates executeShutdown returns successfully */
 func Test_LinkCrcDetectionPlugin_ExecuteShutdownReturnsSuccessfuly(t *testing.T) {
     // Mock

@@ -92,7 +92,7 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) Init(actionConfig *lomcomm
 
     // Initialize values.
     if actionConfig.Name != link_crc_plugin_name {
-            return lomcommon.LogError("Invalid plugin name passed. actionConfig.Name: %s", actionConfig.Name)
+        return lomcommon.LogError("Invalid plugin name passed. actionConfig.Name: %s", actionConfig.Name)
     }
     linkCrcDetectionPlugin.counterRepository = &dbclient.CounterRepository{RedisProvider: &dbclient.RedisProvider{}}
     linkCrcDetectionPlugin.currentMonitoredInterfaces = map[string]LinkCrcDetectorInterface{}
