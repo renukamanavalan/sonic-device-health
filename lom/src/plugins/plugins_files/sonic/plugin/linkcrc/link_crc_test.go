@@ -2,7 +2,6 @@ package linkcrc
 
 import (
     "context"
-    "encoding/json"
     "errors"
     "github.com/stretchr/testify/assert"
     "github.com/stretchr/testify/mock"
