@@ -3,6 +3,7 @@ package linkcrc
 
 import (
     "context"
+    "encoding/json"
     "fmt"
     "lom/src/lib/lomcommon"
     "lom/src/lib/lomipc"
@@ -23,8 +24,8 @@ const (
     min_outliers_for_detection    = 2
     look_back_period_in_secs      = 125
 
-    link_crc_plugin_version = "1.0.0.0"
-    link_crc_prefix         = "link_crc: "
+    link_crc_plugin_version       = "1.0.0.0"
+    link_crc_prefix               = "link_crc: "
 )
 
 type LinkCRCDetectionPlugin struct {
