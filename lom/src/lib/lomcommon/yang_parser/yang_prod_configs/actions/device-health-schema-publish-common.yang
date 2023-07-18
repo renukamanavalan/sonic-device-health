@@ -1,0 +1,42 @@
+module device-health-schema-publish-common {
+
+    yang-version 1.1;
+
+    namespace "http://github.com/sonic-net/actions/device-health-schema-publish-common";
+
+    prefix dhspc;
+
+    organization
+        "SONiC";
+
+    contact
+        "Device";
+
+    description
+        "Common schema that is sent when action result is published by device health agent.";
+
+    revision 2023-06-28 {
+        description
+            "Initial revision.";
+    }
+	
+    grouping publish-schema-common {
+        leaf AnomalyKey {
+            type string;
+            description "Entity that has the anomaly"
+            config false;
+        }
+
+        leaf ResultCode {
+            type int64;
+            description "Result Code"
+            config false;
+        }
+
+        leaf ResultStr {
+            type string;
+            description "Represent success or failure"
+            config false;
+        }
+    }
+}
