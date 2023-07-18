@@ -17,6 +17,7 @@ LIB_DIR := $(BUILD_DIR)/lib
 BIN_DIR := $(BUILD_DIR)/bin
 TEST_DIR := $(BUILD_DIR)/test
 CONFIG_DIR :=  $(BUILD_DIR)/config
+ACTIONS_CONFIG_DIR := $(CONFIG_DIR)/actions.confd
 
 # Set to -v for verbose o/p. May set it in Env before calling Make
 # export TEST_FLAG=-v in shell before calling make or
@@ -234,7 +235,7 @@ $(PLUGINS_COMMON_TEST): $(SRC_FILES) $(TEST_FILES)
 	@echo -e "Successfully completed plugins common Test\n\n"
 
 $(GENERATE_CONFIG_FILES):
-	mkdir -p $(CONFIG_DIR)
+	mkdir -p $(ACTIONS_CONFIG_DIR)
 	cd $(CONFIG_DIR)
 	${GO} build ../../src/lib/lomcommon/yang_parser/main.go
 	./main ../../src/lib/lomcommon/yang_parser/yang_prod_configs .

@@ -4,6 +4,7 @@ import (
     "fmt"
     "lom/src/lib/lomcommon/yang_parser/yang_utils"
     "os"
+    "strings"
 )
 
 const (
@@ -19,10 +20,10 @@ const (
     device_health_procs_configs           string = "device-health-procs-configs"
     device_health_procs_configs_file_name string = "device-health-procs-configs.yang"
 
-    actions_conf_folder_name  string = "actions.confd"
-    bindings_conf_file_name string = "bindings.conf.json"
-    globals_conf_file_name  string = "globals.conf.json"
-    procs_conf_file_name    string = "procs.conf.json"
+    actions_conf_folder_name string = "actions.confd"
+    bindings_conf_file_name  string = "bindings.conf.json"
+    globals_conf_file_name   string = "globals.conf.json"
+    procs_conf_file_name     string = "procs.conf.json"
 )
 
 func main() {
@@ -30,23 +31,23 @@ func main() {
     yang_folder := os.Args[1]
     config_folder := os.Args[2]
     actionsFolderPath := yang_folder + "/actions"
-    actionfiles, err := os.ReadDir(actionsFolderPath)
-    if err != nil {
-        fmt.Printf("Error reading actionsFolderPath %s", actionfiles)
-		return
-	}
+    actionfiles, readErr := os.ReadDir(actionsFolderPath)
+    if readErr != nil {
+        fmt.Printf("Error reading actionsFolderPath %s. Err %v", actionfiles, readErr)
+        return
+    }
 
     for _, file := range actionfiles {
-        moduleName := string.TrimSuffix(file.Name(), ".yang")
-        if (moduleName != "device-health-actions-common" && moduleName != "device-health-schema-publish-common") {
-            actionMapping, err := yang_utils.GetMappingForActionsYangConfig(moduleName, actionsFolderPath + "/" + file.Name())
+        moduleName := strings.TrimSuffix(file.Name(), ".yang")
+        if moduleName != "device-health-actions-common" && moduleName != "device-health-schema-publish-common" {
+            actionMapping, err := yang_utils.GetMappingForActionsYangConfig(moduleName, actionsFolderPath+"/"+file.Name())
             if len(err) > 0 {
-                fmt.Printf("Error getting mapping for Actions Yang config file %s", &moduleName)
+                fmt.Printf("Error getting mapping for Actions Yang config file %s", moduleName)
                 return
             }
-            writeError := yang_utils.WriteJsonIntoFile(actionMapping, config_folder + "/" + actions_conf_folder_name, moduleName + ".conf.json")
+            writeError := yang_utils.WriteJsonIntoFile(actionMapping, config_folder+"/"+actions_conf_folder_name, moduleName+".conf.json")
             if writeError != nil {
-                fmt.Printf("Writing actions conf failed. %s", &moduleName)
+                fmt.Printf("Writing actions conf failed. %s", moduleName)
                 return
             }
         }
@@ -57,7 +58,7 @@ func main() {
         fmt.Printf("Error getting mapping for Bindings Yang config file")
         return
     }
-    writeError = yang_utils.WriteJsonIntoFile(bindingsMapping, config_folder, bindings_conf_file_name)
+    writeError := yang_utils.WriteJsonIntoFile(bindingsMapping, config_folder, bindings_conf_file_name)
     if writeError != nil {
         fmt.Printf("Writing bindings conf failed.")
         return

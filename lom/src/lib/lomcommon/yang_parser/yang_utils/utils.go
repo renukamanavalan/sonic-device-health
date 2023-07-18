@@ -122,7 +122,7 @@ func GetMappingForActionsYangConfig(module string, yangFilePath string) (map[str
     entry, errs := yang.GetModule(module, yangFilePath)
 
     if len(errs) > 0 {
-        fmt.Printf("Invalid device-health-global-configs yang file. Err %v", errs)
+        fmt.Printf("Invalid %s yang file. Err %v", module, errs)
         return nil, errs
     }
 
