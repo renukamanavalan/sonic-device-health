@@ -23,19 +23,19 @@ module device-health-schema-publish-common {
     grouping publish-schema-common {
         leaf AnomalyKey {
             type string;
-            description "Entity that has the anomaly"
+            description "Entity that has the anomaly";
             config false;
         }
 
         leaf ResultCode {
             type int64;
-            description "Result Code"
+            description "Result Code";
             config false;
         }
 
         leaf ResultStr {
             type string;
-            description "Represent success or failure"
+            description "Represent success or failure";
             config false;
         }
     }

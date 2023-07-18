@@ -240,12 +240,19 @@ $(GENERATE_CONFIG_FILES):
 	${GO} build ../../src/lib/lomcommon/yang_parser/main.go
 	./main ../../src/lib/lomcommon/yang_parser/yang_prod_configs .
 	rm main
-	count=$$(ls|wc -l)
-	if [ $$count -eq 4 ]; then \
-            echo "Successfuly generated 4 config files";  \
+	count=$$(ls | grep ".json" | wc -l)
+	if [ $$count -eq 3 ]; then \
+            echo "Successfuly generated 3 config files under config folder";  \
         else \
-            echo "Failed generating 4 json config files"; \
-        fi \
+            echo "Failed generating 3 json config files under config folder"; \
+        fi 
+	cd actions.confd
+	countOfActionFiles=$$(ls | grep ".json" | wc -l)
+	if [ $$countOfActionFiles -eq 1 ]; then \
+            echo "Successfuly generated 1 config files under actions.confd folder";  \
+        else \
+            echo "Failed generating 1 json config files under actions.confd folder"; \
+        fi 
 
 clean: clean-extract_file_coverage clean-aggregate-file_coverage
 	rm -rf $(BUILD_DIR)
