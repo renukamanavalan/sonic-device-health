@@ -23,7 +23,7 @@ const (
     fileName                         = "./LINK_CRC_COUNTERS"
     redis_password                   = ""
     counter_poll_disable_command     = "sudo counterpoll port disable"
-    action_name                      = "link_crc_detection"
+    action_name                      = "link_crc"
     detection_type                   = "detection"
     counter_poll_enable_command      = "sudo counterpoll port enable"
     counters_port_name_map_redis_key = "COUNTERS_PORT_NAME_MAP"
