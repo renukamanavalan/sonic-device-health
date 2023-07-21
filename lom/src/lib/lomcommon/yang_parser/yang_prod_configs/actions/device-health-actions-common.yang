@@ -1,0 +1,59 @@
+module device-health-actions-common {
+
+    yang-version 1.1;
+
+    namespace "http://github.com/sonic-net/actions/device-health-actions-common";
+
+    prefix dhac;
+
+    organization
+        "SONiC";
+
+    contact
+        "Device";
+
+    description
+        "Action common configurations for Device health agent plugins";
+
+    revision 2023-06-28 {
+        description
+            "Initial revision.";
+    }
+	
+    grouping detection-action-config-common {
+        leaf Type {
+            type string;
+            description "Indicates Detection plugin";
+            default "Detection";
+            config true;
+        }
+
+        leaf Timeout {
+            type int64;
+            description "Timeout that needs to be honoured by detection plugin";
+            default 0;
+            config true;
+        }
+
+        leaf HeartbeatInt {
+            type int64;
+            description "Interval at which heartbeats need to be published by plugin";
+            default 30;
+            config true;
+        }
+
+        leaf Disable {
+            type boolean;
+            description "Indicates if plugin is disabled";
+            default false;
+            config true;
+        }
+
+        leaf Mimic {
+            type boolean;
+            description "Indicates if plugin is mimiced";
+            default false;
+            config true;
+        }
+    }
+}

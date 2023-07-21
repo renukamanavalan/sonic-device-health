@@ -16,6 +16,8 @@ BUILD_DIR := build
 LIB_DIR := $(BUILD_DIR)/lib
 BIN_DIR := $(BUILD_DIR)/bin
 TEST_DIR := $(BUILD_DIR)/test
+CONFIG_DIR :=  $(BUILD_DIR)/config
+ACTIONS_CONFIG_DIR := $(CONFIG_DIR)/actions.confd
 
 # Set to -v for verbose o/p. May set it in Env before calling Make
 # export TEST_FLAG=-v in shell before calling make or
@@ -49,9 +51,11 @@ LIB_TEST = $(TEST_DIR)/LibTested
 ENGINE_TEST = $(TEST_DIR)/EngineTested
 PLUGIN_MANAGER_TEST = $(TEST_DIR)/PluginManagerTested
 SONIC_DBCLIENT_TEST =$(TEST_DIR)/SonicDbClientTested
+YANG_PARSER_TEST =$(TEST_DIR)/YangParserTested
 PY_TEST = $(TEST_DIR)/pytested
 SONIC_LINK_CRC_TEST = $(TEST_DIR)/SonicLinkCrcTested
 PLUGINS_COMMON_TEST = $(TEST_DIR)/PluginsCommonTested
+GENERATE_CONFIG_FILES = generate_config_files
 
 .NOTPARALLEL:
 
@@ -129,9 +133,9 @@ clean-aggregate-file_coverage:
 
 .PHONY: all clean format_code clean-extract_file_coverage add-extract_file_coverage clean-aggregate-file_coverage add-aggregate_file_coverage COMMON_DEPS
 
-COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(LIB_TEST) $(ENGINE_TEST) \
+COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(LIB_TEST) $(YANG_PARSER_TEST) $(ENGINE_TEST) \
 	$(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST) \
-	$(PY_TEST)
+	$(PY_TEST) $(GENERATE_CONFIG_FILES)
 
 all: $(COMMON_DEPS)
 	$(BUILD_DIR)/aggregate_file_coverage.sh
@@ -203,6 +207,18 @@ $(SONIC_DBCLIENT_TEST): $(SRC_FILES) $(TEST_FILES)
 	touch $@
 	@echo -e "Successfully completed sonic DB Test\n\n"
 
+$(YANG_PARSER_TEST): $(SRC_FILES) $(TEST_FILES)
+	mkdir -p $(TEST_DIR)
+	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/YangParserCoverprofile.out \
+                -coverpkg lom/src/lib/lomcommon/yang_parser/yang_utils \
+                -covermode=atomic $(LIB_TEST_FLAGS) lom/src/lib/lomcommon/yang_parser/yang_utils || (echo "YangParser Test failed $$?"; exit 1)
+	${GO} tool cover -html=$(TEST_DIR)/YangParserCoverprofile.out -o $(TEST_DIR)/YangParserCoverprofile.html
+	@if [ -f "$(TEST_DIR)/YangParserCoverprofile.html" ]; then \
+                $(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/YangParserCoverprofile.html; \
+        fi
+	touch $@
+	@echo -e "Successfully completed yang parser Tests\n\n"
+
 $(PY_TEST): $(SRC_FILES) $(PY_FILES)
 	mkdir -p $(TEST_DIR)
 	pushd python; \
@@ -233,6 +249,26 @@ $(PLUGINS_COMMON_TEST): $(SRC_FILES) $(TEST_FILES)
 	fi
 	touch $@
 	@echo -e "Successfully completed plugins common Test\n\n"
+
+$(GENERATE_CONFIG_FILES):
+	mkdir -p $(ACTIONS_CONFIG_DIR)
+	cd $(CONFIG_DIR)
+	${GO} build ../../src/lib/lomcommon/yang_parser/main.go
+	./main ../../src/lib/lomcommon/yang_parser/yang_prod_configs .
+	rm main
+	count=$$(ls | grep ".json" | wc -l)
+	if [ $$count -eq 3 ]; then \
+            echo "Successfuly generated 3 config files under config folder";  \
+        else \
+            echo "Failed generating 3 json config files under config folder"; \
+        fi 
+	cd actions.confd
+	countOfActionFiles=$$(ls | grep ".json" | wc -l)
+	if [ $$countOfActionFiles -eq 1 ]; then \
+            echo "Successfuly generated 1 config files under actions.confd folder";  \
+        else \
+            echo "Failed generating 1 json config files under actions.confd folder"; \
+        fi 
 
 clean: clean-extract_file_coverage clean-aggregate-file_coverage
 	rm -rf $(BUILD_DIR)
