@@ -26,21 +26,21 @@ module device-health-procs-configs {
                 type string;
                 description "Link crc plugin";
                 default "link_crc";
-			    config true;
+	        config true;
             }
 
             leaf version {
                 type string;
                 description "Version of link crc plugin";
                 default "1.0.0.0";
-			    config true;
+                config true;
             }
 
             leaf path {
                 type string;
                 description "Path of the plugin";
                 default "";
-			    config true;
+                config true;
             }
         }
     }

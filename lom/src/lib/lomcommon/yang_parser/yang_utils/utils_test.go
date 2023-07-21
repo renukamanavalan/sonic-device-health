@@ -32,7 +32,7 @@ func Test_GetMappingForAllYangConfig_GeneratesCorrectMapping(t *testing.T) {
         }
       }`
 
-    resultActionsMapping, _ := GetMappingForActionsYangConfig("device-health-actions-configs", "../yang_prod_configs/device-health-actions-configs.yang")
+    resultActionsMapping, _ := GetMappingForActionsYangConfig("link_crc", "../yang_prod_configs/actions/link_crc.yang")
     resultActionsJson, _ := json.Marshal(resultActionsMapping)
     require.JSONEq(t, expectedActionsJson, string(resultActionsJson), "Generated Actions json is not as expected")
 

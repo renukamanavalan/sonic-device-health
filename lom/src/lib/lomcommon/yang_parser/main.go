@@ -8,9 +8,6 @@ import (
 )
 
 const (
-    device_health_actions_configs           string = "device-health-actions-configs"
-    device_health_actions_configs_file_name string = "device-health-actions-configs.yang"
-
     device_health_bindings_configs           string = "device-health-bindings-configs"
     device_health_bindings_configs_file_name string = "device-health-bindings-configs.yang"
 
