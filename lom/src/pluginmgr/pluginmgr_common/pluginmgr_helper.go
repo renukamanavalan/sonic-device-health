@@ -942,7 +942,7 @@ func SetupPluginManager() error {
     msg := ParseArguments()
 
     // setup application prefix for logging
-    lomcommon.SetPrefix(APP_NAME_DEAULT + "_" + ProcID)
+    lomcommon.SetPrefix(ProcID)
 
     LogInfo(msg)
 
