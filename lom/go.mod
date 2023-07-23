@@ -2,11 +2,12 @@ module lom
 
 go 1.20
 
+require github.com/go-redis/redis v6.15.9+incompatible
+
 require (
 	github.com/alicebob/gopher-json v0.0.0-20230218143504-906a9b012302 // indirect
 	github.com/alicebob/miniredis v2.5.0+incompatible // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/go-redis/redis v6.15.9+incompatible // indirect
 	github.com/gomodule/redigo v1.8.9 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect

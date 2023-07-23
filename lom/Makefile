@@ -37,6 +37,7 @@ PY_FILES=$(shell find . -name '*.py' | grep -v '_test.py' | grep -v '/tests/')
 TEST_FILES=$(shell find . -name '*test.go')
 
 CMN_C_LIB_FILES=src/lib/clib/lom_clib.go
+CMN_C_LIB_FLAG=-buildmode=c-shared
 CMN_C_LIB=$(BUILD_DIR)/lib/cmn_c_lib.so
 
 # Binaries used in LoM system
@@ -61,6 +62,21 @@ format_code:
 	fi
 	@$(GOFMT) -l ./ | xargs -I {} $(GOFMT) -w {};
 	@sed -i 's/\t/    /g' $$(find ./ -type f -name '*.go');
+
+define build_golang
+    @ # Taken from https://gitlab.com/gitlab-org/gitaly/-/merge_requests/4192
+    @ #
+    @ # To compute a unique and deterministic value for GNU build-id, we build the Go binary a second time.
+    @ # From the first build, we extract its unique and deterministic Go build-id, and use that to derive
+    @ # comparably unique and deterministic GNU build-id to inject into the final binary.
+    @ # If we cannot extract a Go build-id, we punt and fallback to using a random 32-byte hex string.
+    @ # This fallback is unique but non-deterministic, making it sufficient to avoid generating the
+    @ # GNU build-id from the empty string and causing guaranteed collisions.
+    $(GO) build $3 -o $1 $2
+    GO_BUILD_ID=$$( $(GO) tool buildid $1 || openssl rand -hex 32 ) && \
+    GNU_BUILD_ID=$$( echo $$GO_BUILD_ID | sha1sum | cut -d' ' -f1 ) && \
+    $(GO) build -trimpath -ldflags "-B 0x$$GNU_BUILD_ID" -mod=mod $3 -o $1 $2
+endef
 
 # Define the file coverage extraction function
 define extract_file_coverage
@@ -126,17 +142,17 @@ all-silent: $(COMMON_DEPS)
 
 $(CMN_C_LIB): $(SRC_FILES)
 	mkdir -p $(LIB_DIR)
-	$(GO) build -buildmode=c-shared -o $@ $(CMN_C_LIB_FILES)
+	$(call build_golang,$@,$(CMN_C_LIB_FILES),$(CMN_C_LIB_FLAG))
 	@echo -e "Successfully Build c lib\n\n"
 
 $(ENGINE_BIN): $(SRC_FILES)
 	mkdir -p $(BIN_DIR)
-	$(GO) build  -o $@ lom/src/engine
+	$(call build_golang,$@,lom/src/engine,)
 	@echo -e "Successfully Build lom-engine\n\n"
 
 $(PLUGIN_MANAGER_BIN): $(SRC_FILES)
 	mkdir -p $(BIN_DIR)
-	$(GO) build -o $@ lom/src/pluginmgr
+	$(call build_golang,$@,lom/src/pluginmgr,)
 	@echo -e "Successfully build plugin manager\n\n"
 
 $(LIB_TEST): $(SRC_FILES) $(TEST_FILES)
@@ -220,3 +236,4 @@ $(PLUGINS_COMMON_TEST): $(SRC_FILES) $(TEST_FILES)
 
 clean: clean-extract_file_coverage clean-aggregate-file_coverage
 	rm -rf $(BUILD_DIR)
+

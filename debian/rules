@@ -3,4 +3,6 @@
 # export DEB_BUILD_MAINT_OPTIONS=hardening=+all
 
 %:
-	dh $@ 
+	dh $@
+    
+override_dh_dwz:

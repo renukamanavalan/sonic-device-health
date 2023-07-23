@@ -10,6 +10,7 @@ import (
 
 const (
     counter_poll_disable_command = "sudo counterpoll port disable"
+    counter_poll_enable_command  = "sudo counterpoll port enable"
 )
 
 func main() {
@@ -43,4 +44,11 @@ func main() {
         utils.PrintError("Invalid test Id %d", testId)
     }
 
+    // Post - clean up
+    _, err = exec.Command("/bin/sh", "-c", counter_poll_enable_command).Output()
+    if err != nil {
+        utils.PrintError("Error enabling counterpoll on switch %v", err)
+    } else {
+        utils.PrintInfo("Successfuly Enabled counterpoll")
+    }
 }

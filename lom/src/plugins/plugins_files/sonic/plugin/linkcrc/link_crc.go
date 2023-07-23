@@ -35,6 +35,7 @@ const (
     look_back_period_in_secs_config_key      = "LookBackPeriodInSecs"
     link_crc_plugin_version                  = "1.0.0.0"
     link_crc_prefix                          = "link_crc: "
+    link_crc_plugin_name                     = "link_crc"
 )
 
 var ifInErrorsDiffMinValue int
@@ -50,7 +51,6 @@ type LinkCRCDetectionPlugin struct {
     currentMonitoredInterfaces map[string]LinkCrcDetectorInterface
     reportingFreqLimiter       plugins_common.PluginReportingFrequencyLimiterInterface
     plugins_common.PeriodicDetectionPluginUtil
-    plugin_version string
 }
 
 func NewLinkCRCDetectionPlugin(...interface{}) plugins_common.Plugin {
@@ -60,7 +60,7 @@ func NewLinkCRCDetectionPlugin(...interface{}) plugins_common.Plugin {
 
 func init() {
     // Register the plugin with plugin manager
-    plugins_common.RegisterPlugin("link_crc", NewLinkCRCDetectionPlugin)
+    plugins_common.RegisterPlugin(link_crc_plugin_name, NewLinkCRCDetectionPlugin)
 }
 
 /* Inheritied from Plugin */
@@ -91,6 +91,9 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) Init(actionConfig *lomcomm
     }
 
     // Initialize values.
+    if actionConfig.Name != link_crc_plugin_name {
+        return lomcommon.LogError("Invalid plugin name passed. actionConfig.Name: %s", actionConfig.Name)
+    }
     linkCrcDetectionPlugin.counterRepository = &dbclient.CounterRepository{RedisProvider: &dbclient.RedisProvider{}}
     linkCrcDetectionPlugin.currentMonitoredInterfaces = map[string]LinkCrcDetectorInterface{}
     linkCrcDetectionPlugin.reportingFreqLimiter = plugins_common.GetDefaultDetectionFrequencyLimiter()
@@ -177,7 +180,7 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) executeShutdown() error {
 }
 
 func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) GetPluginID() plugins_common.PluginId {
-    return plugins_common.PluginId{Name: "link_crc", Version: "1.0.0.0"}
+    return plugins_common.PluginId{Name: link_crc_plugin_name, Version: link_crc_plugin_version}
 }
 
 type LinkCrcDetectorInterface interface {
