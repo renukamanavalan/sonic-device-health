@@ -16,6 +16,7 @@ BUILD_DIR := build
 LIB_DIR := $(BUILD_DIR)/lib
 BIN_DIR := $(BUILD_DIR)/bin
 TEST_DIR := $(BUILD_DIR)/test
+INTEGRATION_TEST_DIR := integration_test
 
 # Set to -v for verbose o/p. May set it in Env before calling Make
 # export TEST_FLAG=-v in shell before calling make or
@@ -52,6 +53,8 @@ SONIC_DBCLIENT_TEST =$(TEST_DIR)/SonicDbClientTested
 PY_TEST = $(TEST_DIR)/pytested
 SONIC_LINK_CRC_TEST = $(TEST_DIR)/SonicLinkCrcTested
 PLUGINS_COMMON_TEST = $(TEST_DIR)/PluginsCommonTested
+SONIC_LINK_CRC_MOCKER_TEST = $(TEST_DIR)/linkcrc_mocker
+INTEGRATION_TEST = $(TEST_DIR)/integration_test
 
 .NOTPARALLEL:
 
@@ -130,8 +133,13 @@ clean-aggregate-file_coverage:
 .PHONY: all clean format_code clean-extract_file_coverage add-extract_file_coverage clean-aggregate-file_coverage add-aggregate_file_coverage COMMON_DEPS
 
 COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(LIB_TEST) $(ENGINE_TEST) \
-	$(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(PLUGINS_COMMON_TEST) \
-	$(PY_TEST)
+	$(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(SONIC_LINK_CRC_MOCKER_TEST) $(PLUGINS_COMMON_TEST) \
+	$(PY_TEST) $(INTEGRATION_TEST)
+
+COMMON_DEPS_silent := format_code $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN)
+
+all-skiptests: $(COMMON_DEPS_silent)
+
 
 all: $(COMMON_DEPS)
 	$(BUILD_DIR)/aggregate_file_coverage.sh
@@ -234,6 +242,16 @@ $(PLUGINS_COMMON_TEST): $(SRC_FILES) $(TEST_FILES)
 	touch $@
 	@echo -e "Successfully completed plugins common Test\n\n"
 
+$(SONIC_LINK_CRC_MOCKER_TEST): $(SRC_FILES)
+	mkdir -p $(TEST_DIR)
+	$(call build_golang,$@,lom/src/plugins/plugins_files/sonic/plugin_integration_tests/linkcrc_mocker,)
+	@echo -e "Successfully completed Sonic linkcrc Integration test Mocker\n\n"
+
+$(INTEGRATION_TEST): 
+	$(INTEGRATION_TEST_DIR)/src/build.sh build
+	@echo -e "Successfully completed packaging Integration tests\n\n"
+
 clean: clean-extract_file_coverage clean-aggregate-file_coverage
 	rm -rf $(BUILD_DIR)
+	$(INTEGRATION_TEST_DIR)/src/build.sh clean
 

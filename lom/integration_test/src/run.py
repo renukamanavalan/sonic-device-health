@@ -7,6 +7,10 @@ import natsort
 import argparse
 import api as api
 
+if os.geteuid() != 0:
+        print("This script requires elevated privileges. Please run it with 'sudo'.")
+        sys.exit(1)
+        
 # Get the path of the project's root directory
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -31,7 +35,7 @@ try:
 
     # Check if the user didn't specify any arguments and display help message
     if len(sys.argv) == 1:
-        print("Usage: python script_name.py [OPTIONS]")
+        print("Usage: python run.py [OPTIONS]")
         print("Use '-h' or '--help' for more information.")
         sys.exit(0)
 
@@ -124,7 +128,7 @@ try:
                         is_mandatory = is_mandatory_function()
                         if is_mandatory:
                             print("Passing this Test is mandatory. Stopping the execution sequence.")
-                    print(f"Test execution time: {execution_time:.2f} seconds")
+                    print(f"Test execution time: {end_time - start_time:.2f} seconds")
                     print("=========================================================================================")                
             else:
                 print(f"No run_test() or isMandatory() function found in {test_file}")

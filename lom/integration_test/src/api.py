@@ -515,45 +515,6 @@ def get_lompluginmgr_pids():
 
 #===============================================================================
 
-"""
-# Function to monitor syslogs and match against a pattern
-def monitor_engine_syslogs(pattern):
-    command = r"tail -f /var/log/syslog"
-    syslog_process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    for line in iter(syslog_process.stdout.readline, b''):
-        line = line.decode().strip()
-        #filter_pattern = r"(\w+\s+\d+\s\d+:\d+:\d+\.\d+)\s.*?/usr/bin/LoMEngine.*?:\s(.*)"
-        filter_pattern = r"(\w+\s+\d+\s\d+:\d+:\d+\.\d{2}).*?/usr/bin/LoMEngine.*?:\s(.*)"       
-        match = re.search(filter_pattern, line)
-        if match:
-            timestamp = match.group(1)
-            log_message = match.group(2)
-            #print(f"Desired data found - Timestamp: {timestamp}, Log Message: {log_message}")
-            if re.search(pattern, log_message):
-                print(f"Pattern: {pattern} matched -------- Timestamp: {timestamp}, Log Message: {log_message}")
-                break   
-    syslog_process.stdout.close()
-    syslog_process.wait()
-
-
-def monitor_plmgr_syslogs(pattern, instance):
-    command = r"tail -f /var/log/syslog"
-    syslog_process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    for line in iter(syslog_process.stdout.readline, b''):
-        line = line.decode().strip()
-        filter_pattern = r"(\w+\s+\d+\s\d+:\d+:\d+\.\d{2}).*?/usr/bin/LoMPluginMgr\[\d+\]:\s" + instance + r":\s(.*)"
-        match = re.search(filter_pattern, line)
-        if match:
-            timestamp = match.group(1)
-            log_message = match.group(2)
-            print(f"Desired data found - Timestamp: {timestamp}, Log Message: {log_message}")
-            if re.search(pattern, log_message):
-                print(f"Pattern Matched: {pattern} , proc Id: {instance} matched ------- Timestamp: {timestamp}, Log Message: {log_message}")
-                break   
-    syslog_process.stdout.close()
-    syslog_process.wait()
-"""
-
 class LogMonitor:
     def __init__(self):
         self.engine_matched_patterns = {}  # {pattern: [(timestamp, log_message), ...]}
