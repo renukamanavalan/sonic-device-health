@@ -2,12 +2,12 @@ package linkcrc_utils
 
 import (
     "context"
+    "errors"
+    "fmt"
     "github.com/go-redis/redis"
     "lom/src/plugins/plugins_files/sonic/plugin_integration_tests/utils"
     "strings"
     "time"
-    "fmt"
-    "errors"
 )
 
 const (
@@ -28,8 +28,8 @@ const (
 )
 
 type InterfaceStatus struct {
-	admin_status string
-	oper_status  string
+    admin_status string
+    oper_status  string
 }
 
 func MockRedisWithLinkCrcCounters(pattern string, mockTimeInMinutes int, interfaces []string, ctx context.Context) {
@@ -108,8 +108,8 @@ loop:
                     utils.PrintInfo("Initial mocking of redis data for interface Succeeded. %s", ifName)
                 } else {
                     utils.PrintInfo("Successfuly mocked redis data for interface %s. TimeInUtc: %s. Outlier: %t", ifName, time.Now().UTC().String(), patternSlice[(patternIndex-1)%patternLength] == "1")
-                } 
-	    }
+                }
+            }
         }
 
         if patternSlice[(patternIndex)%patternLength] == "1" {
@@ -138,43 +138,43 @@ loop:
 }
 
 func SaveInterfaceStatuses(redisClient *redis.Client, mockedLinks map[string]string) (map[string]*InterfaceStatus, error) {
-	initialInterfaceStatuses := make(map[string]*InterfaceStatus)
-	for ifName, _ := range mockedLinks {
-		adminStatus, operStatus, err := getInterfaceStatus(redisClient, ifName)
+    initialInterfaceStatuses := make(map[string]*InterfaceStatus)
+    for ifName, _ := range mockedLinks {
+        adminStatus, operStatus, err := getInterfaceStatus(redisClient, ifName)
 
-		if err != nil {
-			/* Send partial result */
-			return initialInterfaceStatuses, err
-		}
+        if err != nil {
+            /* Send partial result */
+            return initialInterfaceStatuses, err
+        }
 
-		intStatus := InterfaceStatus{admin_status: adminStatus, oper_status: operStatus}
-		initialInterfaceStatuses[ifName] = &intStatus
-	}
+        intStatus := InterfaceStatus{admin_status: adminStatus, oper_status: operStatus}
+        initialInterfaceStatuses[ifName] = &intStatus
+    }
 
-	return initialInterfaceStatuses, nil
+    return initialInterfaceStatuses, nil
 }
 
 func RestoreInterfaceStatuses(redisClient *redis.Client, initialStatuses map[string]*InterfaceStatus) error {
-	for ifName, intStatus := range initialStatuses {
-		ifStatusMock := map[string]interface{}{admin_status: intStatus.admin_status, oper_status: intStatus.oper_status}
-		_, err := redisClient.HMSet("PORT_TABLE:"+ifName, ifStatusMock).Result()
-		if err != nil {
-			utils.PrintError("Error restoring admin and oper status for interface %s. Err: %v", ifName, err)
-		} else {
-			utils.PrintInfo("Successfully restored admin and oper status for interface %s", ifName)
-		}
-	}
+    for ifName, intStatus := range initialStatuses {
+        ifStatusMock := map[string]interface{}{admin_status: intStatus.admin_status, oper_status: intStatus.oper_status}
+        _, err := redisClient.HMSet("PORT_TABLE:"+ifName, ifStatusMock).Result()
+        if err != nil {
+            utils.PrintError("Error restoring admin and oper status for interface %s. Err: %v", ifName, err)
+        } else {
+            utils.PrintInfo("Successfully restored admin and oper status for interface %s", ifName)
+        }
+    }
 
-	utils.PrintInfo("Done restoring statuses of all interfaces.")
-	return nil
+    utils.PrintInfo("Done restoring statuses of all interfaces.")
+    return nil
 }
 
 func getInterfaceStatus(redisClient *redis.Client, interfaName string) (string, string, error) {
-	interfaceStatusKey := "PORT_TABLE:" + interfaName
-	fields := []string{"admin_status", "oper_status"}
-	result, err := redisClient.HMGet(interfaceStatusKey, fields...).Result()
-	if err != nil {
-		return "", "", errors.New(fmt.Sprintf("getInterfaceStatus.HmGet Failed for key (%s). err: (%v)", interfaceStatusKey, err))
-	}
-	return result[0].(string), result[1].(string), nil
+    interfaceStatusKey := "PORT_TABLE:" + interfaName
+    fields := []string{"admin_status", "oper_status"}
+    result, err := redisClient.HMGet(interfaceStatusKey, fields...).Result()
+    if err != nil {
+        return "", "", errors.New(fmt.Sprintf("getInterfaceStatus.HmGet Failed for key (%s). err: (%v)", interfaceStatusKey, err))
+    }
+    return result[0].(string), result[1].(string), nil
 }

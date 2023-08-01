@@ -136,11 +136,6 @@ COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage
 	$(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(SONIC_LINK_CRC_MOCKER_TEST) $(PLUGINS_COMMON_TEST) \
 	$(PY_TEST) $(INTEGRATION_TEST)
 
-COMMON_DEPS_silent := format_code $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN)
-
-all-skiptests: $(COMMON_DEPS_silent)
-
-
 all: $(COMMON_DEPS)
 	$(BUILD_DIR)/aggregate_file_coverage.sh
 

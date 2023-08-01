@@ -69,6 +69,9 @@ echo "SUCCESS: Extracted archive to '$EXTRACT_DIR/integration_test'."
 echo "Files extracted:"
 ls -l "$EXTRACT_DIR/integration_test"
 
+# change the permissions of the extracted directory to current user
+chown -R $(logname):$(logname) "$EXTRACT_DIR/integration_test"
+
 # Check if the user wants to run the tests or just extract
 if [ "$EXTRACT_ONLY" = false ]; then
     # Run the tests
