@@ -11,7 +11,7 @@ def read_config_value(config_file, key):
                 return line.split('=')[1].strip()
     return None
 
-def copy_to_remote_host(config_folder, binary_folder, remote_host, remote_user, remote_password, remote_path):
+def copy_to_remote_host(remote_host, remote_user, remote_password, remote_path):
     # Check if sshpass is installed
     try:
         subprocess.run(["sshpass", "--version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -19,15 +19,14 @@ def copy_to_remote_host(config_folder, binary_folder, remote_host, remote_user, 
         print("sshpass is not installed. Installing it...")
         subprocess.run(["sudo", "apt-get", "update"], check=True)
         subprocess.run(["sudo", "apt-get", "install", "-y", "sshpass"], check=True)
-    # Create a tar archive of 'integration_test'
-    subprocess.run(["tar", "-czvf", "integration_test.tar.gz", "integration_test"], check=True)
-    print("Created tar archive 'integration_test.tar.gz'.")
+        print("sshpass installed successfully.")
+    
     # SCP the tar file to the remote host
-    scp_command = f"sshpass -p '{remote_password}' scp ./integration_test.tar.gz {remote_user}@{remote_host}:{remote_path}"
+    scp_command = f"sshpass -p '{remote_password}' scp ./integration_test_installer.sh {remote_user}@{remote_host}:{remote_path}"
     if subprocess.run(scp_command, shell=True).returncode != 0:
-        print("Error: Failed to copy tar file to remote host")
+        print("Error: Failed to copy integration_test_installer.sh file to remote host")
         exit(1)
-    print("Successfully copied tar file to remote host")
+    print("Successfully copied integration_test_installer.sh file to remote host")
 
 def main():
 
@@ -50,7 +49,7 @@ def main():
         sys.exit(0)
 
     parser = argparse.ArgumentParser(description="Copy files to remote host and container.")
-    parser.add_argument("--copy_to_host", action="store_true", help="Copy files to the remote host.")
+    parser.add_argument("--copy_to_host", action="store_true", help="Copy test installer to the remote Switch.")
     parser.add_argument("--copy_config_to_container", action="store_true", help="Copy config files to the container.")
     parser.add_argument("--copy_services_to_container", action="store_true", help="Copy services to the container.")
     parser.add_argument("--copy_all_to_container", action="store_true", help="Copy both config files and services to the container.")
@@ -69,7 +68,7 @@ def main():
         exit(1)
 
     if args.copy_to_host:
-        copy_to_remote_host("integration_test", "bin", remote_host, remote_user, remote_password, remote_path)
+        copy_to_remote_host(remote_host, remote_user, remote_password, remote_path)
 
     # Copy config files to container
     if args.copy_config_to_container or args.copy_all_to_container:
