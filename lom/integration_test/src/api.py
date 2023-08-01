@@ -32,7 +32,7 @@ LOM_TEST_LINK_CRC_MOCKER = "linkcrc_mocker"
 #===============================================================================
 
 """
-    Returns the status of a given feature.
+    Returns the Sonic feature status
 
     Args:
         feature_name (str): The name of the feature to get the status for.

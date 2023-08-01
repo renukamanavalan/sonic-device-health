@@ -18,6 +18,11 @@ if [ "$1" == "build" ]; then
         mkdir -p integration_test/bin
     fi
 
+    # Remove the self extracting installer if it exists
+    if [ -f "integration_test_installer.sh" ]; then
+        rm integration_test_installer.sh
+    fi
+
     # Copy new files from 'build/bin' to 'integration_test/bin'
     cp -R build/bin/* integration_test/bin/
     echo "Copied new files to 'integration_test/bin'."
@@ -59,6 +64,11 @@ if [ "$1" == "build" ]; then
     tar -czvf integration_test.tar.gz integration_test
     echo "Created tar archive 'integration_test.tar.gz'."
 
+    # create a self extracting installer
+    cat integration_test/src/self_extracting_installer.sh integration_test.tar.gz > integration_test_installer.sh
+    echo "Created self extracting installer 'integration_test_installer.sh'."
+    chmod +x integration_test_installer.sh
+
 elif [ "$1" == "clean" ]; then
     # Remove existing tar file if it exists
     if [ -f "integration_test.tar.gz" ]; then
@@ -72,6 +82,12 @@ elif [ "$1" == "clean" ]; then
         echo "Deleted contents of 'integration_test/bin'."
     else
         echo "Directory 'integration_test/bin' is already clean."
+    fi
+
+    # Remove the self extracting installer if it exists
+    if [ -f "integration_test_installer.sh" ]; then
+        rm integration_test_installer.sh
+        echo "Deleted 'integration_test_installer.sh'."
     fi
 
 else
