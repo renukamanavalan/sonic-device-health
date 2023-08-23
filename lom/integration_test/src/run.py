@@ -43,8 +43,8 @@ try:
     parser = argparse.ArgumentParser(description="Run tests with optional filters.")
     parser.add_argument("--all", action="store_true", help="Run all tests. Default false") # sett to True if passed via command line or False
     parser.add_argument("--test_file", type=str, help="Run a specific test by file name.") # set to test file name if passed via command line or None
-    parser.add_argument("--all_enable", action="store_true", help="Run all tests regardless of 'enableTest' function.")
-    parser.add_argument("--test_file_enable", type=str, help="Run a specific file by name regardless of 'enableTest' function. Default false") # sett to True if passed via command line or False
+    parser.add_argument("--all_enable", action="store_true", help="Run all tests regardless of 'isEnabled' function.")
+    parser.add_argument("--test_file_enable", type=str, help="Run a specific file by name regardless of 'isEnabled' function. Default false") # sett to True if passed via command line or False
     parser.add_argument("--copy_config", action="store_false", help="Copies all the test configs to container. Default true") # sett to False if passed via command line or True
     parser.add_argument("--copy_services", action="store_false", help="Copies engine & plugin mgr binaries to container. Default true") # sett to False if passed via command line or True
     parser.add_argument("--version", action="version", version="%(prog)s 1.0")
@@ -91,7 +91,7 @@ try:
             # Get the run_test() and isMandatory() functions from the test module
             run_test_function = getattr(test_module, 'run_test', None)
             is_mandatory_function = getattr(test_module, 'isMandatoryPass', None)
-            is_enable_function = getattr(test_module, 'enableTest', None)
+            is_enable_function = getattr(test_module, 'isEnabled', None)
             get_test_name_function = getattr(test_module, 'getTestName', None)
 
             # Check if the run_test() and isMandatory() functions exist in the test module

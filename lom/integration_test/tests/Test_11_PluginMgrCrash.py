@@ -21,7 +21,7 @@ def getTestDescription() :
              which must not include any plugins(link_crc)\
             "
 
-def enableTest() :
+def isEnabled() :
     return True
 
 def run_test():

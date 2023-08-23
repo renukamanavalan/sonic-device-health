@@ -11,41 +11,49 @@ def isMandatoryPass() :
     return True
 
 def getTestName() :
-    return "link_crc detection No Outliers"
+    return "link_crc detection Only first and last outlier  1,0,0,0, 1,0,0,0  "
 
 def getTestDescription() :
-    return "link_crc detection No  Outliers  \
-            pattern 0,0,0,0,.... \
-            No detection must Happen         \
+    return "link_crc detection Only first and last outlier  \
+            pattern 1,0,0,0, 1,0,0,0   \
+            Minimum time for detection = 150 sec  \
+            Maximum time for detection = 240 sec \
             "
 
-def enableTest() :
+def isEnabled() :
     return False
 
-def run_test(): 
-    # Specify the patterns to be matched/not matched for engine logs
+def run_test():
+    
+    # Specify the patterns to be matched for engine and plmgr syslogs
     engine_pat1 = r"{\"LoM_Action\":{\"Action\":\"link_crc\",\"InstanceId\":\"([\w-]+)\",\"AnomalyInstanceId\":\"([\w-]+)\",\"AnomalyKey\":\"(\w+)\",\"Response\":\"Detected Crc\",\"ResultCode\":(\d+),\"ResultStr\":\"Success\"},\"State\":\"init\"}"
     engine_pat2 = r"{\"LoM_Action\":{\"Action\":\"link_crc\",\"InstanceId\":\"([\w-]+)\",\"AnomalyInstanceId\":\"([\w-]+)\",\"AnomalyKey\":\"(\w+)\",\"Response\":\"Detected Crc\",\"ResultCode\":(\d+),\"ResultStr\":\"No follow up actions \(seq:link_crc_bind-0\)\"},\"State\":\"complete\"}"
 
     engine_patterns = [
-        (api.PATTERN_NOMATCH, engine_pat1),  # This pattern must not match
-        (api.PATTERN_NOMATCH, engine_pat2)   # This pattern must not match
+        (api.PATTERN_MATCH, engine_pat1),
+        (api.PATTERN_MATCH, engine_pat2)
     ]
     
-    # Specify the patterns to be matched/not matched for plmgr syslogs 
+    # Specify the patterns to be matched for plmgr syslogs
     plugin_pat_1 = "link_crc: executeCrcDetection Anomaly Detected"
     plugin_pat_2 = r"In handleRequest\(\): Received response from plugin link_crc, data : Action: link_crc InstanceId: ([\w-]+) AnomalyInstanceId: ([\w-]+) AnomalyKey: (\w+) Response: Detected Crc ResultCode: (\d+) ResultStr: Success"
-    plugin_pat_3 = r"link_crc: ExecuteCrcDetection Starting"
-    
+    plugin_pat_3 = r"In handleRequest\(\): Completed processing action request for plugin:link_crc"
+    plugin_pat_4 = r"In run\(\) : Sending response to engine : Action: link_crc InstanceId: ([\w-]+) AnomalyInstanceId: ([\w-]+) AnomalyKey: (\w+) Response: Detected Crc ResultCode: (\d+) ResultStr: Success"
+    plugin_pat_5 = r"SendServerResponse: succeeded \(proc_0/RecvServerRequestAction\)"
+    plugin_pat_6 = r"link_crc: ExecuteCrcDetection Starting"
+
     plmgr_patterns = [
-        (api.PATTERN_NOMATCH, plugin_pat_1), # This pattern must not match
-        (api.PATTERN_NOMATCH, plugin_pat_2), # This pattern must not match
-        (api.PATTERN_MATCH, plugin_pat_3)    # This pattern must match
+        (api.PATTERN_MATCH, plugin_pat_1),
+        (api.PATTERN_MATCH, plugin_pat_2),
+        (api.PATTERN_MATCH, plugin_pat_3),
+        (api.PATTERN_MATCH, plugin_pat_4),
+        (api.PATTERN_MATCH, plugin_pat_5),
+        (api.PATTERN_MATCH, plugin_pat_6)
     ]
 
     # Specify the minimum and maximum detection time in seconds
-    MIN_DETECTION_TIME = 120
-    MAX_DETECTION_TIME = 120
+    MIN_DETECTION_TIME = 150
+    MAX_DETECTION_TIME = 240
 
     # Overwrite config files with test specific data in Docker container
     json_data = {
@@ -133,7 +141,7 @@ def run_test():
 
     # Restart the device health service
     if api.restart_service("device-health") == False:
-        return api.TEST_FAIL   
+        return api.TEST_FAIL
     
     # Specify the plmgr instance to be monitored
     plmgr_instance = "proc_0"
@@ -142,7 +150,7 @@ def run_test():
     log_monitor = api.LogMonitor()
 
     # Create an instance of BinaryRunner
-    binary_runner = api.BinaryRunner("../bin/linkcrc_mocker", "1", "Ethernet96")
+    binary_runner = api.BinaryRunner("../bin/linkcrc_mocker", "2", "Ethernet96")
 
     # Create separate events to signal the monitoring threads to stop
     engine_stop_event = threading.Event()
@@ -161,17 +169,16 @@ def run_test():
     monitor_plmgr_thread_1.start()
     monitor_threads.append(monitor_plmgr_thread_1)
 
-    with monitor_threads_context(monitor_threads, engine_stop_event, plmgr_stop_event):    
+    with monitor_threads_context(monitor_threads, engine_stop_event, plmgr_stop_event): 
             
         # Stop the binary
-        if binary_runner.stop_binary() == False:
-            return 1
+        binary_runner.stop_binary()
 
         # Start the binary
         if not binary_runner.run_binary_in_background():
             print("Failed to start linkcrc_mocker")
             stop_and_join_threads(monitor_threads, engine_stop_event, plmgr_stop_event)
-            return 1
+            return api.TEST_FAIL
         print("linkcrc_mocker started ...........")
 
         # Wait for a specified duration to monitor the logs(2 outliers)
@@ -184,12 +191,11 @@ def run_test():
         # Stop the binary
         if not binary_runner.stop_binary():
             print("Failed to stop linkcrc_mocker")
-            return api.TEST_FAIL
+            return 1
 
         # Determine the test results based on the matched patterns
         status = api.TEST_PASS  # Return code 0 for test success
 
-        # check that engine logs must contain all patterns in engine_patterns of type PATTERN_MATCH and none of type PATTERN_NO_MATCH
         engine_match_count = 0
         for flag, pattern in engine_patterns:
             if flag == api.PATTERN_MATCH:
@@ -200,65 +206,80 @@ def run_test():
                         print(f"Timestamp: {timestamp}, Log Message: {log_message}")
                 else:
                     print(f"\nUnExpected, No match found for engine pattern ------------------ '{pattern}'")
-            else:
-                if pattern in log_monitor.engine_nomatched_patterns:
-                    print(f"\nUnExpected , match found for engine pattern ------------------ '{pattern}'")
-                    for timestamp, log_message in log_monitor.engine_nomatched_patterns.get(pattern, []):
-                        print(f"Timestamp: {timestamp}, Log Message: {log_message}")
-                else:
-                    print(f"\nExpected, No match found for engine pattern ------------------ \n'{pattern}' \nMatch Message ------------------")
-        
-        # All engine log PATTERN_MATCH patterns must match
+
         expected_engine_match_count = len([p for t, p in engine_patterns if t == api.PATTERN_MATCH])
         if engine_match_count == expected_engine_match_count:
-            print(f"Success, All engine match patterns matched for Test Case. Test for engine passed. Count: {engine_match_count}")
+            print(f"\nSuccess, All engine match patterns matched for Test Case. Test for engine passed. Count: {engine_match_count}")
         else:
-            print(f"Fail, Expected engine match count: {expected_engine_match_count}, Actual count: {engine_match_count}. Some engine match patterns not matched for Test Case. Test for engine failed.")
+            print(f"\nFail, Expected engine match count: {expected_engine_match_count}, Actual count: {engine_match_count}. Some engine match patterns not matched for Test Case. Test for engine failed.")
             status = api.TEST_FAIL  # Return code 1 for test failure
-
-        # None of engine log PATTERN_NOMATCH patterns must match
-        if not log_monitor.engine_nomatched_patterns:
-            print(f"Success, None of the engine nomatch patterns matched for Test Case. Test for engine passed.")
-        else:
-            print(f"Fail, Expected engine nomatch count: 0, Actual count: {len(log_monitor.engine_nomatched_patterns)}. Few or all of engine nomatch patterns matched for Test Case. Test for engine failed.")
-            status = api.TEST_FAIL  # Return code 1 for test failure
-                        
-        # check that plmgr logs must contain all patterns in plmgr_patterns of type PATTERN_MATCH and none of type PATTERN_NO_MATCH
+                    
+        # check that plmgr logs must contain all patterns in plmgr_patterns of type PATTERN_MATCH
         plmgr_match_count = 0
         for flag, pattern in plmgr_patterns:
             if flag == api.PATTERN_MATCH:
                 if pattern in log_monitor.plmgr_matched_patterns:
                     plmgr_match_count += 1
-                    print(f"\nExpected, Matched Plmgr pattern ------------------ \n'{pattern}' \nmessages ------------------")
+                    print(f"\nExpected, Matched Plmgr pattern ------------------ \n'{pattern}' \nMatch Message ------------------")
                     for timestamp, log_message in log_monitor.plmgr_matched_patterns.get(pattern, []):
                         print(f"Timestamp: {timestamp}, Log Message: {log_message}")
                 else:
                     print(f"\nUnExpected, No match found for plmgr pattern ------------------ '{pattern}'")
-            else:
-                if pattern in log_monitor.plmgr_nomatched_patterns:
-                    print(f"\nUnExpected, match found for plmgr pattern ------------------ '{pattern}'")
-                    for timestamp, log_message in log_monitor.plmgr_matched_patterns.get(pattern, []):
-                        print(f"Timestamp: {timestamp}, Log Message: {log_message}")
-                else:
-                    print(f"\nExpected, No Match found for Plmgr pattern ------------------ \n'{pattern}' \nmessages ------------------ ")
-                    
-        # All plugin manager log PATTERN_MATCH patterns must match
+
         expected_plmgr_match_count = len([p for t, p in plmgr_patterns if t == api.PATTERN_MATCH])
         if plmgr_match_count == expected_plmgr_match_count:
-            print(f"Success, All PLMGR match patterns matched for Test Case. Test for PLMGR passed. Count: {plmgr_match_count}")
+            print(f"\nSuccess, All PLMGR match patterns matched for Test Case. Test for PLMGR passed. Count: {plmgr_match_count}")
         else:
-            print(f"Fail, Expected PLMGR match count: {expected_plmgr_match_count}, Actual count: {plmgr_match_count}. Some PLMGR match patterns not matched for Test Case. Test for PLMGR failed.")
+            print(f"\nFail, Expected PLMGR match count: {expected_plmgr_match_count}, Actual count: {plmgr_match_count}. Some PLMGR match patterns not matched for Test Case. Test for PLMGR failed.")
             status = api.TEST_FAIL  # Return code 1 for test failure
 
-        # None of plugin manager log PATTERN_NOMATCH patterns must match
-        if not log_monitor.plmgr_nomatched_patterns:
-            print(f"Success, None of PLMGR nomatch patterns matched for Test Case. Test for PLMGR Passed.")
-        else:
-            print(f"Fail, Expected PLMGR nomatch count: 0, Actual count: {len(log_monitor.plmgr_nomatched_patterns)}. Few or all nomatch PLMGR patterns matched for Test Case. Test for PLMGR failed.")
-            status = api.TEST_FAIL  # Return code 1 for test failure
+        
+        # Get the InstanceId, AnomalyInstanceId and AnomalyKey from the plugin manager logs
+        InstanceId = None
+        AnomalyInstanceId = None
+        AnomalyKey = None
+        
+        for timestamp, log_message in log_monitor.plmgr_matched_patterns.get(plugin_pat_2, []):
+            #print(f"Timestamp::: {timestamp}, Log Message::: {log_message}")
+            match = re.search(plugin_pat_2, log_message)
+            if match:
+                InstanceId = match.group(1)
+                AnomalyInstanceId = match.group(2)
+                AnomalyKey = match.group(3)
+                print(f"SUccess : InstanceId: {InstanceId}, AnomalyInstanceId: {AnomalyInstanceId}, AnomalyKey: {AnomalyKey} from plmgr logs")
+                break    
+        if InstanceId is None or AnomalyInstanceId is None or AnomalyKey is None:
+            print(f"Fail : InstanceId: {InstanceId}, AnomalyInstanceId: {AnomalyInstanceId}, AnomalyKey: {AnomalyKey} not found in PLMGR logs")
+            status = api.TEST_FAIL
+        
+        # cross check the above InstanceId, AnomalyInstanceId and AnomalyKey with the engine logs 
+        if InstanceId is not None and AnomalyInstanceId is not None and AnomalyKey is not None:
+            for timestamp, log_message in log_monitor.engine_matched_patterns.get(engine_pat1, []):
+                #print(f"Timestamp::: {timestamp}, Log Message::: {log_message}")
+                match = re.search(engine_pat1, log_message)
+                if match:
+                    if InstanceId == match.group(1) and AnomalyInstanceId == match.group(2) and AnomalyKey == match.group(3):
+                        print(f"Success : InstanceId: {InstanceId}, AnomalyInstanceId: {AnomalyInstanceId}, AnomalyKey: {AnomalyKey} matched with engine logs")
+                        break
+                    else:
+                        print(f"Fail : InstanceId: {InstanceId}, AnomalyInstanceId: {AnomalyInstanceId}, AnomalyKey: {AnomalyKey} not matched with engine logs")
+                        status = api.TEST_FAIL
+                        break
 
+        # Cross check the above InstanceId, AnomalyInstanceId and AnomalyKey with the next sequence of engine logs 
+        if InstanceId is not None and AnomalyInstanceId is not None and AnomalyKey is not None:
+            for timestamp, log_message in log_monitor.engine_matched_patterns.get(engine_pat2, []):
+                #print(f"Timestamp::: {timestamp}, Log Message::: {log_message}")
+                match = re.search(engine_pat2, log_message)
+                if match:
+                    if InstanceId == match.group(1) and AnomalyInstanceId == match.group(2) and AnomalyKey == match.group(3):
+                        print(f"Success : InstanceId: {InstanceId}, AnomalyInstanceId: {AnomalyInstanceId}, AnomalyKey: {AnomalyKey} matched with engine logs")
+                        break
+                    else:
+                        print(f"Fail : InstanceId: {InstanceId}, AnomalyInstanceId: {AnomalyInstanceId}, AnomalyKey: {AnomalyKey} not matched with engine logs")
+                        status = api.TEST_FAIL
+                        break
     return status
-
 
 def stop_and_join_threads(threads, engine_stop_event, plmgr_stop_event):
     # Set the event to stop the monitoring threads
@@ -268,7 +289,6 @@ def stop_and_join_threads(threads, engine_stop_event, plmgr_stop_event):
     # Join all the monitoring threads to wait for their completion
     for thread in threads:
         thread.join()
-
 
 @contextlib.contextmanager
 def monitor_threads_context(monitor_threads, engine_stop_event, plmgr_stop_event):

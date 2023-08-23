@@ -16,7 +16,7 @@ def getTestName() :
 def getTestDescription() :
     return "Only one instance of engine process and plugin manager instances as per procs conf"
 
-def enableTest() :
+def isEnabled() :
     return False
 
 def run_test():
