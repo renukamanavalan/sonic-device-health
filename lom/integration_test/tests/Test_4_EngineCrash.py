@@ -13,7 +13,7 @@ def getTestDescription() :
             stopped and restarted \
             "
 
-def enableTest() :
+def isEnabled() :
     return False
 
 def run_test():

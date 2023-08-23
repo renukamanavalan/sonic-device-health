@@ -8,9 +8,9 @@ def getTestName() :
     return "device-health service status"
 
 def getTestDescription() :
-    return "device-health service status"
+    return "device-health service status whether its running or not"
 
-def enableTest() :
+def isEnabled() :
     return False
 
 def run_test():

@@ -11,42 +11,41 @@ def isMandatoryPass() :
     return True
 
 def getTestName() :
-    return "link_crc detection Only one outliers in 5 iterations  1,0,0,0,0, 1,0,0,0,0  "
-
+    return "link_crc detection No Outliers"
 
 def getTestDescription() :
-    return "link_crc detection Only one outliers in 5 iterations  \
-            pattern 1,0,0,0,0, 1,0,0,0,0   \
+    return "link_crc detection No  Outliers  \
+            pattern 0,0,0,0,.... \
+            No detection must Happen         \
             "
 
-def enableTest() :
+def isEnabled() :
     return False
 
-def run_test():
-    
-    # Specify the patterns to be matched for engine and plmgr syslogs
+def run_test(): 
+    # Specify the patterns to be matched/not matched for engine logs
     engine_pat1 = r"{\"LoM_Action\":{\"Action\":\"link_crc\",\"InstanceId\":\"([\w-]+)\",\"AnomalyInstanceId\":\"([\w-]+)\",\"AnomalyKey\":\"(\w+)\",\"Response\":\"Detected Crc\",\"ResultCode\":(\d+),\"ResultStr\":\"Success\"},\"State\":\"init\"}"
     engine_pat2 = r"{\"LoM_Action\":{\"Action\":\"link_crc\",\"InstanceId\":\"([\w-]+)\",\"AnomalyInstanceId\":\"([\w-]+)\",\"AnomalyKey\":\"(\w+)\",\"Response\":\"Detected Crc\",\"ResultCode\":(\d+),\"ResultStr\":\"No follow up actions \(seq:link_crc_bind-0\)\"},\"State\":\"complete\"}"
 
     engine_patterns = [
-        (api.PATTERN_NOMATCH, engine_pat1),
-        (api.PATTERN_NOMATCH, engine_pat2)
+        (api.PATTERN_NOMATCH, engine_pat1),  # This pattern must not match
+        (api.PATTERN_NOMATCH, engine_pat2)   # This pattern must not match
     ]
     
-    # Specify the patterns to be matched for plmgr syslogs
+    # Specify the patterns to be matched/not matched for plmgr syslogs 
     plugin_pat_1 = "link_crc: executeCrcDetection Anomaly Detected"
     plugin_pat_2 = r"In handleRequest\(\): Received response from plugin link_crc, data : Action: link_crc InstanceId: ([\w-]+) AnomalyInstanceId: ([\w-]+) AnomalyKey: (\w+) Response: Detected Crc ResultCode: (\d+) ResultStr: Success"
     plugin_pat_3 = r"link_crc: ExecuteCrcDetection Starting"
-
+    
     plmgr_patterns = [
-        (api.PATTERN_NOMATCH, plugin_pat_1),
-        (api.PATTERN_NOMATCH, plugin_pat_2),
-        (api.PATTERN_MATCH, plugin_pat_3)
+        (api.PATTERN_NOMATCH, plugin_pat_1), # This pattern must not match
+        (api.PATTERN_NOMATCH, plugin_pat_2), # This pattern must not match
+        (api.PATTERN_MATCH, plugin_pat_3)    # This pattern must match
     ]
 
     # Specify the minimum and maximum detection time in seconds
-    MIN_DETECTION_TIME = 60
-    MAX_DETECTION_TIME = 60
+    MIN_DETECTION_TIME = 120
+    MAX_DETECTION_TIME = 120
 
     # Overwrite config files with test specific data in Docker container
     json_data = {
@@ -134,7 +133,7 @@ def run_test():
 
     # Restart the device health service
     if api.restart_service("device-health") == False:
-        return api.TEST_FAIL
+        return api.TEST_FAIL   
     
     # Specify the plmgr instance to be monitored
     plmgr_instance = "proc_0"
@@ -143,7 +142,7 @@ def run_test():
     log_monitor = api.LogMonitor()
 
     # Create an instance of BinaryRunner
-    binary_runner = api.BinaryRunner("../bin/linkcrc_mocker", "3", "Ethernet96")
+    binary_runner = api.BinaryRunner("../bin/linkcrc_mocker", "1", "Ethernet96")
 
     # Create separate events to signal the monitoring threads to stop
     engine_stop_event = threading.Event()
@@ -162,16 +161,17 @@ def run_test():
     monitor_plmgr_thread_1.start()
     monitor_threads.append(monitor_plmgr_thread_1)
 
-    with monitor_threads_context(monitor_threads, engine_stop_event, plmgr_stop_event):   
+    with monitor_threads_context(monitor_threads, engine_stop_event, plmgr_stop_event):    
             
         # Stop the binary
-        binary_runner.stop_binary()
+        if binary_runner.stop_binary() == False:
+            return 1
 
         # Start the binary
         if not binary_runner.run_binary_in_background():
             print("Failed to start linkcrc_mocker")
             stop_and_join_threads(monitor_threads, engine_stop_event, plmgr_stop_event)
-            return api.TEST_FAIL
+            return 1
         print("linkcrc_mocker started ...........")
 
         # Wait for a specified duration to monitor the logs(2 outliers)
@@ -184,7 +184,7 @@ def run_test():
         # Stop the binary
         if not binary_runner.stop_binary():
             print("Failed to stop linkcrc_mocker")
-            return 1
+            return api.TEST_FAIL
 
         # Determine the test results based on the matched patterns
         status = api.TEST_PASS  # Return code 0 for test success
@@ -268,6 +268,7 @@ def stop_and_join_threads(threads, engine_stop_event, plmgr_stop_event):
     # Join all the monitoring threads to wait for their completion
     for thread in threads:
         thread.join()
+
 
 @contextlib.contextmanager
 def monitor_threads_context(monitor_threads, engine_stop_event, plmgr_stop_event):

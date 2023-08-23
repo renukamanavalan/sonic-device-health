@@ -13,14 +13,14 @@ def isMandatoryPass() :
     return True
 
 def getTestName() :
-    return "Test heartbeats from plugin to engine"
+    return "Test Minimum detection frequence between each anomaly(link_crc) of same key"
 
 def getTestDescription() :
-    return " Plugin must send heartbeats to engine periodically. Test that period \
-            When anomaly is detected, again when new request is processed, heartbeats must resume \
+    return "Test Minimum detection frequence between each anomaly of same key \
+            It should be greater than INITIAL_DETECTION_REPORTING_FREQ_IN_MINS \
         "
 
-def enableTest() :
+def isEnabled() :
     return False 
 
 def run_test():
@@ -45,8 +45,6 @@ def run_test():
     plugin_pat_8 = r"In handleRequest\(\): Processing action request for plugin:link_crc, timeout:(\d+) InstanceId:([\w-]+) AnomalyInstanceId:([\w-]+) AnomalyKey:"
     plugin_pat_9 = r"STarted Request\(\) for \((\w+)\)"
     plugin_pat_10 = r"link_crc: ExecuteCrcDetection Starting"
-    plugin_pat_11 = r"In run\(\) : Sending response to engine : Heartbeat notification: link_crc (\d+)"
-
 
     plmgr_patterns = [
           (api.PATTERN_MATCH, plugin_pat_1), # This pattern must match
@@ -58,8 +56,7 @@ def run_test():
           (api.PATTERN_MATCH, plugin_pat_7), # This pattern must match
           (api.PATTERN_MATCH, plugin_pat_8), # This pattern must match
           (api.PATTERN_MATCH, plugin_pat_9), # This pattern must match
-          (api.PATTERN_MATCH, plugin_pat_10), # This pattern must match
-          (api.PATTERN_MATCH, plugin_pat_11) # This pattern must match
+          (api.PATTERN_MATCH, plugin_pat_10) # This pattern must match
     ]
 
     # Specify the minimum and maximum detection time in seconds
@@ -117,7 +114,7 @@ def run_test():
         "MAX_SEQ_TIMEOUT_SECS": 120,
         "MIN_PERIODIC_LOG_PERIOD_SECS": 1,
         "ENGINE_HB_INTERVAL_SECS": 10,
-        "INITIAL_DETECTION_REPORTING_FREQ_IN_MINS": 5, 
+        "INITIAL_DETECTION_REPORTING_FREQ_IN_MINS": 2, # Change Here : This is the minimum detection time
         "SUBSEQUENT_DETECTION_REPORTING_FREQ_IN_MINS": 60,
         "INITIAL_DETECTION_REPORTING_MAX_COUNT": 12,
         "PLUGIN_MIN_ERR_CNT_TO_SKIP_HEARTBEAT": 3,
@@ -197,14 +194,6 @@ def run_test():
         monitoring_duration = MAX_DETECTION_TIME + 60  # Specify the duration in seconds
         time.sleep(monitoring_duration)
 
-         # Stop the monitoring threads and join them
-        stop_and_join_threads(monitor_threads, engine_stop_event, plmgr_stop_event)
-
-        # Stop the binary
-        if not binary_runner.stop_binary():
-            print("Failed to stop linkcrc_mocker")
-            return api.TEST_FAIL
-        
         # Determine the test results based on the matched patterns
         status = api.TEST_PASS  # Return code 0 for test success
 
@@ -252,49 +241,43 @@ def run_test():
             print("Fail : Unable to proceed test further due to above failed conditions")
             return status
 
-        ######### Chech the heartbeats from plugin i.e. plugin_pat_11. Each heartbeat must be send periodically every 30 sec
-        print(f"\nChecking heartbeats are sent periodically or not from plugin\n")
-        with log_monitor.match_lock:  # Added lock here
-            if plugin_pat_11 in log_monitor.plmgr_matched_patterns:
-                previousTimestamp = None                
-                for timestamp, log_message in log_monitor.plmgr_matched_patterns.get(plugin_pat_11, []):
-                    print(f"Timestamp: {timestamp}, Log Message: {log_message}")
-                    if previousTimestamp is not None:                        
-                        if (datetime.strptime(timestamp, "%b %d %H:%M:%S.%f") - datetime.strptime(previousTimestamp, "%b %d %H:%M:%S.%f")).total_seconds() >= 30 and \
-                                (datetime.strptime(timestamp, "%b %d %H:%M:%S.%f") - datetime.strptime(previousTimestamp, "%b %d %H:%M:%S.%f")).total_seconds() <= 31:
-                            print(f"\nSuccess, Heartbeats are sent periodically from plugin")
-                            previousTimestamp = timestamp
-                        else:
-                            print(f"\nFail, Heartbeats are not sent periodically from plugin")
-                            status = api.TEST_FAIL
-        
-        # Now to make sure after anomaly is detected, heartbeats must resume and check that heartbeats are sent periodically or not from plugin
-        
-        print(f"\nChecking heartbeats are sent periodically or not from plugin after anomaly is detected\n")
-        
-        # Get timestamp of detection(plugin_pat_1)
-        timestamp_of_detection = None
-        if plugin_pat_1 in log_monitor.plmgr_matched_patterns:
-            for timestamp, log_message in log_monitor.plmgr_matched_patterns.get(plugin_pat_1, []):
-                timestamp_of_detection = timestamp
-                break
+        ############## wait for the INITIAL_DETECTION_REPORTING_FREQ_IN_MINS(2 min) to check the time interval between each detections
+        time.sleep(120)
 
+        # Check for second log of plugin_pat_1 in plmgr logs. Compare its timestamp with first log of plugin_pat_1 in plmgr logs. It must be greater than atleast 120 sec.    
+
+        # Print plugin_pat_1 matched logs
+        print(f"\n\nMatched plmgr pattern ------------------ \n'{plugin_pat_1}' \nMatch Message ------------------")
         with log_monitor.match_lock:  # Added lock here
-            if plugin_pat_11 in log_monitor.plmgr_matched_patterns:
-                previousTimestamp = None                
-                for timestamp, log_message in log_monitor.plmgr_matched_patterns.get(plugin_pat_11, []):
-                    if timestamp < timestamp_of_detection:
-                        continue
+            if plugin_pat_1 in log_monitor.plmgr_matched_patterns:
+                for timestamp, log_message in log_monitor.plmgr_matched_patterns[plugin_pat_1]:
                     print(f"Timestamp: {timestamp}, Log Message: {log_message}")
-                    if previousTimestamp is not None:                        
-                        if (datetime.strptime(timestamp, "%b %d %H:%M:%S.%f") - datetime.strptime(previousTimestamp, "%b %d %H:%M:%S.%f")).total_seconds() >= 30 and \
-                                (datetime.strptime(timestamp, "%b %d %H:%M:%S.%f") - datetime.strptime(previousTimestamp, "%b %d %H:%M:%S.%f")).total_seconds() <= 31 :
-                            print(f"\nSuccess, Heartbeats are sent periodically from plugin after anomaly is detected")
-                            previousTimestamp = timestamp
-                        else:
-                            print(f"\nFail, Heartbeats are not sent periodically from plugin after anomaly is detected")
-                            status = api.TEST_FAIL
-       
+
+        timestamp_format = "%b %d %H:%M:%S.%f"
+
+        timestamp_plugin_pat_1_first = log_monitor.plmgr_matched_patterns.get(plugin_pat_1, [("", "")])[0][0]
+        timestamp_plugin_pat_2_second = log_monitor.plmgr_matched_patterns.get(plugin_pat_1, [("", "")])[1][0]
+
+        timestamp_plugin_pat_1_first_dt = datetime.strptime(timestamp_plugin_pat_1_first, timestamp_format) if timestamp_plugin_pat_1_first else None
+        timestamp_plugin_pat_2_second_dt = datetime.strptime(timestamp_plugin_pat_2_second, timestamp_format) if timestamp_plugin_pat_2_second else None
+
+        if timestamp_plugin_pat_1_first_dt is not None and timestamp_plugin_pat_2_second_dt is not None:
+            if (timestamp_plugin_pat_2_second_dt - timestamp_plugin_pat_1_first_dt).total_seconds() >= 120:
+                print(f"\nSuccess, Time interval between each detection is greater than  INITIAL_DETECTION_REPORTING_FREQ_IN_MINS seconds")
+            else:
+                print(f"\nFail, Time interval between each detection is less than INITIAL_DETECTION_REPORTING_FREQ_IN_MINS seconds")
+                status = api.TEST_FAIL
+        else:
+            print(f"\nFail, Unable to determine time interval between each detection")
+            status = api.TEST_FAIL        
+
+        # Stop the monitoring threads and join them
+        stop_and_join_threads(monitor_threads, engine_stop_event, plmgr_stop_event)
+
+        # Stop the binary
+        if not binary_runner.stop_binary():
+            print("Failed to stop linkcrc_mocker")
+            return api.TEST_FAIL
 
     return status
 
@@ -315,4 +298,3 @@ def monitor_threads_context(monitor_threads, engine_stop_event, plmgr_stop_event
     finally:
         print("Stopping the monitoring threads")
         stop_and_join_threads(monitor_threads, engine_stop_event, plmgr_stop_event)
-

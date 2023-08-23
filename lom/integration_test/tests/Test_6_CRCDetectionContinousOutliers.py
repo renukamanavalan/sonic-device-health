@@ -22,7 +22,7 @@ def getTestDescription() :
             Maximum time for detection = 60 sec \
             "
 
-def enableTest() :
+def isEnabled() :
     return False 
 
 def run_test():
