@@ -1,0 +1,4 @@
+remote_host=10.3.147.252
+remote_user=admin
+remote_password=YourPaSsWoRd
+remote_path=/home/admin
