@@ -11,24 +11,41 @@ if [[ "./target/docker-device-health.gz" -nt "./target/sonic-broadcom.bin" ]]; t
       exit ${ERR_USAGE}
 fi
 
-WORK_DIR="./tmp/DH-install"
-HOST_DIR="${WORK_DIR}/${HOST_SUBDIR}"
-INSTALL_DIR="${WORK_DIR}/${INSTALL_SUBDIR}"
+WORK_DIR="$(pwd)/tmp/DH-install"
+PAYLOAD_DIR="${WORK_DIR}/payload"
+HOST_DIR="${PAYLOAD_DIR}/${HOST_SUBDIR}"
+INSTALL_DIR="${PAYLOAD_DIR}/${INSTALL_SUBDIR}"
+INSTALLER_ARCHIVE=LoM-Install.tar.gz
+INSTALLER_SELF_EXTRACT=LoM-Install.bsx
 
 rm -rf ${WORK_DIR}
 
-pushd fsroot
+pushd fsroot-broadcom
 for i in ${HOST_FILES}
 do
     cpFile $i ${HOST_DIR}/$i
 done
 popd
 
-cpFile target/${IMAGE_FILE} ${INSTALL_DIR}/${IMAGE_FILE}
+echo "1"
+INSTALL_FILES="target/${IMAGE_FILE} \
+    src/sonic-device-health/install/sonic/${INSTALL_SCRIPT} \
+    src/sonic-device-health/install/sonic/${COMMON_SCRIPT}"
 
-cpFile src/sonic-device-health/vendor/sonic/${INSTALL_SCRIPT} ${INSTALL_DIR}/${INSTALL_SCRIPT}
+for i in ${INSTALL_FILES}; do
+    cpFile $i ${INSTALL_DIR}/$(basename $i)
+done
 
-tar -cvzf target/LoM-Install.tar.gz ${WORK_DIR}
+pushd ${PAYLOAD_DIR}
+tar -cvzf ${WORK_DIR}/${INSTALLER_ARCHIVE} .
 [[ $? != 0 ]] && { echo "Failed to archive"; exit ${ERR_TAR}; }
+popd
 
-echo "all good"
+cpFile src/sonic-device-health/install/decompress ${WORK_DIR}
+
+pushd ${WORK_DIR}
+cat decompress ${INSTALLER_ARCHIVE} > ${INSTALLER_SELF_EXTRACT}
+chmod a+x ${INSTALLER_SELF_EXTRACT}
+popd
+
+echo "${WORK_DIR}/${INSTALLER_SELF_EXTRACT} is created"

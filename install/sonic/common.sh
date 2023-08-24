@@ -12,15 +12,16 @@ ERR_RUNTIME=-9
 ERR_USAGE=-10
 
 HOST_SUBDIR="host"
-INSTALL_SUBDIR="install
+INSTALL_SUBDIR="install"
 
-HOST_FILES="etc/systemd/system/device-health.service.d/auto_restart.conf \
+HOST_FILES="\
     lib/systemd/system/device-health.service \
     usr/bin/device-health.sh"
 
-IMAGE_NAME=docker-device-health
-IMAGE_FILE=${IMAGE_NAME}.gz
-INSTALL_SCRIPT=LoM-install.sh
+IMAGE_NAME="docker-device-health"
+IMAGE_FILE="${IMAGE_NAME}.gz"
+INSTALL_SCRIPT="LoM-install.sh"
+COMMON_SCRIPT="common.sh"
 
 BACK_EXT="bak"
 
@@ -39,32 +40,3 @@ function cpFile()
 }
 
 
-function forceClean()
-{
-    pushd /
-    for i in ${HOST_FILES}; do
-        rm -f $i.${BACK_EXT}
-        [[ $? != 0 ]] && { echo "Failed to remove $i.${BACK_EXT}; exit ${ERR_CLEAN}; }
-    done
-    docker 
-
-    
-
-
-rm -rf ${WORK_DIR}
-
-pushd fsroot
-for i in ${HOST_FILES}
-do
-    cpFile $i ${HOST_DIR}/$i
-done
-popd
-
-cpFile target/docker-device-health.gz ${INSTALL_DIR}/docker-device-health.gz
-
-cpFile src/sonic-device-health/vendor/sonic/lom-install.sh ${INSTALL_DIR}/lom-install.sh
-
-tar -cvzf target/LoM-Install.tar.gz ${WORK_DIR}
-[[ $? != 0 ]] && { echo "Failed to archive"; exit ${ERR_TAR}; }
-
-echo "all good"

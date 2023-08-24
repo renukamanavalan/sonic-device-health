@@ -1,6 +1,5 @@
 #! /bin/bash
 
-
 source $(dirname $0)/common.sh
 
 
@@ -33,8 +32,8 @@ function backUp()
         exit ${ERR_BACKUP}
     fi
 
-    if [[ "$(docker images -q ${IMAGE_NAME}:$[BACK_EXT} 2> /dev/null)" != "" ]]; then
-        echo "Docker image backup pre-exists ${IMAGE_NAME}:$[BACK_EXT}. Clear it"
+    if [[ "$(docker images -q ${IMAGE_NAME}:${BACK_EXT} 2> /dev/null)" != "" ]]; then
+        echo "Docker image backup pre-exists ${IMAGE_NAME}:${BACK_EXT}. Clear it"
         exit ${ERR_BACKUP}
     fi
 
@@ -58,13 +57,13 @@ function forceClean()
     pushd / 
     for i in ${HOST_FILES}; do 
         rm -f $i.${BACK_EXT}
-        [[ $? != 0 ]] && { echo "Failed to remove $i.${BACK_EXT}; exit ${ERR_CLEAN}; }
+        [[ $? != 0 ]] && { echo "Failed to remove $i.${BACK_EXT}"; exit ${ERR_CLEAN}; }
     done
     popd
 
-    if [[ "$(docker images -q ${IMAGE_NAME}:$[BACK_EXT} 2> /dev/null)" != "" ]]; then
-        docker rmi ${IMAGE_NAME}:$[BACK_EXT}
-        [[ $? != 0 ]] && { echo "Failed to untag ${IMAGE_NAME}:$[BACK_EXT}"; exit ${ERR_CLEAN}; }
+    if [[ "$(docker images -q ${IMAGE_NAME}:${BACK_EXT} 2> /dev/null)" != "" ]]; then
+        docker rmi ${IMAGE_NAME}:${BACK_EXT}
+        [[ $? != 0 ]] && { echo "Failed to untag ${IMAGE_NAME}:${BACK_EXT}"; exit ${ERR_CLEAN}; }
     fi
     echo "Function forceClean complete"
 }
@@ -89,12 +88,12 @@ function installCode()
 function DBUpdate()
 {
     # Create FEATURE table entry
-    RET=$(redis-cli -n 4 hmset "FEATURE|device-health" "auto_restart" "enabled" \
+    RET="$(redis-cli -n 4 hmset "FEATURE|device-health" "auto_restart" "enabled" \
         "delayed" "True" "has_global_scope" "True" "has_per_asic_scope" "False" \
         "high_mem_alert" "disabled" "set_owner" "kube" "state" "enabled" \
-        "support_syslog_rate_limit" "true")
+        "support_syslog_rate_limit" "true")"
 
-    [[ "${RET]" == "OK" ]] || { echo "failed to create FEATURE table entry"; exit -1; }
+    [[ "${RET}" == "OK" ]] || { echo "failed to create FEATURE table entry"; exit -1; }
     echo "Function DBUpdate complete"
 }
 
@@ -109,8 +108,8 @@ function rollBackCode()
     popd
 
     # Check backup image exists.
-    if [[ "$(docker images -q ${IMAGE_NAME}:$[BACK_EXT} 2> /dev/null)" == "" ]]; then
-        echo "Docker image backup do not exist ${IMAGE_NAME}:$[BACK_EXT}."
+    if [[ "$(docker images -q ${IMAGE_NAME}:${BACK_EXT} 2> /dev/null)" == "" ]]; then
+        echo "Docker image backup do not exist ${IMAGE_NAME}:${BACK_EXT}."
         exit ${ERR_ROLLBACK}
     fi
 
@@ -127,11 +126,11 @@ function rollBackCode()
         [[ $? != 0 ]] && { echo "Failed to untag ${IMAGE_NAME}:latest"; exit ${ERR_ROLLBACK}; }
     fi
 
-    docker tag ${IMAGE_NAME}:$[BACK_EXT} ${IMAGE_NAME}:latest
-    [[ $? != 0 ]] && { echo "Failed to tag ${IMAGE_NAME}:$[BACK_EXT} ${IMAGE_NAME}:latest"; exit ${ERR_ROLLBACK}; }
+    docker tag ${IMAGE_NAME}:${BACK_EXT} ${IMAGE_NAME}:latest
+    [[ $? != 0 ]] && { echo "Failed to tag ${IMAGE_NAME}:${BACK_EXT} ${IMAGE_NAME}:latest"; exit ${ERR_ROLLBACK}; }
 
-    docker rmi ${IMAGE_NAME}:$[BACK_EXT}
-    [[ $? != 0 ]] && { echo "Failed to untag ${IMAGE_NAME}:$[BACK_EXT}"; exit ${ERR_ROLLBACK}; }
+    docker rmi ${IMAGE_NAME}:${BACK_EXT}
+    [[ $? != 0 ]] && { echo "Failed to untag ${IMAGE_NAME}:${BACK_EXT}"; exit ${ERR_ROLLBACK}; }
 
     echo "Function rollbackCode complete"
 }
@@ -162,7 +161,7 @@ function serviceRestart()
     # Have a custom post-check script inside LoM container
     #
     # docker exec -it device-health /usr/bin/post-install-check.sh
-    # [ $? != 0 ]] && { echo "LoM post-install-check failed"; exit ${ERR_RUNTIME}; }
+    # [[ $? != 0 ]] && { echo "LoM post-install-check failed"; exit ${ERR_RUNTIME}; }
     #
     echo "LoM Service restarted successfully"
 }
@@ -222,3 +221,4 @@ function main()
 }
 
 main $@
+
