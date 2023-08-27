@@ -2,6 +2,7 @@
 
 source $(dirname $0)/common.sh
 
+[[ "${BUILD}" == "" ]] && { echo "Expect BUILD info as env"; exit ${ERR_USAGE}; }
 [ ! -d "./target" ] && { echo "Run from buildimage root"; exit ${ERR_USAGE}; }
 [ ! -f "./target/docker-device-health.gz" ] && { echo "Build docker"; exit ${ERR_USAGE}; }
 [ ! -f "./target/sonic-broadcom.bin" ] && { echo "Build binary image to get service files"; exit ${ERR_USAGE}; }
@@ -36,7 +37,7 @@ for i in ${INSTALL_FILES}; do
     cpFile $i ${INSTALL_DIR}/$(basename $i)
 done
 
-echo -n "$(cat src/sonic-device-health/LoM_Version |  tr -d '\n').$(date +%s)" > ${INSTALL_DIR}/VERSION
+TIMESTAMP="$(date +%s)" j2 -o ${INSTALL_DIR}/VERSION -f env src/sonic-device-health/LoM_Version.j2
 
 pushd ${PAYLOAD_DIR}
 tar -cvzf ${WORK_DIR}/${INSTALLER_ARCHIVE} .
