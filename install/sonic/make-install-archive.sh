@@ -36,6 +36,8 @@ for i in ${INSTALL_FILES}; do
     cpFile $i ${INSTALL_DIR}/$(basename $i)
 done
 
+echo -n "$(cat src/sonic-device-health/LoM_Version |  tr -d '\n').$(date +%s)" > ${INSTALL_DIR}/VERSION
+
 pushd ${PAYLOAD_DIR}
 tar -cvzf ${WORK_DIR}/${INSTALLER_ARCHIVE} .
 [[ $? != 0 ]] && { echo "Failed to archive"; exit ${ERR_TAR}; }
