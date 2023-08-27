@@ -122,6 +122,11 @@ function testInstall()
     #
     fStart testInstall
 
+    TODO: Match the build from version with switch's version
+    Take first component from install/VERSION string
+    Take second component from /etc/sonic/sonic_version.yml's build_version's value
+    e.g. sonic_version.yml SONiC.20220531.27
+
     # Get image info & validate too.
     getTag
 
