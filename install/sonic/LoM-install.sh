@@ -5,7 +5,6 @@ source $(dirname $0)/common.sh
 # Enable set -x when you need to debug ...
 # set -x
 
-
 function fStart()
 {
     echo "************ function $@ START *******************"
@@ -26,11 +25,32 @@ function fail()
 }
 
 image_latest=0
-image_backup=0
 image_tag=""
+image_backup=0
+image_backup_tag=""
+
+function backup_tag()
+{
+    # Backup tag is coined as "${BACK_EXT}_{original image tag}
+    # If called with ${BACK_EXT}_, it strips and saves the original tag as backup_Tag
+    # Elif called w/o ${BACK_EXT}_, it creates full tag with ${BACK_EXT}_ prefixed
+    # Return code distinguishes the 2 scenarios
+    #
+    if [[ "$1" =~ ^${BACK_EXT}.* ]]; then
+        backupTag="$(echo $1 | cut -d'_' -f2-)"
+        return 1
+    else
+        backupTag="${BACK_EXT}_$1"
+        return 0
+    fi
+}
+
 
 function getTag()
 {
+    # Get image state & tags.
+    # Fail on inconsistent state
+    #
     fStart getTag
 
     lst="$(docker images ${IMAGE_NAME} --format "{{.Tag}}")"
@@ -42,12 +62,17 @@ function getTag()
 
     for tag in "${lstTags[@]}"
     do
+        backup_tag ${tag}
+        is_backup=$?
+
         if [[ "${tag}" == "latest" ]]; then
             image_latest=1
-        elif [[ "${tag}" == "${BACK_EXT}" ]]; then
+        elif [[ ${is_backup} == 1 ]]; then
+            [[ ${image_backup} == 1 ]] && fail "Duplicate backup image exist. tags=${lstTags[@]}; Run clean" ${ERR_TEST}
+            image_backup_tag="${backupTag}"
             image_backup=1
         elif [[ "${image_tag}" != "" ]]; then
-            fail "Duplicate image tag exist. tags=${lstTags[@]; Run clean}" ${ERR_TEST}
+            fail "Duplicate image tag exist. tags=${lstTags[@]}; Run clean" ${ERR_TEST}
         else
             image_tag="${tag}"
         fi
@@ -64,6 +89,8 @@ function getTag()
 
 function filesTest()
 {
+    # Test presence of files
+    #
     fStart filesTest Hostfiles $1
     present=0
     absent=0
@@ -90,6 +117,9 @@ function filesTest()
 
 function testInstall()
 {
+    # Test install state consistency
+    # Fail if corrupt
+    #
     fStart testInstall
 
     # Get image info & validate too.
@@ -114,12 +144,69 @@ function testInstall()
 }
 
 
+function forceClean() 
+{   
+    # $1 == 1 clean install only
+    # $1 == 2 clean backup only
+    # $1 == 3 clean all
+    #
+    [[ $1 < 1 || $1 > 3 ]] && fail "Internal usage error" ${ERR_CLEAN}
+
+    fStart forceClean $@
+    sudo systemctl stop device-health.service 
+    sudo systemctl disable device-health.service 
+    docker rm device-health
+
+    bClean=$(( $1 & 2 ))
+    iClean=$(( $1 & 1 ))
+    pushd / 
+    for i in ${HOST_FILES}; do 
+        if [[ ${bClean} == 1 ]]; then
+            sudo rm -f $i.${BACK_EXT}
+            [[ $? != 0 ]] && { fail "Failed to remove $i.${BACK_EXT}" ${ERR_CLEAN}; }
+        fi
+        if [[ ${iClean} == 1 ]]; then
+            sudo rm -f $i
+            [[ $? != 0 ]] && { fail "Failed to remove $i" ${ERR_CLEAN}; }
+        fi
+    done
+    popd
+
+    # truth table
+    # If $1 == 3 delete any
+    # iClean bClean is_backup delete
+    # 0      1      0         No
+    # 1      0      0         Yes
+    # 0      1      1         Yes
+    # 1      0      1         No
+    # if $bclean == $is_backup remove
+    # 
+    lst="$(docker images ${IMAGE_NAME} --format "{{.Tag}}")"
+    read -r -a lstTags <<< "$(echo ${lst})"
+    for tag in "${lstTags[@]}"
+    do
+        backup_tag "${tag}"
+        is_backup=$?
+
+        if [[ $1 == 3 || ${is_backup} == ${bClean} ]]; then
+            docker rmi ${IMAGE_NAME}:${tag}
+            [[ $? != 0 ]] && { fail "Failed to untag ${IMAGE_NAME}:${tag}" ${ERR_CLEAN}; }
+        fi
+    done
+    DBUpdate 0
+    fEnd forceClean $@
+}
+
 function backUp()
 {
     fStart backUp
 
-    [[ ${image_backup} == 1 ]] && { fail "Backup pre-exists. Run clean;" ${ERR_BACKUP}; }
     [[ ${image_latest} == 0 ]] && { echo "Install don't exist. Nothing to backup;"; return 0; }
+
+    # Remove existing backup
+    if [[ ${image_backup} == 1 ]]; then
+        forceClean 2
+    fi
 
     pushd /
     for i in ${HOST_FILES}; do
@@ -128,7 +215,9 @@ function backUp()
     done
     popd
 
-    docker tag ${IMAGE_NAME}:latest ${IMAGE_NAME}:${BACK_EXT}
+    # coins backup tag with BACK_EXT
+    backup_tag "${image_tag}"
+    docker tag ${IMAGE_NAME}:latest ${IMAGE_NAME}:${backupTag}
     [[ $? != 0 ]] && { fail "Failed to tag ${IMAGE_NAME} ${IMAGE_NAME}:${BACK_EXT}" ${ERR_BACKUP}; }
 
     docker rmi ${IMAGE_NAME}:latest
@@ -172,33 +261,6 @@ function DBUpdate()
 }
 
 
-function forceClean() 
-{   
-    fStart forceClean
-    sudo systemctl stop device-health.service 
-    sudo systemctl disable device-health.service 
-    docker rm device-health
-
-    pushd / 
-    for i in ${HOST_FILES}; do 
-        sudo rm -f $i.${BACK_EXT}
-        [[ $? != 0 ]] && { fail "Failed to remove $i.${BACK_EXT}" ${ERR_CLEAN}; }
-        sudo rm -f $i
-        [[ $? != 0 ]] && { fail "Failed to remove $i" ${ERR_CLEAN}; }
-    done
-    popd
-
-    lst="$(docker images ${IMAGE_NAME} --format "{{.Tag}}")"
-    read -r -a lstTags <<< "$(echo ${lst})"
-    for tag in "${lstTags[@]}"
-    do
-        docker rmi ${IMAGE_NAME}:${tag}
-        [[ $? != 0 ]] && { fail "Failed to untag ${IMAGE_NAME}:${tag}" ${ERR_CLEAN}; }
-    done
-    DBUpdate 0
-    fEnd forceClean
-}
-
 
 function installCode()
 {
@@ -224,40 +286,29 @@ function installCode()
 function rollBackCode()
 {
     [[ ${image_backup} == 0 ]] && { fail "Backup don't exist. Nothing to rollback;" ${ERR_ROLLBACK}; }
-    [[ ${image_latest} == 1 ]] && { fail "Install exists. Run cleanup;" ${ERR_ROLLBACK}; }
 
     fStart rollBackCode
 
-    # Check all backup files exist
-    pushd /
-    for i in ${HOST_FILES}; do
-        [[ ! -e $i.${BACK_EXT} ]] && { fail "Backup file $i.${BACK_EXT} does not exist" ${ERR_ROLLBACK}; }
-    done
-    popd
-
-    # Check backup image exists.
-    if [[ "$(docker images -q ${IMAGE_NAME}:${BACK_EXT} 2> /dev/null)" == "" ]]; then
-        fail "Docker image backup do not exist ${IMAGE_NAME}:${BACK_EXT}." ${ERR_ROLLBACK}
-    fi
+    # Remove current install
+    forceClean 1
 
     pushd /
     for i in ${HOST_FILES}; do
-        sudo rm -f $i
         sudo mv $i.${BACK_EXT} $i
         [[ $? != 0 ]] && { fail "Failed to rollback  mv $i.${BACK_EXT} $i;" ${ERR_ROLLBACK}; }
     done
     popd
 
-    if [[ "$(docker images -q ${IMAGE_NAME}:latest 2> /dev/null)" != "" ]]; then
-        docker rmi ${IMAGE_NAME}:latest
-        [[ $? != 0 ]] && { fail "Failed to untag ${IMAGE_NAME}:latest" ${ERR_ROLLBACK}; }
-    fi
-
-    docker tag ${IMAGE_NAME}:${BACK_EXT} ${IMAGE_NAME}:latest
+    # coins backup tag with BACK_EXT 
+    backup_tag "${image_backup_tag}"
+    docker tag ${IMAGE_NAME}:${backupTag} ${IMAGE_NAME}:latest
     [[ $? != 0 ]] && { fail "Failed to tag ${IMAGE_NAME}:${BACK_EXT} ${IMAGE_NAME}:latest" ${ERR_ROLLBACK}; }
 
-    docker rmi ${IMAGE_NAME}:${BACK_EXT}
-    [[ $? != 0 ]] && { fail "Failed to untag ${IMAGE_NAME}:${BACK_EXT}" ${ERR_ROLLBACK}; }
+    docker tag ${IMAGE_NAME}:latest ${IMAGE_NAME}:{image_backup_tag}
+    [[ $? != 0 ]] && { fail "Failed to tag ${IMAGE_NAME}:${BACK_EXT} ${IMAGE_NAME}:latest" ${ERR_ROLLBACK}; }
+
+    docker rmi ${IMAGE_NAME}:${backupTag}
+    [[ $? != 0 ]] && { fail "Failed to untag ${IMAGE_NAME}:${backupTag}" ${ERR_ROLLBACK}; }
 
     fEnd rollBackCode
 }
@@ -338,7 +389,7 @@ function main()
     serviceStop
     
     if [[ ${OP_CLEAN} == 1 ]]; then
-        forceClean
+        forceClean 3
     fi
 
     testInstall
