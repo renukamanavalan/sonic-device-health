@@ -1,7 +1,9 @@
 #! /bin/bash
 
 source $(dirname $0)/common.sh
-set -x
+
+# Enable set -x when you need to debug ...
+# set -x
 
 
 function fStart()
