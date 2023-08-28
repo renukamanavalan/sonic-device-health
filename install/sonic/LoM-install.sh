@@ -122,10 +122,13 @@ function testInstall()
     #
     fStart testInstall
 
-    TODO: Match the build from version with switch's version
-    Take first component from install/VERSION string
-    Take second component from /etc/sonic/sonic_version.yml's build_version's value
-    e.g. sonic_version.yml SONiC.20220531.27
+    # Match the build from LoM's version with switch's version
+    # Take first component from install/VERSION string
+    # Take second component from /etc/sonic/sonic_version.yml's build_version's value
+    #
+    OS_Version=$(cat /etc/sonic/sonic_version.yml | grep -e "^build_version" | cut -f2 -d\'| cut -f2 -d .)
+    LoM_Version="$(cat $(dirname $0)/VERSION |  tr -d '\n' | cut -f1 -d .)"
+    [[ ${OS_Version} != ${LoM_Version} ]] && fail "Version mismatch. OS=${OS_Version} LoM=${LoM_Version}" ${ERR_TEST}
 
     # Get image info & validate too.
     getTag
