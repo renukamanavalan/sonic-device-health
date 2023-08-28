@@ -2,7 +2,6 @@
 
 source $(dirname $0)/common.sh
 
-[[ "${BUILD}" == "" ]] && { echo "Expect BUILD info as env"; exit ${ERR_USAGE}; }
 [ ! -d "./target" ] && { echo "Run from buildimage root"; exit ${ERR_USAGE}; }
 [ ! -f "./target/docker-device-health.gz" ] && { echo "Build docker"; exit ${ERR_USAGE}; }
 [ ! -f "./target/sonic-broadcom.bin" ] && { echo "Build binary image to get service files"; exit ${ERR_USAGE}; }
@@ -11,6 +10,9 @@ if [[ "./target/docker-device-health.gz" -nt "./target/sonic-broadcom.bin" ]]; t
       echo "re-build image to ensure service files are latest"
       exit ${ERR_USAGE}
 fi
+
+BUILD_VER=$(cat fsroot-broadcom/etc/sonic/sonic_version.yml | grep -e "^build_version" | cut -f2 -d\'| cut -f1 -d .)
+[[ "${BUILD_VER}" == "" ]] && { echo "Failed to get build version"; exit ${ERR_USAGE}; }
 
 WORK_DIR="$(pwd)/tmp/DH-install"
 PAYLOAD_DIR="${WORK_DIR}/payload"
@@ -37,7 +39,7 @@ for i in ${INSTALL_FILES}; do
     cpFile $i ${INSTALL_DIR}/$(basename $i)
 done
 
-TIMESTAMP="$(date +%s)" j2 -o ${INSTALL_DIR}/VERSION -f env src/sonic-device-health/LoM_Version.j2
+BUILDVER=${BUILD_VER} TIMESTAMP="$(date +%s)" j2 -o ${INSTALL_DIR}/VERSION -f env src/sonic-device-health/LoM_Version.j2
 
 pushd ${PAYLOAD_DIR}
 tar -cvzf ${WORK_DIR}/${INSTALLER_ARCHIVE} .

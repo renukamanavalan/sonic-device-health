@@ -79,10 +79,12 @@ function getTag()
     done
     if [[ ${image_cnt} != 0 ]]; then
         if [[ ${image_latest} == 0 || "${image_tag}" == "" ]]; then
-            fail "Image latest or tag missing. tags=${lstTags[@]; Run clean}" ${ERR_TEST}
+            lst=$(echo "$(IFS=,; echo "${lstTags[*]}")")
+            fail "Image latest or tag missing. tags are { ${lst} }; Run clean." ${ERR_TEST}
         fi
     fi
-    echo "image_latest=${image_latest} image_backup=${image_backup} image_tag=${image_tag}"
+    echo "image_latest=${image_latest} image_backup=${image_backup}"
+    echo "image_tag=${image_tag} image_backup_tag=${image_backup_tag}"
     fEnd getTag
 }
 
@@ -312,7 +314,7 @@ function rollBackCode()
     docker tag ${IMAGE_NAME}:${backupTag} ${IMAGE_NAME}:latest
     [[ $? != 0 ]] && { fail "Failed to tag ${IMAGE_NAME}:${BACK_EXT} ${IMAGE_NAME}:latest" ${ERR_ROLLBACK}; }
 
-    docker tag ${IMAGE_NAME}:latest ${IMAGE_NAME}:{image_backup_tag}
+    docker tag ${IMAGE_NAME}:latest ${IMAGE_NAME}:${image_backup_tag}
     [[ $? != 0 ]] && { fail "Failed to tag ${IMAGE_NAME}:${BACK_EXT} ${IMAGE_NAME}:latest" ${ERR_ROLLBACK}; }
 
     docker rmi ${IMAGE_NAME}:${backupTag}
@@ -341,6 +343,7 @@ function serviceRestart()
 
     # Pause for a minute
     #
+    echo "Take a 1 min pause to settle down"
     sleep 1m
 
     # Check running state of critical processes.
