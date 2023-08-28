@@ -209,6 +209,9 @@ function forceClean()
 
 function backUp()
 {
+    # Back up current install
+    # If any backup pre-exists, remove it.
+    #
     fStart backUp
 
     [[ ${image_latest} == 0 ]] && { echo "Install don't exist. Nothing to backup;"; return 0; }
@@ -295,6 +298,10 @@ function installCode()
 
 function rollBackCode()
 {
+    # Rollback to last back up version
+    # Remove current install, if any
+    # Rename back up files as current and backup image as latest
+    #
     [[ ${image_backup} == 0 ]] && { fail "Backup don't exist. Nothing to rollback;" ${ERR_ROLLBACK}; }
 
     fStart rollBackCode
@@ -400,6 +407,7 @@ function main()
     serviceStop
     
     if [[ ${OP_CLEAN} == 1 ]]; then
+        # Clean all ( current install & backup )
         forceClean 3
     fi
 
