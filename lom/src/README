@@ -1,0 +1,17 @@
+For any go test failure, grep for 
+grep -e "^--- FAIL: "
+
+This will give test function name and test.errorf statements
+
+--- FAIL: TestHelper (0.00s)
+    tx_test.go:762: FmtFprintf not called
+    tx_test.go:773: FmtFprintf is called when not expected
+    tx_test.go:781: FmtFprintf is called when not expected
+
+
+Hint:
+All funcs that start with Test (note: uppercase T) are run.
+Pass "-v" in "go test" to set log level to verbose
+When you are debugging, to help
+s/^func Test/func XTest"
+Now rename XTest to Test for one function at a time to help run one at a time.

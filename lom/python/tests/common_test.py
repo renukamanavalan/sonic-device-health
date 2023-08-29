@@ -25,14 +25,12 @@ class cfgInit:
 }',
         "actions.conf.json": '\
 {\
-    "actions": [\
-        { "name": "Detect-0" },\
-        { "name": "Safety-chk-0", "Timeout": 1},\
-        { "name": "Mitigate-0", "Timeout": 6},\
-        { "name": "Detect-1" },\
-        { "name": "Safety-chk-1", "Timeout": 7},\
-        { "name": "Mitigate-1", "Timeout": 8}\
-    ]\
+        "Detect-0" : { "name": "Detect-0" },\
+        "Safety-chk-0" : { "name": "Safety-chk-0", "Timeout": 1},\
+        "Mitigate-0" : { "name": "Mitigate-0", "Timeout": 6},\
+        "Detect-1" : { "name": "Detect-1" },\
+        "Safety-chk-1" : { "name": "Safety-chk-1", "Timeout": 7},\
+        "Mitigate-1" : { "name": "Mitigate-1", "Timeout": 8}\
 }',
         "bindings.conf.json": '\
 {\
@@ -61,6 +59,7 @@ class cfgInit:
 }',
         "procs.conf.json": '\
 {\
+    "procs": {\
         "proc_0": {\
             "Detect-0": {\
                 "name": "Detect-0",\
@@ -95,6 +94,7 @@ class cfgInit:
                 "path": " /path/"\
             }\
         }\
+    }\
 }'
         }
 

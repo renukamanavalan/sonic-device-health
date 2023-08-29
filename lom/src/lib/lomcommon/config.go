@@ -15,8 +15,14 @@ const (
     MAX_SEQ_TIMEOUT_SECS         = "MAX_SEQ_TIMEOUT_SECS"
     MIN_PERIODIC_LOG_PERIOD_SECS = "MIN_PERIODIC_LOG_PERIOD_SECS"
 
+    MAX_PLUGIN_RESPONSES = "MAX_PLUGIN_RESPONSES" /* Max number of reesponses that plugin can send per
+       anamolykey during last MAX_PLUGIN_RESPONSES_WINDOW_TIMEOUT
+       before plugin manager mark it as disabled. Applicable for plugin's with timeout */
+    MAX_PLUGIN_RESPONSES_WINDOW_TIMEOUT_IN_SECS = "MAX_PLUGIN_RESPONSES_WINDOW_TIMEOUT_IN_SECS" /* Interval in which plugin can send
+       MAX_PLUGIN_RESPONSES_DEFAULT responses per anamoly key */
+
     /* Look for this name in Env or file */
-    LOM_TESTMODE_NAME = "LoMTestMode"
+    LOM_RUN_MODE = "LOM_RUN_MODE"
 )
 
 const (
@@ -77,36 +83,14 @@ var lomRunMode = LoMRunMode_NotSet
 
 func GetLoMRunMode() LoMRunMode_t {
     if lomRunMode == LoMRunMode_NotSet {
-        if val, ok := os.LookupEnv(LOM_TESTMODE_NAME); ok {
-            if val == "yes" {
-                lomRunMode = LoMRunMode_Test
-            } else {
+        lomRunMode = LoMRunMode_Test
+        if val, ok := os.LookupEnv(LOM_RUN_MODE); ok {
+            if val == "PROD" {
                 lomRunMode = LoMRunMode_Prod
             }
         }
     }
     return lomRunMode
-}
-
-func SetLoMRunMode(mode LoMRunMode_t) error {
-    if (mode != LoMRunMode_Test) && (mode != LoMRunMode_Prod) {
-        return LogError("mode=(%v) is invalid", mode)
-    }
-
-    /* Call get to ensure, Env is checked first */
-    ctMode := GetLoMRunMode()
-
-    if ctMode == LoMRunMode_NotSet {
-        /* LOM_TESTMODE_NAME ("LoMTestMode") is not set in Env */
-        lomRunMode = mode
-    } else if ctMode != mode {
-        return LogError("Mode already set(%v) != new mode(%v)", ctMode, mode)
-    }
-    return nil
-}
-
-func ResetLoMMode() {
-    lomRunMode = LoMRunMode_NotSet
 }
 
 /*
@@ -121,6 +105,15 @@ func (p *GlobalConfig_t) setDefaults() {
     p.ints["MAX_SEQ_TIMEOUT_SECS"] = 120
     p.ints["MIN_PERIODIC_LOG_PERIOD_SECS"] = 15
     p.ints["ENGINE_HB_INTERVAL_SECS"] = 10
+
+    p.ints["INITIAL_DETECTION_REPORTING_FREQ_IN_MINS"] = 5
+    p.ints["SUBSEQUENT_DETECTION_REPORTING_FREQ_IN_MINS"] = 60
+    p.ints["INITIAL_DETECTION_REPORTING_MAX_COUNT"] = 12
+    p.ints["PLUGIN_MIN_ERR_CNT_TO_SKIP_HEARTBEAT"] = 3
+
+    p.ints["MAX_PLUGIN_RESPONSES"] = 100
+    p.ints["MAX_PLUGIN_RESPONSES_WINDOW_TIMEOUT_IN_SECS"] = 60
+
 }
 
 func (p *GlobalConfig_t) readGlobalsConf(fl string) error {
@@ -218,13 +211,13 @@ type ProcPluginConfig_t struct {
 
 /* Action config as read from actions.conf.json */
 type ActionCfg_t struct {
-    Name         string
-    Type         string
-    Timeout      int    /* Timeout recommended for this action */
-    HeartbeatInt int    /* Heartbeat interval */
-    Disable      bool   /* true - Disabled */
-    Mimic        bool   /* true - Run but don't write/update device */
-    ActionKnobs  string /* Json String with action specific knobs */
+    Name         string          /* Action name e.g. link_crc*/
+    Type         string          /* Action type. can be Detection, Mitigation or Safety */
+    Timeout      int             /* Timeout recommended for this action */
+    HeartbeatInt int             /* Heartbeat interval */
+    Disable      bool            /* true - Disabled */
+    Mimic        bool            /* true - Run but don't write/update device */
+    ActionKnobs  json.RawMessage /* Json String with action specific knobs */
 }
 
 /* Map with action name */
@@ -295,11 +288,9 @@ type ConfigMgr_t struct {
 }
 
 func (p *ConfigMgr_t) readActionsConf(fl string) error {
-    actions := struct {
-        Actions []ActionCfg_t
-    }{}
-
+    actions := ActionsConfigList_t{}
     jsonFile, err := os.Open(fl)
+
     if err != nil {
         return err
     }
@@ -311,9 +302,7 @@ func (p *ConfigMgr_t) readActionsConf(fl string) error {
     } else if err := json.Unmarshal(byteValue, &actions); err != nil {
         return err
     } else {
-        for _, a := range actions.Actions {
-            p.actionsConfig[a.Name] = a
-        }
+        p.actionsConfig = actions
         return nil
     }
 }
@@ -337,12 +326,14 @@ func (p *ConfigMgr_t) readProcsConf(filename string) error {
         return err
     }
 
-    var jsonData ProcPluginConfigListAll_t // map [procID] ProcPluginConfigList_t
+    var jsonData map[string]ProcPluginConfigListAll_t
     err = json.Unmarshal(data, &jsonData)
     if err != nil {
         return err
     }
-    p.procsConfig = jsonData
+    if val, ok := jsonData["procs"]; ok {
+        p.procsConfig = val
+    }
 
     return nil
 }
@@ -418,14 +409,6 @@ func (p *ConfigMgr_t) loadConfigFiles(cfgFiles *ConfigFiles_t) error {
     }
     if err := p.readProcsConf(cfgFiles.ProcsFl); err != nil {
         return LogError("Procs: %s: %v", cfgFiles.ProcsFl, err)
-    }
-    test_mode_fl := filepath.Join(filepath.Dir(cfgFiles.GlobalFl), LOM_TESTMODE_NAME)
-    ResetLoMMode()
-    if _, err := os.Stat(test_mode_fl); os.IsNotExist(err) {
-        SetLoMRunMode(LoMRunMode_Prod)
-    } else {
-        LogDebug("Run in Test mode as fl(%s) exists. err(%v)", test_mode_fl, err)
-        SetLoMRunMode(LoMRunMode_Test)
     }
     return nil
 }
@@ -642,7 +625,8 @@ func InitConfigMgr(p *ConfigFiles_t) (*ConfigMgr_t, error) {
 
 func InitConfigPath(path string) error {
     if len(path) == 0 {
-        path, exists := GetEnvVarString("ENV_lom_conf_location")
+        exists := false
+        path, exists = GetEnvVarString("ENV_lom_conf_location")
         if !exists || len(path) == 0 {
             return LogError("LOM_CONF_LOCATION environment variable not set")
         }
@@ -658,30 +642,21 @@ func InitConfigPath(path string) error {
     return err
 }
 
-/* Gets settings of int type from json string if present. Else returns defaultValue */
-func GetIntConfigurationFromJson(jsonString string, configurationKey string, defaultValue int) int {
-    return int(GetFloatConfigurationFromJson(jsonString, configurationKey, float64(defaultValue)))
-}
+/* Gets settings of float64 type from mapping. Else returns defaultValue */
+func GetFloatConfigFromMapping(mapping map[string]interface{}, configurationKey string, defaultValue float64) float64 {
+    if len(mapping) == 0 {
+        return defaultValue
+    }
 
-/* Gets settings of float64 type from json string if present. Else returns defaultValue */
-func GetFloatConfigurationFromJson(jsonString string, configurationKey string, defaultValue float64) float64 {
-    if jsonString == "" {
-        return defaultValue
-    }
-    var resultMap map[string]interface{}
-    err := json.Unmarshal([]byte(jsonString), &resultMap)
-    if err != nil {
-        LogError("Error unmarshalling jsonString %s for key %s", jsonString, configurationKey)
-        return defaultValue
-    }
-    configurationVal, ok := resultMap[configurationKey]
+    configurationVal, ok := mapping[configurationKey]
     if !ok {
-        LogError("key %s not present in json string %s", configurationKey, jsonString)
+        LogError("key %s not present in mapping", configurationKey)
         return defaultValue
     }
+
     configurationValFloat64, ok := configurationVal.(float64)
     if !ok {
-        LogError("key %s not of type float64 in json string %s", configurationKey, jsonString)
+        LogError("key %s not of type float64 in mapping", configurationKey)
         return defaultValue
     }
     return configurationValFloat64

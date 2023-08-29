@@ -11,7 +11,7 @@ func TestCheckMisbehavingPlugins(t *testing.T) {
     // Create a new PluginMetadata object
     pluginMetadata := &PluginMetadata{
         PluginResponseRollingWindow: PluginResponseRollingWindow{
-            response: make(map[string][]time.Time),
+            Response: make(map[string][]time.Time),
         },
     }
 
@@ -24,14 +24,14 @@ func TestCheckMisbehavingPlugins(t *testing.T) {
     pluginMetadata.MaxPluginResponses = 2
     pluginMetadata.MaxPluginResponsesWindowTime = 1 * time.Minute
     now := time.Now()
-    pluginMetadata.PluginResponseRollingWindow.response[pluginKey] = []time.Time{now.Add(-time.Minute), now.Add(-30 * time.Second)}
+    pluginMetadata.PluginResponseRollingWindow.Response[pluginKey] = []time.Time{now.Add(-time.Minute), now.Add(-30 * time.Second)}
     result = pluginMetadata.CheckMisbehavingPlugins(pluginKey)
     assert.True(t, result, "Expected CheckMisbehavingPlugins to return false when window size hasn't reached the limit")
 
     // Test case 3: Add responses that within the window size
     pluginMetadata.MaxPluginResponses = 4
-    pluginMetadata.PluginResponseRollingWindow.response = make(map[string][]time.Time)
-    pluginMetadata.PluginResponseRollingWindow.response[pluginKey] = []time.Time{now.Add(-time.Minute), now.Add(-30 * time.Second), now}
+    pluginMetadata.PluginResponseRollingWindow.Response = make(map[string][]time.Time)
+    pluginMetadata.PluginResponseRollingWindow.Response[pluginKey] = []time.Time{now.Add(-time.Minute), now.Add(-30 * time.Second), now}
     result = pluginMetadata.CheckMisbehavingPlugins(pluginKey)
     assert.False(t, result, "Expected CheckMisbehavingPlugins to return true when window size has reached the limit")
 }

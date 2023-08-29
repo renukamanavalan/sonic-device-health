@@ -4,7 +4,7 @@ import (
     "encoding/json"
     "errors"
     "fmt"
-    "log"
+    "io"
     "log/syslog"
     "math"
     "os"
@@ -17,7 +17,10 @@ import (
     "time"
 )
 
-var writers = make(map[syslog.Priority]*syslog.Writer)
+/* "go test" must use "-v" option to turn on testmode */
+var logSuffix = ""
+
+var writers = make(map[syslog.Priority]io.Writer)
 
 var log_level = syslog.LOG_DEBUG
 
@@ -31,21 +34,24 @@ func RunPanic(m string) {
 var DoPanic = RunPanic
 
 func init() {
-
-    for i := syslog.LOG_EMERG; i <= syslog.LOG_DEBUG; i++ {
-        writer, err := syslog.Dial("", "", (i | syslog.LOG_LOCAL7), "")
-        if err != nil {
-            log.Fatal(err)
-        }
-        writers[i] = writer
+    isTest := false
+    if GetLoMRunMode() == LoMRunMode_Test {
+        logSuffix = "\n"
+        isTest = true
     }
 
-    /*
-     * Samples:
-     *  fmt.Fprintf(writers[syslog.LOG_WARNING], "This is a daemon warning message")
-     *  fmt.Fprintf(writers[syslog.LOG_ERR], "This is a daemon ERROR message")
-     *  fmt.Fprintf(writers[syslog.LOG_INFO], "This is a daemon INFO message")
-     */
+    for i := syslog.LOG_EMERG; i <= syslog.LOG_DEBUG; i++ {
+        if !isTest {
+            if w, err := syslog.Dial("", "", (i | syslog.LOG_LOCAL7), ""); err != nil {
+                fmt.Fprintf(os.Stderr, "Failed to get syslog writer. Exiting ...\n")
+                OSExit(-1)
+            } else {
+                writers[i] = w
+            }
+        } else {
+            writers[i] = os.Stderr
+        }
+    }
 }
 
 /* Return currently set log level */
@@ -112,12 +118,7 @@ func LogMessageWithSkip(skip int, lvl syslog.Priority, s string, a ...interface{
     ct_lvl := GetLogLevel()
     m := fmt.Sprintf(getPrefix(skip+2)+s, a...)
     if lvl <= ct_lvl {
-        FmtFprintf(writers[lvl], m)
-        if ct_lvl >= syslog.LOG_DEBUG {
-            /* Debug messages gets printed out to STDOUT */
-            fmt.Printf(m)
-            fmt.Println("")
-        }
+        FmtFprintf(writers[lvl], m+logSuffix)
     }
     return m
 }
@@ -519,7 +520,7 @@ func AddPeriodicLogWithTimeouts(ID string, message string, shortTimeout time.Dur
     // Create a channel to listen for stop signals to kill timer
     stopchannel := make(chan bool)
 
-    GetGoroutineTracker().Start("AddPeriodicLogWithTimeouts"+ID+GetUUID(), func() {
+    GetGoroutineTracker().Start("AddPeriodicLogWithTimeouts_"+ID, func() {
         // First add periodic log with short timeout
         AddPeriodicLogInfo(ID, message, int(math.Round(shortTimeout.Seconds()))) // call lomcommon framework
 

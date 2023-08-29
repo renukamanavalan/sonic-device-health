@@ -8,7 +8,9 @@ package plugins_common
 import (
     "lom/src/lib/lomcommon"
     "lom/src/lib/lomipc"
+    "strconv"
     "sync"
+    "sync/atomic"
     "time"
 )
 
@@ -62,14 +64,6 @@ func GetPluginStageToString(stage PluginStage) string {
     return "Unknown stage"
 }
 
-const (
-    MAX_PLUGIN_RESPONSES_DEFAULT = 100 /* Max number of reesponses that plugin can send per
-       anamolykey during last MAX_PLUGIN_RESPONSES_WINDOW_TIMEOUT
-      before plugin manager mark it as disabled. Applicable for plugin's with timeout */
-    MAX_PLUGIN_RESPONSES_WINDOW_TIMEOUT_DEFAULT = 60 * time.Second /* Interval in which plugin can send
-       MAX_PLUGIN_RESPONSES_DEFAULT responses per anamoly key */
-)
-
 /*
  * sent from plugin to plugin manager via heartbeat channel
  */
@@ -99,7 +93,7 @@ type IPluginMetadata interface {
  * RollingWindow is used to keep track of response times of plugin requests
  */
 type PluginResponseRollingWindow struct {
-    response map[string][]time.Time // map of pluginname+Anamolykey to slice of response times
+    Response map[string][]time.Time // map of pluginname+Anamolykey to slice of response times
 }
 
 /*
@@ -155,10 +149,10 @@ func (gpl *PluginMetadata) SetPluginStage(stage PluginStage) {
 func (gpl *PluginMetadata) CheckMisbehavingPlugins(pluginKey string) bool {
 
     now := time.Now()
-    responses, ok := gpl.PluginResponseRollingWindow.response[pluginKey] // rerurns window(slice) for the given pluginname
+    responses, ok := gpl.PluginResponseRollingWindow.Response[pluginKey] // returns window(slice) for the given pluginname
     if !ok {
         // First response for this plugin, create a new slice
-        gpl.response[pluginKey] = []time.Time{now}
+        gpl.Response[pluginKey] = []time.Time{now}
         return false
     }
 
@@ -177,14 +171,24 @@ func (gpl *PluginMetadata) CheckMisbehavingPlugins(pluginKey string) bool {
     responses = append(responses, now)
 
     // Update the response slice for the pluginKey
-    gpl.response[pluginKey] = responses
+    gpl.Response[pluginKey] = responses
 
     // Check if the window size has reached the limit
     if len(responses) >= gpl.MaxPluginResponses {
         // Window size reached the limit, delete the window
-        delete(gpl.response, pluginKey)
+        delete(gpl.Response, pluginKey)
         return true // misbehaving plugin
     }
 
     return false // plugin is behaving well
+}
+
+/*
+GetUniqueID returns a unique uint64 value. It is used to generate unique no
+*/
+var counter uint64
+
+func GetUniqueID() string {
+    newCounter := atomic.AddUint64(&counter, 1)
+    return strconv.FormatUint(newCounter, 10)
 }

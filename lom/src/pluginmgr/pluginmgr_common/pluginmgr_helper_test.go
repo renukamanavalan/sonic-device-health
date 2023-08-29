@@ -119,7 +119,7 @@ func (m *MockPluginMetadata) CheckMisbehavingPlugins(pluginKey string) bool {
 
 // ------------------------------------------ Logger -------------------------------------------------------------//
 
-var loggerPrint bool = true
+var loggerPrint bool = false
 
 type myLogger struct {
     data []string
@@ -267,7 +267,8 @@ func setup() *myLogger {
     resetMockLogger()
     myLogger := setupMockLogger(ProcID)
     //os.Setenv("LOM_TESTMODE_NAME", "yes")
-    lomcommon.SetLoMRunMode(lomcommon.LoMRunMode_Test)
+    //lomcommon.SetLoMRunMode(lomcommon.LoMRunMode_Test)
+    os.Setenv("LoMTestMode", "yes")
 
     return myLogger
 }
@@ -462,6 +463,10 @@ func Test_Run(t *testing.T) {
         // Set up the expectations for the mock objects
         clientTx.On("RecvServerRequest").Return(&lomipc.ServerRequestData{}, errors.New("some error")) // empty request, error
 
+        osExit = func(code int) {
+            LogInfo("My osExit called")
+        }
+
         // Create the PluginManager instance with the mock objects
         plmgr := GetPluginManager(clientTx)
         plmgr.setShutdownStatus(false)
@@ -485,6 +490,10 @@ func Test_Run(t *testing.T) {
         }
 
         if !logger.FindPrefixWait("RecvServerRequest() : Received system shutdown. Stopping plugin manager run loop", 2*time.Second) {
+            t.Errorf("Expected log message not found")
+        }
+
+        if !logger.FindPrefixWait("My osExit called", 60*time.Second) {
             t.Errorf("Expected log message not found")
         }
 
@@ -775,7 +784,7 @@ func Test_Run(t *testing.T) {
 
         time.Sleep(10 * time.Millisecond)
 
-        if !logger.FindPrefix("In run() : Received response object : ") {
+        if !logger.FindPrefix("In run() : Sending response to engine : ") {
             t.Errorf("Expected log message not found")
         }
 
@@ -826,7 +835,7 @@ func Test_Run(t *testing.T) {
 
         time.Sleep(10 * time.Millisecond)
 
-        if !logger.FindPrefix("In run() : Received response object : ") {
+        if !logger.FindPrefix("In run() : Sending response to engine : ") {
             t.Errorf("Expected log message not found")
         }
 
@@ -866,7 +875,7 @@ func Test_Run(t *testing.T) {
         }
 
         // Set up the expectations for the logger mock
-        //expectedLogInfoArg := "run() : Received response object : %v"
+        //expectedLogInfoArg := "run() : Sending response to engine : %v"
 
         go func() {
             time.Sleep(5 * time.Millisecond)
@@ -880,7 +889,7 @@ func Test_Run(t *testing.T) {
 
         time.Sleep(10 * time.Millisecond)
 
-        if !logger.FindPrefix("In run() : Received response object :") {
+        if !logger.FindPrefix("In run() : Sending response to engine :") {
             t.Errorf("Expected log message not found")
         }
 
@@ -935,7 +944,7 @@ func Test_Run(t *testing.T) {
 
         time.Sleep(10 * time.Millisecond)
 
-        if !logger.FindPrefix("In run() : Received response object :") {
+        if !logger.FindPrefix("In run() : Sending response to engine :") {
             t.Errorf("Expected log message not found")
         }
 
@@ -1086,7 +1095,6 @@ func Test_HandleMisbehavingPlugins(t *testing.T) {
         clientTx.On("DeregisterAction", mock.Anything).Return(nil) // pass anything as first argument
 
         mockMetadata.On("CheckMisbehavingPlugins", "pluginAanomaly1").Return(true)
-        mockMetadata.On("SetPluginStage", plugins_common.PluginStageDisabled)
 
         // Create the PluginManager instance with the mock objects
         plmgr := GetPluginManager(clientTx)
@@ -1102,7 +1110,6 @@ func Test_HandleMisbehavingPlugins(t *testing.T) {
         if !logger.FindPrefix("In handleMisbehavingPlugins(): Plugin pluginA is misbehaving for anamoly key anomaly1. Ignoring the response") {
             t.Errorf("Expected log message not found")
         }
-        mockMetadata.AssertCalled(t, "SetPluginStage", plugins_common.PluginStageDisabled)
         mockMetadata.AssertCalled(t, "CheckMisbehavingPlugins", "pluginAanomaly1")
 
         // Perform the search for the specified duration with the given interval
@@ -1611,7 +1618,7 @@ func Test_HandleShutdown(t *testing.T) {
 
         // start dummy goroutine
         dummyChan := make(chan int)
-        lomcommon.GetGoroutineTracker().Start("dummy_plugin_"+lomcommon.GetUUID(),
+        lomcommon.GetGoroutineTracker().Start("dummy_plugin_"+plugins_common.GetUniqueID(),
             func() {
                 <-dummyChan
             })
@@ -2260,7 +2267,7 @@ func Test_LoadAddPlugin(t *testing.T) {
         clientTx := new(mockClientTx)
 
         clientTx.On("RegisterClient", mock.Anything).Return(nil) // pass anything as first argument
-        //clientTx.On("RegisterAction", mock.Anything).Return(errors.New("error"))
+        clientTx.On("RegisterAction", mock.Anything).Return(nil)
 
         // Create the PluginManager instance with the mock objects
         plmgr := GetPluginManager(clientTx)
@@ -2271,20 +2278,47 @@ func Test_LoadAddPlugin(t *testing.T) {
         // create test_plugin_001.
         f_obj := func(...interface{}) plugins_common.Plugin {
             // ... create and return a new instance of MyPlugin
-            return &test_plugin_001_bad{}
+            return &test_startup_plugin_001{}
         }
 
-        plugins_common.RegisterPlugin("non_existant", f_obj)
+        plugins_common.RegisterPlugin("test_startup_plugin_001", f_obj)
 
-        eval := plmgr.loadPlugin("test_plugin_001_bad", "1.0")
-        if !logger.FindPrefix("loadPlugin : Registering plugin took too long. Skipped loading. pluginname : test_plugin_001_bad version : 1.0") {
+        eval := plmgr.loadPlugin("test_startup_plugin_001", "1.0")
+        if !logger.FindPrefix("loadPlugin : Registering plugin took too long. pluginname : test_startup_plugin_001 version : 1.0") {
             t.Errorf("Expected log message not found")
         }
-
-        assert.NotNil(t, eval)
+        assert.Nil(t, eval)
         clientTx.AssertExpectations(t)
     })
 
+    t.Run("TestLoadAddPlugin check long loading time with failed register", func(t *testing.T) {
+        logger := setup()
+        clientTx := new(mockClientTx)
+
+        clientTx.On("RegisterClient", mock.Anything).Return(nil) // pass anything as first argument
+        clientTx.On("RegisterAction", mock.Anything).Return(errors.New("error"))
+
+        // Create the PluginManager instance with the mock objects
+        plmgr := GetPluginManager(clientTx)
+        plmgr.goRoutineCleanupTimeout = 1 * time.Second
+        plmgr.pluginLoadingTimeout = 100 * time.Millisecond
+        plmgr.setShutdownStatus(false)
+
+        // create test_plugin_001.
+        f_obj := func(...interface{}) plugins_common.Plugin {
+            // ... create and return a new instance of MyPlugin
+            return &test_startup_plugin_001{}
+        }
+
+        plugins_common.RegisterPlugin("test_startup_plugin_001", f_obj)
+
+        eval := plmgr.loadPlugin("test_startup_plugin_001", "1.0")
+        if !logger.FindPrefix("loadPlugin : Registering plugin took too long. pluginname : test_startup_plugin_001 version : 1.0") {
+            t.Errorf("Expected log message not found")
+        }
+        assert.NotNil(t, eval)
+        clientTx.AssertExpectations(t)
+    })
 }
 
 // TestDeregisterPLugin tests the deregister plugin functionality
