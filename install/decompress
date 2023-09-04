@@ -14,11 +14,18 @@ tail -n+$ARCHIVE $0 | tar xzv -C $TMPDIR
 CDIR=`pwd`
 cd $TMPDIR
 ./install/LoM-install.sh -i
+RET=$?
 
 cd $CDIR
-#rm -rf $TMPDIR
+
+if [[ ${RET} == 0 ]]; then
+    #rm -rf $TMPDIR
+    echo "Install succeeded"
+else
+    echo "Install failed with ${RET}"
+fi
 echo "TMPDIR is $TMPDIR"
 
-exit 0
+exit ${RET}
 
 __ARCHIVE_BELOW__

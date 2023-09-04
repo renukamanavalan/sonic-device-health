@@ -171,11 +171,11 @@ function forceClean()
     iClean=$(( $1 & 1 ))
     pushd / 
     for i in ${HOST_FILES}; do 
-        if [[ ${bClean} == 1 ]]; then
+        if [[ ${bClean} != 0 ]]; then
             sudo rm -f $i.${BACK_EXT}
             [[ $? != 0 ]] && { fail "Failed to remove $i.${BACK_EXT}" ${ERR_CLEAN}; }
         fi
-        if [[ ${iClean} == 1 ]]; then
+        if [[ ${iClean} != 0 ]]; then
             sudo rm -f $i
             [[ $? != 0 ]] && { fail "Failed to remove $i" ${ERR_CLEAN}; }
         fi
@@ -245,8 +245,11 @@ function backUp()
 
 function serviceStop()
 {
+    fStart serviceStop
+    sudo systemctl daemon-reload
     sudo systemctl stop device-health.service
     docker rm device-health
+    fEnd serviceStop
 }
 
 
