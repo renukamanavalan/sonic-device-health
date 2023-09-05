@@ -384,9 +384,20 @@ function usage()
     exit ${ERR_USAGE}
 }
 
+function testSudo()
+{
+    sudo -n true
+    ret=$?
+    if [[ ${ret} != 0 ]]; then
+        fail "Require sudo privileges to run install" ${ERR_USAGE}
+    fi
+}
+
 
 function main()
 {
+    testSudo
+
     OP_INSTALL=0        # Install or upgrade. Upgrade fails if backup exists unless forced.
     OP_CLEAN=0          # Clean any backup  
     OP_ROLLBACK=0       # Rollback to last backup
