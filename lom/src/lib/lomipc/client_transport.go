@@ -8,6 +8,7 @@ import (
 
 const server_address = "localhost"
 
+/* To facilitate override by Unit test */
 var RPCDialHttp = rpc.DialHTTP
 
 /* Client Transport object that has methods needed by clients */
@@ -28,6 +29,7 @@ func txCallClient(tx *ClientTx, serviceMethod string, args any, reply any) error
     return tx.clientRpc.Call(serviceMethod, args, reply)
 }
 
+/* To facilitate override by Unit test */
 var ClientCall = txCallClient
 
 /*
