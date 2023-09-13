@@ -6,7 +6,7 @@ import (
 )
 
 
-func getTopic(producer ChannelProducer, pluginName string) (string, error) {
+func getTopic(producer ChannelProducer_t, pluginName string) (string, error) {
     switch chProducer {
     case CHANNEL_PRODUCER_ENGINE:
         return CHANNEL_PRODUCER_STR_ENGINE, nil
@@ -31,29 +31,40 @@ func getTopic(producer ChannelProducer, pluginName string) (string, error) {
 /*
  * GetPubChannel
  *
- * Get channel for publishing
+ * Get channel for publishing.
+ * The channel will be closed upon system shutdown (cmn.DoSysShutdown)
  *
  * Input:
- *  chtype - Type of data to be published
- *  producer - Is this engine, pluginMgr or plugin
- *  pluginName - If plugin, your name
+ *  chtype      - Type of data to be published
+ *  producer    - Is this engine, pluginMgr or plugin
+ *  pluginName  - If plugin, your name
  *
  * Output: None
  *
  * Return:
- *  chTelemetry - A receiver for subsequent write
+ *  chData      - Input data channel for publishing. All data written
+ *                into this channel by anyone are published.
  *  err - Any error
  *
  */
-func GetPubChannel(chtype ChannelType, producer ChannelProducer,
-        pluginName string) (any, error) {
-    prefix, err := getPrefix(producer, pluginName)
-    if (err != nil) || (prefix == "") {
-        return nil, cmn.LogError("Failed to get pub prefix (%v)", err)
-    } else if ch, err := return getHandle(CHANNEL_PUBLISHER, chtype, prefix); err != nil {
-        return nil, cmn.LogError("Failed to get pub channel (%v)", err)
+func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
+        pluginName string) (ch chan<- string, err error) {
+
+    defer func() {
+        if err != nil {
+            close(ch)
+            ch = nil
+        }
+    }()
+
+    ch = make(chan string)
+    prefix, e:= getTopic(producer, pluginName)
+    if (e != nil) || (prefix == "") {
+        err = cmn.LogError("Failed to get pub prefix (%v)", e)
+    } else if e := return openChannel(CHANNEL_PUBLISHER, chtype, prefix, ch); e != nil {
+        err = cmn.LogError("Failed to get pub channel (%v)", e)
     }
-    return ch, nil
+    return
 }
 
 
@@ -70,43 +81,27 @@ func GetPubChannel(chtype ChannelType, producer ChannelProducer,
  * Output: None
  *
  * Return:
- *  chTelemetry - A receiver for subsequent read
+ *  chData - Channel to read data from subscription channel
  *  err - Any error
  *
  */
-func GetSubChannel(chtype ChannelType, receiveFrom ChannelProducer,
-        pluginName string) (any, error) {
-    if prefix, err := getPrefix(receiveFrom, pluginName); err != nil {
-        return nil, cmn.LogError("Failed to get sub filter (%v)", err)
-    } else if ch, err := getChannel(CHANNEL_SUBSCRIBER, chtype, prefix); err != nil {
-        return nil, cmn.LogError("Failed to get sub channel (%v)", err)
+
+func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
+        pluginName string) (ch <-chan string, err error) {
+    defer func() {
+        if err != nil {
+            close(ch)
+            ch = nil
+        }
+    }()
+
+    ch = make(chan string)
+    if prefix, e := getTopic(receiveFrom, pluginName); err != nil {
+        err = cmn.LogError("Failed to get sub filter (%v)", e)
+    } else if e := openChannel(CHANNEL_SUBSCRIBER, chtype, prefix, ch); e != nil {
+        err = cmn.LogError("Failed to get sub channel (%v)", e)
     }
-    return ch, nil
-}
-
-
-/*
- * This could be used to send request and receive response with timeout.
- * Requests types are defined and data format is provided.
- *
- * Request types can be Echo, SCS, ...
- */
-func GetReqChannel() (any, err) {
-    /* Req/rep is for any supported request type, hence no specific channel type */
-    return getChannel(CHANNEL_REQUEST, CHANNEL_TYPE_END, "")
-}
-
-
-/*
- * This could be used to receive request and send response within timeout.
- * Requests types are defined and data format is provided.
- *
- * TODO
- * Request types can be Echo, SCS, ...
- */
-func GetResChannel() (any, err) {
-    return getChannel(CHANNEL_RESPONSE, CHANNEL_TYPE_REQ_REP, "")
-    return nil, LogError("Not Implemented yet")
+    return 
 }
 
 
@@ -136,31 +131,68 @@ func GetResChannel() (any, err) {
  *  None
  *
  * Return:
- *  None
+ *  err - Non nil, in case of failure
  */
-func RunPubSubProxy(chType ChannelType, chAbort <-chan int) error {
+func RunPubSubProxy(chType ChannelType_t, chAbort <-chan int) error {
     runPubSubProxy(chType, chAbort)
 }
 
 
-func WriteChannel(handle any, data any) error {
-    buff, err := json.Marshal(v)
-    if err != nil {
-        return cmn.LogError("Failed to marshal err(%v)  v(%+v)", err, v)
-    }
-    return WriteHandle(handle, string(buff))
+/*
+ * Send a request and get channel for receiving response asynchronously
+ *
+ * Input:
+ *  req - Request to send
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  ch -    Channel to get response from. Caller to close the channel upon
+ *          receiving response.
+ *  err -   Non nil, in case of failure
+ */
+func ClientReqHandler(req *ClientReq_t) (ch <-chan *ClientRes_t, err error) {
+
+    ch = make(chan *ClientRes_t)
+    if e := ProcessRequest(req, ch); e != nil {
+        err = cmn.LogError("Failed to process client req err(%v) req(+%v)", e, req)
+        close(ch)
+        ch = nil
+    } 
+    return
 }
 
 
-func ReadChannel(handle any, data any) error {
-    dataStr, err := ReadHandle(handle)
-    if err != nil {
-        return nil
+/*
+ * Initializes a handler for processing requests.
+ * A handler is for a specific request type.
+ *
+ * Input:
+ *  reqType - Type of request it handles.
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  chReq - Input channel to read client requests.
+ *  chRes - Output channel to write server's response
+ *  err - Non nil error implies failure
+ */
+serverHandlers = map[ChannelReqType_t]bool
+
+func ServerReqHandler(reqType ChannelReqType_t) (chReq <-chan *ServerReq_t, 
+            chRes chan<- *ServerRes_t, err error) {
+    if _, ok := serverHandlers[reqType]; ok {
+        err = cmn.LogError("Already handler registered for %d", reqType)
+        return
     }
-    if err = json.Unmarshal([]byte(dataStr), data); err != nil {
-        return cmn.LogError("Failed to unmarshal err(%v)  v(%+v)", err, data[index])
+
+    chReq = make(chan *ServerReq_t)
+    chRes = make(chan *ServerRes_t)
+    if err = initRequestHandler(chReq, chRes); err != nil {
+        err = cmn.LogError("Failed to setup request handler for (%d) err(%v)", reqType, err)
+        return
     }
-    return nil
+    serverHandlers[reqType] = true
 }
-
-
