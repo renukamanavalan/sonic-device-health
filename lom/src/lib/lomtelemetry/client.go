@@ -6,7 +6,7 @@ import (
 )
 
 
-func getTopic(producer ChannelProducer_t, pluginName string) (string, error) {
+func getTopic(chProducer ChannelProducer_t, pluginName string) (string, error) {
     switch chProducer {
     case CHANNEL_PRODUCER_ENGINE:
         return CHANNEL_PRODUCER_STR_ENGINE, nil
@@ -20,9 +20,6 @@ func getTopic(producer ChannelProducer_t, pluginName string) (string, error) {
         }
         return fmt.Sprintf(CHANNEL_PRODUCER_STR_PLUGIN, pluginName), nil
 
-    case CHANNEL_PRODUCER_ANY:
-        return CHANNEL_PRODUCER_STR_ANY
-
     default:
         return nil, cmn.LogError("Unknown channel producer(%v)", chProducer)
     }
@@ -31,7 +28,7 @@ func getTopic(producer ChannelProducer_t, pluginName string) (string, error) {
 /*
  * GetPubChannel
  *
- * Get channel for publishing.
+ * Get channel for publishing across processes.
  * The channel will be closed upon system shutdown (cmn.DoSysShutdown)
  *
  * Input:
@@ -44,11 +41,12 @@ func getTopic(producer ChannelProducer_t, pluginName string) (string, error) {
  * Return:
  *  chData      - Input data channel for publishing. All data written
  *                into this channel by anyone are published.
+ *                Expect a JSON string
  *  err - Any error
  *
  */
 func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
-        pluginName string) (ch chan<- string, err error) {
+        pluginName string) (ch chan<- JsonString_t, err error) {
 
     defer func() {
         if err != nil {
@@ -57,12 +55,12 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
         }
     }()
 
-    ch = make(chan string)
-    prefix, e:= getTopic(producer, pluginName)
-    if (e != nil) || (prefix == "") {
-        err = cmn.LogError("Failed to get pub prefix (%v)", e)
-    } else if e := return openChannel(CHANNEL_PUBLISHER, chtype, prefix, ch); e != nil {
-        err = cmn.LogError("Failed to get pub channel (%v)", e)
+    ch = make(chan JsonString_t)
+    prefix = ""
+    if prefix, err = getTopic(producer, pluginName); err != nil {
+        /* err is detailed enough */
+    } else if err = return openChannel(CHANNEL_PUBLISHER, chtype, prefix, ch); err != nil {
+        err = cmn.LogError("Failed to get pub channel (%v)", err)
     }
     return
 }
@@ -71,7 +69,7 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
 /*
  * GetSubChannel
  *
- * Get channel for subscribing
+ * Get channel for subscribing from other processes.
  *
  * Input:
  *  chtype - Type of data to receive.
@@ -87,7 +85,7 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
  */
 
 func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
-        pluginName string) (ch <-chan string, err error) {
+        pluginName string) (ch <-chan JsonString_t, err error) {
     defer func() {
         if err != nil {
             close(ch)
@@ -95,11 +93,11 @@ func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
         }
     }()
 
-    ch = make(chan string)
-    if prefix, e := getTopic(receiveFrom, pluginName); err != nil {
-        err = cmn.LogError("Failed to get sub filter (%v)", e)
-    } else if e := openChannel(CHANNEL_SUBSCRIBER, chtype, prefix, ch); e != nil {
-        err = cmn.LogError("Failed to get sub channel (%v)", e)
+    ch = make(chan JsonString_t)
+    prefix = ""
+    if prefix, err = getTopic(receiveFrom, pluginName); err == nil {
+        if err := openChannel(CHANNEL_SUBSCRIBER, chtype, prefix, ch); err != nil {
+            err = cmn.LogError("Failed to get sub channel (%v)", e)
     }
     return 
 }
@@ -108,16 +106,22 @@ func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
 
 /*
  * A proxy to bind publishers & subscribers
- * This enables publishers & subscribers to be unaware of each other
- * Helps asynchronous activtion of publishers & subscribers.
+ * 
+ * The proxy enables loose coupling of publishers & subscribers.
+ * Publishers & subscribers may start anytime and unware of other 
+ * publishers & subscribers.
+ * This also means that until this proxy is started all publish data are dropped.
  *
  * This routine's sole job to connect publishers & subscribers in full
- * mesh. Hence this is a *blocking* routine that run forever until abort
- * request arrives. This has no special business logic.
+ * mesh. This has no special business logic.
  *
- * The main subscriber can choose to run this proxy.
+ * The main subscriber can choose to run this proxy. Only one instance
+ * can be run. Any subsequent requests would fail.
  *
- * Each channel type has its own channels, hence start proxy for each.
+ * Each channel type has its own independent channels, hence need a
+ * separate proxy for each.
+ *
+ * It gets shutdown only upon system shutdown.
  *
  * Input:
  *  chType
@@ -133,8 +137,8 @@ func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
  * Return:
  *  err - Non nil, in case of failure
  */
-func RunPubSubProxy(chType ChannelType_t, chAbort <-chan int) error {
-    runPubSubProxy(chType, chAbort)
+func RunPubSubProxy(chType ChannelType_t) error {
+    return runPubSubProxy(chType)
 }
 
 
@@ -152,10 +156,10 @@ func RunPubSubProxy(chType ChannelType_t, chAbort <-chan int) error {
  *          receiving response.
  *  err -   Non nil, in case of failure
  */
-func ClientReqHandler(req *ClientReq_t) (ch <-chan *ClientRes_t, err error) {
+func SendClientRequest(reqType ChannelType_t, req ClientReq_t) (ch <-chan *ClientRes_t, err error) {
 
     ch = make(chan *ClientRes_t)
-    if e := ProcessRequest(req, ch); e != nil {
+    if e := processRequest(req, ch); e != nil {
         err = cmn.LogError("Failed to process client req err(%v) req(+%v)", e, req)
         close(ch)
         ch = nil
@@ -181,18 +185,17 @@ func ClientReqHandler(req *ClientReq_t) (ch <-chan *ClientRes_t, err error) {
  */
 serverHandlers = map[ChannelReqType_t]bool
 
-func ServerReqHandler(reqType ChannelReqType_t) (chReq <-chan *ServerReq_t, 
-            chRes chan<- *ServerRes_t, err error) {
-    if _, ok := serverHandlers[reqType]; ok {
-        err = cmn.LogError("Already handler registered for %d", reqType)
-        return
-    }
-
-    chReq = make(chan *ServerReq_t)
+func RegisterServerReqHandler(reqType ChannelType_t) (chReq <-chan ClientReq_t, 
+            chRes chan<- ServerRes_t, err error) {
+    chReq = make(chan ClientReq_t)
     chRes = make(chan *ServerRes_t)
-    if err = initRequestHandler(chReq, chRes); err != nil {
-        err = cmn.LogError("Failed to setup request handler for (%d) err(%v)", reqType, err)
-        return
-    }
-    serverHandlers[reqType] = true
+    defer func() {
+        if err != nil {
+            close(chReq)
+            close(chRes)
+            chReq = nil
+            chRes = nil
+        }
+    }()
+    return initServerRequestHandler(reqType, chReq, chRes)
 }
