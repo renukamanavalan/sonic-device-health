@@ -20,27 +20,33 @@ const (
 type channelMode_t int
 
 const (
-    CHANNEL_PUBLISHER channelMode_t = iota
-    CHANNEL_SUBSCRIBER
-    CHANNEL_REQUEST
-    CHANNEL_RESPONSE
-    CHANNEL_PROXY_CTRL_PUB
-    CHANNEL_PROXY_CTRL_SUB
+    CHANNEL_MODE_PUBLISHER channelMode_t = iota
+    CHANNEL_MODE_SUBSCRIBER
+    CHANNEL_MODE_REQUEST
+    CHANNEL_MODE_RESPONSE
+    CHANNEL_MODE_PROXY_CTRL_PUB
+    CHANNEL_MODE_PROXY_CTRL_SUB
 )
 
 type ChannelProducer_t int
 const (
-    CHANNEL_PRODUCER_ENGINE ChannelPublisher_t = iota
+    CHANNEL_PRODUCER_ENGINE ChannelProducer_t = iota
     CHANNEL_PRODUCER_PLMGR
     CHANNEL_PRODUCER_PLUGIN
+    CHANNEL_PRODUCER_OTHER
 )
 
-const (
-    CHANNEL_PRODUCER_STR_ENGINE = "Engine"
-    CHANNEL_PRODUCER_STR_PLMGR  = "PluginMg
-    CHANNEL_PRODUCER_STR_PLUGIN = "Plugin/%s"
-)
+type CHANNEL_PRODUCER_DATA_t struct {
+    pattern         string
+    suffix_required bool
+}
 
+var CHANNEL_PRODUCER_STR = map[ChannelProducer_t]CHANNEL_PRODUCER_DATA_t {
+    CHANNEL_PRODUCER_ENGINE: CHANNEL_PRODUCER_DATA_t {"Engine/%s", false},
+    CHANNEL_PRODUCER_PLMGR : CHANNEL_PRODUCER_DATA_t {"PluginMgr/%s", true },
+    CHANNEL_PRODUCER_PLUGIN: CHANNEL_PRODUCER_DATA_t {"Plugin/%s", true },
+    CHANNEL_PRODUCER_OTHER: CHANNEL_PRODUCER_DATA_t {"Other/%s", true },
+}
 
 type JsonString_t string
 type ClientReq_t JsonString_t 

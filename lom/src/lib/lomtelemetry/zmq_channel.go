@@ -9,20 +9,26 @@ import (
     zmq "github.com/pebbe/zmq4"
 )
 
+/*
+ * NOTE;
+ * ZMQ sockets are not thread safe. Hence restrict use of a socket within
+ * the same goroutine that created it, until its close.
+ */
 
 /*
  * Each ChannelType_t uses a dedicated channel
  * Compute the port by adding chType to start port
  */
 const ZMQ_REQ_REP_START_PORT = 5650
-const ZMQ_XPUB_START_PORT = 5750
-const ZMQ_XSUB_START_PORT = 5850
+const ZMQ_XPUB_START_PORT = 5750    /* Subscribers connect to xpub */
+const ZMQ_XSUB_START_PORT = 5850    /* Publishers connect to xsub */
 const ZMQ_PROXY_CTRL_PORT = 5950
 
 const ZMQ_ADDRESS = "tcp://localhost:%d"
 
 /* Logical grouping of ChannelType_t values for validation use */
 type chTypes_t map[ChannelType_t]bool
+
 var pubsub_types = chTypes_t{
     CHANNEL_TYPE_EVENTS: true,
     CHANNEL_TYPE_COUNTERS: true,
@@ -36,50 +42,45 @@ var reqrep_types = chTypes_t{
 
 var NA_types = chTypes_t{CHANNEL_TYPE_NA: true }
 
+type chModeData_t struct {
+    types       chTypes_t
+    startPort   int
+    sType       zmq.Type
+    isConnect   bool            /* connect / bind socket */
+}
 /* Mapping mode to acceptable types for validation */
-var typesValidator = map[channelMode_t]chTypes_t {
-    CHANNEL_PUBLISHER: pubsub_types,
-    CHANNEL_SUBSCRIBER: pubsub_types,
-    CHANNEL_REQUEST: reqrep_types,
-    CHANNEL_RESPONSE: reqrep_types,
-    CHANNEL_PROXY_CTRL_PUB: NA_types,
-    CHANNEL_PROXY_CTRL_SUB: NA_types,
+var chModeInfo = map[channelMode_t]chModeData_t {
+    CHANNEL_MODE_PUBLISHER: chModeData_t { pubsub_types, ZMQ_XSUB_START_PORT, zmq.ZMQ_PUB, true},
+    CHANNEL_MODE_SUBSCRIBER: chModeData_t { pubsub_types, ZMQ_XPUB_START_PORT, zmq.ZMQ_SUB, true},
+    CHANNEL_MODE_REQUEST: chModeData_t { reqrep_types, ZMQ_REQ_REP_START_PORT, zmq.ZMQ_REQ, true},
+    CHANNEL_MODE_RESPONSE: chModeData_t { reqrep_types, ZMQ_REQ_REP_START_PORT, zmq.ZMQ_REP, false},
+    CHANNEL_MODE_PROXY_CTRL_PUB: chModeData_t { NA_types, ZMQ_PROXY_CTRL_PORT, zmq.ZMQ_PUB, true},
+    CHANNEL_MODE_PROXY_CTRL_SUB: chModeData_t { NA_types, ZMQ_PROXY_CTRL_PORT, zmq.ZMQ_SUB, false},
 }
 
 /* Is sytem shutdown initiated yet? */
 var shutdownYet = false
 
-func getAddress(mode channelMode, chType ChannelType) (path string, sType zmq.Type, err error) {
-    port := 0
+type sockInfo_t struct {
+    address     string
+    sType       zmq.Type
+    isConnect   bool
+}
+
+
+func getAddress(mode channelMode, chType ChannelType) (sockInfo *sockInfo_t, err error) {
 
     /* Cross validation between mode & ChannelType_t */
-    if types, ok := typesValidator[mode]; !ok {
-        return cmn.LogError("Unknown channel mode (%v)", mode)
-    } else if _, ok := types[chType]; !ok {
-        return cmn.LogError("Unknown channel type (%d) for mode(%d)", chType, mode)
+    if info, ok := chModeInfo[mode]; !ok {
+        err = cmn.LogError("Unknown channel mode (%v)", mode)
+    } else if _, ok := info.types[chType]; !ok {
+        err = cmn.LogError("Unknown channel type (%d) for mode(%d)", chType, mode)
+    } else {
+        sockInfo = &sockInfo_t {
+            fmt.Sprintf(ZMQ_ADDRESS, info.startPort + int(chType)),
+            info.sType,
+            info.isConnect }
     }
-
-    switch mode {
-    case CHANNEL_PUBLISHER:
-        port = ZMQ_XSUB_START_PORT + int(chType)
-        sType = zmq.ZMQ_PUB
-    case CHANNEL_SUBSCRIBER:
-        port = ZMQ_XPUB_START_PORT + int(chType)
-        sType = zmq.ZMQ_SUB
-    case CHANNEL_REQUEST:
-        port = ZMQ_REQ_REP_PORT + int(chType)
-        sType = zmq.ZMQ_REQ
-    case CHANNEL_RESPONSE:
-        port = ZMQ_REQ_REP_PORT + int(chType)
-        sType = zmq.ZMQ_REP
-    case CHANNEL_PROXY_CTRL_PUB:
-        port = ZMQ_PROXY_CTRL_PORT
-        sType = zmq.ZMQ_PUB
-    case CHANNEL_PROXY_CTRL_SUB:
-        port = ZMQ_PROXY_CTRL_PORT
-        sType = zmq.ZMQ_SUB
-    }
-    path = fmt.Sprintf(ZMQ_ADDRESS, port)
     return
 }
 
@@ -88,7 +89,14 @@ func getAddress(mode channelMode, chType ChannelType) (path string, sType zmq.Ty
  * Ctx is threadsafe, but not sockets
  * Hence one context per process.
  */
-var zctx = nil
+var zctx *zmq.Context
+
+/*
+ * Track all open sockets.
+ * Terminate context blocks until this goes 0
+ */
+var socketsList = sync.Map{}
+
 
 /*
  * Collect all open sockets. Ctx termination is blocked by any
@@ -96,7 +104,6 @@ var zctx = nil
  * string is some friendly identification of caller to help track
  * who is not closing, upon leak.
  */
-var socketsList = map[*zmq.Socket]string{}
 
 /*
  * Each socket close writes into this channel
@@ -130,16 +137,17 @@ func terminateContext() {
         case <- chSocksClose:
             /*
              * Some socket closed. Nothing to do */
-             * Yet must read, else writer blocks as it is not buffered channel
+             * Yet must read to drain, else writer blocks.
              */
         }
     }
 
     /* System shutdown initiated; Wait for open sockets to close */
-    for len(socketsList) != 0 {
+    for {
         var pending []string
-        for _, v := range socketsList {
-            pending = append(pending, v)
+        socketsList.Range(func(k, v any) bool { append(pending, v); return true }) 
+        if len(pending) == 0 {
+            break
         }
         cmn.LogError("Waiting for [%d] socks to close pending(%v)", len(pending), pending)
 
@@ -148,7 +156,11 @@ func terminateContext() {
         case <- time.After(time.Second):
             cmn.LogError("Timeout upon waiting; exiting w/o context termination")
             return
-        case <- chSocksClose:
+        case _, ok := <- chSocksClose:
+            if !ok {
+                cmn.LogError("Internal error: chSocksClose is not expected to be closed.")
+                return
+            }
             /* go back & check the list */
         }
     }
@@ -173,13 +185,12 @@ func getSocket(mode channelMode, chType ChannelType, requester string) (sock *zm
         }
     }()
 
-    address = ""
-    sType = 0
-    if address, sType, err = getAddress(mode, chType); err != nil {
+    var info *sockInfo_t;
+    if info, err = getAddress(mode, chType); err != nil {
         return
     }
 
-    if sock, err = zctx.NewSocket(sType); err != nil { 
+    if sock, err = zctx.NewSocket(info.sType); err != nil { 
         err = cmn.LogError("Failed to get socket mode(%v) err(%v)", mode, err)
         return
     }
@@ -188,21 +199,20 @@ func getSocket(mode channelMode, chType ChannelType, requester string) (sock *zm
      * Request connect & response binds
      * control pub channel connect and sub binds
      */
-    switch mode {
-    case CHANNEL_PROXY_CTRL_SUB, CHANNEL_RESPONSE:
-        err = sock.Bind(address)
-    default:
-        err = sock.Connect(address)
+    if info.isConnect {
+        err = sock.Connect(info.address)
+    } else {
+        err = sock.Bind(info.address)
     }
 
     if err != nil {
-        err = cmn.LogError("Failed to bind/connect mode(%d) address(%s) err(%v)", mode, address, err)
+        err = cmn.LogError("Failed to bind/connect mode(%d) info(%+v) err(%v)", mode, *info, err)
     } else if err = sock.SetLinger(time.Duration(100) * time.Millisecond); err != nil {
         /* Context termination will sleep this long, for any message drain */
-        err = cmn.LogError("Failed to call set linger chType(%d) address(%s) err(%v)",
-                chType, address, err)
+        err = cmn.LogError("Failed to call set linger mode(%d) chType(%d) info(%+v) err(%v)",
+                mode, chType, *info, err)
     } else {
-        socketsList[sock] = fmt.Sprintf("mode(%d)_chType(%d)_(%s)", mode, chType, requester)
+        socketsList.Store(sock, fmt.Sprintf("mode(%d)_chType(%d)_(%s)", mode, chType, requester))
     }
     return
 }
@@ -210,17 +220,47 @@ func getSocket(mode channelMode, chType ChannelType, requester string) (sock *zm
 func closeSocket(s *zmqSocket) {
     if s != nil {
         close(s)
-        delete(socketsList, s)
+        socketsList.Delete(s)
         /* In case terminate context is waiting */
-        chSocksClose <- 1
+        select {
+        case chSocksClose <- 1:
+        default:
+            cmn.LogError("Unable to write into chSocksClose")
+        }
     }
 }
 
+/*
+ * managePublish
+ *
+ * Manages a publish ZMQ channel for a proc for a channel type.
+ * Creates the socket. Connect to corresponding XSUB point.
+ * Sleeps on i/p channel for data to publish.
+ * The data is expected as JSON string.
+ * Runs until either system is being shutdown or the i/p request channel
+ * is closed, whichever occurs early.
+ *
+ * Caller invokes this as a Go routine.
+ *
+ * Input:
+ *  chType - Type of channel
+ *  topic - Topic to prefic every publish data. A subscriber may use this
+ *          for selective hearing.
+ *  chReq - I/p channel for incoming publish data
+ *  chRet - Send any error or nil, before diving into forever loop.
+ *          The caller wait until it gets error value
+ *
+ * Output:
+ *      None
+ *
+ * Return:
+ *  Nothig as it is invoked as go routine.
+ */
 func managePublish(chType ChannelType, topic string, chReq <-chan JsonString_t,
         chRet chan<- error) {
     
     requester := fmt.Sprintf("publisher_topic(%s)_type(%d)", topic, chType)
-    sock, err := getSocket(CHANNEL_PUBLISHER, chType, requester)
+    sock, err := getSocket(CHANNEL_MODE_PUBLISHER, chType, requester)
 
     defer closeSocket(sock)
 
@@ -244,7 +284,12 @@ func managePublish(chType ChannelType, topic string, chReq <-chan JsonString_t,
             cmn.LogInfo("Shutting down publisher")
             return
 
-        case data := <-chReq:
+        case data, ok := <-chReq:
+            if !ok {
+                cmn.LogWarning("(%s) i/p channel closed. No more publish possible",
+                        requester)
+                return
+            }
             if _, err = sock.SendMessage([topic, data]); err != nil {
                 /* Don't return; Just log error */
                 cmn.LogError("Failed to publish err(%v) requester(%s) data(%s)", 
@@ -255,21 +300,57 @@ func managePublish(chType ChannelType, topic string, chReq <-chan JsonString_t,
 }
 
 
+/*
+ * manageSubscribe
+ *
+ * Manages a Subscribe ZMQ channel for a proc for a channel type.
+ * Creates the socket. Connect to corresponding XPUB point.
+ * Sleeps on zmq Sub point for data to send to client.
+ * The data is expected as JSON string.
+ * Runs until either system is being shutdown.
+ *
+ * Caller invokes this as a Go routine.
+ *
+ * Input:
+ *  chType - Type of channel
+ *  topic - Topic to filter incoming publish data by. An empty string receives all.
+ *  chRes - O/p channel for sending received data
+ *  chRet - Send any error or nil, before diving into forever loop.
+ *          The caller wait until it gets error value
+ *
+ * Output:
+ *      None
+ *
+ * Return:
+ *  Nothig as it is invoked as go routine.
+ */
+/*
+ * As the routine, sleeps forever on ZMQ sub path for incoming data as blocked,
+ * it is tought to abort on system shutdown. 
+ *
+ * To assist, we kickoff a routine that sleeps on shutdown and upon shutdown
+ * send a dummy message for publish. This would wake up the reader which can
+ * see if shutdown initiated or not.
+ *
+ * QUITTOPIC is the message sent. Make sure the subscription is enabled to
+ * receive this message.
+ */
 const QUITTOPIC = "quit"
 
 func manageSubscribe(chType ChannelType, topic string, chRes chan<- JsonString_t,
         chRet chan<- error) {
     
     requester := fmt.Sprintf("subscriber_topic(%s)_type(%d)", topic, chType)
-    var sock *zmq.Socket
-    var err error
+    sock, err := getSocket(CHANNEL_MODE_SUBSCRIBER, chType, requester)
+
     defer closeSocket(sock)
 
-    if err = getSocket(CHANNEL_SUBSCRIBER, chType, requester); err != nil {
+    if err != nil {
         /* err is good enough */
     } else if err = sock.SetSubscribe(topic); err != nil {
         err = cmn.LogError("Failed to subscribe filter(%s) err(%v)", topic, err)
     } else if topic != "" {
+        /* To receive alert message on shutdown */
         if err = sock.SetSubscribe(QUITTOPIC); err != nil {
             err = cmn.LogError("Failed to subscribe filter(%s) err(%v)", QUITTOPIC, err)
         }
@@ -288,18 +369,22 @@ func manageSubscribe(chType ChannelType, topic string, chRes chan<- JsonString_t
     shutDownRequested := false
     chShutErr = make(chan error) /* Track init error in following go func */
 
+    /* Rouitine to publish dummy message on system shutdown */
     go func() {
         /*
-         * Pre-create qa publisher channel to alert subscribing channel
+         * Pre-create a publisher channel to alert subscribing channel
          * on shutdown.
          * You can't create a socket upon shutdown process start. So get it ahead.
          */
-        shutSock, err := getSocket(CHANNEL_PUBLISHER, chType,
+        shutSock, err := getSocket(CHANNEL_MODE_PUBLISHER, chType,
                     fmt.Sprintf("To_Shut_%s", requester))
+
+        /* Let the caller know error status */
         chShutErr <- err
         close(chShutErr)
         if err != nil {
             /* Terminate this routine */
+            cmn.LogError("Alert go routine failed to get pub sock (%v)", error)
             return
         }
 
@@ -321,6 +406,10 @@ func manageSubscribe(chType ChannelType, topic string, chRes chan<- JsonString_t
     err <- chShutErr
     chRet <- err    /* Forward the final init status to caller of this routine */
     close(chRet) /* Sender close the channel */
+
+    if err != nil {
+        return 
+    }
 
     /* From here on the routine runs forever until shutdown */
     for {
@@ -366,19 +455,21 @@ func manageSubscribe(chType ChannelType, topic string, chRes chan<- JsonString_t
  * Return: Error as nil or non nil
  */
 
-trackList = map[string]bool {}
+/* Map[id]bool to avoid duplicate open channels, which will drain resources */
+var openChannels = sync.Map{}
+
 func openChannel(mode channelMode_t, chType ChannelType_t, topic string,
         chData chan JsonString_t) (err error) {
 
     id := fmt.Sprintf("%d_%d_%s", mode, chType, topic)
-    if _, ok := trackList[id]; ok {
+    if _, ok := openChannels.Load(id); ok {
         err = cmn.LogError("Duplicate req mode=%d chType=%d topic=%s pre-exists",
                 mode, chType, topic)
         return
     }
 
     switch mode {
-    case CHANNEL_PUBLISHER, CHANNEL_SUBSCRIBER:
+    case CHANNEL_MODE_PUBLISHER, CHANNEL_SUBSCRIBER:
     default:
         err = cmn.LogError("Expect mode (%d) as pub/sub only", mode)
         return
@@ -389,7 +480,7 @@ func openChannel(mode channelMode_t, chType ChannelType_t, topic string,
     }
     chRet = make(Chan error)
 
-    if mode == CHANNEL_PUBLISHER {
+    if mode == CHANNEL_MODE_PUBLISHER {
         go managePublish(chType, topic, chData, chRet)
     } else {
         go manageSubscribe(chType, topic, chData, chRet)
@@ -397,8 +488,8 @@ func openChannel(mode channelMode_t, chType ChannelType_t, topic string,
 
     /* Wait till routines get their init done */
     err = <-chRet
-    if err != nil {
-        trackList[id] = true
+    if err == nil {
+        openChannels.Store(id, true)
     }
     return
 }
@@ -434,42 +525,60 @@ func runPubSubProxyInt(chType ChannelType, chRet chan<- int) {
      * Note: We don't track xsub & xpub in socketsList as they are controlled
      * control socket, which is tracked.
      */
+    var info *sockInfo_t
+
     if sock_xsub, err = ctx.NewSocket(zmq.XMQ_XSUB); err != nil {
         err = cmn.LogError("Failed to get zmq xsub socket (%v)", err)
     } else if sock_xpub, err = ctx.NewSocket(zmq.XMQ_XPUB); err != nil {
         err = cmn.LogError("Failed to get zmq xpub socket (%v)", err)
-    } else if address, _, err = getAddress(CHANNEL_PUBLISHER, chType); err != nil {
+    } else if info, err = getAddress(CHANNEL_MODE_PUBLISHER, chType); err != nil {
         /* err is well described */
-    } else if err = sock_xsub.Bind(address); err != nil {
+    } else if err = sock_xsub.Bind(info.address); err != nil {
         err = cmn.LogError("Failed to bind xsub socket (%v)", err)
-    } else if address, _, err = getAddress(CHANNEL_SUBSCRIBER, chType); err != nil {
+    } else if info, err = getAddress(CHANNEL_MODE_SUBSCRIBER, chType); err != nil {
         /* err is well described */
-    } else if err = sock_xpub.Bind(address); err != nil {
+    } else if err = sock_xpub.Bind(info.address); err != nil {
         err = cmn.LogError("Failed to bind xpub socket (%v)", err)
-    } else if sock_ctrl_sub, err = getSocket(CHANNEL_PROXY_CTRL_SUB, CHANNEL_TYPE_NA,
+    } else if sock_ctrl_sub, err = getSocket(CHANNEL_MODE_PROXY_CTRL_SUB, CHANNEL_TYPE_NA,
                 "ctrl-sub-for-proxy"); err != nil {
         err = cmn.LogError("Failed to setup proxy err(%v)", err)
     } 
+
     if err != nil {
+        chRet <- err    /* Inform caller about init status */
+        close(chRet)
         return
     }
-    chRet <- err    /* Inform caller, init is complete successfully */
-    close(chRet)
-    chRet = nil
+
+    chShutErr = make(chan error) /* Track init error in following go func */
 
     go func() {
+        /*
+         * Pre-create a publisher channel to alert subscribing channel
+         * on shutdown.
+         * You can't create a socket upon shutdown process start. So get it ahead.
+         */
+        var sock_ctrl_pub *zmq.Socket
+        defer closeSocket(sock_ctrl_pub)
+
+        if sock_ctrl_pub, err = getSocket(CHANNEL_MODE_PROXY_CTRL_PUB, CHANNEL_TYPE_NA,
+                "ctrl-pub-for-proxy"); err != nil {
+            err = cmn.LogError("Failed to create proxy control publisher to terminate proxy(%v)", err)
+        }
+        chShutErr <- err
+        close(chShutErr)
+        if err != nil {
+            /* Terminate this routine */
+            cmn.LogError("Alert go routine failed to get ctrl pub sock (%v)", error)
+            return
+        }
+
         /* Watch for shutdown */
         chShutdown := RegisterForSysShutdown("terminate context")
         <- chShutdown
 
-        var sock_ctrl_pub *zmq.Socket
-        defer closeSocket(sock_ctrl_pub)
-
-        /* Terminate proxy */
-        if sock_ctrl_pub, err = getSocket(CHANNEL_PROXY_CTRL_PUB, CHANNEL_TYPE_NA,
-                "ctrl-pub-for-proxy"); err != nil {
-            err = cmn.LogError("Failed to create proxy control publisher to terminate proxy(%v)", err)
-        } else if _, err = sock_ctrl_pub.Send("TERMINATE", 0); err != nil {
+        /* Terminate proxy. Just a write breaks the zmq.Proxy loop. */
+        if _, err = sock_ctrl_pub.Send("TERMINATE", 0); err != nil {
             err = cmn.LogError("Failed to write proxy control publisher to terminate proxy(%v)", err)
         }
     } 
@@ -481,33 +590,52 @@ func runPubSubProxyInt(chType ChannelType, chRet chan<- int) {
 }
 
 
-var prxyList = map[chType]bool
+/* Map of chType vs bool */
+var runningPubSubProxy = sync.Map{}
 
 func runPubSubProxy(chType ChannelType) error {
-    if _, ok := prxyList[chType]; ok {
-        return cmn.LogError("Proxy pre-exist for chType(%d)", chType)
+    if _, ok := runningPubSubProxy.Load(chType); ok {
+        return cmn.LogError("Duplicate runPubSubProxy for chType(%d)", chType)
     }
     chRet := make(chan error)
     go runPubSubProxyInt(chType, chRet)
-    err = <- chRet
-    if err == nil {
-        prxyList[chType] = true
+    if err := <- chRet; err == nil {
+        runningPubSubProxy.Store(chType, true)
     }
     return err
 }
 
 
+/*
+ * clientRequestHandler
+ *
+ * A single handler per process to stream in all client requests to server
+ * via req/rep zmq channel and return corresponding response to channel 
+ * associated with the request.
+ *
+ * A go routine per request type
+ *
+ * Input:
+ *  reqType - Type of request
+ *  chReq - Channel to read incoming requests
+ *  chRet - Way to return to caller any error associated with initialization.
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  None -- As it is a go routine forever until system shutdown
+ */
 type reqInfo_t struct {
     reqData     ClientReq_t
     chResData   chan<- *ClientRes_t
 }
 
-
 func clientRequestHandler(reqType ChannelType_t, chReq chan<- *reqInfo_t,
         chRet chan<- error) {
     
     requester := fmt.Sprintf("clientRequestHandler_type(%d)", reqType)
-    sock, err := getSocket(CHANNEL_REQUEST, reqType, requester)
+    sock, err := getSocket(CHANNEL_MODE_REQUEST, reqType, requester)
 
     defer closeSocket(sock)
 
@@ -534,7 +662,7 @@ func clientRequestHandler(reqType ChannelType_t, chReq chan<- *reqInfo_t,
         case data := <-chReq:
             res = ClientRes_t{}
                 
-            if _, res.err = sock.Send(data.reqData); res.err != nil {
+            if _, res.err = sock.Send(data.reqData, 0); res.err != nil {
                 /* Don't return; Just log error */
                 cmn.LogError("Failed to send request err(%v) requester(%s) data(%s)", 
                         res.err, requester, data)
@@ -548,18 +676,38 @@ func clientRequestHandler(reqType ChannelType_t, chReq chan<- *reqInfo_t,
 }
 
 
-clientReqHandlerList = map[ChannelType_t]chan<- *reqInfo_t
+/*
+ * getclientReqChan
+ *
+ * We open one channel per request type. The opened channel live until
+ * system shutdown. Hence cache the opened channels for all future requests
+ * of same type.
+ * 
+ * Input:
+ *  reqType - Type of request
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  ch - A writable of type *reqInfo_t. It carries req data and a channel to
+ *       to get the response back.
+ *  err - Error value
+ */
+ /*  sync.Map[ChannelType_t]chan<- *reqInfo_t */
+clientReqChanList = sync.Map{}
 
-func getRequestHandler(reqType ChannelType_t) (ch chan<- *reqInfo_t, err error) {
-    ok = false
-    if ch, ok = clientReqHandlerList[reqType]; !ok {
+func getclientReqChan(reqType ChannelType_t) (ch chan<- *reqInfo_t, err error) {
+    if v, ok := clientReqChanList.Load(reqType); !ok {
         ch = make(chan *reqInfo_t)
         chRet = make(chan error)
         go clientRequestHandler(reqType, ch, chRet)
         err = <- chRet
         if err == nil {
-            clientReqHandlerList[reqType] = ch
+            clientReqChanList.Store(reqType, ch)
         }
+    } else if ch, ok = v.(chan<- *reqInfo_t); !ok {
+        err = cmn.LogError("Internal error. Type(%T) != chan<- *reqInfo_t", v)
     }
     return
 }
@@ -582,10 +730,10 @@ func getRequestHandler(reqType ChannelType_t) (ch chan<- *reqInfo_t, err error) 
  *  err - Error object
  */
 func processRequest(reqType ChannelType_t, req ClientReq_t, chRes chan<- *ClientRes_t) (err error) {
-    var sock *zmq.Socket
-    
-    if ch, err = getRequestHandler(reqType); err == nil {
+    if ch, e := getclientReqChan(reqType); e == nil {
         ch <- &reqInfo_t{req, chRes)
+    } else {
+        err = e
     }
     return
 }
@@ -609,7 +757,6 @@ func processRequest(reqType ChannelType_t, req ClientReq_t, chRes chan<- *Client
  *  chRes - channel for returning responses
  *  err - nil on failure
  */
-var reqHandlers = map[chType]bool{}
 
 func ServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
             chRes <-chan *ServerRes_t, chRet chan<- error) {
@@ -619,13 +766,18 @@ func ServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     var err error
     defer closeSocket(sock)
 
-    if err = getSocket(CHANNEL_RESPONSE, reqType, requester); err != nil {
+    if err = getSocket(CHANNEL_MODE_RESPONSE, reqType, requester); err != nil {
         /* Inform the caller the failure to init and terminate this routine.*/
         chRet <- err
         close(chRet)
         return
     }
 
+    /*
+     * As this sleeps on chReq channel, have a dedicated routine to 
+     * watch for system shutdown and send mock request to wake it up
+     * and hence enable to see the shutdown in progress.
+     */
     shutDownRequested := false
     chShutErr = make(chan error) /* Track init error in following go func */
 
@@ -635,7 +787,7 @@ func ServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
          * on shutdown.
          * You can't create a socket upon shutdown process start. So get it ahead.
          */
-        shutSock, err := getSocket(CHANNEL_REQUEST, reqType,
+        shutSock, err := getSocket(CHANNEL_MODE_REQUEST, reqType,
                     fmt.Sprintf("To_Shut_%s", requester))
         chShutErr <- err
         close(chShutErr)
@@ -644,6 +796,7 @@ func ServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
             return
         }
 
+        /* err == nil, hence socket is valid hence add defer for close */
         defer closeSocket(shutSock)
 
         chShutdown := RegisterForSysShutdown("ZMQ-Subscriber")
@@ -653,7 +806,7 @@ func ServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
         shutDownRequested = true
 
         /* Send a message to wake up subscriber */
-        if _, err = shutSock.Send(QUITTOPIC); err != nil {
+        if _, err = shutSock.Send(QUITTOPIC, 0); err != nil {
             cmn.LogError("Failed to send quit to %s", requester)
         }
     } ()
@@ -665,32 +818,38 @@ func ServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
 
     /* From here on the routine runs forever until shutdown */
     for {
+        /* Receive request from client's REQ socket which is ClientReq_t */
         if data, err = sock.Recv(0); err != nil {
             cmn.LogError("Failed to receive msg err(%v for (%s)", requester)
         } else if shutDownRequested {
             cmn.LogInfo("Subscriber shutting down requester:(%s)", requester)
             /* Writer close the channel */
-            close(chRes)
+            close(chReq)
             break
         } else {
-            chRes <- data
+            chReq <- data
+            resData := <- chRes
+            if _, err = sock.Send(data, 0); err != nil {
+                cmn.LogError("Failed to send response err(%v) req(%s) res(%s)", err, data, resData)
+            }
         }
     }
 } 
 
 
-serverReqHandlerList = map[ChannelType_t]bool
+serverReqHandlerList = sync.Map{}
 
-func getRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
-        chRes <-chan *ServerRes_t) (err error) {
-    ok = false
-    if _, ok = serverReqHandlerList[reqType]; !ok {
+func initServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
+        chRes <-chan ServerRes_t) (err error) {
+    if _, ok := serverReqHandlerList.Load(reqType); !ok {
         chRet = make(chan error)
-        go clientRequestHandler(reqType, chReq, chRes, chRet)
+        go ServerRequestHandler(reqType, chReq, chRes, chRet)
         err = <- chRet
         if err == nil {
-            serverReqHandlerList[reqType] = true
+            serverReqHandlerList.Store(reqType, true)
         }
+    } else {
+        return cmn.LogError("Duplicate initServerRequestHandler for reqType=(%d)", reqType)
     }
     return
 }

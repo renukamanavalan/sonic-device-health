@@ -6,42 +6,37 @@ import (
 )
 
 
-func getTopic(chProducer ChannelProducer_t, pluginName string) (string, error) {
-    switch chProducer {
-    case CHANNEL_PRODUCER_ENGINE:
-        return CHANNEL_PRODUCER_STR_ENGINE, nil
-
-    case CHANNEL_PRODUCER_PLMGR:
-        return CHANNEL_PRODUCER_STR_PLMGR, nil
-
-    case CHANNEL_PRODUCER_PLUGIN:
-        if pluginName == "" {
-            return nil, cmn.LogError("Missing plugin Name")
-        }
-        return fmt.Sprintf(CHANNEL_PRODUCER_STR_PLUGIN, pluginName), nil
-
-    default:
+func getTopic(chProducer ChannelProducer_t, suffix string) (string, error) {
+    if data, ok := CHANNEL_PRODUCER_STR[chProducer]; !ok {
         return nil, cmn.LogError("Unknown channel producer(%v)", chProducer)
+    } else if (suffix == "") && data.suffix_required {
+        return nil, cmn.LogError("Missing producer suffix")
+    } else {
+        return fmt.Sprintf(data.pattern, suffix), nil
     }
 }
 
 /*
  * GetPubChannel
  *
- * Get channel for publishing across processes.
- * The channel will be closed upon system shutdown (cmn.DoSysShutdown)
+ * Get channel for publishing events, counters, red-button, ...
+ * Once opened it stays till system shutdown or terminates upon 
+ * i/p data channel close.
+ * NOTE: The Pub channel can be opened only once per process. Any
+ *       pre-mature termination will block any further publish.
  *
  * Input:
  *  chtype      - Type of data to be published
  *  producer    - Is this engine, pluginMgr or plugin
- *  pluginName  - If plugin, your name
+ *  suffix      - Producer suffix. Say plugin-name in case of plugin.
  *
  * Output: None
  *
  * Return:
  *  chData      - Input data channel for publishing. All data written
  *                into this channel by anyone are published.
- *                Expect a JSON string
+ *                Expect a JSON string.
+ *                Closing this shuts down this pubchannel
  *  err - Any error
  *
  */
@@ -59,7 +54,7 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
     prefix = ""
     if prefix, err = getTopic(producer, pluginName); err != nil {
         /* err is detailed enough */
-    } else if err = return openChannel(CHANNEL_PUBLISHER, chtype, prefix, ch); err != nil {
+    } else if err = return openChannel(CHANNEL_MODE_PUBLISHER, chtype, prefix, ch); err != nil {
         err = cmn.LogError("Failed to get pub channel (%v)", err)
     }
     return
@@ -70,6 +65,7 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
  * GetSubChannel
  *
  * Get channel for subscribing from other processes.
+ * Runs until system shutdown.
  *
  * Input:
  *  chtype - Type of data to receive.
@@ -96,7 +92,7 @@ func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
     ch = make(chan JsonString_t)
     prefix = ""
     if prefix, err = getTopic(receiveFrom, pluginName); err == nil {
-        if err := openChannel(CHANNEL_SUBSCRIBER, chtype, prefix, ch); err != nil {
+        if err := openChannel(CHANNEL_MODE_SUBSCRIBER, chtype, prefix, ch); err != nil {
             err = cmn.LogError("Failed to get sub channel (%v)", e)
     }
     return 
@@ -108,18 +104,18 @@ func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
  * A proxy to bind publishers & subscribers
  * 
  * The proxy enables loose coupling of publishers & subscribers.
- * Publishers & subscribers may start anytime and unware of other 
- * publishers & subscribers.
- * This also means that until this proxy is started all publish data are dropped.
+ * Publishers & subscribers may start anytime and can be unware of each other.
+ * This also means that only upon this proxy is started, publishers' data
+ * will reach corresponding subscribers.
  *
- * This routine's sole job to connect publishers & subscribers in full
+ * This routine's sole job is to connect publishers & subscribers in full
  * mesh. This has no special business logic.
  *
- * The main subscriber can choose to run this proxy. Only one instance
+ * Any one main process can choose to run this proxy. Only one instance
  * can be run. Any subsequent requests would fail.
  *
- * Each channel type has its own independent channels, hence need a
- * separate proxy for each.
+ * As each channel type has its own independent channels, an independent proxy
+ * is needed per channel type.
  *
  * It gets shutdown only upon system shutdown.
  *
@@ -127,9 +123,6 @@ func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
  *  chType
  *      Different channel for different data types. Hence need a proxy
  *      per type.
- *  chAbort
- *      Provides a channel to listen to for system level abort.
- *      On any data
  *
  * Output:
  *  None
@@ -170,7 +163,9 @@ func SendClientRequest(reqType ChannelType_t, req ClientReq_t) (ch <-chan *Clien
 
 /*
  * Initializes a handler for processing requests.
- * A handler is for a specific request type.
+ * A handler is for a specific request type. 
+ * Only one handler per request can be registered.
+ * Any proc may choose to register a handler.
  *
  * Input:
  *  reqType - Type of request it handles.
@@ -183,7 +178,6 @@ func SendClientRequest(reqType ChannelType_t, req ClientReq_t) (ch <-chan *Clien
  *  chRes - Output channel to write server's response
  *  err - Non nil error implies failure
  */
-serverHandlers = map[ChannelReqType_t]bool
 
 func RegisterServerReqHandler(reqType ChannelType_t) (chReq <-chan ClientReq_t, 
             chRes chan<- ServerRes_t, err error) {
