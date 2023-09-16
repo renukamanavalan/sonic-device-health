@@ -1,0 +1,8 @@
+This folder contains code needed to build self-extractable archive for install.
+
+Each subfolder is for vendor specific code. 
+The decompress can be shared.
+
+The decompress extracts the archive and call the install script.
+
+All vendors share the same archive format as tar and have their install script in same location.
