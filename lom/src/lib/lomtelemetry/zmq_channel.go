@@ -5,6 +5,7 @@ import (
 
     "encoding/json"
     "fmt"
+    "sync"
 
     zmq "github.com/pebbe/zmq4"
 )
