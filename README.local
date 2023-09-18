@@ -1,5 +1,15 @@
 README
 ===========
+To build:
+1. Build slave docker ("./docker-build/slave_docker_build.sh")
+2. Run slave docker ("./docker-build/slave_docker_run.sh")
+3. Mounts current dir as /lom-root
+4. make clean
+5. make all -- This basically runs lom/Makefile
+6. make <specific target> <-- possible too
+7. e.g. make build/test/LibTested  -- To build lib and run its tests
+
+=======================
 config dirs:
    /etc/LoM/config
    /etc/LoM/config/static

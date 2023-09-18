@@ -3,14 +3,15 @@ package lomtelemetry
 
 import (
     cmn "lom/src/lib/lomcommon"
+    "fmt"
 )
 
 
 func getTopic(chProducer ChannelProducer_t, suffix string) (string, error) {
     if data, ok := CHANNEL_PRODUCER_STR[chProducer]; !ok {
-        return nil, cmn.LogError("Unknown channel producer(%v)", chProducer)
+        return "", cmn.LogError("Unknown channel producer(%v)", chProducer)
     } else if (suffix == "") && data.suffix_required {
-        return nil, cmn.LogError("Missing producer suffix")
+        return "", cmn.LogError("Missing producer suffix")
     } else {
         return fmt.Sprintf(data.pattern, suffix), nil
     }
@@ -41,7 +42,9 @@ func getTopic(chProducer ChannelProducer_t, suffix string) (string, error) {
  *
  */
 func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
-        pluginName string) (ch chan<- JsonString_t, err error) {
+        pluginName string) (chRet chan<- JsonString_t, err error) {
+
+    ch := make(chan JsonString_t)
 
     defer func() {
         if err != nil {
@@ -50,14 +53,15 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
         }
     }()
 
-    ch = make(chan JsonString_t)
-    prefix = ""
+    prefix := ""
     if prefix, err = getTopic(producer, pluginName); err != nil {
         /* err is detailed enough */
-    } else if err = return openChannel(CHANNEL_MODE_PUBLISHER, chtype, prefix, ch); err != nil {
+    } else if err = openChannel(CHANNEL_MODE_PUBLISHER, chtype, prefix, ch); err != nil {
         err = cmn.LogError("Failed to get pub channel (%v)", err)
+    } else {
+        chRet = ch
     }
-    return
+    return 
 }
 
 
@@ -81,7 +85,9 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
  */
 
 func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
-        pluginName string) (ch <-chan JsonString_t, err error) {
+        pluginName string) (chRet <-chan JsonString_t, err error) {
+
+    ch := make(chan JsonString_t)
     defer func() {
         if err != nil {
             close(ch)
@@ -89,11 +95,15 @@ func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
         }
     }()
 
-    ch = make(chan JsonString_t)
-    prefix = ""
+    prefix := ""
     if prefix, err = getTopic(receiveFrom, pluginName); err == nil {
         if err := openChannel(CHANNEL_MODE_SUBSCRIBER, chtype, prefix, ch); err != nil {
-            err = cmn.LogError("Failed to get sub channel (%v)", e)
+            err = cmn.LogError("Failed to get sub channel (%v)", err)
+        } else {
+            chRet = ch
+            cmn.LogDebug("CHANNEL_MODE_SUBSCRIBER created for chtype=%d(%s)",
+                    chtype, CHANNEL_TYPE_STR[chtype])
+        }
     }
     return 
 }
@@ -149,14 +159,16 @@ func RunPubSubProxy(chType ChannelType_t) error {
  *          receiving response.
  *  err -   Non nil, in case of failure
  */
-func SendClientRequest(reqType ChannelType_t, req ClientReq_t) (ch <-chan *ClientRes_t, err error) {
+func SendClientRequest(reqType ChannelType_t, req ClientReq_t) (chRet <-chan *ClientRes_t, err error) {
 
-    ch = make(chan *ClientRes_t)
-    if e := processRequest(req, ch); e != nil {
+    ch := make(chan *ClientRes_t)
+    if e := processRequest(reqType, req, ch); e != nil {
         err = cmn.LogError("Failed to process client req err(%v) req(+%v)", e, req)
         close(ch)
         ch = nil
-    } 
+    } else {
+        chRet = ch
+    }
     return
 }
 
@@ -179,17 +191,18 @@ func SendClientRequest(reqType ChannelType_t, req ClientReq_t) (ch <-chan *Clien
  *  err - Non nil error implies failure
  */
 
-func RegisterServerReqHandler(reqType ChannelType_t) (chReq <-chan ClientReq_t, 
-            chRes chan<- ServerRes_t, err error) {
-    chReq = make(chan ClientReq_t)
-    chRes = make(chan *ServerRes_t)
-    defer func() {
-        if err != nil {
-            close(chReq)
-            close(chRes)
-            chReq = nil
-            chRes = nil
-        }
-    }()
-    return initServerRequestHandler(reqType, chReq, chRes)
+func RegisterServerReqHandler(reqType ChannelType_t) (chRetReq <-chan ClientReq_t, 
+            chRetRes chan<- ServerRes_t, err error) {
+    chReq := make(chan ClientReq_t)
+    chRes := make(chan ServerRes_t)
+
+    if err = initServerRequestHandler(reqType, chReq, chRes); err != nil {
+        close(chReq)
+        close(chRes)
+    } else {
+        chRetReq = chReq
+        chRetRes = chRes
+    }
+    return
 }
+
