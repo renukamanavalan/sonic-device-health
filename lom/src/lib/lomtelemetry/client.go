@@ -1,11 +1,9 @@
 package lomtelemetry
 
-
 import (
-    cmn "lom/src/lib/lomcommon"
     "fmt"
+    cmn "lom/src/lib/lomcommon"
 )
-
 
 func getTopic(chProducer ChannelProducer_t, suffix string) (string, error) {
     if data, ok := CHANNEL_PRODUCER_STR[chProducer]; !ok {
@@ -21,7 +19,7 @@ func getTopic(chProducer ChannelProducer_t, suffix string) (string, error) {
  * GetPubChannel
  *
  * Get channel for publishing events, counters, red-button, ...
- * Once opened it stays till system shutdown or terminates upon 
+ * Once opened it stays till system shutdown or terminates upon
  * i/p data channel close.
  * NOTE: The Pub channel can be opened only once per process. Any
  *       pre-mature termination will block any further publish.
@@ -42,7 +40,7 @@ func getTopic(chProducer ChannelProducer_t, suffix string) (string, error) {
  *
  */
 func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
-        pluginName string) (chRet chan<- JsonString_t, err error) {
+    pluginName string) (chRet chan<- JsonString_t, err error) {
 
     ch := make(chan JsonString_t)
 
@@ -61,9 +59,8 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
     } else {
         chRet = ch
     }
-    return 
+    return
 }
-
 
 /*
  * GetSubChannel
@@ -85,7 +82,7 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
  */
 
 func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
-        pluginName string) (chRet <-chan JsonString_t, err error) {
+    pluginName string) (chRet <-chan JsonString_t, err error) {
 
     ch := make(chan JsonString_t)
     defer func() {
@@ -102,17 +99,15 @@ func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
         } else {
             chRet = ch
             cmn.LogDebug("CHANNEL_MODE_SUBSCRIBER created for chtype=%d(%s)",
-                    chtype, CHANNEL_TYPE_STR[chtype])
+                chtype, CHANNEL_TYPE_STR[chtype])
         }
     }
-    return 
+    return
 }
-
-
 
 /*
  * A proxy to bind publishers & subscribers
- * 
+ *
  * The proxy enables loose coupling of publishers & subscribers.
  * Publishers & subscribers may start anytime and can be unware of each other.
  * This also means that only upon this proxy is started, publishers' data
@@ -144,7 +139,6 @@ func RunPubSubProxy(chType ChannelType_t) error {
     return runPubSubProxy(chType)
 }
 
-
 /*
  * Send a request and get channel for receiving response asynchronously
  *
@@ -172,10 +166,9 @@ func SendClientRequest(reqType ChannelType_t, req ClientReq_t) (chRet <-chan *Cl
     return
 }
 
-
 /*
  * Initializes a handler for processing requests.
- * A handler is for a specific request type. 
+ * A handler is for a specific request type.
  * Only one handler per request can be registered.
  * Any proc may choose to register a handler.
  *
@@ -191,8 +184,8 @@ func SendClientRequest(reqType ChannelType_t, req ClientReq_t) (chRet <-chan *Cl
  *  err - Non nil error implies failure
  */
 
-func RegisterServerReqHandler(reqType ChannelType_t) (chRetReq <-chan ClientReq_t, 
-            chRetRes chan<- ServerRes_t, err error) {
+func RegisterServerReqHandler(reqType ChannelType_t) (chRetReq <-chan ClientReq_t,
+    chRetRes chan<- ServerRes_t, err error) {
     chReq := make(chan ClientReq_t)
     chRes := make(chan ServerRes_t)
 
@@ -205,4 +198,3 @@ func RegisterServerReqHandler(reqType ChannelType_t) (chRetReq <-chan ClientReq_
     }
     return
 }
-
