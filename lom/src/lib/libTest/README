@@ -1,0 +1,37 @@
+Follow golang guidelines in test package name & files.
+
+<copy/paste from https://stackoverflow.com/questions/48983247/go-test-can-not-load-package-with-command-go-test-file1-test-go-file2-go >
+
+    You should follow go's best practices.
+
+    That is:
+
+    Package names should contain only letters with no underscores.
+
+    Test file should be name of original file + test like: base.go - base_test.go.
+
+    Run test by going to packages directory and running go test.
+
+    If you make those changes, your tests should run without any problems.
+
+<copy/paste END>
+
+<copy/paste from same link >
+     you checkout the go help test command there is this:
+
+    Test files that declare a package with the suffix "_test" will be compiled as a separate package, and then linked and run with the main test binary.
+
+    What is happening is that your file yyy_test.go is recognised as a test file because of its _test.go ending. The package defined in that file package xxx_test is considered to be the test version of the xxx package.
+
+    See this stack answer for desc: https://stackoverflow.com/a/31443271/6376471
+
+    Then, along comes zzz.go which is not recognised as a test file, because it's missing the _test.go suffix, it has a packge xxx_test which is not considered to be a test package.
+
+    This means that essentially you are defining the packages xxx_test from zzz.go and xxx from yyy_test.go, even though yyy_test.go actually defines xxx_test, but it's in a test file so handled differently.
+
+    Solutions:
+
+    Identify zzz.go as a test file by making it zzz_test.go.
+    Set zzz.go to have the non test package name package xxx instead of package xxx_test.
+<copy/paste END>
+
