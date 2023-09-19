@@ -1,4 +1,4 @@
-package lib_test
+package libTest
 
 /*
  * Info
@@ -13,7 +13,7 @@ package lib_test
  * Edge shows uncovered lines by Red color
  *
  * Current
- *    ok      txlib_test      1.017s  coverage: 98.5% of statements in lomipc, lomcommon
+ *    ok      tx_test      1.017s  coverage: 98.5% of statements in lomipc, lomcommon
  *
  * ./build.sh v <-- to run tests
  */

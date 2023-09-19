@@ -37,7 +37,7 @@ etest() {
 }
 
 test() {
-    go test $1 -coverprofile=coverprofile.out  -coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon -covermode=atomic ./src/lib/lib_test
+    go test $1 -coverprofile=coverprofile.out  -coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon -covermode=atomic ./src/lib/libTest
     if [ $? -ne 0 ]; then
         echo "Failed to run test"
         exit -1

@@ -2123,10 +2123,10 @@ func Test_LoadAddPlugin(t *testing.T) {
     }
 
     cfgFiles := &lomcommon.ConfigFiles_t{
-        GlobalFl:   "../../lib/lib_test/config/globals.conf.json",
-        ActionsFl:  "../../lib/lib_test/config/actions.conf.json",
-        BindingsFl: "../../lib/lib_test/config/bindings.conf.json",
-        ProcsFl:    "../../lib/lib_test/config/procs.conf.json",
+        GlobalFl:   "../../lib/libTest/config/globals.conf.json",
+        ActionsFl:  "../../lib/libTest/config/actions.conf.json",
+        BindingsFl: "../../lib/libTest/config/bindings.conf.json",
+        ProcsFl:    "../../lib/libTest/config/procs.conf.json",
     }
     lomcommon.InitConfigMgr(cfgFiles)
 
@@ -2536,7 +2536,7 @@ func Test_StartPluginManager(t *testing.T) {
         plmgr.pluginLoadingTimeout = 5 * time.Second
         plmgr.setShutdownStatus(false)
 
-        /*err := lomcommon.InitConfigPath("../../lib/lib_test/config/")
+        /*err := lomcommon.InitConfigPath("../../lib/libTest/config/")
           if err != nil {
               t.Errorf("StartPluginManager : Error initializing config manager")
           }*/
@@ -2594,13 +2594,13 @@ func Test_StartPluginManager(t *testing.T) {
         plmgr.pluginLoadingTimeout = 5 * time.Second
         plmgr.setShutdownStatus(false)
 
-        /*err := lomcommon.InitConfigPath("../../lib/lib_test/config/")
+        /*err := lomcommon.InitConfigPath("../../lib/libTest/config/")
           if err != nil {
               t.Errorf("StartPluginManager : Error initializing config manager")
           }*/
 
         // os.Unsetenv("LOM_CONF_LOCATION")
-        //os.Setenv("LOM_CONF_LOCATION", "../../lib/lib_test/config/")
+        //os.Setenv("LOM_CONF_LOCATION", "../../lib/libTest/config/")
 
         // define valid plugin constructors for plugins's test_plugin_001, test_plugin_002, ...
         //pluginCount := 1
@@ -2652,7 +2652,7 @@ func Test_SetupPluginManager(t *testing.T) {
         os.Args = append([]string{"test_prog"}, args...)
 
         os.Unsetenv("LOM_CONF_LOCATION")
-        os.Setenv("LOM_CONF_LOCATION", "../../lib/lib_test/config/")
+        os.Setenv("LOM_CONF_LOCATION", "../../lib/libTest/config/")
         SetupPluginManager()
         os.Setenv("LOM_CONF_LOCATION", envVarOld)
         if !logger.FindPrefix("SetupPluginManager : Successfully setup signals") {
@@ -2660,7 +2660,7 @@ func Test_SetupPluginManager(t *testing.T) {
         }
 
         os.Unsetenv("LOM_CONF_LOCATION")
-        os.Setenv("LOM_CONF_LOCATION", "../../lib/lib_test/config/dummy") // invalid path
+        os.Setenv("LOM_CONF_LOCATION", "../../lib/libTest/config/dummy") // invalid path
 
         lomcommon.LoadEnvironmentVariables()
         SetupPluginManager()

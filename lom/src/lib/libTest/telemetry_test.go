@@ -1,13 +1,13 @@
-package lib_test
+package libTest
 
 import (
     "errors"
     "fmt"
-    "time"
     "testing"
+    "time"
 
-    tele "lom/src/lib/lomtelemetry"
     cmn "lom/src/lib/lomcommon"
+    tele "lom/src/lib/lomtelemetry"
 )
 
 func Test_PubSub(t *testing.T) {
@@ -35,11 +35,10 @@ func callGetPubChannel(t *testing.T, args []any) []any {
         t.Fatalf("Expect string != type(%T)", args[2])
     } else {
         ch, err := tele.GetPubChannel(chType, producer, pluginName)
-        return []any { ch, err }
+        return []any{ch, err}
     }
     return []any{}
 }
-
 
 func callGetSubChannel(t *testing.T, args []any) []any {
     if len(args) != 3 {
@@ -53,11 +52,10 @@ func callGetSubChannel(t *testing.T, args []any) []any {
         t.Fatalf("Expect string != type(%T)", args[2])
     } else {
         ch, err := tele.GetSubChannel(chType, producer, pluginName)
-        return []any { ch, err }
+        return []any{ch, err}
     }
     return []any{}
 }
-
 
 func callRunPubSubProxy(t *testing.T, args []any) []any {
     if len(args) != 1 {
@@ -66,11 +64,10 @@ func callRunPubSubProxy(t *testing.T, args []any) []any {
         t.Fatalf("Expect tele.ChannelType_t != type(%T)", args[0])
     } else {
         err := tele.RunPubSubProxy(chType)
-        return []any { err }
+        return []any{err}
     }
     return []any{}
 }
-
 
 func callSendClientRequest(t *testing.T, args []any) []any {
     if len(args) != 2 {
@@ -81,11 +78,10 @@ func callSendClientRequest(t *testing.T, args []any) []any {
         t.Fatalf("Expect ClientReq_t != type(%T)", args[1])
     } else {
         ch, err := tele.SendClientRequest(chType, req)
-        return []any { ch, err }
+        return []any{ch, err}
     }
     return []any{}
 }
-
 
 func callRegisterServerReqHandler(t *testing.T, args []any) []any {
     if len(args) != 1 {
@@ -94,7 +90,7 @@ func callRegisterServerReqHandler(t *testing.T, args []any) []any {
         t.Fatalf("Expect tele.ChannelType_t != type(%T)", args[0])
     } else {
         chReq, chRes, err := tele.RegisterServerReqHandler(chType)
-        return []any { chReq, chRes, err }
+        return []any{chReq, chRes, err}
     }
     return []any{}
 }
@@ -110,7 +106,6 @@ func callDoSysShutdown(t *testing.T, args []any) []any {
     return []any{}
 }
 
-
 func callWriteChannel(t *testing.T, args []any) []any {
     var err error
     if len(args) != 3 {
@@ -124,14 +119,13 @@ func callWriteChannel(t *testing.T, args []any) []any {
     } else {
         select {
         case ch <- d:
-            
-        case <- time.After(time.Duration(tout) * time.Second):
+
+        case <-time.After(time.Duration(tout) * time.Second):
             err = errors.New(fmt.Sprintf("Write chan timeout after (%d) seconds", tout))
         }
     }
     return []any{err}
 }
-
 
 func callReadChannel(t *testing.T, args []any) []any {
     var err error
@@ -151,13 +145,12 @@ func callReadChannel(t *testing.T, args []any) []any {
                 readVal = val
             }
 
-        case <- time.After(time.Duration(tout) * time.Second):
+        case <-time.After(time.Duration(tout) * time.Second):
             err = errors.New("TIMEOUT")
         }
     }
     return []any{readVal, err}
 }
-
 
 func callCloseChannel(t *testing.T, args []any) []any {
     if len(args) != 1 {
@@ -170,7 +163,6 @@ func callCloseChannel(t *testing.T, args []any) []any {
     return []any{}
 }
 
-
 func callPause(t *testing.T, args []any) []any {
     if len(args) != 1 {
         t.Fatalf("WriteChannel need data to write")
@@ -182,14 +174,13 @@ func callPause(t *testing.T, args []any) []any {
     return []any{}
 }
 
-
 func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
     /* Caches all variables for reference across test entries */
     suiteCache = map[string]any{}
 
     t.Logf("Starting test suite - {%s} ....", suite.id)
 
-    defer func() { t.Logf("Ended test suite - {%s} ....", suite.id)}()
+    defer func() { t.Logf("Ended test suite - {%s} ....", suite.id) }()
 
     for i, entry := range suite.tests {
         t.Logf("Starting test[%d] - {%v} ....", i, entry.api)
@@ -243,7 +234,6 @@ func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
     }
 }
 
-
 func setUTGlobals() {
     tele.SUB_CHANNEL_TIMEOUT = time.Duration(1) * time.Second
 }
@@ -254,5 +244,4 @@ func TestRunTeleSuites(t *testing.T) {
     for _, suite := range testTelemetrySuites {
         testRunOneTeleSuite(t, suite)
     }
-}   
-
+}
