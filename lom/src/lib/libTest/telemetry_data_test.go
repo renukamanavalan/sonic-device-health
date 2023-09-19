@@ -30,6 +30,9 @@ const ANONYMOUS = ""
 func (s suiteCache_t) getVal(name string, val any) any {
     if name == ANONYMOUS {
         return val /* Anonymous */
+    } else if val != nil {
+        s.setVal(name, val)          /* overwrite */
+        return val
     } else if ct, ok := s[name]; !ok {
         return nil
     } else {
@@ -39,7 +42,11 @@ func (s suiteCache_t) getVal(name string, val any) any {
 
 func (s suiteCache_t) setVal(name string, val any) {
     if name != ANONYMOUS {
-        s[name] = val /* Set it */
+        if val != nil {
+            s[name] = val /* Set it */
+        } else if _, ok := s[name]; ok {
+            delete(s, name)
+        }
     }
 }
 

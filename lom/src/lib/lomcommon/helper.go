@@ -190,7 +190,7 @@ type sysShutdown_t struct {
 
 func (p *sysShutdown_t) register(caller string) <-chan int {
     if !p.shutdown {
-        LogDebug("sysShutdown_t:Register by (%s)", caller)
+        LogMessageWithSkip(2, syslog.LOG_DEBUG, "sysShutdown_t:Register by (%s)", caller)
         p.wg.Add(1)
         return p.ch
     } else {

@@ -2,19 +2,18 @@ package libTest
 
 import (
     "fmt"
-    "testing"
 )
 
-func fatalF(t *testing.T, s string) {
-    t.Fatalf(fmt.Sprintf("***Fatal failure****: %s", s))
+func fatalFmt(s string, vals ...any) string {
+    return fmt.Sprintf("***Fatal failure****: " + s, vals...)
 }
 
-func errorF(t *testing.T, s string) {
-    t.Errorf(fmt.Sprintf("***Error failure****: %s", s))
+func errorFmt(s string, vals ...any) string {
+    return fmt.Sprintf("***Error failure****: " + s, vals...)
 }
 
-func logF(t *testing.T, s string) {
-    t.Logf(fmt.Sprintf("***Log****: %s", s))
+func logFmt(s string, vals ...any) string {
+    return fmt.Sprintf("***Log****: " + s, vals...)
 }
 
 

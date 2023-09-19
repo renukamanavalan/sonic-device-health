@@ -25,7 +25,7 @@ const ZMQ_XPUB_START_PORT = 5750 /* Subscribers connect to xpub */
 const ZMQ_XSUB_START_PORT = 5850 /* Publishers connect to xsub */
 const ZMQ_PROXY_CTRL_PORT = 5950
 
-const ZMQ_ADDRESS = "tcp://localhost:%d"
+const ZMQ_ADDRESS = "tcp://127.0.0.1:%d"
 
 var SUB_CHANNEL_TIMEOUT = time.Duration(10) * time.Second
 
@@ -130,7 +130,7 @@ func getContext() (*zmq.Context, error) {
 }
 
 func terminateContext() {
-    chShutdown := cmn.RegisterForSysShutdown("terminate context")
+    chShutdown := cmn.RegisterForSysShutdown("terminate ZMQ context")
 
     /* Sleep till shutdown */
     for !shutdownYet {
@@ -283,7 +283,8 @@ func managePublish(chType ChannelType_t, topic string, chReq <-chan JsonString_t
 
     /* From here on the routine runs forever until shutdown */
 
-    chShutdown := cmn.RegisterForSysShutdown("ZMQ-Publisher")
+    chShutdown := cmn.RegisterForSysShutdown(fmt.Sprintf(
+                "ZMQ-Publisher. chType={%s}", CHANNEL_TYPE_STR[chType]))
 
     for {
         select {
@@ -396,7 +397,8 @@ func manageSubscribe(chType ChannelType_t, topic string, chRes chan<- JsonString
 
         defer closeSocket(shutSock)
 
-        chShutdown := cmn.RegisterForSysShutdown("ZMQ-Subscriber")
+        chShutdown := cmn.RegisterForSysShutdown(fmt.Sprintf(
+                "ZMQ-Subscriber. chType={%s}", CHANNEL_TYPE_STR[chType]))
 
         /* Wait for shutdown signal */
         <-chShutdown
@@ -475,7 +477,8 @@ var openChannels = sync.Map{}
 func openChannel(mode channelMode_t, chType ChannelType_t, topic string,
     chData chan JsonString_t) (err error) {
 
-    id := fmt.Sprintf("%d_%d_%s", mode, chType, topic)
+    /* Sockets are opened per chType */
+    id := fmt.Sprintf("%d_%d", mode, chType)
     if _, ok := openChannels.Load(id); ok {
         err = cmn.LogError("Duplicate req mode=%d chType=%d topic=%s pre-exists",
             mode, chType, topic)
@@ -548,7 +551,7 @@ func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error) {
     } else if info, err = getAddress(CHANNEL_MODE_PUBLISHER, chType); err != nil {
         /* err is well described */
     } else if err = sock_xsub.Bind(info.address); err != nil {
-        err = cmn.LogError("Failed to bind xsub socket (%v)", err)
+        err = cmn.LogError("Failed to bind xsub socket (%v) address(%s)", err, info.address)
     } else if info, err = getAddress(CHANNEL_MODE_SUBSCRIBER, chType); err != nil {
         /* err is well described */
     } else if err = sock_xpub.Bind(info.address); err != nil {
@@ -559,8 +562,6 @@ func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error) {
     }
 
     if err != nil {
-        chRet <- err /* Inform caller about init status */
-        close(chRet)
         return
     }
 
@@ -588,17 +589,28 @@ func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error) {
         }
 
         /* Watch for shutdown */
-        chShutdown := cmn.RegisterForSysShutdown("terminate context")
+        chShutdown := cmn.RegisterForSysShutdown(fmt.Sprintf(
+                "PubSubProxy chType={%s}", CHANNEL_TYPE_STR[chType]))
         <-chShutdown
 
         /* Terminate proxy. Just a write breaks the zmq.Proxy loop. */
         if _, err = sock_ctrl_pub.Send("TERMINATE", 0); err != nil {
-            err = cmn.LogError("Failed to write proxy control publisher to terminate proxy(%v)", err)
+            cmn.LogError("Failed to write proxy control publisher to terminate proxy(%v)", err)
         }
     }()
 
+    err = <- chShutErr
+    if err != nil {
+        return
+    }
+    /* Inform caller successful init */
+    chRet <- nil
+    close(chRet)
+    chRet = nil
+
+    /* Run until shutdown which is indicated via ctrl socket */
     if err = zmq.ProxySteerable(sock_xsub, sock_xpub, nil, sock_ctrl_sub); err != nil {
-        cmn.LogError("Failing to run zmq.Proxy err(%v)", err)
+            cmn.LogError("Failing to run zmq.Proxy err(%v)", err)
     }
     return
 }
@@ -606,7 +618,7 @@ func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error) {
 /* Map of chType vs bool */
 var runningPubSubProxy = sync.Map{}
 
-func runPubSubProxy(chType ChannelType_t) error {
+func doRunPubSubProxy(chType ChannelType_t) error {
     if _, ok := runningPubSubProxy.Load(chType); ok {
         return cmn.LogError("Duplicate runPubSubProxy for chType(%d)", chType)
     }
@@ -663,7 +675,8 @@ func clientRequestHandler(reqType ChannelType_t, chReq <-chan *reqInfo_t,
 
     /* From here on the routine runs forever until shutdown */
 
-    chShutdown := cmn.RegisterForSysShutdown("ZMQ-Publisher")
+    chShutdown := cmn.RegisterForSysShutdown(fmt.Sprintf(
+                "clientRequestHandler reqType={%s}", CHANNEL_TYPE_STR[reqType]))
 
     for {
         select {
@@ -810,7 +823,8 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
         /* err == nil, hence socket is valid hence add defer for close */
         defer closeSocket(shutSock)
 
-        chShutdown := cmn.RegisterForSysShutdown("ZMQ-Subscriber")
+        chShutdown := cmn.RegisterForSysShutdown(fmt.Sprintf(
+                    "serverRequestHandler reqType={%s}", CHANNEL_TYPE_STR[reqType]))
 
         /* Wait for shutdown signal */
         <-chShutdown
@@ -826,6 +840,9 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     err = <-chShutErr
     chRet <- err /* Forward the final init status to caller of this routine */
     close(chRet) /* Sender close the channel */
+    if err != nil {
+        return
+    }
 
     /* From here on the routine runs forever until shutdown */
     for {
@@ -864,3 +881,4 @@ func initServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     }
     return
 }
+

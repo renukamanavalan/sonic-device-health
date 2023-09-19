@@ -136,7 +136,7 @@ func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
  *  err - Non nil, in case of failure
  */
 func RunPubSubProxy(chType ChannelType_t) error {
-    return runPubSubProxy(chType)
+    return doRunPubSubProxy(chType)
 }
 
 /*
