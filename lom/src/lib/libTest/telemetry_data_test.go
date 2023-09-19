@@ -27,16 +27,16 @@ type suiteCache_t map[string]any
 
 const ANONYMOUS = ""
 
-func (s suiteCache_t) getVal(name string, val any) any {
+func (s suiteCache_t) getVal(name string, val any) (any, bool) {
     if name == ANONYMOUS {
-        return val /* Anonymous */
+        return val, true /* Anonymous */
     } else if val != nil {
         s.setVal(name, val)          /* overwrite */
-        return val
+        return val, true
     } else if ct, ok := s[name]; !ok {
-        return nil
+        return nil, false
     } else {
-        return ct
+        return ct, true
     }
 }
 

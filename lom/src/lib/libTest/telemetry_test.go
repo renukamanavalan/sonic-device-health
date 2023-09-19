@@ -185,8 +185,13 @@ func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
     for i, entry := range suite.tests {
         t.Logf(logFmt("Starting test[%d] - {%v} ....", i, entry.api))
         argvals := []any{}
-        for _, v := range entry.args {
-            argvals = append(argvals, suiteCache.getVal(v.name, v.val))
+        for ai, v := range entry.args {
+            if val, ok := suiteCache.getVal(v.name, v.val); !ok {
+                t.Fatalf(fatalFmt("Failed to translate test(%v) arg{%d: (%s)}",
+                        entry.api, ai, v.name))
+            } else {
+                argvals = append(argvals, val)
+            }
         }
         retVals := []any{}
         switch entry.api {
@@ -216,9 +221,12 @@ func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
         }
         for j, e := range entry.result {
             retV := retVals[j]
-            expVal := suiteCache.getVal(e.name, e.valExpect)
-            if expVal != retV {
-                t.Errorf(errorFmt("ExpVal(%v) != RetV(%v)", expVal, retV))
+            var expVal any
+            ok := false
+            if expVal, ok = suiteCache.getVal(e.name, e.valExpect); ok {
+                if expVal != retV {
+                    t.Fatalf(fatalFmt("ExpVal(%v) != RetV(%v)", expVal, retV))
+                }
             }
             if e.validator != nil {
                 if e.validator(e.name, expVal, retV) == false {
@@ -226,9 +234,7 @@ func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
                     retV = nil
                 }
             }
-            if e.name != ANONYMOUS {
-                suiteCache.setVal(e.name, retV)
-            }
+            suiteCache.setVal(e.name, retV)
         }
         t.Logf(logFmt("Ended test - {%v} ....", entry.api))
     }
