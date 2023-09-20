@@ -109,11 +109,11 @@ func callDoSysShutdown(t *testing.T, args []any) []any {
 func callWriteChannel(t *testing.T, args []any) []any {
     var err error
     if len(args) != 3 {
-        t.Fatalf(fatalFmt("WriteChannel need data to write"))
+        t.Fatalf(fatalFmt("WriteChannel need 3 args"))
     } else if ch, ok := args[0].(chan<- tele.JsonString_t); !ok {
         t.Fatalf(fatalFmt("Expect tele.JsonString_t chan<- != type(%T)", args[0]))
     } else if d, ok := args[1].(tele.JsonString_t); !ok {
-        t.Fatalf(fatalFmt("Expect string for data != type(%T)", args[1]))
+        t.Fatalf(fatalFmt("mis type. Expect JsonString_t != type(%T)", args[1]))
     } else if tout, ok := args[2].(int); !ok {
         t.Fatalf(fatalFmt("Expect int for timeout != type(%T)", args[2]))
     } else {
@@ -131,7 +131,7 @@ func callReadChannel(t *testing.T, args []any) []any {
     var err error
     var readVal tele.JsonString_t = ""
     if len(args) != 2 {
-        t.Fatalf(fatalFmt("ReadChannel need data to write"))
+        t.Fatalf(fatalFmt("ReadChannel need 2 args"))
     } else if ch, ok := args[0].(<-chan tele.JsonString_t); !ok {
         t.Fatalf(fatalFmt("Expect tele.JsonString_t <-chan != type(%T)", args[0]))
     } else if tout, ok := args[1].(int); !ok {
@@ -187,7 +187,7 @@ func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
         argvals := []any{}
         for ai, v := range entry.args {
             if val, ok := suiteCache.getVal(v.name, v.val); !ok {
-                t.Fatalf(fatalFmt("Failed to translate test(%v) arg{%d: (%s)}",
+                t.Fatalf(fatalFmt("Failed to getVal test(%v) arg{%d: (%s)}",
                         entry.api, ai, v.name))
             } else {
                 argvals = append(argvals, val)
@@ -225,7 +225,7 @@ func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
             ok := false
             if expVal, ok = suiteCache.getVal(e.name, e.valExpect); ok {
                 if expVal != retV {
-                    t.Fatalf(fatalFmt("ExpVal(%v) != RetV(%v)", expVal, retV))
+                    t.Fatalf(fatalFmt("ExpVal(%v) != RetV(%v)(%T)", expVal, retV, retV))
                 }
             }
             if e.validator != nil {

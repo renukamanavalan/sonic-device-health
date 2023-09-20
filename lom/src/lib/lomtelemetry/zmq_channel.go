@@ -28,6 +28,7 @@ const ZMQ_PROXY_CTRL_PORT = 5950
 const ZMQ_ADDRESS = "tcp://127.0.0.1:%d"
 
 var SUB_CHANNEL_TIMEOUT = time.Duration(10) * time.Second
+var ZMQ_ASYNC_CONNECT_PAUSE = time.Duration(300) * time.Millisecond
 
 /* Logical grouping of ChannelType_t values for validation use */
 type chTypes_t map[ChannelType_t]bool
@@ -286,6 +287,21 @@ func managePublish(chType ChannelType_t, topic string, chReq <-chan JsonString_t
     chShutdown := cmn.RegisterForSysShutdown(fmt.Sprintf(
                 "ZMQ-Publisher. chType={%s}", CHANNEL_TYPE_STR[chType]))
 
+    cmn.LogDebug("Started managePublish for chType=(%s)", CHANNEL_TYPE_STR[chType])
+
+    /*
+     * ZMQ connect/bind is asynchronous. There is no indication on when it
+     * completes. Any data written into this socket before connect/bind completes
+     * is silently dropped.
+     * So make an explicit pause.
+     * If not, you may create a dummy connection to a REQ socket where REP end
+     * is expected and make a transaction. REQ & REP are synchronous. The time
+     * taken is *most* likely sufficient for PUB socket connection completion.
+     *
+     * In either case, it is a pause. As well make it simpler.
+     */
+    time.Sleep(ZMQ_ASYNC_CONNECT_PAUSE)
+
     for {
         select {
         case <-chShutdown:
@@ -305,6 +321,7 @@ func managePublish(chType ChannelType_t, topic string, chReq <-chan JsonString_t
             }
         }
     }
+    cmn.LogDebug("Stopped managePublish for chType=(%s)", CHANNEL_TYPE_STR[chType])
 }
 
 /*
@@ -419,6 +436,7 @@ func manageSubscribe(chType ChannelType_t, topic string, chRes chan<- JsonString
         return
     }
 
+    cmn.LogDebug("Started manageSubscribe for chType=(%s) topic(%s)", CHANNEL_TYPE_STR[chType], topic)
     /* From here on the routine runs forever until shutdown */
     for {
         if data, e := sock.RecvMessage(0); e != nil {
@@ -442,6 +460,7 @@ func manageSubscribe(chType ChannelType_t, topic string, chRes chan<- JsonString
             }
         }
     }
+    cmn.LogDebug("Stopped manageSubscribe for chType=(%s)", CHANNEL_TYPE_STR[chType])
 }
 
 /*
@@ -608,10 +627,12 @@ func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error) {
     close(chRet)
     chRet = nil
 
+    cmn.LogDebug("Started zmq.ProxySteerable for chType=(%s)", CHANNEL_TYPE_STR[chType])
     /* Run until shutdown which is indicated via ctrl socket */
     if err = zmq.ProxySteerable(sock_xsub, sock_xpub, nil, sock_ctrl_sub); err != nil {
             cmn.LogError("Failing to run zmq.Proxy err(%v)", err)
     }
+    cmn.LogDebug("Stopped zmq.ProxySteerable for chType=(%s)", CHANNEL_TYPE_STR[chType])
     return
 }
 

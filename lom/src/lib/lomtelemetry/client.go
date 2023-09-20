@@ -8,8 +8,11 @@ import (
 func getTopic(chProducer ChannelProducer_t, suffix string) (string, error) {
     if data, ok := CHANNEL_PRODUCER_STR[chProducer]; !ok {
         return "", cmn.LogError("Unknown channel producer(%v)", chProducer)
-    } else if (suffix == "") && data.suffix_required {
-        return "", cmn.LogError("Missing producer suffix")
+    } else if (suffix == "") {
+        if data.suffix_required {
+            return "", cmn.LogError("Missing producer suffix")
+        }
+        return data.pattern, nil
     } else {
         return fmt.Sprintf(data.pattern, suffix), nil
     }

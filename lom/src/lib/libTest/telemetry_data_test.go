@@ -136,6 +136,43 @@ var pubSubSuite = testSuite_t{
             },
             "Failed to Get sub channel",
         },
+        testEntry_t {
+            ApiIDGetPubChannel, 
+            []param_t {
+                param_t { "chType_1", nil },        /* Fetch chType_1 from cache */
+                param_t { "prod_1", tele.CHANNEL_PRODUCER_ENGINE },
+                param_t { ANONYMOUS, "" },
+            },
+            []result_t {
+                result_t { "chWrite-0", nil, validateNonNil}, /* Save in cache */
+                result_t { ANONYMOUS, nil, validateNil },
+            },
+            "Failed to Get pub channel",
+        },
+        testEntry_t {
+            ApiIDWriteChannel, 
+            []param_t {
+                param_t { "chWrite-0", nil },       /* Use chan from cache */
+                param_t { "pub_0", tele.JsonString_t("Hello World!") },/* Save written data in cache */
+                param_t { ANONYMOUS, 1 },           /* timeout = 1 second */
+            },
+            []result_t {
+                result_t {ANONYMOUS, nil, validateNil },
+            }, /*Expect nil error */
+            "Failed to write pub channel",
+        },
+        testEntry_t {
+            ApiIDReadChannel, 
+            []param_t {
+                param_t { "chRead-0", nil },        /* Get chRead_0 from cache */
+                param_t { ANONYMOUS, 1 },           /* timeout = 1 second */
+            },
+            []result_t {
+                result_t { "pub_0", nil, nil },     /* Validate against cache val for pub_0 */
+                result_t {ANONYMOUS, nil, validateNil },
+            },
+            "Failed to read sub channel",
+        },
     },
 }
 
