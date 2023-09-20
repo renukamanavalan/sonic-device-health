@@ -285,7 +285,7 @@ func managePublish(chType ChannelType_t, topic string, chReq <-chan JsonString_t
     /* From here on the routine runs forever until shutdown */
 
     chShutdown := cmn.RegisterForSysShutdown(fmt.Sprintf(
-                "ZMQ-Publisher. chType={%s}", CHANNEL_TYPE_STR[chType]))
+        "ZMQ-Publisher. chType={%s}", CHANNEL_TYPE_STR[chType]))
 
     cmn.LogDebug("Started managePublish for chType=(%s)", CHANNEL_TYPE_STR[chType])
 
@@ -415,7 +415,7 @@ func manageSubscribe(chType ChannelType_t, topic string, chRes chan<- JsonString
         defer closeSocket(shutSock)
 
         chShutdown := cmn.RegisterForSysShutdown(fmt.Sprintf(
-                "ZMQ-Subscriber. chType={%s}", CHANNEL_TYPE_STR[chType]))
+            "ZMQ-Subscriber. chType={%s}", CHANNEL_TYPE_STR[chType]))
 
         /* Wait for shutdown signal */
         <-chShutdown
@@ -609,7 +609,7 @@ func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error) {
 
         /* Watch for shutdown */
         chShutdown := cmn.RegisterForSysShutdown(fmt.Sprintf(
-                "PubSubProxy chType={%s}", CHANNEL_TYPE_STR[chType]))
+            "PubSubProxy chType={%s}", CHANNEL_TYPE_STR[chType]))
         <-chShutdown
 
         /* Terminate proxy. Just a write breaks the zmq.Proxy loop. */
@@ -618,7 +618,7 @@ func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error) {
         }
     }()
 
-    err = <- chShutErr
+    err = <-chShutErr
     if err != nil {
         return
     }
@@ -630,7 +630,7 @@ func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error) {
     cmn.LogDebug("Started zmq.ProxySteerable for chType=(%s)", CHANNEL_TYPE_STR[chType])
     /* Run until shutdown which is indicated via ctrl socket */
     if err = zmq.ProxySteerable(sock_xsub, sock_xpub, nil, sock_ctrl_sub); err != nil {
-            cmn.LogError("Failing to run zmq.Proxy err(%v)", err)
+        cmn.LogError("Failing to run zmq.Proxy err(%v)", err)
     }
     cmn.LogDebug("Stopped zmq.ProxySteerable for chType=(%s)", CHANNEL_TYPE_STR[chType])
     return
@@ -697,7 +697,7 @@ func clientRequestHandler(reqType ChannelType_t, chReq <-chan *reqInfo_t,
     /* From here on the routine runs forever until shutdown */
 
     chShutdown := cmn.RegisterForSysShutdown(fmt.Sprintf(
-                "clientRequestHandler reqType={%s}", CHANNEL_TYPE_STR[reqType]))
+        "clientRequestHandler reqType={%s}", CHANNEL_TYPE_STR[reqType]))
 
     for {
         select {
@@ -845,7 +845,7 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
         defer closeSocket(shutSock)
 
         chShutdown := cmn.RegisterForSysShutdown(fmt.Sprintf(
-                    "serverRequestHandler reqType={%s}", CHANNEL_TYPE_STR[reqType]))
+            "serverRequestHandler reqType={%s}", CHANNEL_TYPE_STR[reqType]))
 
         /* Wait for shutdown signal */
         <-chShutdown
@@ -902,4 +902,3 @@ func initServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     }
     return
 }
-

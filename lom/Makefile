@@ -161,8 +161,8 @@ $(PLUGIN_MANAGER_BIN): $(SRC_FILES)
 $(LIB_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/LibCoverprofile.out \
-		-coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon \
-		-covermode=atomic $(LIB_TEST_FLAGS) ./src/lib/libTest ./src/lib/libTest/config || (echo "LibTest failed $$?"; exit 1)
+		-coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon,lom/src/lib/lomscripted,lom/src/lib/lomtelemetry \
+		-covermode=atomic $(LIB_TEST_FLAGS) ./src/lib/libtest ./src/lib/libtest/config || (echo "LibTest failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/LibCoverprofile.out -o $(TEST_DIR)/LibCoverprofile.html
 	@if [ -f "$(TEST_DIR)/LibCoverprofile.html" ]; then \
 		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/LibCoverprofile.html; \
