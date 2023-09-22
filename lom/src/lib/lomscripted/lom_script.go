@@ -85,18 +85,6 @@ func callRegisterServerReqHandler(args []any) []any {
     return []any{chReq, chRes, err}
 }
 
-func callDoSysShutdown(args []any) []any {
-    var err error
-    if len(args) != 1 {
-        err = cmn.LogError("DoSysShutdown need timeout")
-    } else if tout, ok := args[0].(int); !ok {
-        err = cmn.LogError("Expect int for timeout != type(%T)", args[0])
-    } else {
-        cmn.DoSysShutdown(tout)
-    }
-    return []any{err}
-}
-
 func callWriteChannel(args []any) []any {
     var err error
     if len(args) != 3 {

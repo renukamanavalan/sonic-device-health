@@ -130,16 +130,6 @@ var pubSubSuite = testSuite_t{
             },
             "read from sub channel created above",
         },
-        testEntry_t{
-            script.ApiIDDoSysShutdown,
-            []script.Param_t{
-                script.Param_t{script.ANONYMOUS, 10, nil}, /* timeout = 10 second */
-            },
-            []result_t{
-                NIL_ERROR,  /* Expect nil error */
-            },
-            "Do system shutdown for clean close",
-        },
     },
 }
 

@@ -518,7 +518,7 @@ func openChannel(mode channelMode_t, chType ChannelType_t, topic string,
     return
 }
 
-func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error) {
+func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error, cleanupFn func()) {
     var sock_xsub *zmq.Socket
     var sock_xpub *zmq.Socket
     var sock_ctrl_sub *zmq.Socket
@@ -538,6 +538,7 @@ func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error) {
         }
         /* Close tracked sockets appropriately */
         closeSocket(sock_ctrl_sub)
+        cleanupFn()
     }()
 
     var ctx *zmq.Context
@@ -643,11 +644,9 @@ func doRunPubSubProxy(chType ChannelType_t) error {
         return cmn.LogError("Duplicate runPubSubProxy for chType(%d)", chType)
     }
     chRet := make(chan error)
-    go runPubSubProxyInt(chType, chRet)
+    runningPubSubProxy.Store(chType, true)
+    go runPubSubProxyInt(chType, chRet, func() { runningPubSubProxy.Delete(chType) })
     err := <-chRet
-    if err == nil {
-        runningPubSubProxy.Store(chType, true)
-    }
     return err
 }
 
@@ -677,12 +676,15 @@ type reqInfo_t struct {
 }
 
 func clientRequestHandler(reqType ChannelType_t, chReq <-chan *reqInfo_t,
-    chRet chan<- error) {
+    chRet chan<- error, cleanupFn func()) {
 
     requester := fmt.Sprintf("clientRequestHandler_type(%d)", reqType)
     sock, err := getSocket(CHANNEL_MODE_REQUEST, reqType, requester)
 
-    defer closeSocket(sock)
+    defer func() {
+        closeSocket(sock)
+        cleanupFn()
+    }()
 
     /* Inform the caller that function has initialized successfully or not */
     chRet <- err
@@ -749,11 +751,11 @@ func getclientReqChan(reqType ChannelType_t) (chReq chan<- *reqInfo_t, err error
     if v, ok := clientReqChanList.Load(reqType); !ok {
         ch := make(chan *reqInfo_t)
         chRet := make(chan error)
-        go clientRequestHandler(reqType, ch, chRet)
+        clientReqChanList.Store(reqType, ch)
+        go clientRequestHandler(reqType, ch, chRet, func() { clientReqChanList.Delete(reqType) })
         err = <-chRet
         if err == nil {
             chReq = ch
-            clientReqChanList.Store(reqType, chReq)
         }
     } else if ch, ok := v.(chan<- *reqInfo_t); !ok {
         err = cmn.LogError("Internal error. Type(%T) != chan<- *reqInfo_t", v)
@@ -807,7 +809,7 @@ func processRequest(reqType ChannelType_t, req ClientReq_t, chRes chan<- *Client
  */
 
 func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
-    chRes <-chan ServerRes_t, chRet chan<- error) {
+    chRes <-chan ServerRes_t, chRet chan<- error, cleanupFn func()) {
 
     requester := fmt.Sprintf("server_request_handler_type(%d)", reqType)
     var sock *zmq.Socket
@@ -818,6 +820,7 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
         closeSocket(sock)
         /* Writer close the channel */
         close(chReq)
+        cleanupFn()
     } ()
 
     if err == nil {
@@ -874,11 +877,10 @@ func initServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     chRes <-chan ServerRes_t) (err error) {
     if _, ok := serverReqHandlerList.Load(reqType); !ok {
         chRet := make(chan error)
-        go serverRequestHandler(reqType, chReq, chRes, chRet)
+        serverReqHandlerList.Store(reqType, true)
+        go serverRequestHandler(reqType, chReq, chRes, chRet,
+                    func() { serverReqHandlerList.Delete(reqType) })
         err = <-chRet
-        if err == nil {
-            serverReqHandlerList.Store(reqType, true)
-        }
     } else {
         return cmn.LogError("Duplicate initServerRequestHandler for reqType=(%d)", reqType)
     }

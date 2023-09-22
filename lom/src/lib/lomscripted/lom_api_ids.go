@@ -12,7 +12,6 @@ const (
     ApiIDRunPubSubProxy                   = "RunPubSubProxy"
     ApiIDSendClientRequest                = "SendClientRequest"
     ApiIDRegisterServerReqHandler         = "RegisterServerReqHandler"
-    ApiIDDoSysShutdown                    = "DoSysShutdown"
     ApiIDWriteChannel                     = "WriteChannel"
     ApiIDReadChannel                      = "ReadChannel"
     ApiIDCloseChannel                     = "CloseChannel"
@@ -27,7 +26,6 @@ var LomAPIByIds = map[ApiId_t]ApiFn_t{
     ApiIDRunPubSubProxy:           callRunPubSubProxy,
     ApiIDSendClientRequest:        callSendClientRequest,
     ApiIDRegisterServerReqHandler: callRegisterServerReqHandler,
-    ApiIDDoSysShutdown:            callDoSysShutdown,
     ApiIDWriteChannel:             callWriteChannel,
     ApiIDReadChannel:              callReadChannel,
     ApiIDCloseChannel:             callCloseChannel,
