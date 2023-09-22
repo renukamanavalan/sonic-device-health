@@ -200,7 +200,8 @@ func (p *sysShutdown_t) register(caller string) <-chan int {
 }
 
 func (p *sysShutdown_t) deregister(caller string) {
-    LogDebug("sysShutdown_t:Deregister by (%s)", caller)
+    /* Log the message with caller info */
+    LogMessageWithSkip(2, syslog.LOG_DEBUG, "sysShutdown_t:Deregister by (%s)", caller)
     p.wg.Done()
 }
 
@@ -259,6 +260,10 @@ func DeregisterForSysShutdown(caller string) {
 
 func DoSysShutdown(toutSecs int) {
     sysShutdown.doShutdown(toutSecs)
+}
+
+func IsSysShuttingDown() bool {
+    return sysShutdown.shutdown
 }
 
 var uuid_suffix = 0

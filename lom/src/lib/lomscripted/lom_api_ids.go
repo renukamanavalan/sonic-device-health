@@ -21,31 +21,30 @@ const (
 
 type ApiFn_t func(args []any) []any
 
-var LomAPIByIds = map[ApiId_t]ApiFn_t {
-    ApiIDGetPubChannel:                 callGetPubChannel,
-    ApiIDGetSubChannel:                 callGetSubChannel,
-    ApiIDRunPubSubProxy:                callRunPubSubProxy,
-    ApiIDSendClientRequest:             callSendClientRequest,
-    ApiIDRegisterServerReqHandler:      callRegisterServerReqHandler,
-    ApiIDDoSysShutdown:                 callDoSysShutdown,
-    ApiIDWriteChannel:                  callWriteChannel,
-    ApiIDReadChannel:                   callReadChannel,
-    ApiIDCloseChannel:                  callCloseChannel,
-    ApiIDPause:                         callPause,
+var LomAPIByIds = map[ApiId_t]ApiFn_t{
+    ApiIDGetPubChannel:            callGetPubChannel,
+    ApiIDGetSubChannel:            callGetSubChannel,
+    ApiIDRunPubSubProxy:           callRunPubSubProxy,
+    ApiIDSendClientRequest:        callSendClientRequest,
+    ApiIDRegisterServerReqHandler: callRegisterServerReqHandler,
+    ApiIDDoSysShutdown:            callDoSysShutdown,
+    ApiIDWriteChannel:             callWriteChannel,
+    ApiIDReadChannel:              callReadChannel,
+    ApiIDCloseChannel:             callCloseChannel,
+    ApiIDPause:                    callPause,
 }
 
 /*
- * Cache service for caching values for a call 
+ * Cache service for caching values for a call
  * This could help help multiple APIs share their data
  */
- 
+
 type SuiteCache_t map[string]any
 
 const ANONYMOUS = ""
 
 /* A function to get i/p val */
 type GetValFn_t func(name string, val any) (any, error)
-
 
 func (s SuiteCache_t) Clear() {
     s = SuiteCache_t{}
@@ -57,7 +56,7 @@ func (s SuiteCache_t) GetVal(name string, val any, getFn GetValFn_t) (vRet any) 
         var err error
         if vRet, err = getFn(name, val); err != nil {
             cmn.LogError("Failed to getVal from getFn name(%s) val(%v) err(%v)",
-                    name, val, err)
+                name, val, err)
             return
         }
     }
@@ -82,9 +81,8 @@ func (s SuiteCache_t) SetVal(name string, val any) {
 }
 
 type Param_t struct {
-    Name    string      /* Assign name to this var */
-    Val     any         /* Val of this var */
-    GetFn   GetValFn_t  /* Fn to get param val */
+    Name  string     /* Assign name to this var */
+    Val   any        /* Val of this var */
+    GetFn GetValFn_t /* Fn to get param val */
     /* If nil expect this var to pre-exist in cache. */
 }
-

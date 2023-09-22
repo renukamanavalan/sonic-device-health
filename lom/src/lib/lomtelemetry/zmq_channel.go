@@ -4,7 +4,9 @@ import (
     cmn "lom/src/lib/lomcommon"
 
     "fmt"
+    "log/syslog"
     "sync"
+    "syscall"
     "time"
 
     zmq "github.com/pebbe/zmq4"
@@ -63,9 +65,6 @@ var chModeInfo = map[channelMode_t]chModeData_t{
     CHANNEL_MODE_PROXY_CTRL_SUB: chModeData_t{NA_types, ZMQ_PROXY_CTRL_PORT, zmq.SUB, false},
 }
 
-/* Is sytem shutdown initiated yet? */
-var shutdownYet = false
-
 type sockInfo_t struct {
     address   string
     sType     zmq.Type
@@ -116,7 +115,7 @@ var socketsList = sync.Map{}
 var chSocksClose = make(chan int)
 
 func getContext() (*zmq.Context, error) {
-    if shutdownYet {
+    if cmn.IsSysShuttingDown() {
         return nil, cmn.LogError("System is shutting down. No context")
     }
     var err error
@@ -131,18 +130,25 @@ func getContext() (*zmq.Context, error) {
 }
 
 func terminateContext() {
-    chShutdown := cmn.RegisterForSysShutdown("terminate ZMQ context")
+    shutdownId := "terminate ZMQ context"
+    chShutdown := cmn.RegisterForSysShutdown(shutdownId)
 
+    defer func() {
+        cmn.DeregisterForSysShutdown(shutdownId)
+    }()
+
+shutLoop:
     /* Sleep till shutdown */
-    for !shutdownYet {
+    for {
         select {
         case <-chShutdown:
-            shutdownYet = true
+            break shutLoop
         case <-chSocksClose:
             /*
              * Some socket closed. Nothing to do
              * Yet must read to drain, else writer blocks.
              */
+            cmn.LogDebug("chSocksClose - read a value")
         }
     }
 
@@ -182,7 +188,7 @@ func terminateContext() {
  * create socket; connect/bind; Add to active socket list used by terminate context.
  */
 func getSocket(mode channelMode_t, chType ChannelType_t, requester string) (sock *zmq.Socket, err error) {
-    if shutdownYet {
+    if cmn.IsSysShuttingDown() {
         return nil, cmn.LogError("System is shutting down. No new socket")
     }
     defer func() {
@@ -220,20 +226,24 @@ func getSocket(mode channelMode_t, chType ChannelType_t, requester string) (sock
             mode, chType, *info, err)
     } else {
         socketsList.Store(sock, fmt.Sprintf("mode(%d)_chType(%d)_(%s)", mode, chType, requester))
+        cmn.LogDebug("getSocket: sock(%v) requester(%s)", sock, requester)
     }
     return
 }
 
 func closeSocket(s *zmq.Socket) {
     if s != nil {
-        s.Close()
-        socketsList.Delete(s)
-        /* In case terminate context is waiting */
-        select {
-        case chSocksClose <- 1:
-        default:
-            cmn.LogError("Unable to write into chSocksClose")
+        if r, ok := socketsList.Load(s); !ok {
+            cmn.LogMessageWithSkip(1, syslog.LOG_ERR, "***INTERNAL ERROR*** calling for non-existing sock(%p)(%v)", s, s)
+        } else {
+            cmn.LogDebug("List: closeSocket: sock(%p)(%v) r=(%v)", s, s, r)
+            socketsList.Delete(s)
         }
+        s.Close()
+        /* In case terminate context is waiting */
+        chSocksClose <- 1
+    } else {
+        cmn.LogMessageWithSkip(1, syslog.LOG_ERR, "***INTERNAL ERROR*** calling closeSocket with Nil")
     }
 }
 
@@ -271,8 +281,6 @@ func managePublish(chType ChannelType_t, topic string, chReq <-chan JsonString_t
     requester := fmt.Sprintf("publisher_topic(%s)_type(%d)", topic, chType)
     sock, err := getSocket(CHANNEL_MODE_PUBLISHER, chType, requester)
 
-    defer closeSocket(sock)
-
     /* Inform the caller that function has initialized successfully or not */
     chRet <- err
     /* Sender close the channel */
@@ -282,10 +290,16 @@ func managePublish(chType ChannelType_t, topic string, chReq <-chan JsonString_t
         return
     }
 
-    /* From here on the routine runs forever until shutdown */
+    defer closeSocket(sock)
 
-    chShutdown := cmn.RegisterForSysShutdown(fmt.Sprintf(
-        "ZMQ-Publisher. chType={%s}", CHANNEL_TYPE_STR[chType]))
+    /* From here on the routine runs forever until shutdown */
+    shutdownId := fmt.Sprintf("ZMQ-Publisher. chType={%s}", CHANNEL_TYPE_STR[chType])
+    chShutdown := cmn.RegisterForSysShutdown(shutdownId)
+
+    defer func() {
+        cmn.DeregisterForSysShutdown(shutdownId)
+    }()
+
 
     cmn.LogDebug("Started managePublish for chType=(%s)", CHANNEL_TYPE_STR[chType])
 
@@ -364,8 +378,10 @@ const QUITTOPIC = "quit"
 func manageSubscribe(chType ChannelType_t, topic string, chRes chan<- JsonString_t,
     chRet chan<- error, cleanupFn func()) {
 
-    defer cleanupFn()
-    defer close(chRes)
+    defer func() {
+        cleanupFn()
+        close(chRes)
+    }()
 
     requester := fmt.Sprintf("subscriber_topic(%s)_type(%d)", topic, chType)
     sock, err := getSocket(CHANNEL_MODE_SUBSCRIBER, chType, requester)
@@ -373,9 +389,11 @@ func manageSubscribe(chType ChannelType_t, topic string, chRes chan<- JsonString
     defer closeSocket(sock)
 
     if err != nil {
-        /* err is good enough */
+        /* failed. */
     } else if err = sock.SetSubscribe(topic); err != nil {
         err = cmn.LogError("Failed to subscribe filter(%s) err(%v)", topic, err)
+    } else if err = sock.SetRcvtimeo(time.Second); err != nil {
+        err = cmn.LogError("Failed to SetRcvtimeo err(%v)", err)
     } else if topic != "" {
         /* To receive alert message on shutdown */
         if err = sock.SetSubscribe(QUITTOPIC); err != nil {
@@ -383,80 +401,50 @@ func manageSubscribe(chType ChannelType_t, topic string, chRes chan<- JsonString
         }
     }
 
+    /* Inform the caller the state of init */
+    chRet <- err
+    close(chRet)
+
     if err != nil {
-        /* Inform the caller the failure to init and terminate this routine.*/
-        chRet <- err
-        close(chRet)
         return
     }
 
-    shutDownRequested := false
-    chShutErr := make(chan error) /* Track init error in following go func */
+    /* Register for system shutdown */
+    shutdownId := fmt.Sprintf("ZMQ-Subscriber. chType={%s}", CHANNEL_TYPE_STR[chType])
+    chShutdown := cmn.RegisterForSysShutdown(shutdownId)
 
-    /* Rouitine to publish dummy message on system shutdown */
-    go func() {
-        /*
-         * Pre-create a publisher channel to alert subscribing channel
-         * on shutdown.
-         * You can't create a socket upon shutdown process start. So get it ahead.
-         */
-        shutSock, err := getSocket(CHANNEL_MODE_PUBLISHER, chType,
-            fmt.Sprintf("To_Shut_%s", requester))
-
-        /* Let the caller know error status */
-        chShutErr <- err
-        close(chShutErr)
-        if err != nil {
-            /* Terminate this routine */
-            cmn.LogError("Alert go routine failed to get pub sock (%v)", err)
-            return
-        }
-
-        defer closeSocket(shutSock)
-
-        chShutdown := cmn.RegisterForSysShutdown(fmt.Sprintf(
-            "ZMQ-Subscriber. chType={%s}", CHANNEL_TYPE_STR[chType]))
-
-        /* Wait for shutdown signal */
-        <-chShutdown
-        shutDownRequested = true
-
-        /* Send a message to wake up subscriber */
-        if _, err = shutSock.SendMessage(QUITTOPIC, ""); err != nil {
-            cmn.LogError("Failed to send quit to %s", requester)
-        }
+    defer func() {
+        cmn.DeregisterForSysShutdown(shutdownId)
     }()
 
-    /* read any error or nil from the above go func's init */
-    err = <-chShutErr
-    chRet <- err /* Forward the final init status to caller of this routine */
-    close(chRet) /* Sender close the channel */
-
-    if err != nil {
-        return
-    }
-
     cmn.LogDebug("Started manageSubscribe for chType=(%s) topic(%s)", CHANNEL_TYPE_STR[chType], topic)
+
     /* From here on the routine runs forever until shutdown */
+Loop:
     for {
-        if data, e := sock.RecvMessage(0); e != nil {
+        /* Check for shutdown at start of loop */
+        select {
+        case <- chShutdown:
+            cmn.LogInfo("Subscriber shutting down requester:(%s)", requester)
+            break Loop
+        default:
+        }
+
+        if data, e := sock.RecvMessage(0); e == zmq.Errno(syscall.EAGAIN) {
+            /* Continue the loop */
+        } else if e != nil {
             cmn.LogError("Failed to receive msg err(%v) for (%s)", e, requester)
         } else if len(data) != 2 {
             cmn.LogError("Expect 2 parts. requester(%s) data(%v)", requester, data)
-        } else if shutDownRequested {
-            cmn.LogInfo("Subscriber shutting down requester:(%s)", requester)
-            /* Writer close the channel */
-            return
         } else {
             /* Handle possibility of no one to read message */
             select {
             case chRes <- JsonString_t(data[1]):
                 /* There is an active reader */
             case <-time.After(SUB_CHANNEL_TIMEOUT):
-                /* No reader.Close this channel */
-                cmn.LogInfo("Closing channel (%s) for no active reader. timeout(%v)",
+                /* No reader. Drop the messsage */
+                cmn.LogInfo("%s: Dropped message for no reader after (%d) seconds",
                     requester, SUB_CHANNEL_TIMEOUT.Seconds())
-                return
             }
         }
     }
@@ -537,6 +525,7 @@ func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error) {
     var err error
 
     defer func() {
+        cmn.LogDebug("Ending runPubSubProxyInt ....")
         if sock_xsub != nil {
             sock_xsub.Close()
         }
@@ -577,7 +566,9 @@ func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error) {
         err = cmn.LogError("Failed to bind xpub socket (%v)", err)
     } else if sock_ctrl_sub, err = getSocket(CHANNEL_MODE_PROXY_CTRL_SUB, CHANNEL_TYPE_NA,
         "ctrl-sub-for-proxy"); err != nil {
-        err = cmn.LogError("Failed to setup proxy err(%v)", err)
+        err = cmn.LogError("Failed to get ctrl-sub socket for proxy err(%v)", err)
+    } else if err = sock_ctrl_sub.SetSubscribe(""); err != nil {
+        err = cmn.LogError("Failed to subscribe all for sock_ctrl_sub err(%v)", err)
     }
 
     if err != nil {
@@ -593,7 +584,6 @@ func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error) {
          * You can't create a socket upon shutdown process start. So get it ahead.
          */
         var sock_ctrl_pub *zmq.Socket
-        defer closeSocket(sock_ctrl_pub)
 
         if sock_ctrl_pub, err = getSocket(CHANNEL_MODE_PROXY_CTRL_PUB, CHANNEL_TYPE_NA,
             "ctrl-pub-for-proxy"); err != nil {
@@ -606,16 +596,25 @@ func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error) {
             cmn.LogError("Alert go routine failed to get ctrl pub sock (%v)", err)
             return
         }
+        defer closeSocket(sock_ctrl_pub)
+
+        /* Register for shutdown signal. */
+        shutdownId := fmt.Sprintf("PubSubProxy chType={%s}", CHANNEL_TYPE_STR[chType])
+        chShutdown := cmn.RegisterForSysShutdown(shutdownId)
+
+        defer func() {
+            cmn.DeregisterForSysShutdown(shutdownId)
+        }()
 
         /* Watch for shutdown */
-        chShutdown := cmn.RegisterForSysShutdown(fmt.Sprintf(
-            "PubSubProxy chType={%s}", CHANNEL_TYPE_STR[chType]))
         <-chShutdown
+        cmn.LogInfo("Signalling down zmq proxy")
 
         /* Terminate proxy. Just a write breaks the zmq.Proxy loop. */
         if _, err = sock_ctrl_pub.Send("TERMINATE", 0); err != nil {
             cmn.LogError("Failed to write proxy control publisher to terminate proxy(%v)", err)
         }
+        cmn.LogInfo("Signaled down zmq proxy")
     }()
 
     err = <-chShutErr
@@ -696,8 +695,12 @@ func clientRequestHandler(reqType ChannelType_t, chReq <-chan *reqInfo_t,
 
     /* From here on the routine runs forever until shutdown */
 
-    chShutdown := cmn.RegisterForSysShutdown(fmt.Sprintf(
-        "clientRequestHandler reqType={%s}", CHANNEL_TYPE_STR[reqType]))
+    shutdownId := fmt.Sprintf("clientRequestHandler reqType={%s}", CHANNEL_TYPE_STR[reqType])
+    chShutdown := cmn.RegisterForSysShutdown(shutdownId)
+
+    defer func() {
+        cmn.DeregisterForSysShutdown(shutdownId)
+    }()
 
     for {
         select {
@@ -809,73 +812,52 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     requester := fmt.Sprintf("server_request_handler_type(%d)", reqType)
     var sock *zmq.Socket
     var err error
-    defer closeSocket(sock)
 
-    if sock, err = getSocket(CHANNEL_MODE_RESPONSE, reqType, requester); err != nil {
-        /* Inform the caller the failure to init and terminate this routine.*/
-        chRet <- err
-        close(chRet)
+    sock, err = getSocket(CHANNEL_MODE_RESPONSE, reqType, requester)
+    defer func() {
+        closeSocket(sock)
+        /* Writer close the channel */
+        close(chReq)
+    } ()
+
+    if err == nil {
+        if err = sock.SetRcvtimeo(time.Second); err != nil {
+            err = cmn.LogError("Failed to SetRcvtimeo err(%v)", err)
+        }
+    }
+
+    /* Inform the caller the result of init */
+    chRet <- err
+    close(chRet)
+    if err != nil {
+        /* Return as failed to init */ 
         return
     }
 
-    /*
-     * As this sleeps on chReq channel, have a dedicated routine to
-     * watch for system shutdown and send mock request to wake it up
-     * and hence enable to see the shutdown in progress.
-     */
-    shutDownRequested := false
-    chShutErr := make(chan error) /* Track init error in following go func */
+    /* Register for system shutdown */
+    shutdownId := fmt.Sprintf("serverRequestHandler reqType={%s}", CHANNEL_TYPE_STR[reqType])
+    chShutdown := cmn.RegisterForSysShutdown(shutdownId)
 
-    go func() {
-        /*
-         * Pre-create qa publisher channel to alert subscribing channel
-         * on shutdown.
-         * You can't create a socket upon shutdown process start. So get it ahead.
-         */
-        shutSock, err := getSocket(CHANNEL_MODE_REQUEST, reqType,
-            fmt.Sprintf("To_Shut_%s", requester))
-        chShutErr <- err
-        close(chShutErr)
-        if err != nil {
-            /* Terminate this routine */
-            return
-        }
-
-        /* err == nil, hence socket is valid hence add defer for close */
-        defer closeSocket(shutSock)
-
-        chShutdown := cmn.RegisterForSysShutdown(fmt.Sprintf(
-            "serverRequestHandler reqType={%s}", CHANNEL_TYPE_STR[reqType]))
-
-        /* Wait for shutdown signal */
-        <-chShutdown
-        shutDownRequested = true
-
-        /* Send a message to wake up subscriber */
-        if _, err = shutSock.Send(QUITTOPIC, 0); err != nil {
-            cmn.LogError("Failed to send quit to %s", requester)
-        }
+    defer func() {
+        cmn.DeregisterForSysShutdown(shutdownId)
     }()
 
-    /* read any error or nil from the above go func's init */
-    err = <-chShutErr
-    chRet <- err /* Forward the final init status to caller of this routine */
-    close(chRet) /* Sender close the channel */
-    if err != nil {
-        return
-    }
-
+Loop:
     /* From here on the routine runs forever until shutdown */
     for {
+        select {
+        case <-chShutdown:
+            cmn.LogInfo("serverRequestHandler shutting down requester:(%s)", requester)
+            break Loop
+        default:
+        }
+
         /* Receive request from client's REQ socket which is ClientReq_t */
         rcvData := ""
-        if rcvData, err = sock.Recv(0); err != nil {
+        if rcvData, err = sock.Recv(0); err == zmq.Errno(syscall.EAGAIN) {
+            /* Continue the loop */
+        } else if err != nil {
             cmn.LogError("Failed to receive msg err(%v for (%s)", requester)
-        } else if shutDownRequested {
-            cmn.LogInfo("Subscriber shutting down requester:(%s)", requester)
-            /* Writer close the channel */
-            close(chReq)
-            break
         } else {
             chReq <- ClientReq_t(rcvData)
             resData := <-chRes
@@ -902,3 +884,4 @@ func initServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     }
     return
 }
+

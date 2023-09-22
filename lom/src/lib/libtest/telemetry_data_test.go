@@ -2,8 +2,8 @@ package libtest
 
 import (
     "fmt"
-    tele "lom/src/lib/lomtelemetry"
     script "lom/src/lib/lomscripted"
+    tele "lom/src/lib/lomtelemetry"
 )
 
 /* Test Data for telemetry */
@@ -30,10 +30,12 @@ type testEntry_t struct {
 }
 
 type testSuite_t struct {
-    id              string      /* Keep it cryptic as it appears in error messages */
-    description     string      /* Give full details for any human reader */
-    tests           []testEntry_t
+    id          string /* Keep it cryptic as it appears in error messages */
+    description string /* Give full details for any human reader */
+    tests       []testEntry_t
 }
+
+var NIL_ERROR = result_t{script.ANONYMOUS, nil, validateNil}
 
 /* String returned by last validation function */
 var testLastErr = ""
@@ -69,14 +71,14 @@ func validateNonNil(n string, vExp, vRet any) bool {
 }
 
 var pubSubSuite = testSuite_t{
-    id: "pubSubSuite",
+    id:          "pubSubSuite",
     description: "Test pub sub for events - Good run",
     tests: []testEntry_t{
         testEntry_t{
             script.ApiIDRunPubSubProxy,
             []script.Param_t{script.Param_t{"chType_1", tele.CHANNEL_TYPE_EVENTS, nil}},
-            []result_t{result_t{script.ANONYMOUS, nil, validateNil}}, /*Expect nil error */
-            "Failed to run sub proxy",
+            []result_t{NIL_ERROR},  /*Expect nil error */
+            "Rub pubsub proxy, required to bind publishers & subscribers",
         },
         testEntry_t{
             script.ApiIDGetSubChannel,
@@ -87,9 +89,9 @@ var pubSubSuite = testSuite_t{
             },
             []result_t{
                 result_t{"chRead-0", nil, validateNonNil}, /* Save in cache */
-                result_t{script.ANONYMOUS, nil, validateNil},
+                NIL_ERROR,
             },
-            "Failed to Get sub channel",
+            "Get sub channel for same type as proxy above",
         },
         testEntry_t{
             script.ApiIDGetPubChannel,
@@ -102,31 +104,41 @@ var pubSubSuite = testSuite_t{
                 result_t{"chWrite-0", nil, validateNonNil}, /* Save in cache */
                 result_t{script.ANONYMOUS, nil, validateNil},
             },
-            "Failed to Get pub channel",
+            "Get pub channel for same type as proxy above",
         },
         testEntry_t{
             script.ApiIDWriteChannel,
             []script.Param_t{
                 script.Param_t{"chWrite-0", nil, nil},                           /* Use chan from cache */
                 script.Param_t{"pub_0", tele.JsonString_t("Hello World!"), nil}, /* Save written data in cache */
-                script.Param_t{script.ANONYMOUS, 1, nil},                               /* timeout = 1 second */
+                script.Param_t{script.ANONYMOUS, 1, nil},                        /* timeout = 1 second */
             },
             []result_t{
                 result_t{script.ANONYMOUS, nil, validateNil},
             }, /*Expect nil error */
-            "Failed to write pub channel",
+            "Write into pub channel created above",
         },
         testEntry_t{
             script.ApiIDReadChannel,
             []script.Param_t{
-                script.Param_t{"chRead-0", nil, nil}, /* Get chRead_0 from cache */
-                script.Param_t{script.ANONYMOUS, 1, nil},    /* timeout = 1 second */
+                script.Param_t{"chRead-0", nil, nil},     /* Get chRead_0 from cache */
+                script.Param_t{script.ANONYMOUS, 1, nil}, /* timeout = 1 second */
             },
             []result_t{
                 result_t{"pub_0", nil, nil}, /* Validate against cache val for pub_0 */
                 result_t{script.ANONYMOUS, nil, validateNil},
             },
-            "Failed to read sub channel",
+            "read from sub channel created above",
+        },
+        testEntry_t{
+            script.ApiIDDoSysShutdown,
+            []script.Param_t{
+                script.Param_t{script.ANONYMOUS, 10, nil}, /* timeout = 10 second */
+            },
+            []result_t{
+                NIL_ERROR,  /* Expect nil error */
+            },
+            "Do system shutdown for clean close",
         },
     },
 }

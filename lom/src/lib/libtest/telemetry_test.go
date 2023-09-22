@@ -5,8 +5,8 @@ import (
     "testing"
     "time"
 
-    tele "lom/src/lib/lomtelemetry"
     script "lom/src/lib/lomscripted"
+    tele "lom/src/lib/lomtelemetry"
 )
 
 func xTest_PubSub(t *testing.T) {
