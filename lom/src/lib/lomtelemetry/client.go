@@ -27,6 +27,9 @@ func getTopic(chProducer ChannelProducer_t, suffix string) (string, error) {
  * NOTE: The Pub channel can be opened only once per process. Any
  *       pre-mature termination will block any further publish.
  *
+ * Closing returned channel chRet will close the underlying 
+ * network connection.
+ *
  * Input:
  *  chtype      - Type of data to be published
  *  producer    - Is this engine, pluginMgr or plugin
@@ -65,6 +68,7 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
     return
 }
 
+
 /*
  * GetSubChannel
  *
@@ -80,27 +84,31 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
  *
  * Return:
  *  chData - Channel to read data from subscription channel
+ *  chClose - Close this channel to close the underlying subscriber network connection.
  *  err - Any error
  *
  */
 
 func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
-    pluginName string) (chRet <-chan JsonString_t, err error) {
+    pluginName string) (chRet <-chan JsonString_t, chClose chan<- int, err error) {
 
     ch := make(chan JsonString_t)
+    chCl := make(chan int)
+
     defer func() {
         if err != nil {
             close(ch)
-            ch = nil
+            close(chCl)
         }
     }()
 
     prefix := ""
     if prefix, err = getTopic(receiveFrom, pluginName); err == nil {
-        if err := openChannel(CHANNEL_MODE_SUBSCRIBER, chtype, prefix, ch); err != nil {
+        if err := getSubChannel(chtype, prefix, ch, chCl); err != nil {
             err = cmn.LogError("Failed to get sub channel (%v)", err)
         } else {
             chRet = ch
+            chClose = chCl
             cmn.LogDebug("CHANNEL_MODE_SUBSCRIBER created for chtype=%d(%s)",
                 chtype, CHANNEL_TYPE_STR[chtype])
         }
@@ -136,17 +144,26 @@ func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
  *  None
  *
  * Return:
+ *  chClose - Close this channel to stop the proxy
  *  err - Non nil, in case of failure
+ *
  */
-func RunPubSubProxy(chType ChannelType_t) error {
-    return doRunPubSubProxy(chType)
+func RunPubSubProxy(chType ChannelType_t) (chClose chan<- int, err error) {
+    chCl := make(chan int)
+    err = doRunPubSubProxy(chType, chCl)
+    if err == nil {
+        chClose = chCl
+    }
+    return
 }
 
 /*
  * Send a request and get channel for receiving response asynchronously
  *
  * Input:
- *  req - Request to send
+ *  req -   Request to send
+ *          An empty request will shutdown request handler running in background.
+ *          Send empty request for each channel type to ensure closed.
  *
  * Output:
  *  None
@@ -174,6 +191,8 @@ func SendClientRequest(reqType ChannelType_t, req ClientReq_t) (chRet <-chan *Cl
  * A handler is for a specific request type.
  * Only one handler per request can be registered.
  * Any proc may choose to register a handler.
+ *
+ * Close returned channel chRes to shut this handler.
  *
  * Input:
  *  reqType - Type of request it handles.
