@@ -3,8 +3,7 @@ package lomtelemetry
 type ChannelType_t int
 
 const (
-    CHANNEL_TYPE_NA ChannelType_t = iota
-    CHANNEL_TYPE_EVENTS
+    CHANNEL_TYPE_EVENTS ChannelType_t = iota
     CHANNEL_TYPE_COUNTERS
     CHANNEL_TYPE_REDBUTTON
     CHANNEL_TYPE_ECHO
@@ -12,7 +11,6 @@ const (
 )
 
 var CHANNEL_TYPE_STR = map[ChannelType_t]string{
-    CHANNEL_TYPE_NA:        "CHANNEL_TYPE_NA",
     CHANNEL_TYPE_EVENTS:    "CHANNEL_TYPE_EVENTS",
     CHANNEL_TYPE_COUNTERS:  "CHANNEL_TYPE_COUNTERS",
     CHANNEL_TYPE_REDBUTTON: "CHANNEL_TYPE_REDBUTTON",

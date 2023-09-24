@@ -46,8 +46,6 @@ var reqrep_types = chTypes_t{
     CHANNEL_TYPE_SCS:  false,
 }
 
-var NA_types = chTypes_t{CHANNEL_TYPE_NA: true}
-
 type chModeData_t struct {
     types     chTypes_t
     startPort int
@@ -61,8 +59,8 @@ var chModeInfo = map[channelMode_t]chModeData_t{
     CHANNEL_MODE_SUBSCRIBER:     chModeData_t{pubsub_types, ZMQ_XPUB_START_PORT, zmq.SUB, true},
     CHANNEL_MODE_REQUEST:        chModeData_t{reqrep_types, ZMQ_REQ_REP_START_PORT, zmq.REQ, true},
     CHANNEL_MODE_RESPONSE:       chModeData_t{reqrep_types, ZMQ_REQ_REP_START_PORT, zmq.REP, false},
-    CHANNEL_MODE_PROXY_CTRL_PUB: chModeData_t{NA_types, ZMQ_PROXY_CTRL_PORT, zmq.PUB, true},
-    CHANNEL_MODE_PROXY_CTRL_SUB: chModeData_t{NA_types, ZMQ_PROXY_CTRL_PORT, zmq.SUB, false},
+    CHANNEL_MODE_PROXY_CTRL_PUB: chModeData_t{pubsub_types, ZMQ_PROXY_CTRL_PORT, zmq.PUB, true},
+    CHANNEL_MODE_PROXY_CTRL_SUB: chModeData_t{pubsub_types, ZMQ_PROXY_CTRL_PORT, zmq.SUB, false},
 }
 
 type sockInfo_t struct {
@@ -144,6 +142,7 @@ func getAddress(mode channelMode_t, chType ChannelType_t) (sockInfo *sockInfo_t,
             info.sType,
             info.isConnect}
     }
+    cmn.LogDebug("Address: (%+v) mode=(%v) chType(%s)\n", *sockInfo, mode, CHANNEL_TYPE_STR[chType])
     return
 }
 
@@ -188,7 +187,7 @@ shutLoop:
              * Some socket closed. Nothing to do
              * Yet must read to drain, else writer blocks.
              */
-            cmn.LogDebug("chSocksClose - read a value")
+            cmn.LogDebug("A socket closed")
         }
     }
 
@@ -517,6 +516,7 @@ Loop:
 func openPubChannel(chType ChannelType_t, topic string, chData <-chan JsonString_t) (err error) {
 
     /* Sockets are opened per chType */
+    /* A publisher expected to use one topic only. So restricted per channel type */
     id := fmt.Sprintf("PubChanne:%d", chType)
     if _, ok := pubChannels.Load(id); ok {
         err = cmn.LogError("Duplicate req for pub channel chType=%d topic=%s pre-exists", chType, topic)
@@ -560,6 +560,7 @@ func openSubChannel(chType ChannelType_t, topic string, chData chan<- JsonString
             chCtrl <-chan int) (err error) {
 
     /* Sockets are opened per chType */
+    /* Callers are interested in all or a topic per channel type */
     id := fmt.Sprintf("SubChannel:%d", chType)
     if _, ok := subChannels.Load(id); ok {
         err = cmn.LogError("Duplicate req for sub channel chType=%d topic=%s pre-exists", chType, topic)
@@ -627,7 +628,7 @@ func runPubSubProxyInt(chType ChannelType_t, chCtrl <-chan int, chRet chan<- err
         /* err is well described */
     } else if err = sock_xpub.Bind(info.address); err != nil {
         err = cmn.LogError("Failed to bind xpub socket (%v)", err)
-    } else if sock_ctrl_sub, err = getSocket(CHANNEL_MODE_PROXY_CTRL_SUB, CHANNEL_TYPE_NA,
+    } else if sock_ctrl_sub, err = getSocket(CHANNEL_MODE_PROXY_CTRL_SUB, chType,
         "ctrl-sub-for-proxy"); err != nil {
         err = cmn.LogError("Failed to get ctrl-sub socket for proxy err(%v)", err)
     } else if err = sock_ctrl_sub.SetSubscribe(""); err != nil {
@@ -648,7 +649,7 @@ func runPubSubProxyInt(chType ChannelType_t, chCtrl <-chan int, chRet chan<- err
          */
         var sock_ctrl_pub *zmq.Socket
 
-        if sock_ctrl_pub, err = getSocket(CHANNEL_MODE_PROXY_CTRL_PUB, CHANNEL_TYPE_NA,
+        if sock_ctrl_pub, err = getSocket(CHANNEL_MODE_PROXY_CTRL_PUB, chType,
             "ctrl-pub-for-proxy"); err != nil {
             err = cmn.LogError("Failed to create proxy control publisher to terminate proxy(%v)", err)
         }

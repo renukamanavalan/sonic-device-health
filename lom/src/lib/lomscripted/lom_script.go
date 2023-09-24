@@ -134,14 +134,15 @@ func callReadChannel(args []any) []any {
 
 func callCloseChannel(args []any) []any {
     var err error
-    if len(args) != 1 {
-        err = cmn.LogError("CloseChannel need channel to close")
-    } else if ch, ok := args[0].(chan<- tele.JsonString_t); ok {
-        close(ch)
-    } else if ch, ok := args[0].(chan<- int); ok {
-        close(ch)
-    } else {
-        err = cmn.LogError("Expect chan<- int/JsonString_t != type(%T)", args[0])
+    for i, chAny := range args {
+        if ch, ok := chAny.(chan<- tele.JsonString_t); ok {
+            close(ch)
+        } else if ch, ok := chAny.(chan<- int); ok {
+            close(ch)
+        } else {
+            /* Last error gets returned. */
+            err = cmn.LogError("%d: Expect chan<- int/JsonString_t != type(%T)", i, chAny)
+        }
     }
     return []any{err}
 }
