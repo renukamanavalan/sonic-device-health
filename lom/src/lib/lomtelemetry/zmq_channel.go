@@ -71,6 +71,66 @@ type sockInfo_t struct {
     isConnect bool
 }
 
+/* Global variables tracking all active objects */
+/*
+ * Single context shared by all threads & routines.
+ * Ctx is threadsafe, but not sockets
+ * Hence one context per process.
+ */
+var zctx *zmq.Context
+
+/*
+ * Each socket close writes into this channel
+ * During shutdown term contex sleep on this channel until all
+ * all sockets are closed, hence the sockets list is empty.
+ */
+var chSocksClose = make(chan int)
+
+/*
+ * Track all open sockets.
+ * Terminate context blocks until this goes 0
+ */
+var socketsList = sync.Map{}
+
+/* Map[id]bool to avoid duplicate open channels, which will drain resources */
+var pubChannels = sync.Map{}
+
+/* Map[id]bool to avoid duplicate open channels, which will drain resources */
+var subChannels = sync.Map{}
+
+/* Map of chType vs bool */
+var runningPubSubProxy = sync.Map{}
+
+/*  sync.Map[ChannelType_t]chan<- *reqInfo_t */
+var clientReqChanList = sync.Map{}
+
+var serverReqHandlerList = sync.Map{}
+
+var globalHandlesMaps = map[string]*sync.Map {
+    "socketsList":          &socketsList,
+    "pubChannels":          &pubChannels,
+    "subChannels":          &subChannels,
+    "runningPubSubProxy":   &runningPubSubProxy,
+    "clientReqChanList":    &clientReqChanList,
+    "serverReqHandlerList": &serverReqHandlerList,
+}
+
+func isZMQIdle() (ret bool) {
+    ret = true
+    if zctx != nil {
+        i := 0
+        for k, m := range globalHandlesMaps {
+            m.Range(func(e, v any) bool { i++; return true })
+            if i != 0 {
+                ret = false
+                cmn.LogInfo("ZMQ active for (%s) with cnt(%d)", k, i)
+                break
+            }
+        }
+    }
+    return
+}
+
 func getAddress(mode channelMode_t, chType ChannelType_t) (sockInfo *sockInfo_t, err error) {
 
     /* Cross validation between mode & ChannelType_t */
@@ -88,31 +148,11 @@ func getAddress(mode channelMode_t, chType ChannelType_t) (sockInfo *sockInfo_t,
 }
 
 /*
- * Single context shared by all threads & routines.
- * Ctx is threadsafe, but not sockets
- * Hence one context per process.
- */
-var zctx *zmq.Context
-
-/*
- * Track all open sockets.
- * Terminate context blocks until this goes 0
- */
-var socketsList = sync.Map{}
-
-/*
  * Collect all open sockets. Ctx termination is blocked by any
  * open socket.
  * string is some friendly identification of caller to help track
  * who is not closing, upon leak.
  */
-
-/*
- * Each socket close writes into this channel
- * During shutdown term contex sleep on this channel until all
- * all sockets are closed, hence the sockets list is empty.
- */
-var chSocksClose = make(chan int)
 
 func getContext() (*zmq.Context, error) {
     if cmn.IsSysShuttingDown() {
@@ -324,7 +364,7 @@ func managePublish(chType ChannelType_t, topic string, chReq <-chan JsonString_t
 
         case data, ok := <-chReq:
             if !ok {
-                cmn.LogWarning("(%s) i/p channel closed. No more publish possible",
+                cmn.LogInfo("(%s) i/p channel closed. No more publish possible",
                     requester)
                 return
             }
@@ -474,9 +514,6 @@ Loop:
  * Return: Error as nil or non nil
  */
 
-/* Map[id]bool to avoid duplicate open channels, which will drain resources */
-var pubChannels = sync.Map{}
-
 func openPubChannel(chType ChannelType_t, topic string, chData <-chan JsonString_t) (err error) {
 
     /* Sockets are opened per chType */
@@ -518,9 +555,6 @@ func openPubChannel(chType ChannelType_t, topic string, chData <-chan JsonString
  *
  * Return: Error as nil or non nil
  */
-
-/* Map[id]bool to avoid duplicate open channels, which will drain resources */
-var subChannels = sync.Map{}
 
 func openSubChannel(chType ChannelType_t, topic string, chData chan<- JsonString_t,
             chCtrl <-chan int) (err error) {
@@ -669,9 +703,6 @@ func runPubSubProxyInt(chType ChannelType_t, chCtrl <-chan int, chRet chan<- err
     return
 }
 
-/* Map of chType vs bool */
-var runningPubSubProxy = sync.Map{}
-
 func doRunPubSubProxy(chType ChannelType_t, chCtrl <-chan int) error {
     if _, ok := runningPubSubProxy.Load(chType); ok {
         return cmn.LogError("Duplicate runPubSubProxy for chType(%d)", chType)
@@ -783,9 +814,6 @@ Loop:
  *       to get the response back.
  *  err - Error value
  */
-/*  sync.Map[ChannelType_t]chan<- *reqInfo_t */
-var clientReqChanList = sync.Map{}
-
 func getclientReqChan(reqType ChannelType_t, doCreate bool) (chReq chan<- *reqInfo_t, err error) {
     v, ok := clientReqChanList.Load(reqType)
     if !ok && !doCreate {
@@ -916,8 +944,6 @@ Loop:
         }
     }
 }
-
-var serverReqHandlerList = sync.Map{}
 
 func initServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     chRes <-chan ServerRes_t) (err error) {

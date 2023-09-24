@@ -36,6 +36,7 @@ type testSuite_t struct {
 }
 
 var NIL_ERROR = result_t{script.ANONYMOUS, nil, validateNil}
+var TEST_FOR_TRUE = result_t{script.ANONYMOUS, true, nil}
 
 /* String returned by last validation function */
 var testLastErr = ""
@@ -77,6 +78,114 @@ var pubSubSuite = testSuite_t{
         testEntry_t{
             script.ApiIDRunPubSubProxy,
             []script.Param_t{script.Param_t{"chType_1", tele.CHANNEL_TYPE_EVENTS, nil}},
+            []result_t{
+                result_t{"chPrxyClose-0", nil, validateNonNil}, /* Save in cache */
+                NIL_ERROR,  /*Expect nil error */
+            },
+            "Rub pubsub proxy, required to bind publishers & subscribers",
+        },
+        testEntry_t{
+            script.ApiIDGetSubChannel,
+            []script.Param_t{
+                script.Param_t{"chType_1", nil, nil}, /* Fetch chType_1 from cache */
+                script.Param_t{"prod_0", tele.CHANNEL_PRODUCER_EMPTY, nil},
+                script.Param_t{script.ANONYMOUS, "", nil},
+            },
+            []result_t{
+                result_t{"chRead-0", nil, validateNonNil}, /* Save in cache */
+                result_t{"chSubClose-0", nil, validateNonNil}, /* Save in cache */
+                NIL_ERROR,
+            },
+            "Get sub channel for same type as proxy above",
+        },
+        testEntry_t{
+            script.ApiIDGetPubChannel,
+            []script.Param_t{
+                script.Param_t{"chType_1", nil, nil}, /* Fetch chType_1 from cache */
+                script.Param_t{"prod_1", tele.CHANNEL_PRODUCER_ENGINE, nil},
+                script.Param_t{script.ANONYMOUS, "", nil},
+            },
+            []result_t{
+                result_t{"chWrite-0", nil, validateNonNil}, /* Save in cache */
+                result_t{script.ANONYMOUS, nil, validateNil},
+            },
+            "Get pub channel for same type as proxy above",
+        },
+        testEntry_t{
+            script.ApiIDWriteChannel,
+            []script.Param_t{
+                script.Param_t{"chWrite-0", nil, nil},                           /* Use chan from cache */
+                script.Param_t{"pub_0", tele.JsonString_t("Hello World!"), nil}, /* Save written data in cache */
+                script.Param_t{script.ANONYMOUS, 1, nil},                        /* timeout = 1 second */
+            },
+            []result_t{
+                result_t{script.ANONYMOUS, nil, validateNil},
+            }, /*Expect nil error */
+            "Write into pub channel created above",
+        },
+        testEntry_t{
+            script.ApiIDReadChannel,
+            []script.Param_t{
+                script.Param_t{"chRead-0", nil, nil},     /* Get chRead_0 from cache */
+                script.Param_t{script.ANONYMOUS, 1, nil}, /* timeout = 1 second */
+            },
+            []result_t{
+                result_t{"pub_0", nil, nil}, /* Validate against cache val for pub_0 */
+                result_t{script.ANONYMOUS, nil, validateNil},
+            },
+            "read from sub channel created above",
+        },
+        testEntry_t{
+            script.ApiIDCloseChannel,
+            []script.Param_t{
+                script.Param_t{"chWrite-0", nil, nil},  /* Get chWrite_0 from cache */
+            },
+            []result_t{ NIL_ERROR },
+            "Close pub chennel",
+        },
+        testEntry_t{
+            script.ApiIDCloseChannel,
+            []script.Param_t{
+                script.Param_t{"chSubClose-0", nil, nil},  /* Get from cache */
+            },
+            []result_t{ NIL_ERROR },
+            "Close pub chennel",
+        },
+        testEntry_t{
+            script.ApiIDCloseChannel,
+            []script.Param_t{
+                script.Param_t{"chPrxyClose-0", nil, nil},  /* Get from cache */
+            },
+            []result_t{ NIL_ERROR },
+            "Close proxy chennel",
+        },
+        testEntry_t{
+            script.ApiIDPause,
+            []script.Param_t{
+                script.Param_t{script.ANONYMOUS, 2, nil},   /* Pause for a second */
+            },
+            []result_t{ NIL_ERROR, },
+            "Close proxy chennel",
+        },
+        testEntry_t{
+            script.ApiIDIsTelemetryIdle,
+            []script.Param_t{},
+            []result_t{
+                TEST_FOR_TRUE,
+                NIL_ERROR,
+            },
+            "Close proxy chennel",
+        },
+    },
+}
+
+var pubSubMultiSuite = testSuite_t{
+    id:          "pubSubSuite",
+    description: "Test multiple pub sub for events - Good run",
+    tests: []testEntry_t{
+        testEntry_t{
+            script.ApiIDRunPubSubProxy,
+            []script.Param_t{script.Param_t{"chType_1", tele.CHANNEL_TYPE_COUNTERS, nil}},
             []result_t{
                 result_t{"chPrxyClose-0", nil, validateNonNil}, /* Save in cache */
                 NIL_ERROR,  /*Expect nil error */

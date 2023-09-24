@@ -16,6 +16,7 @@ const (
     ApiIDReadChannel                      = "ReadChannel"
     ApiIDCloseChannel                     = "CloseChannel"
     ApiIDPause                            = "pause"
+    ApiIDIsTelemetryIdle                  = "IsTelemetryIdle"
 )
 
 type ApiFn_t func(args []any) []any
@@ -30,6 +31,7 @@ var LomAPIByIds = map[ApiId_t]ApiFn_t{
     ApiIDReadChannel:              callReadChannel,
     ApiIDCloseChannel:             callCloseChannel,
     ApiIDPause:                    callPause,
+    ApiIDIsTelemetryIdle:          callIsTelemetryIdle,
 }
 
 /*

@@ -135,7 +135,7 @@ func callReadChannel(args []any) []any {
 func callCloseChannel(args []any) []any {
     var err error
     if len(args) != 1 {
-        err = cmn.LogError("WriteChannel need data to write")
+        err = cmn.LogError("CloseChannel need channel to close")
     } else if ch, ok := args[0].(chan<- tele.JsonString_t); ok {
         close(ch)
     } else if ch, ok := args[0].(chan<- int); ok {
@@ -149,13 +149,25 @@ func callCloseChannel(args []any) []any {
 func callPause(args []any) []any {
     var err error
     if len(args) != 1 {
-        err = cmn.LogError("WriteChannel need data to write")
+        err = cmn.LogError("Pause need time in seconds")
     } else if tout, ok := args[0].(int); !ok {
         err = cmn.LogError("Expect pause time int != type(%T)", args[0])
     } else {
+        cmn.LogInfo("Pause sleeps for %d seconds", tout)
         time.Sleep(time.Duration(tout) * time.Second)
     }
     return []any{err}
+}
+
+func callIsTelemetryIdle(args []any) []any {
+    var err error
+    ret := false
+    if len(args) != 0 {
+        err = cmn.LogError("Chec for idle need no args")
+    } else {
+        ret = tele.IsTelemetryIdle()
+    }
+    return []any{ret, err}
 }
 
 func CallByApiID(api ApiId_t, args []Param_t, cache SuiteCache_t) (retVals []any, ok bool) {

@@ -9,17 +9,6 @@ import (
     tele "lom/src/lib/lomtelemetry"
 )
 
-func xTest_PubSub(t *testing.T) {
-    ch, err := tele.GetPubChannel(tele.CHANNEL_TYPE_EVENTS, tele.CHANNEL_PRODUCER_ENGINE, "")
-    /* ch close indirectly closes corresponding PUB channel too */
-    defer close(ch)
-
-    if err != nil {
-        t.Fatalf(fatalFmt("Failed to get sub channel (%v)", err))
-    }
-    t.Logf(logFmt("Test Complete"))
-}
-
 func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
     /* Caches all variables for reference across test entries */
     cache := script.SuiteCache_t{}

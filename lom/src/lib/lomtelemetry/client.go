@@ -220,3 +220,7 @@ func RegisterServerReqHandler(reqType ChannelType_t) (chDataReq <-chan ClientReq
     }
     return
 }
+
+func IsTelemetryIdle() bool {
+    return isZMQIdle()
+}
