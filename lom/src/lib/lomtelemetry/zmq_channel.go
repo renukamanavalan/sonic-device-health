@@ -376,7 +376,7 @@ func managePublish(chType ChannelType_t, topic string, chReq <-chan JsonString_t
 const QUITTOPIC = "quit"
 
 func manageSubscribe(chType ChannelType_t, topic string, chRes chan<- JsonString_t,
-    chRet chan<- error, cleanupFn func()) {
+    chCtrl <-chan int, chRet chan<- error, cleanupFn func()) {
 
     defer func() {
         cleanupFn()
@@ -427,6 +427,9 @@ Loop:
         case <- chShutdown:
             cmn.LogInfo("Subscriber shutting down requester:(%s)", requester)
             break Loop
+        case <- chCtrl:
+            cmn.LogInfo("Subscriber control channel closed: (%s)", requester)
+            break Loop
         default:
         }
 
@@ -452,26 +455,19 @@ Loop:
 }
 
 /*
- * runPubSubChannel
+ * openPubChannel
  *
- * Meant for publisher & subscriber
- *
- * The created channels run forever ready for publishing/subscribing.
- * They run forever until system shutdown.
- *
- * As dedicated routines run forever, we don't allow duplicates
- * more to conserve resources. Hence no close call.
+ * The created channels run forever ready for publishing.
+ * They run forever until system shutdown or write end of the channel is closed.
  *
  * chData could be used by multiple client routines.
  *
  * Input:
- *  mode -  Publisher or subscriber
  *  chType -Type of data like events, counters, red-button.
  *          Each type has a dedicated channel
  *  topic - Topic for publishing, which subscriber could use to filter upon.
  *
- *  chData -It is used as i/p channel for publish data and as o/p channel
- *          for data read from subscription
+ *  chData -It is used as i/p channel for publish data. Caller writes the data to publish.
  *
  * Output:  None
  *
@@ -479,23 +475,14 @@ Loop:
  */
 
 /* Map[id]bool to avoid duplicate open channels, which will drain resources */
-var openChannels = sync.Map{}
+var pubChannels = sync.Map{}
 
-func openChannel(mode channelMode_t, chType ChannelType_t, topic string,
-    chData chan JsonString_t) (err error) {
+func openPubChannel(chType ChannelType_t, topic string, chData <-chan JsonString_t) (err error) {
 
     /* Sockets are opened per chType */
-    id := fmt.Sprintf("%d_%d", mode, chType)
-    if _, ok := openChannels.Load(id); ok {
-        err = cmn.LogError("Duplicate req mode=%d chType=%d topic=%s pre-exists",
-            mode, chType, topic)
-        return
-    }
-
-    switch mode {
-    case CHANNEL_MODE_PUBLISHER, CHANNEL_MODE_SUBSCRIBER:
-    default:
-        err = cmn.LogError("Expect mode (%d) as pub/sub only", mode)
+    id := fmt.Sprintf("PubChanne:%d", chType)
+    if _, ok := pubChannels.Load(id); ok {
+        err = cmn.LogError("Duplicate req for pub channel chType=%d topic=%s pre-exists", chType, topic)
         return
     }
 
@@ -503,22 +490,63 @@ func openChannel(mode channelMode_t, chType ChannelType_t, topic string,
         return
     }
     chRet := make(chan error)
-    openChannels.Store(id, true)
+    pubChannels.Store(id, true)
 
-    if mode == CHANNEL_MODE_PUBLISHER {
-        go managePublish(chType, topic, chData, chRet,
-            func() { openChannels.Delete(id) })
-    } else {
-        go manageSubscribe(chType, topic, chData, chRet,
-            func() { openChannels.Delete(id) })
-    }
+    go managePublish(chType, topic, chData, chRet, func() {pubChannels.Delete(id)})
 
     /* Wait till routines get their init done */
     err = <-chRet
     return
 }
 
-func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error, cleanupFn func()) {
+/*
+ * openSubChannel
+ *
+ * The created channels run forever subscribing to given topic.
+ * They run forever until system shutdown or ctrl channel is closed.
+ *
+ * Input:
+ *  chType -Type of data like events, counters, red-button.
+ *          Each type has a dedicated channel
+ *  topic - Topic for subscription. An empty string receives all. 
+ *
+ *  chData - This is writable channel where all received messages are written into.
+ *  chCtrl - Closing this closes underlying network connection and hence cancel the
+ *              subscription. Caller keeps the write end to close.
+ *
+ * Output:  None
+ *
+ * Return: Error as nil or non nil
+ */
+
+/* Map[id]bool to avoid duplicate open channels, which will drain resources */
+var subChannels = sync.Map{}
+
+func openSubChannel(chType ChannelType_t, topic string, chData chan<- JsonString_t,
+            chCtrl <-chan int) (err error) {
+
+    /* Sockets are opened per chType */
+    id := fmt.Sprintf("SubChannel:%d", chType)
+    if _, ok := subChannels.Load(id); ok {
+        err = cmn.LogError("Duplicate req for sub channel chType=%d topic=%s pre-exists", chType, topic)
+        return
+    }
+
+    if _, err = getContext(); err != nil {
+        return
+    }
+    chRet := make(chan error)
+    subChannels.Store(id, true)
+
+    go manageSubscribe(chType, topic, chData, chCtrl, chRet, func() { subChannels.Delete(id) })
+   
+
+    /* Wait till routines get their init done */
+    err = <-chRet
+    return
+}
+
+func runPubSubProxyInt(chType ChannelType_t, chCtrl <-chan int, chRet chan<- error, cleanupFn func()) {
     var sock_xsub *zmq.Socket
     var sock_xpub *zmq.Socket
     var sock_ctrl_sub *zmq.Socket
@@ -607,8 +635,13 @@ func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error, cleanupFn func(
             cmn.DeregisterForSysShutdown(shutdownId)
         }()
 
-        /* Watch for shutdown */
-        <-chShutdown
+        /* Watch for system/user shutdown */
+        select {
+        case <-chShutdown:
+            cmn.LogInfo("proxy: System shutdown for (%s)", shutdownId)
+        case <- chCtrl:
+            cmn.LogInfo("proxy: User shutdown for (%s)", shutdownId)
+        }
         cmn.LogInfo("Signalling down zmq proxy")
 
         /* Terminate proxy. Just a write breaks the zmq.Proxy loop. */
@@ -639,13 +672,13 @@ func runPubSubProxyInt(chType ChannelType_t, chRet chan<- error, cleanupFn func(
 /* Map of chType vs bool */
 var runningPubSubProxy = sync.Map{}
 
-func doRunPubSubProxy(chType ChannelType_t) error {
+func doRunPubSubProxy(chType ChannelType_t, chCtrl <-chan int) error {
     if _, ok := runningPubSubProxy.Load(chType); ok {
         return cmn.LogError("Duplicate runPubSubProxy for chType(%d)", chType)
     }
     chRet := make(chan error)
     runningPubSubProxy.Store(chType, true)
-    go runPubSubProxyInt(chType, chRet, func() { runningPubSubProxy.Delete(chType) })
+    go runPubSubProxyInt(chType, chCtrl, chRet, func() { runningPubSubProxy.Delete(chType) })
     err := <-chRet
     return err
 }
@@ -704,13 +737,17 @@ func clientRequestHandler(reqType ChannelType_t, chReq <-chan *reqInfo_t,
         cmn.DeregisterForSysShutdown(shutdownId)
     }()
 
+Loop:
     for {
         select {
         case <-chShutdown:
             cmn.LogInfo("Shutting down %s", requester)
-            return
+            break Loop
 
         case data := <-chReq:
+            if string(data.reqData) == "" {
+                break Loop
+            }
             rcvData := ""
             if _, err = sock.Send(string(data.reqData), 0); err != nil {
                 /* Don't return; Just log error */
@@ -724,6 +761,7 @@ func clientRequestHandler(reqType ChannelType_t, chReq <-chan *reqInfo_t,
             close(data.chResData) /* No more writes as it is per request */
         }
     }
+    cmn.LogInfo("Terminating clientRequestHandler for (%s)", requester)
 }
 
 /*
@@ -735,6 +773,7 @@ func clientRequestHandler(reqType ChannelType_t, chReq <-chan *reqInfo_t,
  *
  * Input:
  *  reqType - Type of request
+ *  doCreate - false implies don't create if not exist
  *
  * Output:
  *  None
@@ -747,8 +786,12 @@ func clientRequestHandler(reqType ChannelType_t, chReq <-chan *reqInfo_t,
 /*  sync.Map[ChannelType_t]chan<- *reqInfo_t */
 var clientReqChanList = sync.Map{}
 
-func getclientReqChan(reqType ChannelType_t) (chReq chan<- *reqInfo_t, err error) {
-    if v, ok := clientReqChanList.Load(reqType); !ok {
+func getclientReqChan(reqType ChannelType_t, doCreate bool) (chReq chan<- *reqInfo_t, err error) {
+    v, ok := clientReqChanList.Load(reqType)
+    if !ok && !doCreate {
+        return  /* Nothing to do */
+    }
+    if !ok {
         ch := make(chan *reqInfo_t)
         chRet := make(chan error)
         clientReqChanList.Store(reqType, ch)
@@ -782,7 +825,7 @@ func getclientReqChan(reqType ChannelType_t) (chReq chan<- *reqInfo_t, err error
  *  err - Error object
  */
 func processRequest(reqType ChannelType_t, req ClientReq_t, chRes chan<- *ClientRes_t) (err error) {
-    if ch, e := getclientReqChan(reqType); e == nil {
+    if ch, e := getclientReqChan(reqType, string(req) != ""); e == nil {
         ch <- &reqInfo_t{req, chRes}
     } else {
         err = e
@@ -851,6 +894,9 @@ Loop:
         select {
         case <-chShutdown:
             cmn.LogInfo("serverRequestHandler shutting down requester:(%s)", requester)
+            break Loop
+        case <-chRes:
+            cmn.LogInfo("input response channel closed; Close this handler")
             break Loop
         default:
         }

@@ -27,7 +27,7 @@ func getTopic(chProducer ChannelProducer_t, suffix string) (string, error) {
  * NOTE: The Pub channel can be opened only once per process. Any
  *       pre-mature termination will block any further publish.
  *
- * Closing returned channel chRet will close the underlying 
+ * Closing returned channel chData will close the underlying 
  * network connection.
  *
  * Input:
@@ -46,7 +46,7 @@ func getTopic(chProducer ChannelProducer_t, suffix string) (string, error) {
  *
  */
 func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
-    pluginName string) (chRet chan<- JsonString_t, err error) {
+    pluginName string) (chData chan<- JsonString_t, err error) {
 
     ch := make(chan JsonString_t)
 
@@ -60,10 +60,10 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
     prefix := ""
     if prefix, err = getTopic(producer, pluginName); err != nil {
         /* err is detailed enough */
-    } else if err = openChannel(CHANNEL_MODE_PUBLISHER, chtype, prefix, ch); err != nil {
+    } else if err = openPubChannel(chtype, prefix, ch); err != nil {
         err = cmn.LogError("Failed to get pub channel (%v)", err)
     } else {
-        chRet = ch
+        chData = ch
     }
     return
 }
@@ -90,7 +90,7 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
  */
 
 func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
-    pluginName string) (chRet <-chan JsonString_t, chClose chan<- int, err error) {
+    pluginName string) (chData <-chan JsonString_t, chClose chan<- int, err error) {
 
     ch := make(chan JsonString_t)
     chCl := make(chan int)
@@ -104,10 +104,10 @@ func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
 
     prefix := ""
     if prefix, err = getTopic(receiveFrom, pluginName); err == nil {
-        if err := getSubChannel(chtype, prefix, ch, chCl); err != nil {
+        if err := openSubChannel(chtype, prefix, ch, chCl); err != nil {
             err = cmn.LogError("Failed to get sub channel (%v)", err)
         } else {
-            chRet = ch
+            chData = ch
             chClose = chCl
             cmn.LogDebug("CHANNEL_MODE_SUBSCRIBER created for chtype=%d(%s)",
                 chtype, CHANNEL_TYPE_STR[chtype])
@@ -169,11 +169,11 @@ func RunPubSubProxy(chType ChannelType_t) (chClose chan<- int, err error) {
  *  None
  *
  * Return:
- *  ch -    Channel to get response from. Caller to close the channel upon
+ *  chData -    Channel to get response from. Caller to close the channel upon
  *          receiving response.
  *  err -   Non nil, in case of failure
  */
-func SendClientRequest(reqType ChannelType_t, req ClientReq_t) (chRet <-chan *ClientRes_t, err error) {
+func SendClientRequest(reqType ChannelType_t, req ClientReq_t) (chData <-chan *ClientRes_t, err error) {
 
     ch := make(chan *ClientRes_t)
     if e := processRequest(reqType, req, ch); e != nil {
@@ -181,7 +181,7 @@ func SendClientRequest(reqType ChannelType_t, req ClientReq_t) (chRet <-chan *Cl
         close(ch)
         ch = nil
     } else {
-        chRet = ch
+        chData = ch
     }
     return
 }
@@ -201,13 +201,13 @@ func SendClientRequest(reqType ChannelType_t, req ClientReq_t) (chRet <-chan *Cl
  *  None
  *
  * Return:
- *  chReq - Input channel to read client requests.
- *  chRes - Output channel to write server's response
+ *  chDataReq - Input channel to read client requests.
+ *  chRDataes - Output channel to write server's response
  *  err - Non nil error implies failure
  */
 
-func RegisterServerReqHandler(reqType ChannelType_t) (chRetReq <-chan ClientReq_t,
-    chRetRes chan<- ServerRes_t, err error) {
+func RegisterServerReqHandler(reqType ChannelType_t) (chDataReq <-chan ClientReq_t,
+    chDataRes chan<- ServerRes_t, err error) {
     chReq := make(chan ClientReq_t)
     chRes := make(chan ServerRes_t)
 
@@ -215,8 +215,8 @@ func RegisterServerReqHandler(reqType ChannelType_t) (chRetReq <-chan ClientReq_
         close(chReq)
         close(chRes)
     } else {
-        chRetReq = chReq
-        chRetRes = chRes
+        chDataReq = chReq
+        chDataRes = chRes
     }
     return
 }

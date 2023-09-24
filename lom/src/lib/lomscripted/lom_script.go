@@ -29,7 +29,7 @@ func callGetPubChannel(args []any) []any {
 
 func callGetSubChannel(args []any) []any {
     var err error
-    var ch any
+    var ch, chClose any
     if len(args) != 3 {
         err = cmn.LogError("GetSubChannel expects 3 args. Given=%d", len(args))
     }
@@ -40,21 +40,22 @@ func callGetSubChannel(args []any) []any {
     } else if pluginName, ok := args[2].(string); !ok {
         err = cmn.LogError("Expect string != type(%T)", args[2])
     } else {
-        ch, err = tele.GetSubChannel(chType, producer, pluginName)
+        ch, chClose, err = tele.GetSubChannel(chType, producer, pluginName)
     }
-    return []any{ch, err}
+    return []any{ch, chClose, err}
 }
 
 func callRunPubSubProxy(args []any) []any {
     var err error
+    var chClose any
     if len(args) != 1 {
         err = cmn.LogError("RunPubSubProxy expects 1 args. Given=%d", len(args))
     } else if chType, ok := args[0].(tele.ChannelType_t); !ok {
         err = cmn.LogError("Expect tele.ChannelType_t != type(%T)", args[0])
     } else {
-        err = tele.RunPubSubProxy(chType)
+        chClose, err = tele.RunPubSubProxy(chType)
     }
-    return []any{err}
+    return []any{chClose, err}
 }
 
 func callSendClientRequest(args []any) []any {
@@ -135,10 +136,12 @@ func callCloseChannel(args []any) []any {
     var err error
     if len(args) != 1 {
         err = cmn.LogError("WriteChannel need data to write")
-    } else if ch, ok := args[0].(chan<- tele.JsonString_t); !ok {
-        err = cmn.LogError("Expect tele.JsonString_t chan<- != type(%T)", args[0])
-    } else {
+    } else if ch, ok := args[0].(chan<- tele.JsonString_t); ok {
         close(ch)
+    } else if ch, ok := args[0].(chan<- int); ok {
+        close(ch)
+    } else {
+        err = cmn.LogError("Expect chan<- int/JsonString_t != type(%T)", args[0])
     }
     return []any{err}
 }

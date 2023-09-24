@@ -77,7 +77,10 @@ var pubSubSuite = testSuite_t{
         testEntry_t{
             script.ApiIDRunPubSubProxy,
             []script.Param_t{script.Param_t{"chType_1", tele.CHANNEL_TYPE_EVENTS, nil}},
-            []result_t{NIL_ERROR},  /*Expect nil error */
+            []result_t{
+                result_t{"chPrxyClose-0", nil, validateNonNil}, /* Save in cache */
+                NIL_ERROR,  /*Expect nil error */
+            },
             "Rub pubsub proxy, required to bind publishers & subscribers",
         },
         testEntry_t{
@@ -89,6 +92,7 @@ var pubSubSuite = testSuite_t{
             },
             []result_t{
                 result_t{"chRead-0", nil, validateNonNil}, /* Save in cache */
+                result_t{"chSubClose-0", nil, validateNonNil}, /* Save in cache */
                 NIL_ERROR,
             },
             "Get sub channel for same type as proxy above",
@@ -129,6 +133,30 @@ var pubSubSuite = testSuite_t{
                 result_t{script.ANONYMOUS, nil, validateNil},
             },
             "read from sub channel created above",
+        },
+        testEntry_t{
+            script.ApiIDCloseChannel,
+            []script.Param_t{
+                script.Param_t{"chWrite-0", nil, nil},  /* Get chWrite_0 from cache */
+            },
+            []result_t{ NIL_ERROR },
+            "Close pub chennel",
+        },
+        testEntry_t{
+            script.ApiIDCloseChannel,
+            []script.Param_t{
+                script.Param_t{"chSubClose-0", nil, nil},  /* Get from cache */
+            },
+            []result_t{ NIL_ERROR },
+            "Close pub chennel",
+        },
+        testEntry_t{
+            script.ApiIDCloseChannel,
+            []script.Param_t{
+                script.Param_t{"chPrxyClose-0", nil, nil},  /* Get from cache */
+            },
+            []result_t{ NIL_ERROR },
+            "Close proxy chennel",
         },
     },
 }
