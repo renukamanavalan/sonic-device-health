@@ -369,4 +369,5 @@ var testTelemetrySuites = []*testSuite_t{
     &pubSubSuite,
     &pubSubMultiSuite,
     &pubSubFnSuite,
+    &pubSubReqRepSuite,
 }

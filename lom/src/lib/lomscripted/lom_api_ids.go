@@ -25,6 +25,7 @@ const (
     ApiIDRegisterServerReqHandler         = "RegisterServerReqHandler"
     ApiIDReadClientRequest                = "ReadClientRequest"
     ApiIDSendClientResponse               = "SendClientResponse"
+    ApiIDCloseRequestChannel              = "CloseRequestChannel"
     ApiIDCloseChannel                     = "CloseChannel"
     ApiIDPause                            = "pause"
     ApiIDIsTelemetryIdle                  = "IsTelemetryIdle"
@@ -43,6 +44,7 @@ var LomAPIByIds = map[ApiId_t]ApiFn_t{
     ApiIDRegisterServerReqHandler: callRegisterServerReqHandler,
     ApiIDReadClientRequest:        callReadClientRequest,
     ApiIDSendClientResponse:       callSendClientResponse,
+    ApiIDCloseRequestChannel:      callCloseRequestChannel,
     ApiIDCloseChannel:             callCloseChannel,
     ApiIDPause:                    callPause,
     ApiIDIsTelemetryIdle:          callIsTelemetryIdle,

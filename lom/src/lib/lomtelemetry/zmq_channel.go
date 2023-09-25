@@ -99,7 +99,7 @@ var subChannels = sync.Map{}
 /* Map of chType vs bool */
 var runningPubSubProxy = sync.Map{}
 
-/*  sync.Map[ChannelType_t]chan<- *reqInfo_t */
+/*  sync.Map[ChannelType_t]chan *reqInfo_t */
 var clientReqChanList = sync.Map{}
 
 var serverReqHandlerList = sync.Map{}
@@ -230,6 +230,10 @@ func getSocket(mode channelMode_t, chType ChannelType_t, requester string) (sock
     if cmn.IsSysShuttingDown() {
         return nil, cmn.LogError("System is shutting down. No new socket")
     }
+    if zctx == nil {
+        cmn.LogPanic("GetSocket called w/o getting context")
+    }
+
     defer func() {
         if err != nil {
             sock.Close()
@@ -612,7 +616,6 @@ func runPubSubProxyInt(chType ChannelType_t, chCtrl <-chan int, chRet chan<- err
     }()
 
     var ctx *zmq.Context
-
     if ctx, err = getContext(); err != nil {
         return
     }
@@ -713,15 +716,18 @@ func runPubSubProxyInt(chType ChannelType_t, chCtrl <-chan int, chRet chan<- err
     return
 }
 
-func doRunPubSubProxy(chType ChannelType_t, chCtrl <-chan int) error {
+func doRunPubSubProxy(chType ChannelType_t, chCtrl <-chan int) (err error) {
+    if _, err = getContext(); err != nil {
+        return err
+    }
     if _, ok := runningPubSubProxy.Load(chType); ok {
         return cmn.LogError("Duplicate runPubSubProxy for chType(%d)", chType)
     }
     chRet := make(chan error)
     runningPubSubProxy.Store(chType, true)
     go runPubSubProxyInt(chType, chCtrl, chRet, func() { runningPubSubProxy.Delete(chType) })
-    err := <-chRet
-    return err
+    err = <-chRet
+    return
 }
 
 /*
@@ -823,7 +829,6 @@ Loop:
  *
  * Input:
  *  reqType - Type of request
- *  doCreate - false implies don't create if not exist
  *
  * Output:
  *  None
@@ -833,23 +838,18 @@ Loop:
  *       to get the response back.
  *  err - Error value
  */
-func getclientReqChan(reqType ChannelType_t, doCreate bool) (chReq chan<- *reqInfo_t, err error) {
-    v, ok := clientReqChanList.Load(reqType)
-    if !ok && !doCreate {
-        return /* Nothing to do */
-    }
-    if !ok {
-        ch := make(chan *reqInfo_t)
+func getclientReqChan(reqType ChannelType_t) (chReq chan<- *reqInfo_t, err error) {
+    var ch chan *reqInfo_t
+    if v, ok := clientReqChanList.Load(reqType); !ok {
+        ch = make(chan *reqInfo_t)
         chRet := make(chan error)
         clientReqChanList.Store(reqType, ch)
         go clientRequestHandler(reqType, ch, chRet, func() { clientReqChanList.Delete(reqType) })
         err = <-chRet
-        if err == nil {
-            chReq = ch
-        }
-    } else if ch, ok := v.(chan<- *reqInfo_t); !ok {
+    } else if ch, ok = v.(chan *reqInfo_t); !ok {
         err = cmn.LogError("Internal error. Type(%T) != chan<- *reqInfo_t", v)
-    } else {
+    }
+    if err == nil {
         chReq = ch
     }
     return
@@ -862,7 +862,9 @@ func getclientReqChan(reqType ChannelType_t, doCreate bool) (chReq chan<- *reqIn
  * response asynchronously.
  *
  * Input:
+ *  reqType - Request type to sebd
  *  req - Request to send
+ *  chRes - Channel to send response for this request.
  *
  * Output:
  *  None
@@ -872,16 +874,39 @@ func getclientReqChan(reqType ChannelType_t, doCreate bool) (chReq chan<- *reqIn
  *  err - Error object
  */
 func processRequest(reqType ChannelType_t, req ClientReq_t, chRes chan<- *ClientRes_t) (err error) {
-    if ch, e := getclientReqChan(reqType, string(req) != ""); e == nil {
-        if req == ClientReq_t("") {
-            close(ch)
-        } else {
-            ch <- &reqInfo_t{req, chRes}
-        }
+    if _, err = getContext(); err != nil {
+        return
+    }
+    if ch, e := getclientReqChan(reqType); e == nil {
+        ch <- &reqInfo_t{req, chRes}
     } else {
         err = e
     }
     return
+}
+
+
+/*
+ * closeRequest
+ *
+ * Close channel for given request type.
+ *
+ * Input:
+ *  reqType - Request type to close
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  None
+ */
+func closeRequestChannel(reqType ChannelType_t) {
+    if v, ok := clientReqChanList.Load(reqType); ok {
+        if ch, ok := v.(chan *reqInfo_t);ok {
+            clientReqChanList.Delete(reqType)
+            close(ch)
+        }
+    }
 }
 
 /*
@@ -982,6 +1007,9 @@ Loop:
 
 func initServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     chRes <-chan ServerRes_t) (err error) {
+    if _, err = getContext(); err != nil {
+        return
+    }
     if _, ok := serverReqHandlerList.Load(reqType); !ok {
         chRet := make(chan error)
         serverReqHandlerList.Store(reqType, true)

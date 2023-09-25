@@ -185,6 +185,11 @@ func SendClientRequest(reqType ChannelType_t, req ClientReq_t) (chData <-chan *C
     return
 }
 
+
+func CloseClientRequest(reqType ChannelType_t) {
+    closeRequestChannel(reqType)
+}
+
 /*
  * Initializes a handler for processing requests.
  * A handler is for a specific request type.

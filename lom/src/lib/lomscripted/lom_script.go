@@ -251,6 +251,18 @@ func callReadJsonStringsChannel(args []any, cache SuiteCache_t) []any {
     return []any{readVal, err}
 }
 
+func callCloseRequestChannel(args []any, cache SuiteCache_t) []any {
+    var err error
+    if len(args) != 1 {
+        err = cmn.LogError("CloseRequestChannel expects 1 args. Given=%d", len(args))
+    } else if chType, ok := args[0].(tele.ChannelType_t); !ok {
+        err = cmn.LogError("Expect tele.ChannelType_t != type(%T)", args[0])
+    } else {
+        tele.CloseClientRequest(chType)
+    }
+    return []any{err}
+}
+
 func callCloseChannel(args []any, cache SuiteCache_t) []any {
     var err error
     for i, chAny := range args {
