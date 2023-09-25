@@ -27,7 +27,7 @@ func getTopic(chProducer ChannelProducer_t, suffix string) (string, error) {
  * NOTE: The Pub channel can be opened only once per process. Any
  *       pre-mature termination will block any further publish.
  *
- * Closing returned channel chData will close the underlying 
+ * Closing returned channel chData will close the underlying
  * network connection.
  *
  * Input:
@@ -67,7 +67,6 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
     }
     return
 }
-
 
 /*
  * GetSubChannel

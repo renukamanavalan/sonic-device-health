@@ -104,7 +104,7 @@ var clientReqChanList = sync.Map{}
 
 var serverReqHandlerList = sync.Map{}
 
-var globalHandlesMaps = map[string]*sync.Map {
+var globalHandlesMaps = map[string]*sync.Map{
     "socketsList":          &socketsList,
     "pubChannels":          &pubChannels,
     "subChannels":          &subChannels,
@@ -339,7 +339,6 @@ func managePublish(chType ChannelType_t, topic string, chReq <-chan JsonString_t
         cmn.DeregisterForSysShutdown(shutdownId)
     }()
 
-
     cmn.LogDebug("Started managePublish for chType=(%s)", CHANNEL_TYPE_STR[chType])
 
     /*
@@ -463,10 +462,10 @@ Loop:
     for {
         /* Check for shutdown at start of loop */
         select {
-        case <- chShutdown:
+        case <-chShutdown:
             cmn.LogInfo("Subscriber shutting down requester:(%s)", requester)
             break Loop
-        case <- chCtrl:
+        case <-chCtrl:
             cmn.LogInfo("Subscriber control channel closed: (%s)", requester)
             break Loop
         default:
@@ -529,7 +528,7 @@ func openPubChannel(chType ChannelType_t, topic string, chData <-chan JsonString
     chRet := make(chan error)
     pubChannels.Store(id, true)
 
-    go managePublish(chType, topic, chData, chRet, func() {pubChannels.Delete(id)})
+    go managePublish(chType, topic, chData, chRet, func() { pubChannels.Delete(id) })
 
     /* Wait till routines get their init done */
     err = <-chRet
@@ -545,7 +544,7 @@ func openPubChannel(chType ChannelType_t, topic string, chData <-chan JsonString
  * Input:
  *  chType -Type of data like events, counters, red-button.
  *          Each type has a dedicated channel
- *  topic - Topic for subscription. An empty string receives all. 
+ *  topic - Topic for subscription. An empty string receives all.
  *
  *  chData - This is writable channel where all received messages are written into.
  *  chCtrl - Closing this closes underlying network connection and hence cancel the
@@ -557,7 +556,7 @@ func openPubChannel(chType ChannelType_t, topic string, chData <-chan JsonString
  */
 
 func openSubChannel(chType ChannelType_t, topic string, chData chan<- JsonString_t,
-            chCtrl <-chan int) (err error) {
+    chCtrl <-chan int) (err error) {
 
     /* Sockets are opened per chType */
     /* Callers are interested in all or a topic per channel type */
@@ -574,7 +573,6 @@ func openSubChannel(chType ChannelType_t, topic string, chData chan<- JsonString
     subChannels.Store(id, true)
 
     go manageSubscribe(chType, topic, chData, chCtrl, chRet, func() { subChannels.Delete(id) })
-   
 
     /* Wait till routines get their init done */
     err = <-chRet
@@ -674,7 +672,7 @@ func runPubSubProxyInt(chType ChannelType_t, chCtrl <-chan int, chRet chan<- err
         select {
         case <-chShutdown:
             cmn.LogInfo("proxy: System shutdown for (%s)", shutdownId)
-        case <- chCtrl:
+        case <-chCtrl:
             cmn.LogInfo("proxy: User shutdown for (%s)", shutdownId)
         }
         cmn.LogInfo("Signalling down zmq proxy")
@@ -818,7 +816,7 @@ Loop:
 func getclientReqChan(reqType ChannelType_t, doCreate bool) (chReq chan<- *reqInfo_t, err error) {
     v, ok := clientReqChanList.Load(reqType)
     if !ok && !doCreate {
-        return  /* Nothing to do */
+        return /* Nothing to do */
     }
     if !ok {
         ch := make(chan *reqInfo_t)
@@ -893,7 +891,7 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
         /* Writer close the channel */
         close(chReq)
         cleanupFn()
-    } ()
+    }()
 
     if err == nil {
         if err = sock.SetRcvtimeo(time.Second); err != nil {
@@ -905,7 +903,7 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     chRet <- err
     close(chRet)
     if err != nil {
-        /* Return as failed to init */ 
+        /* Return as failed to init */
         return
     }
 
@@ -952,11 +950,10 @@ func initServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
         chRet := make(chan error)
         serverReqHandlerList.Store(reqType, true)
         go serverRequestHandler(reqType, chReq, chRes, chRet,
-                    func() { serverReqHandlerList.Delete(reqType) })
+            func() { serverReqHandlerList.Delete(reqType) })
         err = <-chRet
     } else {
         return cmn.LogError("Duplicate initServerRequestHandler for reqType=(%d)", reqType)
     }
     return
 }
-

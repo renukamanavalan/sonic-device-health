@@ -1,8 +1,8 @@
 package lomscripted
 
 import (
-    cmn     "lom/src/lib/lomcommon"
-    tele    "lom/src/lib/lomtelemetry"
+    cmn "lom/src/lib/lomcommon"
+    tele "lom/src/lib/lomtelemetry"
 )
 
 type ApiId_t string
@@ -13,7 +13,6 @@ type ApiId_t string
  */
 
 type SuiteCache_t map[string]any
-
 
 const (
     ApiIDGetPubChannel            ApiId_t = "GetPubChannel"
@@ -49,9 +48,10 @@ const ANONYMOUS = ""
 type GetValFn_t func(name string, val any) (any, error)
 
 type StreamingDataEntity_t struct {
-    Data    []tele.JsonString_t /* Data to write. */
-    More    bool                /* true - more data to come. false - not any more */
+    Data []tele.JsonString_t /* Data to write. */
+    More bool                /* true - more data to come. false - not any more */
 }
+
 /* Takes index & cache as args and return StreamingDataEntity_t & err */
 type GetValStreamingFn_t func(int, SuiteCache_t) (*StreamingDataEntity_t, error)
 

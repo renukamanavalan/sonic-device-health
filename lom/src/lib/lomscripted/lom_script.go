@@ -93,7 +93,7 @@ func writeData(ch chan<- tele.JsonString_t, d []tele.JsonString_t, tout int) (er
 
         case <-time.After(time.Duration(tout) * time.Second):
             err = errors.New(fmt.Sprintf("Write chan timeout on index(%d/%d) after (%d) seconds",
-                    i, len(d), tout))
+                i, len(d), tout))
             return
         }
     }
@@ -111,7 +111,7 @@ func writeDataStreaming(ch chan<- tele.JsonString_t, rdFn GetValStreamingFn_t, t
             }
         }
     }
-    return 
+    return
 }
 
 func callWriteChannel(args []any, cache SuiteCache_t) []any {
@@ -154,7 +154,7 @@ func readData(ch <-chan tele.JsonString_t, tout int, cnt int) (vals []tele.JsonS
 }
 
 func readDataStreaming(ch <-chan tele.JsonString_t, tout int, wrFn PutValStreamingFn_t,
-        cache SuiteCache_t) (err error) {
+    cache SuiteCache_t) (err error) {
     more := true
     for i := 0; more && (err == nil); i++ {
         if vals, err := readData(ch, tout, 1); err == nil {
@@ -234,4 +234,3 @@ func CallByApiID(api ApiId_t, args []Param_t, cache SuiteCache_t) (retVals []any
     }
     return
 }
-

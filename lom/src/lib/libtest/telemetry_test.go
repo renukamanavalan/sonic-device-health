@@ -50,12 +50,12 @@ func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
                         t.Fatalf(fatalFmt("%s: ExpVal(%T) != RetV(%T)", tid, expVal, retV))
                     } else if len(expL) != len(retL) {
                         t.Fatalf(fatalFmt("%s: len Mismatch ExpVal (%d) != retVal (%d)",
-                                tid, len(expL), len(retL)))
+                            tid, len(expL), len(retL)))
                     } else {
                         for i, e := range expL {
                             if e != retL[i] {
                                 t.Fatalf(fatalFmt("%s: val Mismatch index(%d) (%s) != (%s)",
-                                        tid, e, retL[i]))
+                                    tid, e, retL[i]))
                             }
                         }
                     }
