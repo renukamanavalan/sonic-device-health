@@ -74,7 +74,7 @@ func (s SuiteCache_t) GetVal(name string, val any, getFn GetValFn_t) (vRet any) 
         }
     }
     if name == ANONYMOUS {
-        /* Don't update cache */
+        /* Neither read nor write into cache */
     } else if vRet != nil {
         switch vRet.(type) {
         case func(int, SuiteCache_t) (*StreamingDataEntity_t, error):

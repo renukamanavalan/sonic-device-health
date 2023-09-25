@@ -26,6 +26,19 @@ func getValdataInPlay_1(name string, val any)  (any, error) {
     }, nil
 }
 
+func putValdataInPlay_1(name string, val any)  (any, error) {
+    return func(index int, data tele.JsonString_t, cache script.SuiteCache_t) (
+                    bool, error) {
+        if index >= len(dataInPlay_1) {
+            return false, cmn.LogError("index(%d) len(%d) out-of-range", index, len(dataInPlay_1))
+        }
+        if data != dataInPlay_1[index] {
+            return false, cmn.LogError("index(%d) data mismatch (%s) != (%s)", index, data, dataInPlay_1[index])
+        }
+        return index < len(dataInPlay_1)-1, nil
+    }, nil
+}
+
 var pubSubFnSuite = testSuite_t{
     id:          "pubSubFnSuite",
     description: "Test pub sub for events - Good run",
@@ -87,6 +100,31 @@ var pubSubFnSuite = testSuite_t{
             },
             []result_t{
                 result_t{"pub_0", nil, nil}, /* Validate against cache val for pub_0 */
+                result_t{script.ANONYMOUS, nil, validateNil},
+            },
+            "read from sub channel created above",
+        },
+        testEntry_t{
+            script.ApiIDWriteChannel,
+            []script.Param_t{
+                script.Param_t{"chWrite-0", nil, nil},        /* Use chan from cache */
+                script.Param_t{script.ANONYMOUS, dataInPlay_1, nil},   /* Save written data in cache */
+                script.Param_t{script.ANONYMOUS, 1, nil},     /* timeout = 1 second */
+            },
+            []result_t{
+                result_t{script.ANONYMOUS, nil, validateNil},
+            }, /*Expect nil error */
+            "Write into pub channel created above",
+        },
+        testEntry_t{
+            script.ApiIDReadChannel,
+            []script.Param_t{
+                script.Param_t{"chRead-0", nil, nil},     /* Get chRead_0 from cache */
+                script.Param_t{script.ANONYMOUS, nil, putValdataInPlay_1},  /* read into fn*/
+                script.Param_t{script.ANONYMOUS, 1, nil}, /* timeout = 1 second */
+            },
+            []result_t{
+                result_t{script.ANONYMOUS, []tele.JsonString_t{}, nil}, /* Validate against cache val for pub_0 */
                 result_t{script.ANONYMOUS, nil, validateNil},
             },
             "read from sub channel created above",
