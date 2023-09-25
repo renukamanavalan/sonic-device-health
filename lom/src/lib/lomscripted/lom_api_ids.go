@@ -1,10 +1,19 @@
 package lomscripted
 
 import (
-    cmn "lom/src/lib/lomcommon"
+    cmn     "lom/src/lib/lomcommon"
+    tele    "lom/src/lib/lomtelemetry"
 )
 
 type ApiId_t string
+
+/*
+ * Cache service for caching values for a call
+ * This could help help multiple APIs share their data
+ */
+
+type SuiteCache_t map[string]any
+
 
 const (
     ApiIDGetPubChannel            ApiId_t = "GetPubChannel"
@@ -19,7 +28,7 @@ const (
     ApiIDIsTelemetryIdle                  = "IsTelemetryIdle"
 )
 
-type ApiFn_t func(args []any) []any
+type ApiFn_t func(args []any, cache SuiteCache_t) []any
 
 var LomAPIByIds = map[ApiId_t]ApiFn_t{
     ApiIDGetPubChannel:            callGetPubChannel,
@@ -34,17 +43,20 @@ var LomAPIByIds = map[ApiId_t]ApiFn_t{
     ApiIDIsTelemetryIdle:          callIsTelemetryIdle,
 }
 
-/*
- * Cache service for caching values for a call
- * This could help help multiple APIs share their data
- */
-
-type SuiteCache_t map[string]any
-
 const ANONYMOUS = ""
 
 /* A function to get i/p val */
 type GetValFn_t func(name string, val any) (any, error)
+
+type streamingDataEntity_t struct {
+    Name    string              /* Name to use for cacheing */
+    Data    []tele.JsonString_t /* Data to write. */
+    More    bool                /* true - more data to come. false - not any more */
+}
+type GetValStreamingFn_t func(index int, cache SuiteCache_t) (*streamingDataEntity_t, error)
+
+/* caller continues to write untul fn returns more=false */
+type PutValStreamingFn_t func(index int, d tele.JsonString_t, cache SuiteCache_t) (more bool, err error)
 
 func (s SuiteCache_t) Clear() {
     s = SuiteCache_t{}

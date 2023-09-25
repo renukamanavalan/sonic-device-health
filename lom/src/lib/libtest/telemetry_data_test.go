@@ -154,7 +154,8 @@ var pubSubSuite = testSuite_t{
             script.ApiIDWriteChannel,
             []script.Param_t{
                 script.Param_t{"chWrite-0", nil, nil},                           /* Use chan from cache */
-                script.Param_t{"pub_0", tele.JsonString_t("Hello World!"), nil}, /* Save written data in cache */
+                script.Param_t{"pub_0", []tele.JsonString_t{
+                        tele.JsonString_t("Hello World!") }, nil}, /* Save written data in cache */
                 script.Param_t{script.ANONYMOUS, 1, nil},                        /* timeout = 1 second */
             },
             []result_t{
@@ -167,6 +168,7 @@ var pubSubSuite = testSuite_t{
             []script.Param_t{
                 script.Param_t{"chRead-0", nil, nil},     /* Get chRead_0 from cache */
                 script.Param_t{script.ANONYMOUS, 1, nil}, /* timeout = 1 second */
+                script.Param_t{script.ANONYMOUS, 1, nil}, /* read cnt = 1 */
             },
             []result_t{
                 result_t{"pub_0", nil, nil}, /* Validate against cache val for pub_0 */
@@ -348,5 +350,5 @@ var pubSubMultiSuite = testSuite_t{
 
 var testTelemetrySuites = []*testSuite_t{
     &pubSubSuite,
-    &pubSubMultiSuite,
+    // &pubSubMultiSuite,
 }

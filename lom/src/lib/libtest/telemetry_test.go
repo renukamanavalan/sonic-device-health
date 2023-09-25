@@ -42,8 +42,28 @@ func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
                     t.Errorf(errorFmt("Result validation failed (%+v) retv(%+v)", entry, retV))
                     retV = nil
                 }
-            } else if expVal != retV {
-                t.Fatalf(fatalFmt("%s: ExpVal(%v) != RetV(%v)(%T)", tid, expVal, retV, retV))
+            } else {
+                switch expVal.(type) {
+                case []tele.JsonString_t:
+                    expL := expVal.([]tele.JsonString_t)
+                    if retL, ok := retV.([]tele.JsonString_t); !ok {
+                        t.Fatalf(fatalFmt("%s: ExpVal(%T) != RetV(%T)", tid, expVal, retV))
+                    } else if len(expL) != len(retL) {
+                        t.Fatalf(fatalFmt("%s: len Mismatch ExpVal (%d) != retVal (%d)",
+                                tid, len(expL), len(retL)))
+                    } else {
+                        for i, e := range expL {
+                            if e != retL[i] {
+                                t.Fatalf(fatalFmt("%s: val Mismatch index(%d) (%s) != (%s)",
+                                        tid, e, retL[i]))
+                            }
+                        }
+                    }
+                default:
+                    if expVal != retV {
+                        t.Fatalf(fatalFmt("%s: ExpVal(%v) != RetV(%v)(%T)", tid, expVal, retV, retV))
+                    }
+                }
             }
             cache.SetVal(e.name, retV)
         }
