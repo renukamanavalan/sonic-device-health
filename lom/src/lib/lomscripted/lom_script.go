@@ -101,7 +101,7 @@ func writeData(ch chan<- tele.JsonString_t, d []tele.JsonString_t, tout int) (er
 }
 
 func writeDataStreaming(ch chan<- tele.JsonString_t, rdFn GetValStreamingFn_t, tout int, cache SuiteCache_t) (err error) {
-    var dp *streamingDataEntity_t
+    var dp *StreamingDataEntity_t
     for i := 0; err == nil; i++ {
         if dp, err = rdFn(i, cache); err == nil {
             err = writeData(ch, dp.Data, tout)
@@ -123,12 +123,11 @@ func callWriteChannel(args []any, cache SuiteCache_t) []any {
     } else if tout, ok := args[2].(int); !ok {
         err = cmn.LogError("Expect int for timeout != type(%T)", args[2])
     } else {
-        switch args[1].(type) {
-        case []tele.JsonString_t:
-            err = writeData(ch, args[1].([]tele.JsonString_t), tout)
-        case GetValStreamingFn_t:
-            err = writeDataStreaming(ch, args[1].(GetValStreamingFn_t), tout, cache)
-        default:
+        if val, ok := args[1].([]tele.JsonString_t); ok {
+            err = writeData(ch, val, tout)
+        } else if val, ok := args[1].(func(int, SuiteCache_t) (*StreamingDataEntity_t, error)); ok {
+            err = writeDataStreaming(ch, val, tout, cache)
+        } else {
             err = cmn.LogError("Unknown data type (%T)", args[1])
         }
     }
@@ -175,11 +174,10 @@ func callReadChannel(args []any, cache SuiteCache_t) []any {
     } else if tout, ok := args[2].(int); !ok {
         err = cmn.LogError("Expect int for timeout != type(%T)", args[1])
     } else {
-        switch args[1].(type) {
-        case int:
-            readVal, err = readData(ch, tout, args[1].(int))
-        case PutValStreamingFn_t:
-            err = readDataStreaming(ch, tout, args[1].(PutValStreamingFn_t), cache)
+        if val, ok := args[1].(int); ok {
+            readVal, err = readData(ch, tout, val)
+        } else if val, ok := args[1].(func(int, tele.JsonString_t, SuiteCache_t) (bool, error)); ok {
+            err = readDataStreaming(ch, tout, val, cache)
         }
     }
     return []any{readVal, err}

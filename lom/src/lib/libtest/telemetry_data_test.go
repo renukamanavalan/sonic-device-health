@@ -355,4 +355,5 @@ var pubSubMultiSuite = testSuite_t{
 var testTelemetrySuites = []*testSuite_t{
     &pubSubSuite,
     &pubSubMultiSuite,
+    &pubSubFnSuite,
 }

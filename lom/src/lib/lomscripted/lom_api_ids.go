@@ -48,15 +48,16 @@ const ANONYMOUS = ""
 /* A function to get i/p val */
 type GetValFn_t func(name string, val any) (any, error)
 
-type streamingDataEntity_t struct {
-    Name    string              /* Name to use for cacheing */
+type StreamingDataEntity_t struct {
     Data    []tele.JsonString_t /* Data to write. */
     More    bool                /* true - more data to come. false - not any more */
 }
-type GetValStreamingFn_t func(index int, cache SuiteCache_t) (*streamingDataEntity_t, error)
+/* Takes index & cache as args and return StreamingDataEntity_t & err */
+type GetValStreamingFn_t func(int, SuiteCache_t) (*StreamingDataEntity_t, error)
 
+/* Takes index, string & cache as args and return more as bool with error */
 /* caller continues to write untul fn returns more=false */
-type PutValStreamingFn_t func(index int, d tele.JsonString_t, cache SuiteCache_t) (more bool, err error)
+type PutValStreamingFn_t func(int, tele.JsonString_t, SuiteCache_t) (bool, error)
 
 func (s SuiteCache_t) Clear() {
     s = SuiteCache_t{}
@@ -74,8 +75,14 @@ func (s SuiteCache_t) GetVal(name string, val any, getFn GetValFn_t) (vRet any) 
     }
     if name == ANONYMOUS {
         /* Don't update cache */
-    } else if val != nil {
-        s.SetVal(name, val) /* overwrite */
+    } else if vRet != nil {
+        switch vRet.(type) {
+        case func(int, SuiteCache_t) (*StreamingDataEntity_t, error):
+        case func(int, tele.JsonString_t, SuiteCache_t) (bool, error):
+        default:
+            /* Save only values not functions */
+            s.SetVal(name, val) /* overwrite */
+        }
     } else if ct, ok := s[name]; ok {
         vRet = ct
     }
