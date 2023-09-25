@@ -167,8 +167,8 @@ var pubSubSuite = testSuite_t{
             script.ApiIDReadChannel,
             []script.Param_t{
                 script.Param_t{"chRead-0", nil, nil},     /* Get chRead_0 from cache */
-                script.Param_t{script.ANONYMOUS, 1, nil}, /* timeout = 1 second */
                 script.Param_t{script.ANONYMOUS, 1, nil}, /* read cnt = 1 */
+                script.Param_t{script.ANONYMOUS, 1, nil}, /* timeout = 1 second */
             },
             []result_t{
                 result_t{"pub_0", nil, nil}, /* Validate against cache val for pub_0 */
@@ -284,9 +284,10 @@ var pubSubMultiSuite = testSuite_t{
         testEntry_t{
             script.ApiIDWriteChannel,
             []script.Param_t{
-                script.Param_t{"chWrite-E", nil, nil},                           /* Use chan from cache */
-                script.Param_t{"pub_E", tele.JsonString_t("Hello World!"), nil}, /* Save written data in cache */
-                script.Param_t{script.ANONYMOUS, 1, nil},                        /* timeout = 1 second */
+                script.Param_t{"chWrite-E", nil, nil},              /* Use chan from cache */
+                script.Param_t{"pub_E", []tele.JsonString_t{
+                        tele.JsonString_t("Hello World!") }, nil},  /* Save written data in cache */
+                script.Param_t{script.ANONYMOUS, 1, nil},           /* timeout = 1 second */
             },
             []result_t{
                 result_t{script.ANONYMOUS, nil, validateNil},
@@ -296,9 +297,10 @@ var pubSubMultiSuite = testSuite_t{
         testEntry_t{
             script.ApiIDWriteChannel,
             []script.Param_t{
-                script.Param_t{"chWrite-C", nil, nil},                           /* Use chan from cache */
-                script.Param_t{"pub_C", tele.JsonString_t("Some counters"), nil},/* Save written data in cache */
-                script.Param_t{script.ANONYMOUS, 1, nil},                        /* timeout = 1 second */
+                script.Param_t{"chWrite-C", nil, nil},              /* Use chan from cache */
+                script.Param_t{"pub_C", []tele.JsonString_t{
+                        tele.JsonString_t("Some counters") }, nil}, /* Save written data in cache */
+                script.Param_t{script.ANONYMOUS, 1, nil},           /* timeout = 1 second */
             },
             []result_t{
                 result_t{script.ANONYMOUS, nil, validateNil},
@@ -309,6 +311,7 @@ var pubSubMultiSuite = testSuite_t{
             script.ApiIDReadChannel,
             []script.Param_t{
                 script.Param_t{"chRead-C", nil, nil},     /* read counters */
+                script.Param_t{script.ANONYMOUS, 1, nil}, /* read cnt = 1 */
                 script.Param_t{script.ANONYMOUS, 1, nil}, /* timeout = 1 second */
             },
             []result_t{
@@ -321,6 +324,7 @@ var pubSubMultiSuite = testSuite_t{
             script.ApiIDReadChannel,
             []script.Param_t{
                 script.Param_t{"chRead-E", nil, nil},     /* read counters */
+                script.Param_t{script.ANONYMOUS, 1, nil}, /* read cnt = 1 */
                 script.Param_t{script.ANONYMOUS, 1, nil}, /* timeout = 1 second */
             },
             []result_t{
@@ -350,5 +354,5 @@ var pubSubMultiSuite = testSuite_t{
 
 var testTelemetrySuites = []*testSuite_t{
     &pubSubSuite,
-    // &pubSubMultiSuite,
+    &pubSubMultiSuite,
 }
