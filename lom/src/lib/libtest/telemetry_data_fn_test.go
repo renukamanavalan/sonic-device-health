@@ -79,7 +79,7 @@ var pubSubFnSuite = testSuite_t{
             "Get pub channel for same type as proxy above",
         },
         testEntry_t{
-            script.ApiIDWriteChannel,
+            script.ApiIDWriteJsonStringsChannel,
             []script.Param_t{
                 script.Param_t{"chWrite-0", nil, nil},            /* Use chan from cache */
                 script.Param_t{"pub_0", nil, getValdataInPlay_1}, /* Save written data in cache */
@@ -91,7 +91,7 @@ var pubSubFnSuite = testSuite_t{
             "Write into pub channel created above",
         },
         testEntry_t{
-            script.ApiIDReadChannel,
+            script.ApiIDReadJsonStringsChannel,
             []script.Param_t{
                 script.Param_t{"chRead-0", nil, nil},     /* Get chRead_0 from cache */
                 script.Param_t{script.ANONYMOUS, 5, nil}, /* read cnt = 5 */
@@ -104,7 +104,7 @@ var pubSubFnSuite = testSuite_t{
             "read from sub channel created above",
         },
         testEntry_t{
-            script.ApiIDWriteChannel,
+            script.ApiIDWriteJsonStringsChannel,
             []script.Param_t{
                 script.Param_t{"chWrite-0", nil, nil},               /* Use chan from cache */
                 script.Param_t{script.ANONYMOUS, dataInPlay_1, nil}, /* Save written data in cache */
@@ -116,7 +116,7 @@ var pubSubFnSuite = testSuite_t{
             "Write into pub channel created above",
         },
         testEntry_t{
-            script.ApiIDReadChannel,
+            script.ApiIDReadJsonStringsChannel,
             []script.Param_t{
                 script.Param_t{"chRead-0", nil, nil},                      /* Get chRead_0 from cache */
                 script.Param_t{script.ANONYMOUS, nil, putValdataInPlay_1}, /* read into fn*/

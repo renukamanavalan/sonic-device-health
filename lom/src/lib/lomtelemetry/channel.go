@@ -56,6 +56,6 @@ type JsonString_t string
 type ClientReq_t JsonString_t
 type ServerRes_t JsonString_t
 type ClientRes_t struct {
-    res ServerRes_t
-    err error /* Error while processing request */
+    Res ServerRes_t
+    Err error /* Error while processing request */
 }

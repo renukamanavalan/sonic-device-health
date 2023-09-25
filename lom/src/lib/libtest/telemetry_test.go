@@ -12,6 +12,8 @@ import (
 func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
     /* Caches all variables for reference across test entries */
     cache := script.SuiteCache_t{}
+    setTestCache(cache)
+    defer resetTestCache()
 
     t.Logf(logFmt("Starting test suite - {%s} ....", suite.id))
 

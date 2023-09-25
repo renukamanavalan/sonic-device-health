@@ -51,6 +51,20 @@ type testSuite_t struct {
     tests       []testEntry_t
 }
 
+var currentCache script.SuiteCache_t
+
+func resetTestCache() {
+    currentCache = nil
+}
+
+func setTestCache(cache script.SuiteCache_t) {
+    currentCache = cache
+}
+
+func getTestCache() script.SuiteCache_t {
+    return currentCache
+}
+
 /* Commonly used entities are pre declared for ease of use */
 var EMPTY_STRING = script.Param_t{script.ANONYMOUS, "", nil}
 
@@ -151,7 +165,7 @@ var pubSubSuite = testSuite_t{
             "Get pub channel for same type as proxy above",
         },
         testEntry_t{
-            script.ApiIDWriteChannel,
+            script.ApiIDWriteJsonStringsChannel,
             []script.Param_t{
                 script.Param_t{"chWrite-0", nil, nil}, /* Use chan from cache */
                 script.Param_t{"pub_0", []tele.JsonString_t{
@@ -164,7 +178,7 @@ var pubSubSuite = testSuite_t{
             "Write into pub channel created above",
         },
         testEntry_t{
-            script.ApiIDReadChannel,
+            script.ApiIDReadJsonStringsChannel,
             []script.Param_t{
                 script.Param_t{"chRead-0", nil, nil},     /* Get chRead_0 from cache */
                 script.Param_t{script.ANONYMOUS, 1, nil}, /* read cnt = 1 */
@@ -282,7 +296,7 @@ var pubSubMultiSuite = testSuite_t{
             "Get pub channel for counters as if from Plugin Mgr",
         },
         testEntry_t{
-            script.ApiIDWriteChannel,
+            script.ApiIDWriteJsonStringsChannel,
             []script.Param_t{
                 script.Param_t{"chWrite-E", nil, nil}, /* Use chan from cache */
                 script.Param_t{"pub_E", []tele.JsonString_t{
@@ -295,7 +309,7 @@ var pubSubMultiSuite = testSuite_t{
             "Write into pub channel created above",
         },
         testEntry_t{
-            script.ApiIDWriteChannel,
+            script.ApiIDWriteJsonStringsChannel,
             []script.Param_t{
                 script.Param_t{"chWrite-C", nil, nil}, /* Use chan from cache */
                 script.Param_t{"pub_C", []tele.JsonString_t{
@@ -308,7 +322,7 @@ var pubSubMultiSuite = testSuite_t{
             "Write into pub channel created above",
         },
         testEntry_t{
-            script.ApiIDReadChannel,
+            script.ApiIDReadJsonStringsChannel,
             []script.Param_t{
                 script.Param_t{"chRead-C", nil, nil},     /* read counters */
                 script.Param_t{script.ANONYMOUS, 1, nil}, /* read cnt = 1 */
@@ -321,7 +335,7 @@ var pubSubMultiSuite = testSuite_t{
             "read from sub channel created above",
         },
         testEntry_t{
-            script.ApiIDReadChannel,
+            script.ApiIDReadJsonStringsChannel,
             []script.Param_t{
                 script.Param_t{"chRead-E", nil, nil},     /* read counters */
                 script.Param_t{script.ANONYMOUS, 1, nil}, /* read cnt = 1 */

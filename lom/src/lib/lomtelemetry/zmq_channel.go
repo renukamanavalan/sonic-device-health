@@ -296,7 +296,11 @@ func closeSocket(s *zmq.Socket) {
  * Runs until either system is being shutdown or the i/p request channel
  * is closed, whichever occurs early.
  *
- * Caller invokes this as a Go routine.
+ * GoRoutune:
+ *  Yes. 
+ *  shutdown:
+ *      1. On System shutdown
+ *      2. On close of its i/p channel chReq 
  *
  * Input:
  *  chType - Type of channel
@@ -354,17 +358,18 @@ func managePublish(chType ChannelType_t, topic string, chReq <-chan JsonString_t
      */
     time.Sleep(ZMQ_ASYNC_CONNECT_PAUSE)
 
+Loop:
     for {
         select {
         case <-chShutdown:
-            cmn.LogInfo("Shutting down publisher")
-            return
+            cmn.LogInfo("Shutting down publisher on system shutdown")
+            break Loop
 
         case data, ok := <-chReq:
             if !ok {
                 cmn.LogInfo("(%s) i/p channel closed. No more publish possible",
                     requester)
-                return
+                break Loop
             }
             if _, err = sock.SendMessage(topic, data); err != nil {
                 /* Don't return; Just log error */
@@ -385,7 +390,13 @@ func managePublish(chType ChannelType_t, topic string, chReq <-chan JsonString_t
  * The data is expected as JSON string.
  * Runs until either system is being shutdown.
  *
- * Caller invokes this as a Go routine.
+ * GoRoutune:
+ *  Yes. 
+ *  shutdown:
+ *      1. On System shutdown
+ *      2. On close of chCtrl
+ *  The blocking read on sock has timeout. Hence on every timeout, it
+ *  checks for the above 2 shutdown triggers.
  *
  * Input:
  *  chType - Type of channel
@@ -400,18 +411,6 @@ func managePublish(chType ChannelType_t, topic string, chReq <-chan JsonString_t
  * Return:
  *  Nothig as it is invoked as go routine.
  */
-/*
- * As the routine, sleeps forever on ZMQ sub path for incoming data as blocked,
- * it is tought to abort on system shutdown.
- *
- * To assist, we kickoff a routine that sleeps on shutdown and upon shutdown
- * send a dummy message for publish. This would wake up the reader which can
- * see if shutdown initiated or not.
- *
- * QUITTOPIC is the message sent. Make sure the subscription is enabled to
- * receive this message.
- */
-const QUITTOPIC = "quit"
 
 func manageSubscribe(chType ChannelType_t, topic string, chRes chan<- JsonString_t,
     chCtrl <-chan int, chRet chan<- error, cleanupFn func()) {
@@ -432,11 +431,6 @@ func manageSubscribe(chType ChannelType_t, topic string, chRes chan<- JsonString
         err = cmn.LogError("Failed to subscribe filter(%s) err(%v)", topic, err)
     } else if err = sock.SetRcvtimeo(time.Second); err != nil {
         err = cmn.LogError("Failed to SetRcvtimeo err(%v)", err)
-    } else if topic != "" {
-        /* To receive alert message on shutdown */
-        if err = sock.SetSubscribe(QUITTOPIC); err != nil {
-            err = cmn.LogError("Failed to subscribe filter(%s) err(%v)", QUITTOPIC, err)
-        }
     }
 
     /* Inform the caller the state of init */
@@ -579,6 +573,21 @@ func openSubChannel(chType ChannelType_t, topic string, chData chan<- JsonString
     return
 }
 
+/*
+ * All publishers for a channel type connect to single XSub point.
+ * All subscribers for a channel type connect to single XPub point.
+ * A proxy is started per channel type to connect the XPub & XSub.
+ * This proxy is a simple dumb & no-latency pipe.
+ * 
+ * GoRoutune:
+ *  Yes. 
+ *  shutdown:
+ *      1. On System shutdown
+ *      2. On close of chCtrl
+ *  The proxy is started with Ctrl pub/sub sockets. A "TERMINATE" message on ctrl-pub
+ *  will stop the proxy. A dedicated Go routine watches the above 2 shutdown venues
+ *  and send Terminate on either.
+ */
 func runPubSubProxyInt(chType ChannelType_t, chCtrl <-chan int, chRet chan<- error, cleanupFn func()) {
     var sock_xsub *zmq.Socket
     var sock_xpub *zmq.Socket
@@ -641,6 +650,8 @@ func runPubSubProxyInt(chType ChannelType_t, chCtrl <-chan int, chRet chan<- err
 
     go func() {
         /*
+         * Routine to signal proxy to go down on shutdown.
+         *
          * Pre-create a publisher channel to alert subscribing channel
          * on shutdown.
          * You can't create a socket upon shutdown process start. So get it ahead.
@@ -720,7 +731,15 @@ func doRunPubSubProxy(chType ChannelType_t, chCtrl <-chan int) error {
  * via req/rep zmq channel and return corresponding response to channel
  * associated with the request.
  *
- * A go routine per request type
+ * GoRoutune:
+ *  Yes. 
+ *  shutdown:
+ *      1. On System shutdown
+ *      2. On close of chReq
+ *  As this blocks on chan read, it watches both and shutsdown upon chan close
+ *  of either.
+ *
+ * Shutdown: An empty request stops this Go routine
  *
  * Input:
  *  reqType - Type of request
@@ -739,9 +758,9 @@ type reqInfo_t struct {
 }
 
 func clientRequestHandler(reqType ChannelType_t, chReq <-chan *reqInfo_t,
-    chRet chan<- error, cleanupFn func()) {
+            chRet chan<- error, cleanupFn func()) {
 
-    requester := fmt.Sprintf("clientRequestHandler_type(%d)", reqType)
+    requester := fmt.Sprintf("clientRequestHandler_type(%s)", CHANNEL_TYPE_STR[reqType])
     sock, err := getSocket(CHANNEL_MODE_REQUEST, reqType, requester)
 
     defer func() {
@@ -771,11 +790,12 @@ Loop:
     for {
         select {
         case <-chShutdown:
-            cmn.LogInfo("Shutting down %s", requester)
+            cmn.LogInfo("System Shutting down %s", requester)
             break Loop
 
-        case data := <-chReq:
-            if string(data.reqData) == "" {
+        case data, ok := <-chReq:
+            if !ok {
+                cmn.LogInfo("I/p request channel closed. Shutting down for {%s}", requester)
                 break Loop
             }
             rcvData := ""
@@ -853,7 +873,11 @@ func getclientReqChan(reqType ChannelType_t, doCreate bool) (chReq chan<- *reqIn
  */
 func processRequest(reqType ChannelType_t, req ClientReq_t, chRes chan<- *ClientRes_t) (err error) {
     if ch, e := getclientReqChan(reqType, string(req) != ""); e == nil {
-        ch <- &reqInfo_t{req, chRes}
+        if req == ClientReq_t("") {
+            close(ch)
+        } else {
+            ch <- &reqInfo_t{req, chRes}
+        }
     } else {
         err = e
     }
@@ -865,6 +889,17 @@ func processRequest(reqType ChannelType_t, req ClientReq_t, chRes chan<- *Client
  *
  * All requests of that type will be sent to it via req channel and expect
  * response via resp channel.
+ *
+ * Listens on sock for request. Pass read request to handler via chReq.
+ * Wait for handler to write its response via chRes and write the same into sock.
+ *
+ * GoRoutune:
+ *  Yes. 
+ *  shutdown:
+ *      1. On System shutdown
+ *      2. On close of chRes
+ *  The blocking read on sock has timeout. Hence on every timeout, it
+ *  checks for the above 2 shutdown triggers.
  *
  * Input:
  *  chType - Request type to handle
@@ -937,6 +972,7 @@ Loop:
         } else {
             chReq <- ClientReq_t(rcvData)
             resData := <-chRes
+            /* Not checking ok, as we need to send back something, which is empty, if chRes is closed */
             if _, err = sock.Send(string(resData), 0); err != nil {
                 cmn.LogError("Failed to send response err(%v) req(%s) res(%s)", err, rcvData, resData)
             }
@@ -957,3 +993,4 @@ func initServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     }
     return
 }
+

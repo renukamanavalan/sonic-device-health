@@ -18,10 +18,13 @@ const (
     ApiIDGetPubChannel            ApiId_t = "GetPubChannel"
     ApiIDGetSubChannel                    = "GetSubChannel"
     ApiIDRunPubSubProxy                   = "RunPubSubProxy"
+    ApiIDWriteJsonStringsChannel          = "WriteJsonStringsChannel"
+    ApiIDReadJsonStringsChannel           = "ReadJsonStringsChannel"
     ApiIDSendClientRequest                = "SendClientRequest"
+    ApiIDReadClientResponse               = "ReadClientResponse"
     ApiIDRegisterServerReqHandler         = "RegisterServerReqHandler"
-    ApiIDWriteChannel                     = "WriteChannel"
-    ApiIDReadChannel                      = "ReadChannel"
+    ApiIDReadClientRequest                = "ReadClientRequest"
+    ApiIDSendClientResponse               = "SendClientResponse"
     ApiIDCloseChannel                     = "CloseChannel"
     ApiIDPause                            = "pause"
     ApiIDIsTelemetryIdle                  = "IsTelemetryIdle"
@@ -33,10 +36,13 @@ var LomAPIByIds = map[ApiId_t]ApiFn_t{
     ApiIDGetPubChannel:            callGetPubChannel,
     ApiIDGetSubChannel:            callGetSubChannel,
     ApiIDRunPubSubProxy:           callRunPubSubProxy,
+    ApiIDWriteJsonStringsChannel:  callWriteJsonStringsChannel,
+    ApiIDReadJsonStringsChannel:   callReadJsonStringsChannel,
     ApiIDSendClientRequest:        callSendClientRequest,
+    ApiIDReadClientResponse:       callReadClientResponse,
     ApiIDRegisterServerReqHandler: callRegisterServerReqHandler,
-    ApiIDWriteChannel:             callWriteChannel,
-    ApiIDReadChannel:              callReadChannel,
+    ApiIDReadClientRequest:        callReadClientRequest,
+    ApiIDSendClientResponse:       callSendClientResponse,
     ApiIDCloseChannel:             callCloseChannel,
     ApiIDPause:                    callPause,
     ApiIDIsTelemetryIdle:          callIsTelemetryIdle,

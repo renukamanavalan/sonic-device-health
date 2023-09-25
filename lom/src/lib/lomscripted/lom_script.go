@@ -73,6 +73,74 @@ func callSendClientRequest(args []any, cache SuiteCache_t) []any {
     return []any{ch, err}
 }
 
+func callReadClientResponse(args []any, cache SuiteCache_t) []any {
+    var err error
+    var val tele.ServerRes_t
+    if len(args) != 2 {
+        err = cmn.LogError("SendClientRequest expects 2 args. Given=%d", len(args))
+    } else if ch, ok := args[0].(<-chan *tele.ClientRes_t); !ok {
+        err = cmn.LogError("Expect <-chan *tele.ClientRes_t != type(%T)", args[0])
+    } else if tout, ok := args[1].(int); !ok {
+        err = cmn.LogError("Expect int for timeout != type(%T)", args[1])
+    } else {
+        select {
+        case v, ok := <-ch:
+            if !ok {
+                err = errors.New("CLOSED")
+            } else {
+                err = v.Err
+                val = v.Res
+            }
+        case <-time.After(time.Duration(tout) * time.Second):
+            err = errors.New("TIMEOUT")
+        }
+    }
+    return []any{val, err}
+}
+
+func callReadClientRequest(args []any, cache SuiteCache_t) []any {
+    var err error
+    var val tele.ClientReq_t
+    if len(args) != 2 {
+        err = cmn.LogError("ReadJsonStringsChannel need 3 args, chan, read-count/fn & timeout ")
+    } else if ch, ok := args[0].(<-chan tele.ClientReq_t); !ok {
+        err = cmn.LogError("Expect tele.ClientReq_t <-chan != type(%T)", args[0])
+    } else if tout, ok := args[1].(int); !ok {
+        err = cmn.LogError("Expect int for timeout != type(%T)", args[1])
+    } else {
+        select {
+        case val, ok = <-ch:
+            if !ok {
+                err = errors.New("CLOSED")
+            }
+        case <-time.After(time.Duration(tout) * time.Second):
+            err = errors.New("TIMEOUT")
+        }
+    }
+    return []any{val, err}
+}
+
+func callSendClientResponse(args []any, cache SuiteCache_t) []any {
+    var err error
+    if len(args) != 3 {
+        err = cmn.LogError("WriteJsonStringsChannel need min 3 args, as chan, data & timeout")
+    } else if ch, ok := args[0].(chan<- tele.ServerRes_t); !ok {
+        err = cmn.LogError("Expect chan<- tele.ServerRes_t != type(%T)", args[0])
+    } else if res, ok := args[1].(tele.ServerRes_t); !ok {
+        err = cmn.LogError("Expect ServerRes_t != type(%T)", args[1])
+    } else if tout, ok := args[2].(int); !ok {
+        err = cmn.LogError("Expect int for timeout != type(%T)", args[2])
+    } else {
+        select {
+        case ch <- res:
+
+        case <-time.After(time.Duration(tout) * time.Second):
+            err = errors.New(fmt.Sprintf("SendClientResponse timeout (%d) secs", tout))
+        }
+    }
+    return []any{err}
+}
+
 func callRegisterServerReqHandler(args []any, cache SuiteCache_t) []any {
     var err error
     var chReq, chRes any
@@ -86,7 +154,7 @@ func callRegisterServerReqHandler(args []any, cache SuiteCache_t) []any {
     return []any{chReq, chRes, err}
 }
 
-func writeData(ch chan<- tele.JsonString_t, d []tele.JsonString_t, tout int) (err error) {
+func writeJsonStringsData(ch chan<- tele.JsonString_t, d []tele.JsonString_t, tout int) (err error) {
     for i, val := range d {
         select {
         case ch <- val:
@@ -100,11 +168,11 @@ func writeData(ch chan<- tele.JsonString_t, d []tele.JsonString_t, tout int) (er
     return
 }
 
-func writeDataStreaming(ch chan<- tele.JsonString_t, rdFn GetValStreamingFn_t, tout int, cache SuiteCache_t) (err error) {
+func writeJsonStringStreaming(ch chan<- tele.JsonString_t, rdFn GetValStreamingFn_t, tout int, cache SuiteCache_t) (err error) {
     var dp *StreamingDataEntity_t
     for i := 0; err == nil; i++ {
         if dp, err = rdFn(i, cache); err == nil {
-            err = writeData(ch, dp.Data, tout)
+            err = writeJsonStringsData(ch, dp.Data, tout)
             if !dp.More {
                 /* On no more data break & return */
                 break
@@ -114,19 +182,19 @@ func writeDataStreaming(ch chan<- tele.JsonString_t, rdFn GetValStreamingFn_t, t
     return
 }
 
-func callWriteChannel(args []any, cache SuiteCache_t) []any {
+func callWriteJsonStringsChannel(args []any, cache SuiteCache_t) []any {
     var err error
     if len(args) != 3 {
-        err = cmn.LogError("WriteChannel need min 3 args, as chan, data & timeout")
+        err = cmn.LogError("WriteJsonStringsChannel need min 3 args, as chan, data & timeout")
     } else if ch, ok := args[0].(chan<- tele.JsonString_t); !ok {
         err = cmn.LogError("Expect tele.JsonString_t chan<- != type(%T)", args[0])
     } else if tout, ok := args[2].(int); !ok {
         err = cmn.LogError("Expect int for timeout != type(%T)", args[2])
     } else {
         if val, ok := args[1].([]tele.JsonString_t); ok {
-            err = writeData(ch, val, tout)
+            err = writeJsonStringsData(ch, val, tout)
         } else if val, ok := args[1].(func(int, SuiteCache_t) (*StreamingDataEntity_t, error)); ok {
-            err = writeDataStreaming(ch, val, tout, cache)
+            err = writeJsonStringStreaming(ch, val, tout, cache)
         } else {
             err = cmn.LogError("Unknown data type (%T)", args[1])
         }
@@ -134,7 +202,7 @@ func callWriteChannel(args []any, cache SuiteCache_t) []any {
     return []any{err}
 }
 
-func readData(ch <-chan tele.JsonString_t, tout int, cnt int) (vals []tele.JsonString_t, err error) {
+func readJsonStrings(ch <-chan tele.JsonString_t, tout int, cnt int) (vals []tele.JsonString_t, err error) {
     vals = []tele.JsonString_t{}
 
     for i := 0; (i < cnt) && (err == nil); i++ {
@@ -153,31 +221,31 @@ func readData(ch <-chan tele.JsonString_t, tout int, cnt int) (vals []tele.JsonS
     return
 }
 
-func readDataStreaming(ch <-chan tele.JsonString_t, tout int, wrFn PutValStreamingFn_t,
+func readJsonStringStreaming(ch <-chan tele.JsonString_t, tout int, wrFn PutValStreamingFn_t,
     cache SuiteCache_t) (err error) {
     more := true
     for i := 0; more && (err == nil); i++ {
-        if vals, err := readData(ch, tout, 1); err == nil {
+        if vals, err := readJsonStrings(ch, tout, 1); err == nil {
             more, err = wrFn(i, vals[0], cache)
         }
     }
     return
 }
 
-func callReadChannel(args []any, cache SuiteCache_t) []any {
+func callReadJsonStringsChannel(args []any, cache SuiteCache_t) []any {
     var err error
     readVal := []tele.JsonString_t{}
     if len(args) != 3 {
-        err = cmn.LogError("ReadChannel need 3 args, chan, read-count/fn & timeout ")
+        err = cmn.LogError("ReadJsonStringsChannel need 3 args, chan, read-count/fn & timeout ")
     } else if ch, ok := args[0].(<-chan tele.JsonString_t); !ok {
         err = cmn.LogError("Expect tele.JsonString_t <-chan != type(%T)", args[0])
     } else if tout, ok := args[2].(int); !ok {
-        err = cmn.LogError("Expect int for timeout != type(%T)", args[1])
+        err = cmn.LogError("Expect int for timeout != type(%T)", args[2])
     } else {
         if val, ok := args[1].(int); ok {
-            readVal, err = readData(ch, tout, val)
+            readVal, err = readJsonStrings(ch, tout, val)
         } else if val, ok := args[1].(func(int, tele.JsonString_t, SuiteCache_t) (bool, error)); ok {
-            err = readDataStreaming(ch, tout, val, cache)
+            err = readJsonStringStreaming(ch, tout, val, cache)
         }
     }
     return []any{readVal, err}
@@ -189,6 +257,8 @@ func callCloseChannel(args []any, cache SuiteCache_t) []any {
         if ch, ok := chAny.(chan<- tele.JsonString_t); ok {
             close(ch)
         } else if ch, ok := chAny.(chan<- int); ok {
+            close(ch)
+        } else if ch, ok := chAny.(chan<- tele.ServerRes_t); ok {
             close(ch)
         } else {
             /* Last error gets returned. */
@@ -234,3 +304,4 @@ func CallByApiID(api ApiId_t, args []Param_t, cache SuiteCache_t) (retVals []any
     }
     return
 }
+
