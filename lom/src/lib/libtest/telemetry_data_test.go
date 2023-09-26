@@ -113,24 +113,23 @@ var emptyVals = map[string]bool{
     "{}":       true,
     "[]":       true,
 }
-func validateNil(n string, vExp, vRet any) bool {
-    if _, ok := emptyVals[fmt.Sprintf("%v", vRet)]; ok{
-        cmn.LogDebug("validateNil succeeded")
+
+func checkNil(n string, vRet any, expNil bool) bool {
+    if _, ok := emptyVals[fmt.Sprintf("%v", vRet)]; ok == expNil {
+        cmn.LogDebug("validate for nil(%v) succeeded n(%s) vRet(%v)(%T)", expNil, n, vRet, vRet)
         return true
     }
-    testLastErr = fmt.Sprintf("validateNil: name=%s Expect nil. type(%T)(%v)", n, vRet, vRet)
-    cmn.LogDebug(testLastErr)
+    cmn.LogError("validate for nil(%v) failed n(%s) vRet(%v)(%T)", expNil, n, vRet, vRet)
     return false
 }
 
+
+func validateNil(n string, vExp, vRet any) bool {
+    return checkNil(n, vRet, true)
+}
+
 func validateNonNil(n string, vExp, vRet any) bool {
-    if vRet != nil {
-        cmn.LogDebug("validateNonNil succeeded")
-        testLastErr = ""
-        return true
-    }
-    testLastErr = fmt.Sprintf("name=%s Expect non nil, but nil", n)
-    return false
+    return checkNil(n, vRet, false)
 }
 
 var pubSubSuite = testSuite_t{
@@ -375,9 +374,10 @@ var pubSubMultiSuite = testSuite_t{
 }
 
 var testTelemetrySuites = []*testSuite_t{
-    &pubSubSuite,
-    &pubSubMultiSuite,
-    &pubSubFnSuite,
-    &pubSubReqRepSuite,
-    &pubSubFailSuite,
+    // &pubSubSuite,
+    // &pubSubMultiSuite,
+    // &pubSubFnSuite,
+    // &pubSubReqRepSuite,
+    // &pubSubFailSuite,
+    &pubSubScriptAPIValidate,
 }

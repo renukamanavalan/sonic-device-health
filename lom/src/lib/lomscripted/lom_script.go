@@ -14,8 +14,7 @@ func callGetPubChannel(args []any, cache SuiteCache_t) []any {
     var ch any
     if len(args) != 3 {
         err = cmn.LogError("GetPubChannel expects 3 args. Given=%d", len(args))
-    }
-    if chType, ok := args[0].(tele.ChannelType_t); !ok {
+    } else if chType, ok := args[0].(tele.ChannelType_t); !ok {
         err = cmn.LogError("Expect tele.ChannelType_t != type(%T)", args[0])
     } else if producer, ok := args[1].(tele.ChannelProducer_t); !ok {
         err = cmn.LogError("Expect tele.ChannelProducer_t != type(%T)", args[1])
@@ -32,8 +31,7 @@ func callGetSubChannel(args []any, cache SuiteCache_t) []any {
     var ch, chClose any
     if len(args) != 3 {
         err = cmn.LogError("GetSubChannel expects 3 args. Given=%d", len(args))
-    }
-    if chType, ok := args[0].(tele.ChannelType_t); !ok {
+    } else if chType, ok := args[0].(tele.ChannelType_t); !ok {
         err = cmn.LogError("Expect tele.ChannelType_t != type(%T)", args[0])
     } else if producer, ok := args[1].(tele.ChannelProducer_t); !ok {
         err = cmn.LogError("Expect tele.ChannelProducer_t != type(%T)", args[1])
