@@ -41,7 +41,8 @@ func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
             expVal := cache.GetVal(e.name, e.valExpect, nil)
             if e.validator != nil {
                 if e.validator(e.name, expVal, retV) == false {
-                    t.Errorf(errorFmt("Result validation failed (%+v) retv(%+v)", entry, retV))
+                    t.Fatalf(errorFmt("Result validation failed testID(%d) res-index(%d) retv(%+v)",
+                                i, j, retV))
                     retV = nil
                 }
             } else {
@@ -69,7 +70,7 @@ func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
             }
             cache.SetVal(e.name, retV)
         }
-        t.Logf(logFmt("Ended test - {%v} ....", entry.api))
+        t.Logf(logFmt("Ended test(%d) - {%v} ....", i, entry.api))
     }
 }
 

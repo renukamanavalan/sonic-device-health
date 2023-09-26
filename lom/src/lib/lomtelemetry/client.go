@@ -5,17 +5,17 @@ import (
     cmn "lom/src/lib/lomcommon"
 )
 
-func getTopic(chProducer ChannelProducer_t, suffix string) (string, error) {
-    if data, ok := CHANNEL_PRODUCER_STR[chProducer]; !ok {
-        return "", cmn.LogError("Unknown channel producer(%v)", chProducer)
-    } else if suffix == "" {
-        if data.suffix_required {
-            return "", cmn.LogError("Missing producer suffix")
-        }
-        return data.pattern, nil
+func getTopic(chProducer ChannelProducer_t, suffix string) (topic string, err error) {
+    data, ok := CHANNEL_PRODUCER_STR[chProducer]
+    if !ok || (data.suffix_required && (suffix == "")) {
+        err = cmn.LogError("producer match(%v) - ok(%v) or missing suffix",
+                    chProducer, ok)
+    } else if !data.suffix_required {
+        topic = data.pattern
     } else {
-        return fmt.Sprintf(data.pattern, suffix), nil
+        topic = fmt.Sprintf(data.pattern, suffix)
     }
+    return
 }
 
 /*
@@ -103,7 +103,7 @@ func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
 
     prefix := ""
     if prefix, err = getTopic(receiveFrom, pluginName); err == nil {
-        if err := openSubChannel(chtype, prefix, ch, chCl); err != nil {
+        if err = openSubChannel(chtype, prefix, ch, chCl); err != nil {
             err = cmn.LogError("Failed to get sub channel (%v)", err)
         } else {
             chData = ch
@@ -216,7 +216,7 @@ func RegisterServerReqHandler(reqType ChannelType_t) (chDataReq <-chan ClientReq
     chRes := make(chan ServerRes_t)
 
     if err = initServerRequestHandler(reqType, chReq, chRes); err != nil {
-        close(chReq)
+        /* initServerRequestHandler closes chReq */
         close(chRes)
     } else {
         chDataReq = chReq

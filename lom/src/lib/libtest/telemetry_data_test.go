@@ -2,6 +2,7 @@ package libtest
 
 import (
     "fmt"
+    cmn "lom/src/lib/lomcommon"
     script "lom/src/lib/lomscripted"
     tele "lom/src/lib/lomtelemetry"
 )
@@ -69,6 +70,7 @@ func getTestCache() script.SuiteCache_t {
 var EMPTY_STRING = script.Param_t{script.ANONYMOUS, "", nil}
 
 var NIL_ERROR = result_t{script.ANONYMOUS, nil, validateNil}
+var NON_NIL_ERROR = result_t{script.ANONYMOUS, nil, validateNonNil}
 var TEST_FOR_TRUE = result_t{script.ANONYMOUS, true, nil}
 var PAUSE1 = testEntry_t{ /* Pause for 1 seconds */
     script.ApiIDPause,
@@ -106,17 +108,24 @@ func validateNonNilError(n string, vExp, vRet any) bool {
     }
 }
 
+var emptyVals = map[string]bool{
+    "<nil>":    true,
+    "{}":       true,
+    "[]":       true,
+}
 func validateNil(n string, vExp, vRet any) bool {
-    if vRet == nil {
-        testLastErr = ""
+    if _, ok := emptyVals[fmt.Sprintf("%v", vRet)]; ok{
+        cmn.LogDebug("validateNil succeeded")
         return true
     }
-    testLastErr = fmt.Sprintf("name=%s Expect nil. type(%T)(%v)", n, vRet, vRet)
+    testLastErr = fmt.Sprintf("validateNil: name=%s Expect nil. type(%T)(%v)", n, vRet, vRet)
+    cmn.LogDebug(testLastErr)
     return false
 }
 
 func validateNonNil(n string, vExp, vRet any) bool {
     if vRet != nil {
+        cmn.LogDebug("validateNonNil succeeded")
         testLastErr = ""
         return true
     }
@@ -370,4 +379,5 @@ var testTelemetrySuites = []*testSuite_t{
     &pubSubMultiSuite,
     &pubSubFnSuite,
     &pubSubReqRepSuite,
+    &pubSubFailSuite,
 }

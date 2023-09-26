@@ -141,8 +141,8 @@ func getAddress(mode channelMode_t, chType ChannelType_t) (sockInfo *sockInfo_t,
             fmt.Sprintf(ZMQ_ADDRESS, info.startPort+int(chType)),
             info.sType,
             info.isConnect}
+        cmn.LogDebug("Address: (%+v) mode=(%v) chType(%s)\n", *sockInfo, mode, CHANNEL_TYPE_STR[chType])
     }
-    cmn.LogDebug("Address: (%+v) mode=(%v) chType(%s)\n", *sockInfo, mode, CHANNEL_TYPE_STR[chType])
     return
 }
 
@@ -234,13 +234,6 @@ func getSocket(mode channelMode_t, chType ChannelType_t, requester string) (sock
         cmn.LogPanic("GetSocket called w/o getting context")
     }
 
-    defer func() {
-        if err != nil {
-            sock.Close()
-            sock = nil
-        }
-    }()
-
     var info *sockInfo_t
     if info, err = getAddress(mode, chType); err != nil {
         return
@@ -250,6 +243,14 @@ func getSocket(mode channelMode_t, chType ChannelType_t, requester string) (sock
         err = cmn.LogError("Failed to get socket mode(%v) err(%v)", mode, err)
         return
     }
+
+    defer func() {
+        if err != nil {
+            sock.Close()
+            sock = nil
+        }
+    }()
+
     /*
      * All pub & sub connect to xsub/xpub end points.
      * Request connect & response binds
@@ -285,8 +286,6 @@ func closeSocket(s *zmq.Socket) {
         s.Close()
         /* In case terminate context is waiting */
         chSocksClose <- 1
-    } else {
-        cmn.LogMessageWithSkip(1, syslog.LOG_ERR, "***INTERNAL ERROR*** calling closeSocket with Nil")
     }
 }
 
