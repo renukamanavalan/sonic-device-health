@@ -112,6 +112,7 @@ var emptyVals = map[string]bool{
     "<nil>":    true,
     "{}":       true,
     "[]":       true,
+    "":         true,
 }
 
 func checkNil(n string, vRet any, expNil bool) bool {
@@ -374,10 +375,10 @@ var pubSubMultiSuite = testSuite_t{
 }
 
 var testTelemetrySuites = []*testSuite_t{
-    // &pubSubSuite,
-    // &pubSubMultiSuite,
-    // &pubSubFnSuite,
-    // &pubSubReqRepSuite,
-    // &pubSubFailSuite,
+    &pubSubSuite,
+    &pubSubMultiSuite,
+    &pubSubFnSuite,
+    &pubSubReqRepSuite,
+    &pubSubFailSuite,
     &pubSubScriptAPIValidate,
 }

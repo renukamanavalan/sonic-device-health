@@ -83,5 +83,9 @@ func TestRunTeleSuites(t *testing.T) {
 
     for _, suite := range testTelemetrySuites {
         testRunOneTeleSuite(t, suite)
+        if !tele.IsTelemetryIdle() {
+            t.Fatalf(fatalFmt("Telemetry not idle after suite=%s", suite.id))
+            break
+        }
     }
 }

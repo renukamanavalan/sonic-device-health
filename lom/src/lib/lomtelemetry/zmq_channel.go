@@ -744,8 +744,6 @@ func doRunPubSubProxy(chType ChannelType_t, chCtrl <-chan int) (err error) {
  *  As this blocks on chan read, it watches both and shutsdown upon chan close
  *  of either.
  *
- * Shutdown: An empty request stops this Go routine
- *
  * Input:
  *  reqType - Type of request
  *  chReq - Channel to read incoming requests
@@ -773,6 +771,11 @@ func clientRequestHandler(reqType ChannelType_t, chReq <-chan *reqInfo_t,
         cleanupFn()
     }()
 
+    if err == nil {
+        if err = sock.SetRcvtimeo(time.Second); err != nil {
+            err = cmn.LogError("Failed to SetRcvtimeo err(%v)", err)
+        }
+    }
     /* Inform the caller that function has initialized successfully or not */
     chRet <- err
     /* Sender close the channel */
@@ -791,6 +794,12 @@ func clientRequestHandler(reqType ChannelType_t, chReq <-chan *reqInfo_t,
         cmn.DeregisterForSysShutdown(shutdownId)
     }()
 
+    /* Run forever until shutdown */
+    reqList := []*reqInfo_t{}
+    tout := 0
+    state_recv := false
+    var req *reqInfo_t
+
 Loop:
     for {
         select {
@@ -803,17 +812,45 @@ Loop:
                 cmn.LogInfo("I/p request channel closed. Shutting down for {%s}", requester)
                 break Loop
             }
-            rcvData := ""
-            if _, err = sock.Send(string(data.reqData), 0); err != nil {
-                /* Don't return; Just log error */
-                err = cmn.LogError("Failed to send request err(%v) requester(%s) data(%s)",
-                    err, requester, data)
-            } else if rcvData, err = sock.Recv(0); err != nil {
-                err = cmn.LogError("Failed to recv response err(%v) requester(%s)", err, requester)
-            }
+            reqList = append(reqList, data)
+        case <- time.After(time.Duration(tout) * time.Second):
+        }
 
-            data.chResData <- &ClientRes_t{ServerRes_t(rcvData), err}
-            close(data.chResData) /* No more writes as it is per request */
+        /* Process request */
+        res := ""
+        err = nil
+
+        if !state_recv {
+            if len(reqList) != 0 {
+                tout = 0                /* No time pause until all requests are processed */
+                
+                req = reqList[0]        /* Take first request */
+                reqList = reqList[1:]   /* Remove first */
+
+                if _, err = sock.Send(string(req.reqData), 0); err != nil {
+                    /* Don't return; Just log error */
+                    err = cmn.LogError("Failed to send request err(%v) requester(%s) data(%s)",
+                                err, requester, req.reqData)
+                } else  {
+                    state_recv = true
+                }
+            } else {
+                tout = 300          /* Nothing todo until request */
+            }
+        }
+        if state_recv {
+            if res, err = sock.Recv(0); err == zmq.Errno(syscall.EAGAIN) {
+                /* Do nothing */
+            } else {
+                /* Receive complete with or w/o error */
+                state_recv = false
+            }
+        }
+
+        if !state_recv && req != nil {
+            req.chResData <- &ClientRes_t{ServerRes_t(res), err}
+            close(req.chResData) /* No more writes as it is per request */
+            req = nil 
         }
     }
     cmn.LogInfo("Terminating clientRequestHandler for (%s)", requester)
@@ -886,7 +923,7 @@ func processRequest(reqType ChannelType_t, req ClientReq_t, chRes chan<- *Client
 
 
 /*
- * closeRequest
+ * closeRequestChannel
  *
  * Close channel for given request type.
  *
@@ -899,13 +936,19 @@ func processRequest(reqType ChannelType_t, req ClientReq_t, chRes chan<- *Client
  * Return:
  *  None
  */
-func closeRequestChannel(reqType ChannelType_t) {
+func closeRequestChannel(reqType ChannelType_t) (err error) {
     if v, ok := clientReqChanList.Load(reqType); ok {
         if ch, ok := v.(chan *reqInfo_t);ok {
             clientReqChanList.Delete(reqType)
             close(ch)
+        } else {
+            err = cmn.LogError("val for req(%d) is incorrect type. (chan *reqInfo_t) != (%T)",
+                        reqType, v)
         }
+    } else {
+        err = cmn.LogError("Failed to find open chan for reqType(%d) for close", reqType)
     }
+    return
 }
 
 /*

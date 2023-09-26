@@ -76,8 +76,8 @@ func callReadClientResponse(args []any, cache SuiteCache_t) []any {
     var val tele.ServerRes_t
     if len(args) != 2 {
         err = cmn.LogError("SendClientRequest expects 2 args. Given=%d", len(args))
-    } else if ch, ok := args[0].(<-chan *tele.ClientRes_t); !ok {
-        err = cmn.LogError("Expect <-chan *tele.ClientRes_t != type(%T)", args[0])
+    } else if ch, ok := args[0].(<-chan *tele.ClientRes_t); (!ok || ch == nil) {
+        err = cmn.LogError("Expect non nil <-chan *tele.ClientRes_t != type(%T)", args[0])
     } else if tout, ok := args[1].(int); !ok {
         err = cmn.LogError("Expect int for timeout != type(%T)", args[1])
     } else {
@@ -256,7 +256,7 @@ func callCloseRequestChannel(args []any, cache SuiteCache_t) []any {
     } else if chType, ok := args[0].(tele.ChannelType_t); !ok {
         err = cmn.LogError("Expect tele.ChannelType_t != type(%T)", args[0])
     } else {
-        tele.CloseClientRequest(chType)
+        err = tele.CloseClientRequest(chType)
     }
     return []any{err}
 }

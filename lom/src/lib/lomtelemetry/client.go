@@ -186,8 +186,8 @@ func SendClientRequest(reqType ChannelType_t, req ClientReq_t) (chData <-chan *C
 }
 
 
-func CloseClientRequest(reqType ChannelType_t) {
-    closeRequestChannel(reqType)
+func CloseClientRequest(reqType ChannelType_t) error {
+    return closeRequestChannel(reqType)
 }
 
 /*
