@@ -132,10 +132,12 @@ func isZMQIdle() (ret bool) {
 func getAddress(mode channelMode_t, chType ChannelType_t) (sockInfo *sockInfo_t, err error) {
 
     /* Cross validation between mode & ChannelType_t */
-    if info, ok := chModeInfo[mode]; !ok {
-        err = cmn.LogError("Unknown channel mode (%v)", mode)
-    } else if _, ok := info.types[chType]; !ok {
-        err = cmn.LogError("Unknown channel type (%d) for mode(%d)", chType, mode)
+    info, ok := chModeInfo[mode]
+    if ok {
+        _, ok = info.types[chType]
+    }
+    if !ok {
+        err = cmn.LogError("Unknown channel mode(%v) or type (%d)", mode, chType)
     } else {
         sockInfo = &sockInfo_t{
             fmt.Sprintf(ZMQ_ADDRESS, info.startPort+int(chType)),
@@ -809,6 +811,12 @@ Loop:
 
         case data, ok := <-chReq:
             if !ok {
+                if req != nil {
+                    close(req.chResData) /* No more writes as it is per request */
+                }
+                for _, r := range reqList {
+                    close(r.chResData)
+                }
                 cmn.LogInfo("I/p request channel closed. Shutting down for {%s}", requester)
                 break Loop
             }

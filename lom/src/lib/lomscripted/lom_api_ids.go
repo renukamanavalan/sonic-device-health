@@ -67,9 +67,6 @@ type GetValStreamingFn_t func(int, SuiteCache_t) (*StreamingDataEntity_t, error)
 /* caller continues to write untul fn returns more=false */
 type PutValStreamingFn_t func(int, tele.JsonString_t, SuiteCache_t) (bool, error)
 
-func (s SuiteCache_t) Clear() {
-    s = SuiteCache_t{}
-}
 
 func (s SuiteCache_t) GetVal(name string, val any, getFn GetValFn_t) (vRet any) {
     vRet = val

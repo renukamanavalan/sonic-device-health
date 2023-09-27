@@ -121,9 +121,9 @@ func callReadClientRequest(args []any, cache SuiteCache_t) []any {
 func callSendClientResponse(args []any, cache SuiteCache_t) []any {
     var err error
     if len(args) != 3 {
-        err = cmn.LogError("WriteJsonStringsChannel need min 3 args, as chan, data & timeout")
-    } else if ch, ok := args[0].(chan<- tele.ServerRes_t); !ok {
-        err = cmn.LogError("Expect chan<- tele.ServerRes_t != type(%T)", args[0])
+        err = cmn.LogError("SendClientResponse need 3 args, as chan, data & timeout")
+    } else if ch, ok := args[0].(chan<- tele.ServerRes_t); (!ok || ch == nil) {
+        err = cmn.LogError("Expect non-nil chan<- tele.ServerRes_t != type(%T)", args[0])
     } else if res, ok := args[1].(tele.ServerRes_t); !ok {
         err = cmn.LogError("Expect ServerRes_t != type(%T)", args[1])
     } else if tout, ok := args[2].(int); !ok {
@@ -133,7 +133,7 @@ func callSendClientResponse(args []any, cache SuiteCache_t) []any {
         case ch <- res:
 
         case <-time.After(time.Duration(tout) * time.Second):
-            err = errors.New(fmt.Sprintf("SendClientResponse timeout (%d) secs", tout))
+            err = errors.New(fmt.Sprintf("SendClientResponse TIMEOUT (%d) secs", tout))
         }
     }
     return []any{err}
@@ -183,8 +183,8 @@ func writeJsonStringStreaming(ch chan<- tele.JsonString_t, rdFn GetValStreamingF
 func callWriteJsonStringsChannel(args []any, cache SuiteCache_t) []any {
     var err error
     if len(args) != 3 {
-        err = cmn.LogError("WriteJsonStringsChannel need min 3 args, as chan, data & timeout")
-    } else if ch, ok := args[0].(chan<- tele.JsonString_t); !ok {
+        err = cmn.LogError("WriteJsonStringsChannel need 3 args, as chan, data & timeout")
+    } else if ch, ok := args[0].(chan<- tele.JsonString_t); (!ok || ch == nil) {
         err = cmn.LogError("Expect tele.JsonString_t chan<- != type(%T)", args[0])
     } else if tout, ok := args[2].(int); !ok {
         err = cmn.LogError("Expect int for timeout != type(%T)", args[2])
@@ -263,16 +263,24 @@ func callCloseRequestChannel(args []any, cache SuiteCache_t) []any {
 
 func callCloseChannel(args []any, cache SuiteCache_t) []any {
     var err error
+Loop:
     for i, chAny := range args {
-        if ch, ok := chAny.(chan<- tele.JsonString_t); ok {
-            close(ch)
-        } else if ch, ok := chAny.(chan<- int); ok {
-            close(ch)
-        } else if ch, ok := chAny.(chan<- tele.ServerRes_t); ok {
-            close(ch)
-        } else {
-            /* Last error gets returned. */
-            err = cmn.LogError("%d: Expect chan<- int/JsonString_t != type(%T)", i, chAny)
+        switch chAny.(type) {
+        case chan<- tele.JsonString_t:
+            close(chAny.(chan<- tele.JsonString_t))
+        case chan tele.JsonString_t:
+            close(chAny.(chan tele.JsonString_t))
+        case chan<- tele.ServerRes_t:
+            close(chAny.(chan<- tele.ServerRes_t))
+        case chan tele.ServerRes_t:
+            close(chAny.(chan tele.ServerRes_t))
+        case chan<- int:
+            close(chAny.(chan<- int))
+        case chan int:
+            close(chAny.(chan int))
+        default:
+            err = cmn.LogError("%d: Unknown type for close (%T)", i, chAny)
+            break Loop
         }
     }
     return []any{err}

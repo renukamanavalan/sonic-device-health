@@ -381,4 +381,5 @@ var testTelemetrySuites = []*testSuite_t{
     &pubSubReqRepSuite,
     &pubSubFailSuite,
     &scriptAPIValidate,
+    &scriptAPIValidate_2,
 }
