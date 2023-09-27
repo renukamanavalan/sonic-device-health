@@ -200,9 +200,10 @@ func callWriteJsonStringsChannel(args []any, cache SuiteCache_t) []any {
     return []any{err}
 }
 
-func readJsonStrings(ch <-chan tele.JsonString_t, tout int, cnt int) (vals []tele.JsonString_t, err error) {
-    vals = []tele.JsonString_t{}
+func readJsonStrings(ch <-chan tele.JsonString_t, tout int, cnt int) (retVal []tele.JsonString_t, err error) {
+    vals := []tele.JsonString_t{}
 
+Loop:
     for i := 0; (i < cnt) && (err == nil); i++ {
         select {
         case val, ok := <-ch:
@@ -214,7 +215,11 @@ func readJsonStrings(ch <-chan tele.JsonString_t, tout int, cnt int) (vals []tel
 
         case <-time.After(time.Duration(tout) * time.Second):
             err = errors.New("TIMEOUT")
+            break Loop
         }
+    }
+    if err == nil {
+        retVal = vals
     }
     return
 }
@@ -232,7 +237,7 @@ func readJsonStringStreaming(ch <-chan tele.JsonString_t, tout int, wrFn PutValS
 
 func callReadJsonStringsChannel(args []any, cache SuiteCache_t) []any {
     var err error
-    readVal := []tele.JsonString_t{}
+    var readVal []tele.JsonString_t
     if len(args) != 3 {
         err = cmn.LogError("ReadJsonStringsChannel need 3 args, chan, read-count/fn & timeout ")
     } else if ch, ok := args[0].(<-chan tele.JsonString_t); !ok {
@@ -244,6 +249,8 @@ func callReadJsonStringsChannel(args []any, cache SuiteCache_t) []any {
             readVal, err = readJsonStrings(ch, tout, val)
         } else if val, ok := args[1].(func(int, tele.JsonString_t, SuiteCache_t) (bool, error)); ok {
             err = readJsonStringStreaming(ch, tout, val, cache)
+        } else {
+            err = cmn.LogError("Expect cnt to read or func to write. Got (%T)", args[1])
         }
     }
     return []any{readVal, err}
@@ -268,16 +275,10 @@ Loop:
         switch chAny.(type) {
         case chan<- tele.JsonString_t:
             close(chAny.(chan<- tele.JsonString_t))
-        case chan tele.JsonString_t:
-            close(chAny.(chan tele.JsonString_t))
         case chan<- tele.ServerRes_t:
             close(chAny.(chan<- tele.ServerRes_t))
-        case chan tele.ServerRes_t:
-            close(chAny.(chan tele.ServerRes_t))
         case chan<- int:
             close(chAny.(chan<- int))
-        case chan int:
-            close(chAny.(chan int))
         default:
             err = cmn.LogError("%d: Unknown type for close (%T)", i, chAny)
             break Loop

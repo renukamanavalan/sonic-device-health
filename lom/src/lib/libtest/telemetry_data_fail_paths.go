@@ -470,7 +470,11 @@ var scriptAPIValidate = testSuite_t{
 var chSerResNil <-chan tele.ServerRes_t
 var chSerResNonNil = make(chan tele.ServerRes_t)
 var chSerResWrNonNil chan<- tele.ServerRes_t = chSerResNonNil
-var chWrJson chan<- tele.JsonString_t
+var chNilJson chan<- tele.JsonString_t
+var chNonNilJson = make(chan tele.JsonString_t)
+var chWrNonNilJson chan<- tele.JsonString_t = chNonNilJson
+var chRdNonNilJson <-chan tele.JsonString_t = chNonNilJson
+
 
 var scriptAPIValidate_2 = testSuite_t{
     id:          "ScriptAPIValidation",         /* All the below are for failure only */
@@ -584,7 +588,7 @@ var scriptAPIValidate_2 = testSuite_t{
         testEntry_t{
             script.ApiIDWriteJsonStringsChannel,
             []script.Param_t{
-                script.Param_t{script.ANONYMOUS, nil, getValdataInPlay_1},
+                script.Param_t{script.ANONYMOUS, nil, nil},
                 script.Param_t{script.ANONYMOUS, 1, nil},
             },
             []result_t{ NON_NIL_ERROR },
@@ -594,7 +598,7 @@ var scriptAPIValidate_2 = testSuite_t{
             script.ApiIDWriteJsonStringsChannel,
             []script.Param_t{
                 script.Param_t{script.ANONYMOUS, 11, nil},           
-                script.Param_t{script.ANONYMOUS, nil, getValdataInPlay_1},
+                script.Param_t{script.ANONYMOUS, nil, nil},
                 script.Param_t{script.ANONYMOUS, 1, nil},        
             },
             []result_t{ NON_NIL_ERROR },
@@ -603,32 +607,19 @@ var scriptAPIValidate_2 = testSuite_t{
         testEntry_t{
             script.ApiIDWriteJsonStringsChannel,
             []script.Param_t{
-                script.Param_t{script.ANONYMOUS, chWrJson, nil},        /* Nil chan */
-                script.Param_t{script.ANONYMOUS, nil, getValdataInPlay_1},
+                script.Param_t{script.ANONYMOUS, chNilJson, nil},        /* Nil chan */
+                script.Param_t{script.ANONYMOUS, nil, nil},
                 script.Param_t{script.ANONYMOUS, 1, nil},        
             },
             []result_t{ NON_NIL_ERROR },
             "Nil ch provided",
         },
         testEntry_t{
-            script.ApiIDGetPubChannel,
-            []script.Param_t{
-                script.Param_t{"chType_1", tele.CHANNEL_TYPE_EVENTS, nil},
-                script.Param_t{"prod_1", tele.CHANNEL_PRODUCER_ENGINE, nil},
-                EMPTY_STRING,
-            },
-            []result_t{
-                result_t{"chWrite-0", nil, validateNonNil}, /* Save in cache */
-                NIL_ERROR,
-            },
-            "Get pub channel for same type as proxy above",
-        },
-        testEntry_t{
             script.ApiIDWriteJsonStringsChannel,
             []script.Param_t{
-                script.Param_t{"chWrite-0", nil, nil},      /* Use chan from cache */
-                script.Param_t{"pub_0", true, nil},         /* Incorrect arg */
-                script.Param_t{script.ANONYMOUS, 1, nil},   /* timeout = 1 second */
+                script.Param_t{"validChJson", chWrNonNilJson, nil}, /* Use valid chan */
+                script.Param_t{script.ANONYMOUS, true, nil},        /* Incorrect arg */
+                script.Param_t{script.ANONYMOUS, 1, nil},           /* timeout = 1 second */
             },
             []result_t{ NON_NIL_ERROR },
             "Incorrect second arg",
@@ -636,9 +627,9 @@ var scriptAPIValidate_2 = testSuite_t{
         testEntry_t{
             script.ApiIDWriteJsonStringsChannel,
             []script.Param_t{
-                script.Param_t{"chWrite-0", nil, nil},      /* Use chan from cache */
-                script.Param_t{"pub_0", []tele.JsonString_t{}, nil}, /* valid arg */
-                script.Param_t{script.ANONYMOUS, "1", nil}, /* incorrect type */
+                script.Param_t{"validChJson", nil, nil},            /* Use valid chan from cache */
+                script.Param_t{script.ANONYMOUS, []tele.JsonString_t{}, nil}, /* valid arg */
+                script.Param_t{script.ANONYMOUS, "1", nil},         /* incorrect type */
             },
             []result_t{ NON_NIL_ERROR },
             "Incorrect third arg",
@@ -646,22 +637,137 @@ var scriptAPIValidate_2 = testSuite_t{
         testEntry_t{
             script.ApiIDWriteJsonStringsChannel,
             []script.Param_t{
-                script.Param_t{"chWrite-0", nil, nil},      /* Use chan from cache */
-                script.Param_t{"pub_0", true, nil},         /* Incorrect arg */
-                script.Param_t{script.ANONYMOUS, 1, nil},   /* timeout = 1 second */
+                script.Param_t{"validChJson", nil, nil},  /* Use valid chan from cache */
+                script.Param_t{script.ANONYMOUS, []tele.JsonString_t{tele.JsonString_t("hello")}, nil},
+                script.Param_t{script.ANONYMOUS, 1, nil}, /* timeout = 1sec */
             },
             []result_t{ NON_NIL_ERROR },
-            "Incorrect second arg",
+            "timeout to occur",
+        },
+        testEntry_t{
+            script.ApiIDReadJsonStringsChannel,
+            []script.Param_t{
+                script.Param_t{"validChRdJson", chRdNonNilJson, nil},/* Use valid chan */
+                script.Param_t{script.ANONYMOUS, 1, nil},
+                script.Param_t{script.ANONYMOUS, 1, nil},           /* timeout = 1sec */
+            },
+            []result_t{ NIL_ANY, NON_NIL_ERROR },
+            "timeout to occur",
         },
         testEntry_t{
             script.ApiIDCloseChannel,
             []script.Param_t{
-                script.Param_t{"chWrite-0", nil, nil}, /* Get chWrite_0 from cache */
+                script.Param_t{"validChJson", nil, nil}, /* Get chWrite_0 from cache */
             },
             []result_t{NIL_ERROR},
             "Close pub chennel",
         },
-        PAUSE2,
+        testEntry_t{
+            script.ApiIDReadJsonStringsChannel,
+            []script.Param_t{
+                script.Param_t{script.ANONYMOUS, nil, nil},
+                script.Param_t{script.ANONYMOUS, 1, nil},
+            },
+            []result_t{ NIL_ANY, NON_NIL_ERROR },
+            "fewer args",
+        },
+        testEntry_t{
+            script.ApiIDReadJsonStringsChannel,
+            []script.Param_t{
+                script.Param_t{script.ANONYMOUS, 11, nil},           
+                script.Param_t{script.ANONYMOUS, nil, nil},
+                script.Param_t{script.ANONYMOUS, 1, nil},        
+            },
+            []result_t{ NIL_ANY, NON_NIL_ERROR },
+            "Incorrect first arg",
+        },
+        testEntry_t{
+            script.ApiIDReadJsonStringsChannel,
+            []script.Param_t{
+                script.Param_t{script.ANONYMOUS, chNilJson, nil},        /* Nil chan */
+                script.Param_t{script.ANONYMOUS, nil, nil},
+                script.Param_t{script.ANONYMOUS, 1, nil},        
+            },
+            []result_t{ NIL_ANY, NON_NIL_ERROR },
+            "Nil ch provided",
+        },
+        testEntry_t{
+            script.ApiIDReadJsonStringsChannel,
+            []script.Param_t{
+                script.Param_t{"validChRdJson", nil, nil},          /* Use valid chan from cache */
+                script.Param_t{script.ANONYMOUS, true, nil},        /* Incorrect arg. expect cnt */
+                script.Param_t{script.ANONYMOUS, 1, nil},           /* timeout = 1 second */
+            },
+            []result_t{ NIL_ANY, NON_NIL_ERROR },
+            "Incorrect second arg",
+        },
+        testEntry_t{
+            script.ApiIDReadJsonStringsChannel,
+            []script.Param_t{
+                script.Param_t{"validChRdJson", nil, nil},          /* Use valid chan from cache */
+                script.Param_t{script.ANONYMOUS, 1, nil},           /* valid arg */
+                script.Param_t{script.ANONYMOUS, "1", nil},         /* incorrect type */
+            },
+            []result_t{ NIL_ANY, NON_NIL_ERROR },
+            "Incorrect third arg",
+        },
+        testEntry_t{
+            script.ApiIDReadJsonStringsChannel,
+            []script.Param_t{
+                script.Param_t{"validChRdJson", nil, nil},          /* Use valid chan from cache */
+                script.Param_t{script.ANONYMOUS, 1, nil},
+                script.Param_t{script.ANONYMOUS, 1, nil},           /* timeout = 1sec */
+            },
+            []result_t{ NIL_ANY, NON_NIL_ERROR },
+            "channel closed",
+        },
+        testEntry_t{
+            script.ApiIDCloseRequestChannel,
+            []script.Param_t{},                                     /* Missing arg */
+            []result_t{
+                NON_NIL_ERROR,
+            },
+            "fewer args",
+        },
+        testEntry_t{
+            script.ApiIDCloseRequestChannel,
+            []script.Param_t{
+                script.Param_t{script.ANONYMOUS, true, nil},        /* Incorrect type */
+            },
+            []result_t{
+                NON_NIL_ERROR,
+            },
+            "incorrect first arg",
+        },
+        testEntry_t{
+            script.ApiIDCloseChannel,
+            []script.Param_t{
+                script.Param_t{script.ANONYMOUS, chNonNilJson, nil},
+            },
+            []result_t{NON_NIL_ERROR},
+            "Unknown ch type",
+        },
+        testEntry_t{ 
+            script.ApiIDPause,
+            []script.Param_t{},
+            []result_t{NON_NIL_ERROR},
+            "fewer args",
+        },
+        testEntry_t{
+            script.ApiIDPause,
+            []script.Param_t{script.Param_t{script.ANONYMOUS, "2", nil}},
+            []result_t{NON_NIL_ERROR},
+            "Incorrect arg",
+        },
+        testEntry_t{
+            script.ApiIDIsTelemetryIdle,
+            []script.Param_t{script.Param_t{script.ANONYMOUS, "2", nil}},
+            []result_t{
+                result_t {script.ANONYMOUS, false, nil},
+                NON_NIL_ERROR,
+            },
+            "redundant args",
+        },
         TELE_IDLE_CHECK,
     },
 }

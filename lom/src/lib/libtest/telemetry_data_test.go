@@ -69,7 +69,8 @@ func getTestCache() script.SuiteCache_t {
 /* Commonly used entities are pre declared for ease of use */
 var EMPTY_STRING = script.Param_t{script.ANONYMOUS, "", nil}
 
-var NIL_ERROR = result_t{script.ANONYMOUS, nil, validateNil}
+var NIL_ANY = result_t{script.ANONYMOUS, nil, validateNil}
+var NIL_ERROR = NIL_ANY
 var NON_NIL_ERROR = result_t{script.ANONYMOUS, nil, validateNonNil}
 var TEST_FOR_TRUE = result_t{script.ANONYMOUS, true, nil}
 var PAUSE1 = testEntry_t{ /* Pause for 1 seconds */
