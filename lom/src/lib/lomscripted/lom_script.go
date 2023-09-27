@@ -101,8 +101,8 @@ func callReadClientRequest(args []any, cache SuiteCache_t) []any {
     var val tele.ClientReq_t
     if len(args) != 2 {
         err = cmn.LogError("ReadJsonStringsChannel need 3 args, chan, read-count/fn & timeout ")
-    } else if ch, ok := args[0].(<-chan tele.ClientReq_t); !ok {
-        err = cmn.LogError("Expect tele.ClientReq_t <-chan != type(%T)", args[0])
+    } else if ch, ok := args[0].(<-chan tele.ClientReq_t); (!ok || ch == nil) {
+        err = cmn.LogError("Expect non-nil tele.ClientReq_t <-chan != type(%T)", args[0])
     } else if tout, ok := args[1].(int); !ok {
         err = cmn.LogError("Expect int for timeout != type(%T)", args[1])
     } else {

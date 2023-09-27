@@ -1017,32 +1017,50 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
         cmn.DeregisterForSysShutdown(shutdownId)
     }()
 
-Loop:
     /* From here on the routine runs forever until shutdown */
+    reqActive := false
+    tout := 0               /* sock.recv blocks */
+    rcvData := ""
+    
+Loop:
     for {
+        rcvdRes := false
+        resData := ServerRes_t("")
+
         select {
         case <-chShutdown:
             cmn.LogInfo("serverRequestHandler shutting down requester:(%s)", requester)
             break Loop
-        case <-chRes:
-            cmn.LogInfo("input response channel closed; Close this handler")
-            break Loop
-        default:
+        case resData, rcvdRes = <-chRes:
+            if !rcvdRes {
+                cmn.LogInfo("input response channel closed; Close this handler")
+                break Loop
+            }
+        case <- time.After(time.Duration(tout) * time.Second):
+        }
+        /* Select returns on timeout or for rcvdRes=true */
+
+        if !reqActive {
+            /* Receive request from client's REQ socket which is ClientReq_t */
+            if rcvData, err = sock.Recv(0); err == zmq.Errno(syscall.EAGAIN) {
+                /* Continue the loop - enable shutdown check */
+            } else if err != nil {
+                cmn.LogError("Failed to receive msg err(%v for (%s)", requester)
+            } else {
+                /* Send request to registered server side handler */
+                chReq <- ClientReq_t(rcvData)
+                reqActive = true
+                tout = 300      /* Wait till data available from chRes */
+            }
         }
 
-        /* Receive request from client's REQ socket which is ClientReq_t */
-        rcvData := ""
-        if rcvData, err = sock.Recv(0); err == zmq.Errno(syscall.EAGAIN) {
-            /* Continue the loop */
-        } else if err != nil {
-            cmn.LogError("Failed to receive msg err(%v for (%s)", requester)
-        } else {
-            chReq <- ClientReq_t(rcvData)
-            resData := <-chRes
-            /* Not checking ok, as we need to send back something, which is empty, if chRes is closed */
+        if reqActive && rcvdRes {
             if _, err = sock.Send(string(resData), 0); err != nil {
                 cmn.LogError("Failed to send response err(%v) req(%s) res(%s)", err, rcvData, resData)
             }
+            tout = 0        /* Here after sock.recv blocks */
+            reqActive = false
+            rcvData = ""
         }
     }
 }
