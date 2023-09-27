@@ -29,6 +29,7 @@ const (
     ApiIDCloseChannel                     = "CloseChannel"
     ApiIDPause                            = "pause"
     ApiIDIsTelemetryIdle                  = "IsTelemetryIdle"
+    ApiIDSysShutdown                      = "SysShutdown"
 )
 
 type ApiFn_t func(args []any, cache SuiteCache_t) []any
@@ -48,6 +49,7 @@ var LomAPIByIds = map[ApiId_t]ApiFn_t{
     ApiIDCloseChannel:             callCloseChannel,
     ApiIDPause:                    callPause,
     ApiIDIsTelemetryIdle:          callIsTelemetryIdle,
+    ApiIDSysShutdown:              callSysShutdown,
 }
 
 const ANONYMOUS = ""
@@ -96,11 +98,7 @@ func (s SuiteCache_t) GetVal(name string, val any, getFn GetValFn_t) (vRet any) 
 
 func (s SuiteCache_t) SetVal(name string, val any) {
     if name != ANONYMOUS {
-        if val != nil {
-            s[name] = val /* Set it */
-        } else if _, ok := s[name]; ok {
-            delete(s, name)
-        }
+        s[name] = val /* Set it */
     }
 }
 

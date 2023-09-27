@@ -73,6 +73,7 @@ var NIL_ANY = result_t{script.ANONYMOUS, nil, validateNil}
 var NIL_ERROR = NIL_ANY
 var NON_NIL_ERROR = result_t{script.ANONYMOUS, nil, validateNonNil}
 var TEST_FOR_TRUE = result_t{script.ANONYMOUS, true, nil}
+var TEST_FOR_FALSE = result_t{script.ANONYMOUS, false, nil}
 var PAUSE1 = testEntry_t{ /* Pause for 1 seconds */
     script.ApiIDPause,
     []script.Param_t{script.Param_t{script.ANONYMOUS, 1, nil}},
@@ -383,4 +384,5 @@ var testTelemetrySuites = []*testSuite_t{
     &pubSubFailSuite,
     &scriptAPIValidate,
     &scriptAPIValidate_2,
+    &pubSubShutdownSuite,
 }

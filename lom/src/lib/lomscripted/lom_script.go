@@ -209,6 +209,7 @@ Loop:
         case val, ok := <-ch:
             if !ok {
                 err = errors.New("CLOSED")
+                break Loop
             } else {
                 vals = append(vals, val)
             }
@@ -309,6 +310,18 @@ func callIsTelemetryIdle(args []any, cache SuiteCache_t) []any {
         ret = tele.IsTelemetryIdle()
     }
     return []any{ret, err}
+}
+
+func callSysShutdown(args []any, cache SuiteCache_t) []any {
+    var err error
+    if len(args) != 1 {
+        err = cmn.LogError("Pause need timeout in seconds")
+    } else if tout, ok := args[0].(int); !ok {
+        err = cmn.LogError("Expect timeout as int != type(%T)", args[0])
+    } else {
+        cmn.DoSysShutdown(tout)
+    }
+    return []any{err}
 }
 
 func CallByApiID(api ApiId_t, args []Param_t, cache SuiteCache_t) (retVals []any, ok bool) {

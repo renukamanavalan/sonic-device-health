@@ -156,18 +156,20 @@ func getAddress(mode channelMode_t, chType ChannelType_t) (sockInfo *sockInfo_t,
  */
 
 func getContext() (*zmq.Context, error) {
-    if cmn.IsSysShuttingDown() {
-        return nil, cmn.LogError("System is shutting down. No context")
-    }
     var err error
     if zctx == nil {
-        if zctx, err = zmq.NewContext(); err != nil {
-            return nil, cmn.LogError("Failed to get zmq context (%v)", err)
+        if !cmn.IsSysShuttingDown() {
+            zctx, err = zmq.NewContext()
         }
-        /* Terminate on system shutdown */
-        go terminateContext()
+        if zctx == nil {
+            err = cmn.LogError("Failed to get zmq context (%v) IsSysShuttingDown(%v)",
+                    err, cmn.IsSysShuttingDown())
+        } else {
+            /* Terminate on system shutdown */
+            go terminateContext()
+        }
     }
-    return zctx, nil
+    return zctx, err
 }
 
 func terminateContext() {
@@ -1006,6 +1008,8 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     if err == nil {
         if err = sock.SetRcvtimeo(time.Second); err != nil {
             err = cmn.LogError("Failed to SetRcvtimeo err(%v)", err)
+        } else {
+            cmn.LogDebug("DROP DROP: SetRcvtimeo(time.Second)")
         }
     }
 
@@ -1026,51 +1030,104 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     }()
 
     /* From here on the routine runs forever until shutdown */
-    reqActive := false
-    tout := 0               /* sock.recv blocks */
-    rcvData := ""
     
+    /*
+     * Read request from clients via socket
+     * Socket calls are not blocking. They return with EAGAIN on timeout.
+     * 
+     * Read request is sent to registered handler via channel chReq
+     * This can *block* if handler is not reading it.
+     *
+     * Upon sending request, wait on response from handler via channel chRes.
+     * reading is unblocking via select
+     *
+     * Upon reading write it back to client via socket. Socket write is async
+     * hence the call does not block in any scenario.
+     *
+     * Shutdown could be initiated by closing 
+     *      chShutdown -- Done by system
+     *      chRes -- By registered handler to de-register
+     * So both these channels to be watched periodically.
+     */
+    type LState_t int
+    const (
+        LState_ReadReq LState_t = iota   /* Read via sock from client */
+        LState_WriteReq                     /* Write req to server via chan */
+        LState_ReadRes                      /* Read res from server via chan */
+        /* LState_WriteRes -- Not needed as write is non-blocking */
+    )
+    ctState := LState_ReadReq
+        
+    rcvReq := ""
 Loop:
     for {
-        rcvdRes := false
-        resData := ServerRes_t("")
 
-        select {
-        case <-chShutdown:
-            cmn.LogInfo("serverRequestHandler shutting down requester:(%s)", requester)
-            break Loop
-        case resData, rcvdRes = <-chRes:
-            if !rcvdRes {
-                cmn.LogInfo("input response channel closed; Close this handler")
+        switch(ctState) {
+        case LState_ReadReq:
+            /* Stay here until read request / shutdown */
+            for {
+                select {
+                case <-chShutdown:
+                    cmn.LogInfo("serverRequestHandler shutting down requester:(%s)", requester)
+                    break Loop
+                case v, ok := <-chRes:
+                    if !ok {
+                        cmn.LogInfo("input response channel closed; Close this handler")
+                    } else {
+                        cmn.LogError("Receiving response w/o request (%v)(%T)", v, v)
+                    }
+                    break Loop
+                case <- time.After(time.Millisecond):
+                    /* Helps to get back to reading request from client via socket */
+                }
+                if rcvReq, err = sock.Recv(0); err == zmq.Errno(syscall.EAGAIN) {
+                    /* Continue the loop */
+                } else if err != nil {
+                    cmn.LogError("Failed to receive msg err(%v for (%s)", requester)
+                } else {
+                    ctState = LState_WriteReq
+                    break       /* Break from this for loop */
+                }
+            }
+        case LState_WriteReq:
+            /* Wait here until successful write / shutdown */
+            select {
+            case <-chShutdown:
+                cmn.LogInfo("serverRequestHandler shutting down requester:(%s)", requester)
                 break Loop
-            }
-        case <- time.After(time.Duration(tout) * time.Second):
-        }
-        /* Select returns on timeout or for rcvdRes=true */
-
-        if !reqActive {
-            /* Receive request from client's REQ socket which is ClientReq_t */
-            if rcvData, err = sock.Recv(0); err == zmq.Errno(syscall.EAGAIN) {
-                /* Continue the loop - enable shutdown check */
-            } else if err != nil {
-                cmn.LogError("Failed to receive msg err(%v for (%s)", requester)
-            } else {
+            case v, ok := <-chRes:
+                if !ok {
+                    cmn.LogInfo("input response channel closed; Close this handler")
+                } else {
+                    cmn.LogError("Receiving response w/o request (%v)(%T)", v, v)
+                }
+                break Loop
+            case chReq <- ClientReq_t(rcvReq):
                 /* Send request to registered server side handler */
-                chReq <- ClientReq_t(rcvData)
-                reqActive = true
-                tout = 300      /* Wait till data available from chRes */
+                ctState = LState_ReadRes
             }
-        }
-
-        if reqActive && rcvdRes {
-            if _, err = sock.Send(string(resData), 0); err != nil {
-                cmn.LogError("Failed to send response err(%v) req(%s) res(%s)", err, rcvData, resData)
+        case LState_ReadRes:
+            /* Stay here until response from handler or shutdown */
+            select {
+            case <-chShutdown:
+                cmn.LogInfo("serverRequestHandler shutting down requester:(%s)", requester)
+                break Loop
+            case v, ok := <-chRes:
+                if !ok {
+                    cmn.LogInfo("input response channel closed; Close this handler")
+                    break Loop
+                } else {
+                    if _, err = sock.Send(string(v), 0); err != nil {
+                        cmn.LogError("Failed to send response err(%v) req(%s) res(%s)", err, rcvReq, v)
+                    } else {
+                        cmn.LogDebug("Sent response back to client (%v)(%T)", v, v)
+                    }
+                    ctState = LState_ReadReq
+                }
             }
-            tout = 0        /* Here after sock.recv blocks */
-            reqActive = false
-            rcvData = ""
         }
     }
+    cmn.LogInfo("serverRequestHandler terminating")
 }
 
 func initServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,

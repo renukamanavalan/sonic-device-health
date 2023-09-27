@@ -1,6 +1,7 @@
 package libtest
 
 import (
+    "errors"
     script "lom/src/lib/lomscripted"
     tele "lom/src/lib/lomtelemetry"
 )
@@ -35,6 +36,12 @@ var pubSubFailSuite = testSuite_t{
                 NIL_ERROR,
             },
             "Get a channel",
+        },
+        testEntry_t{
+            script.ApiIDIsTelemetryIdle,
+            []script.Param_t{},
+            []result_t{ TEST_FOR_FALSE, NIL_ERROR },
+            "Check for non idle",
         },
         testEntry_t{
             script.ApiIDGetPubChannel, /* Try again for same type */
@@ -476,6 +483,10 @@ var chWrNonNilJson chan<- tele.JsonString_t = chNonNilJson
 var chRdNonNilJson <-chan tele.JsonString_t = chNonNilJson
 
 
+func getFail(name string, val any) (any, error) {
+    return nil, errors.New("Simulated error for test")
+}
+
 var scriptAPIValidate_2 = testSuite_t{
     id:          "ScriptAPIValidation",         /* All the below are for failure only */
     description: "For corner & failure cases",
@@ -758,6 +769,12 @@ var scriptAPIValidate_2 = testSuite_t{
             []script.Param_t{script.Param_t{script.ANONYMOUS, "2", nil}},
             []result_t{NON_NIL_ERROR},
             "Incorrect arg",
+        },
+        testEntry_t{
+            script.ApiIDPause,
+            []script.Param_t{script.Param_t{script.ANONYMOUS, nil, getFail}},
+            []result_t{NON_NIL_ERROR},
+            "Failed to get val",
         },
         testEntry_t{
             script.ApiIDIsTelemetryIdle,
