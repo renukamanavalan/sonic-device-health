@@ -74,7 +74,7 @@ func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
     }
 }
 
-func xTestRunTeleSuites(t *testing.T) {
+func TestRunTeleSuites(t *testing.T) {
     ctTimeout := tele.SUB_CHANNEL_TIMEOUT
     tele.SUB_CHANNEL_TIMEOUT = time.Duration(1) * time.Second
     defer func() {
