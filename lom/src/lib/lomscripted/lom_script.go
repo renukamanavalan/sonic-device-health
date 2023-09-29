@@ -109,10 +109,10 @@ func callReadClientRequest(args []any, cache SuiteCache_t) []any {
         select {
         case val, ok = <-ch:
             if !ok {
-                err = errors.New("CLOSED")
+                err = cmn.LogError("Read chan CLOSED")
             }
         case <-time.After(time.Duration(tout) * time.Second):
-            err = errors.New("TIMEOUT")
+            err = cmn.LogError("Read chan TIMEOUT %d secs", tout)
         }
     }
     return []any{val, err}

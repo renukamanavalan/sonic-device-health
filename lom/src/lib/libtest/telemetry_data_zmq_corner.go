@@ -1,105 +1,115 @@
 package libtest
 
 import (
+    "fmt"
+
+    cmn "lom/src/lib/lomcommon"
     script "lom/src/lib/lomscripted"
     tele "lom/src/lib/lomtelemetry"
+    zmq "github.com/pebbe/zmq4"
 )
 
-var pubSubShutdownSuite = testSuite_t{
-    id:          "pubSubReqRepSuite",
+
+var tctx *zmq.Context
+var tsock *zmq.Socket
+
+func fail_ctrl_port(name string, val any) (retV any, err error) {
+    retV = val
+
+    if tctx != nil || tsock != nil {
+        err = cmn.LogError("Check test code. Expect nil")
+    }
+    tctx, err = zmq.NewContext()
+
+    if err == nil {
+        tsock, err = tctx.NewSocket(zmq.XSUB)
+    }   
+    if err == nil {
+        chType, ok := val.(tele.ChannelType_t)
+        if !ok {
+            err = cmn.LogError("expect tele.ChannelType_t != (%T)", val)
+        } else {
+            addr := fmt.Sprintf(tele.ZMQ_ADDRESS, tele.ZMQ_PROXY_CTRL_PORT + int(chType))
+            err = tsock.Bind(addr)
+        }
+    }
+    return
+}
+
+func fail_response_port(name string, val any) (retV any, err error) {
+    retV = val
+
+    if tctx != nil || tsock != nil {
+        err = cmn.LogError("Check test code. Expect nil")
+    }
+    tctx, err = zmq.NewContext()
+
+    if err == nil {
+        tsock, err = tctx.NewSocket(zmq.REP)
+    }   
+    if err == nil {
+        chType, ok := val.(tele.ChannelType_t)
+        if !ok {
+            err = cmn.LogError("expect tele.ChannelType_t != (%T)", val)
+        } else {
+            addr := fmt.Sprintf(tele.ZMQ_ADDRESS, tele.ZMQ_REQ_REP_START_PORT + int(chType))
+            err = tsock.Bind(addr)
+        }
+    }
+    return
+}
+
+func cleanup_ctx_port(name string, val any) (ret any, err error) {
+    if tsock != nil {
+        tsock.Close()
+        tsock = nil
+    }
+    if tctx != nil {
+        cmn.LogDebug("Terminating test context")
+        tctx.Term()
+        tctx = nil
+        cmn.LogDebug("Terminated test context")
+    }
+    return
+}
+
+
+/* 
+ * BIG NOTE:  Let this be a last test suite.
+ * After shutdown, no API will succeed
+ * There is no way to revert shutdown -- One way to exit
+ */
+var pubSubBindFail = testSuite_t{
+    id:          "pubSubBindFailSuite",
     description: "Test pub sub for request & response - Good run",
     tests: []testEntry_t{
+        testEntry_t{            /* Pre-bind the address to simulate failure */
+            script.ApiIDRunPubSubProxy,
+            []script.Param_t{
+                script.Param_t{"chType_E", tele.CHANNEL_TYPE_EVENTS, fail_ctrl_port},
+            },
+            []result_t{ NIL_ANY, NON_NIL_ERROR },
+            "Xsub bind failure",
+        },
         testEntry_t{
             script.ApiIDRunPubSubProxy,
-            []script.Param_t{script.Param_t{"chType_E", tele.CHANNEL_TYPE_EVENTS, nil}},
-            []result_t{
-                result_t{"chPrxyClose-E", nil, validateNonNil}, /* Save in cache */
-                NIL_ERROR, /*Expect nil error */
-            },
-            "Rub pubsub proxy, required to bind publishers & subscribers",
+            []script.Param_t{script.Param_t{script.ANONYMOUS, nil, cleanup_ctx_port}},
+            []result_t{ NIL_ANY, NON_NIL_ERROR },
+            "Intentional failure to call cleanup",
         },
-        testEntry_t{ /* Get sub channel for events from engine only. */
-            script.ApiIDGetSubChannel,
-            []script.Param_t{
-                script.Param_t{"chType_E", nil, nil}, /* Fetch chType_1 from cache */
-                script.Param_t{"prod_E", tele.CHANNEL_PRODUCER_ENGINE, nil},
-                EMPTY_STRING,
-            },
-            []result_t{
-                result_t{"chRead-E", nil, validateNonNil},     /* Save in cache */
-                result_t{"chSubClose-E", nil, validateNonNil}, /* Save in cache */
-                NIL_ERROR,
-            },
-            "Get sub channel for events from Engine",
-        },
-        testEntry_t{
-            script.ApiIDGetPubChannel, /* Simulate publish from engine */
-            []script.Param_t{
-                script.Param_t{"chType_E", nil, nil}, /* pub for events */
-                script.Param_t{"prod_E", nil, nil},   /* from engine */
-                EMPTY_STRING,
-            },
-            []result_t{
-                result_t{"chWrite-E", nil, validateNonNil}, /* Save in cache */
-                NIL_ERROR,
-            },
-            "Get pub channel for counters as if from Plugin Mgr",
-        },
-        testEntry_t{
+        testEntry_t{    /* Test handler shutdown in stat = LState_WriteReq */
             script.ApiIDRegisterServerReqHandler,
-            []script.Param_t{script.Param_t{"chType_1", tele.CHANNEL_TYPE_ECHO, nil}},
-            []result_t{
-                result_t{"chSerReq-0", nil, validateNonNil},    /* chan for incoming req */
-                result_t{"chSerRes-0", nil, validateNonNil},    /* chan for outgoing res */
-                NIL_ERROR, /*Expect nil error */
-            },
-            "Register server handler to process requests and provide responses.",
+            []script.Param_t{script.Param_t{"chType_1", tele.CHANNEL_TYPE_ECHO, fail_response_port}},
+            []result_t{ NIL_ANY, NIL_ANY, NON_NIL_ERROR },
+            "Duplicate req to fail",
         },
         testEntry_t{
-            script.ApiIDSendClientRequest,
-            []script.Param_t{
-                script.Param_t{"chType_1", nil, nil}, /* Fetch chType_1 from cache */
-                script.Param_t{"req_0", tele.ClientReq_t("request:Hello world"), nil},
-            },
-            []result_t{
-                result_t{"chClientRes-0", nil, validateNonNil}, /* chan to read response */
-                NIL_ERROR,
-            },
-            "Send a request as if from client",
+            script.ApiIDRunPubSubProxy,
+            []script.Param_t{script.Param_t{script.ANONYMOUS, nil, cleanup_ctx_port}},
+            []result_t{ NIL_ANY, NON_NIL_ERROR },
+            "Intentional failure to call cleanup",
         },
-        /* 
-         * Now we have a pub-sub proxy and channels for publisher, subscriber,
-         * client request & server handler.
-         * 
-         * All the above register for system shutdown.
-         * 
-         * Initiate system shutdown. Ensure everyone go down
-         */
-        testEntry_t{
-            script.ApiIDSysShutdown,
-            []script.Param_t{},                 /* Missed args */
-            []result_t{ NON_NIL_ERROR },
-            "insufficient args",
-        },
-        testEntry_t{
-            script.ApiIDSysShutdown,
-            []script.Param_t{                   /* Incorrect arg type */
-                script.Param_t{script.ANONYMOUS, false, nil},
-            },
-            []result_t{ NON_NIL_ERROR },
-            "incorrect arg",
-        },
-        testEntry_t{
-            script.ApiIDSysShutdown,
-            []script.Param_t{           /* Timeout as 2 secs */
-                script.Param_t{script.ANONYMOUS, 2, nil},
-            },
-            []result_t{ NIL_ERROR },
-            "Initiate system shutdown",
-        },
-        PAUSE1,
         TELE_IDLE_CHECK,
     },
 }
-
 

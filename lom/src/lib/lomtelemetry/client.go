@@ -96,7 +96,6 @@ func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
 
     defer func() {
         if err != nil {
-            close(ch)
             close(chCl)
         }
     }()

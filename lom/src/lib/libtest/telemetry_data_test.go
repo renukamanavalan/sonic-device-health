@@ -384,5 +384,6 @@ var testTelemetrySuites = []*testSuite_t{
     &pubSubFailSuite,
     &scriptAPIValidate,
     &scriptAPIValidate_2,
-    &pubSubShutdownSuite,
+    &pubSubBindFail,
+    &pubSubShutdownSuite,   /* KEEP this as last suite as it invokes irreversible shutdown */
 }

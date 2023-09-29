@@ -149,7 +149,20 @@ var scriptAPIValidate = testSuite_t{
                 result_t{script.ANONYMOUS, nil, validateNil}, /* Nil return*/
                 NON_NIL_ERROR,
             },
-            "Incorrect first arg",
+            "Incorrect first arg type",
+        },
+        testEntry_t{
+            script.ApiIDGetPubChannel, /* Get a valid pub channel */
+            []script.Param_t{
+                script.Param_t{script.ANONYMOUS, tele.CHANNEL_TYPE_ECHO, nil}, /* incorrect val*/
+                script.Param_t{"prod_PM", tele.CHANNEL_PRODUCER_PLMGR, nil},  /* from Plugin Mgr */
+                script.Param_t{"PMgr-1", "test", nil},   /* non-empty suffix */
+            },
+            []result_t{
+                result_t{script.ANONYMOUS, nil, validateNil}, /* Nil return*/
+                NON_NIL_ERROR,
+            },
+            "Incorrect first arg value",
         },
         testEntry_t{
             script.ApiIDGetPubChannel, /* Get a valid pub channel */
@@ -193,6 +206,20 @@ var scriptAPIValidate = testSuite_t{
         testEntry_t{ 
             script.ApiIDGetSubChannel,
             []script.Param_t{
+                script.Param_t{script.ANONYMOUS, tele.CHANNEL_TYPE_ECHO, nil},
+                script.Param_t{"prod_E", tele.CHANNEL_PRODUCER_ENGINE, nil},
+                EMPTY_STRING,
+            },
+            []result_t{
+                result_t{script.ANONYMOUS, nil, validateNil}, /* Nil return*/
+                result_t{script.ANONYMOUS, nil, validateNil}, /* Nil return*/
+                NON_NIL_ERROR,
+            },
+            "Incorrect first arg value",
+        },
+        testEntry_t{ 
+            script.ApiIDGetSubChannel,
+            []script.Param_t{
                 script.Param_t{"prod_E", tele.CHANNEL_PRODUCER_ENGINE, nil},
                 script.Param_t{"chType_E", tele.CHANNEL_TYPE_EVENTS, nil},
                 EMPTY_STRING,
@@ -202,7 +229,7 @@ var scriptAPIValidate = testSuite_t{
                 result_t{script.ANONYMOUS, nil, validateNil}, /* Nil return*/
                 NON_NIL_ERROR,
             },
-            "Incorrect first arg",
+            "Incorrect first arg type",
         },
         testEntry_t{ 
             script.ApiIDGetSubChannel,
@@ -243,12 +270,12 @@ var scriptAPIValidate = testSuite_t{
         },
         testEntry_t{
             script.ApiIDRunPubSubProxy,
-            []script.Param_t{script.Param_t{"chType_1", tele.CHANNEL_PRODUCER_ENGINE, nil}},
+            []script.Param_t{script.Param_t{"chType_1", tele.CHANNEL_TYPE_ECHO, nil}},
             []result_t{
                 result_t{script.ANONYMOUS, nil, validateNil}, /* Nil return*/
                 NON_NIL_ERROR,
             },
-            "Rub pubsub proxy, required to bind publishers & subscribers",
+            "Incorrect chtype",
         },
         testEntry_t{
             script.ApiIDSendClientRequest,
@@ -365,6 +392,14 @@ var scriptAPIValidate = testSuite_t{
                 NIL_ERROR,
             },
             "Close channel created for client requests.",
+        },
+        testEntry_t{
+            script.ApiIDCloseRequestChannel,                /* explicit request to close for req channel */
+            []script.Param_t{
+                script.Param_t{"chType_1", nil, nil}, /* Fetch chType_1 from cache */
+            },
+            []result_t{ NON_NIL_ERROR },
+            "Duplicate to fail",
         },
         PAUSE2,                 /* Allow req channel to close */
         testEntry_t{
@@ -488,7 +523,7 @@ func getFail(name string, val any) (any, error) {
 }
 
 var scriptAPIValidate_2 = testSuite_t{
-    id:          "ScriptAPIValidation",         /* All the below are for failure only */
+    id:          "ScriptAPIValidation-2",         /* All the below are for failure only */
     description: "For corner & failure cases",
     tests: []testEntry_t{
         testEntry_t{
@@ -569,6 +604,16 @@ var scriptAPIValidate_2 = testSuite_t{
             },
             []result_t{ NON_NIL_ERROR },
             "incorrect third arg",
+        },
+        testEntry_t{
+            script.ApiIDSendClientResponse,             
+            []script.Param_t{
+                script.Param_t{"chSerRes-0", nil, nil},         /* Get from cache */
+                script.Param_t{script.ANONYMOUS, tele.ServerRes_t("resp: ok"), nil},  
+                script.Param_t{script.ANONYMOUS, 1, nil},
+            },
+            []result_t{ NIL_ERROR },
+            "Disturb the state flow inside server req handler",
         },
         testEntry_t{
             script.ApiIDCloseChannel,

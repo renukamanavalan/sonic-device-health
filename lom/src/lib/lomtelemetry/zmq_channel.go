@@ -42,8 +42,9 @@ var pubsub_types = chTypes_t{
 }
 
 var reqrep_types = chTypes_t{
-    CHANNEL_TYPE_ECHO: true,
-    CHANNEL_TYPE_SCS:  false,
+    CHANNEL_TYPE_ECHO:      true,
+    CHANNEL_TYPE_SCS:       true,
+    CHANNEL_TYPE_TEST_REQ:  true,
 }
 
 type chModeData_t struct {
@@ -59,8 +60,8 @@ var chModeInfo = map[channelMode_t]chModeData_t{
     CHANNEL_MODE_SUBSCRIBER:     chModeData_t{pubsub_types, ZMQ_XPUB_START_PORT, zmq.SUB, true},
     CHANNEL_MODE_REQUEST:        chModeData_t{reqrep_types, ZMQ_REQ_REP_START_PORT, zmq.REQ, true},
     CHANNEL_MODE_RESPONSE:       chModeData_t{reqrep_types, ZMQ_REQ_REP_START_PORT, zmq.REP, false},
-    CHANNEL_MODE_PROXY_CTRL_PUB: chModeData_t{pubsub_types, ZMQ_PROXY_CTRL_PORT, zmq.PUB, true},
-    CHANNEL_MODE_PROXY_CTRL_SUB: chModeData_t{pubsub_types, ZMQ_PROXY_CTRL_PORT, zmq.SUB, false},
+    CHANNEL_MODE_PROXY_CTRL_PUB: chModeData_t{pubsub_types, ZMQ_PROXY_CTRL_PORT, zmq.PUB, false},
+    CHANNEL_MODE_PROXY_CTRL_SUB: chModeData_t{pubsub_types, ZMQ_PROXY_CTRL_PORT, zmq.SUB, true},
 }
 
 type sockInfo_t struct {
@@ -231,20 +232,18 @@ shutLoop:
  * create socket; connect/bind; Add to active socket list used by terminate context.
  */
 func getSocket(mode channelMode_t, chType ChannelType_t, requester string) (sock *zmq.Socket, err error) {
-    if cmn.IsSysShuttingDown() {
+    if cmn.IsSysShuttingDown() || zctx == nil {
         return nil, cmn.LogError("System is shutting down. No new socket")
     }
-    if zctx == nil {
-        cmn.LogPanic("GetSocket called w/o getting context")
-    }
-
     var info *sockInfo_t
-    if info, err = getAddress(mode, chType); err != nil {
-        return
+
+    if info, err = getAddress(mode, chType); err == nil {
+        sock, err = zctx.NewSocket(info.sType)
     }
 
-    if sock, err = zctx.NewSocket(info.sType); err != nil {
-        err = cmn.LogError("Failed to get socket mode(%v) err(%v)", mode, err)
+    if err != nil {
+        err = cmn.LogError("Failed to get socket sock(%p) info(%+v) mode(%v) type(%v) err(%v)",
+                    sock, info, mode, chType, err)
         return
     }
 
@@ -265,16 +264,17 @@ func getSocket(mode channelMode_t, chType ChannelType_t, requester string) (sock
     } else {
         err = sock.Bind(info.address)
     }
-
-    if err != nil {
-        err = cmn.LogError("Failed to bind/connect mode(%d) info(%+v) err(%v)", mode, *info, err)
-    } else if err = sock.SetLinger(time.Duration(100) * time.Millisecond); err != nil {
+    if err == nil {
+        err = sock.SetLinger(time.Duration(100) * time.Millisecond)
         /* Context termination will sleep this long, for any message drain */
-        err = cmn.LogError("Failed to call set linger mode(%d) chType(%d) info(%+v) err(%v)",
-            mode, chType, *info, err)
-    } else {
+    }
+
+    if err == nil {
         socketsList.Store(sock, fmt.Sprintf("mode(%d)_chType(%d)_(%s)", mode, chType, requester))
         cmn.LogDebug("getSocket: sock(%v) requester(%s)", sock, requester)
+    } else {
+        err = cmn.LogError("Failed to bind/connect sock(%p) mode(%d) info(%+v) err(%v)",
+                    sock, mode, info, err)
     }
     return
 }
@@ -432,14 +432,16 @@ func manageSubscribe(chType ChannelType_t, topic string, chRes chan<- JsonString
 
     defer closeSocket(sock)
 
-    if err != nil {
-        /* failed. */
-    } else if err = sock.SetSubscribe(topic); err != nil {
-        err = cmn.LogError("Failed to subscribe filter(%s) err(%v)", topic, err)
-    } else if err = sock.SetRcvtimeo(time.Second); err != nil {
-        err = cmn.LogError("Failed to SetRcvtimeo err(%v)", err)
+    if err == nil {
+        if err = sock.SetSubscribe(topic); err == nil {
+            err = sock.SetRcvtimeo(time.Second)
+        }
     }
 
+    if err != nil {
+        err =  cmn.LogError("Failed to init sub socket sock(%p) err(%v) topic(%s)",
+                    sock, err, topic)
+    }
     /* Inform the caller the state of init */
     chRet <- err
     close(chRet)
@@ -629,26 +631,27 @@ func runPubSubProxyInt(chType ChannelType_t, chCtrl <-chan int, chRet chan<- err
      */
     var info *sockInfo_t
 
-    if sock_xsub, err = ctx.NewSocket(zmq.XSUB); err != nil {
-        err = cmn.LogError("Failed to get zmq xsub socket (%v)", err)
-    } else if sock_xpub, err = ctx.NewSocket(zmq.XPUB); err != nil {
-        err = cmn.LogError("Failed to get zmq xpub socket (%v)", err)
-    } else if info, err = getAddress(CHANNEL_MODE_PUBLISHER, chType); err != nil {
-        /* err is well described */
-    } else if err = sock_xsub.Bind(info.address); err != nil {
-        err = cmn.LogError("Failed to bind xsub socket (%v) address(%s)", err, info.address)
-    } else if info, err = getAddress(CHANNEL_MODE_SUBSCRIBER, chType); err != nil {
-        /* err is well described */
-    } else if err = sock_xpub.Bind(info.address); err != nil {
-        err = cmn.LogError("Failed to bind xpub socket (%v)", err)
-    } else if sock_ctrl_sub, err = getSocket(CHANNEL_MODE_PROXY_CTRL_SUB, chType,
-        "ctrl-sub-for-proxy"); err != nil {
-        err = cmn.LogError("Failed to get ctrl-sub socket for proxy err(%v)", err)
-    } else if err = sock_ctrl_sub.SetSubscribe(""); err != nil {
-        err = cmn.LogError("Failed to subscribe all for sock_ctrl_sub err(%v)", err)
+    if sock_xsub, err = ctx.NewSocket(zmq.XSUB); err == nil {
+        if info, err = getAddress(CHANNEL_MODE_PUBLISHER, chType); err == nil {
+            err = sock_xsub.Bind(info.address)
+        }
     }
-
+    if err == nil {
+        if sock_xpub, err = ctx.NewSocket(zmq.XPUB); err == nil {
+            if info, err = getAddress(CHANNEL_MODE_SUBSCRIBER, chType); err == nil {
+                err = sock_xpub.Bind(info.address)
+            }
+        }
+    }
+    if err == nil {
+        if sock_ctrl_sub, err = getSocket(CHANNEL_MODE_PROXY_CTRL_SUB, chType,
+                        "ctrl-sub-for-proxy"); err == nil {
+            err = sock_ctrl_sub.SetSubscribe("")
+        }
+    }
     if err != nil {
+        err = cmn.LogError("Failed to get sock(%p, %p, %p) info(%+v) err(%v)", 
+                sock_xsub, sock_xpub, sock_ctrl_sub, info, err)
         return
     }
 
@@ -664,10 +667,8 @@ func runPubSubProxyInt(chType ChannelType_t, chCtrl <-chan int, chRet chan<- err
          */
         var sock_ctrl_pub *zmq.Socket
 
-        if sock_ctrl_pub, err = getSocket(CHANNEL_MODE_PROXY_CTRL_PUB, chType,
-            "ctrl-pub-for-proxy"); err != nil {
-            err = cmn.LogError("Failed to create proxy control publisher to terminate proxy(%v)", err)
-        }
+        sock_ctrl_pub, err = getSocket(CHANNEL_MODE_PROXY_CTRL_PUB, chType, "ctrl-pub-for-proxy")
+
         chShutErr <- err
         close(chShutErr)
         if err != nil {
@@ -776,10 +777,13 @@ func clientRequestHandler(reqType ChannelType_t, chReq <-chan *reqInfo_t,
     }()
 
     if err == nil {
-        if err = sock.SetRcvtimeo(time.Second); err != nil {
-            err = cmn.LogError("Failed to SetRcvtimeo err(%v)", err)
-        }
+        err = sock.SetRcvtimeo(time.Second)
     }
+    if err != nil {
+        err = cmn.LogError("Failed to init clientRequestHandler sock(%p) err(%v) requester(%s)",
+                sock, err, requester)
+    }
+
     /* Inform the caller that function has initialized successfully or not */
     chRet <- err
     /* Sender close the channel */
@@ -813,12 +817,6 @@ Loop:
 
         case data, ok := <-chReq:
             if !ok {
-                if req != nil {
-                    close(req.chResData) /* No more writes as it is per request */
-                }
-                for _, r := range reqList {
-                    close(r.chResData)
-                }
                 cmn.LogInfo("I/p request channel closed. Shutting down for {%s}", requester)
                 break Loop
             }
@@ -862,6 +860,12 @@ Loop:
             close(req.chResData) /* No more writes as it is per request */
             req = nil 
         }
+    }
+    if req != nil {
+        close(req.chResData) /* No more writes as it is per request */
+    }
+    for _, r := range reqList {
+        close(r.chResData)
     }
     cmn.LogInfo("Terminating clientRequestHandler for (%s)", requester)
 }
@@ -1006,11 +1010,12 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     }()
 
     if err == nil {
-        if err = sock.SetRcvtimeo(time.Second); err != nil {
-            err = cmn.LogError("Failed to SetRcvtimeo err(%v)", err)
-        } else {
-            cmn.LogDebug("DROP DROP: SetRcvtimeo(time.Second)")
-        }
+        err = sock.SetRcvtimeo(time.Second)
+    }
+
+    if err != nil {
+        err = cmn.LogError("Failed to init. sock(%p) requester(%s) err(%v)",
+                sock, requester, err)
     }
 
     /* Inform the caller the result of init */
@@ -1061,7 +1066,7 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     rcvReq := ""
 Loop:
     for {
-
+        cmn.LogDebug("DROP DROP; ctState = %d\n", ctState)
         switch(ctState) {
         case LState_ReadReq:
             /* Stay here until read request / shutdown */
@@ -1086,6 +1091,7 @@ Loop:
                     cmn.LogError("Failed to receive msg err(%v for (%s)", requester)
                 } else {
                     ctState = LState_WriteReq
+                    cmn.LogDebug("DROP DROP; change state: ctState = %d\n", ctState)
                     break       /* Break from this for loop */
                 }
             }
@@ -1105,6 +1111,7 @@ Loop:
             case chReq <- ClientReq_t(rcvReq):
                 /* Send request to registered server side handler */
                 ctState = LState_ReadRes
+                cmn.LogDebug("DROP DROP; change state: ctState = %d\n", ctState)
             }
         case LState_ReadRes:
             /* Stay here until response from handler or shutdown */
@@ -1123,11 +1130,12 @@ Loop:
                         cmn.LogDebug("Sent response back to client (%v)(%T)", v, v)
                     }
                     ctState = LState_ReadReq
+                    cmn.LogDebug("DROP DROP; change state: ctState = %d\n", ctState)
                 }
             }
         }
     }
-    cmn.LogInfo("serverRequestHandler terminating")
+    cmn.LogInfo("serverRequestHandler terminating ctState=%d", ctState)
 }
 
 func initServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
