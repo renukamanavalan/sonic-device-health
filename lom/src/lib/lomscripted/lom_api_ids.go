@@ -29,27 +29,29 @@ const (
     ApiIDCloseChannel                     = "CloseChannel"
     ApiIDPause                            = "pause"
     ApiIDIsTelemetryIdle                  = "IsTelemetryIdle"
-    ApiIDSysShutdown                      = "SysShutdown"
+    ApiIDDoSysShutdown                    = "DoSysShutdown"
+    ApiIDInitSysShutdown                  = "InitSysShutdown"
 )
 
 type ApiFn_t func(args []any, cache SuiteCache_t) []any
 
 var LomAPIByIds = map[ApiId_t]ApiFn_t{
-    ApiIDGetPubChannel:            callGetPubChannel,
-    ApiIDGetSubChannel:            callGetSubChannel,
-    ApiIDRunPubSubProxy:           callRunPubSubProxy,
-    ApiIDWriteJsonStringsChannel:  callWriteJsonStringsChannel,
-    ApiIDReadJsonStringsChannel:   callReadJsonStringsChannel,
-    ApiIDSendClientRequest:        callSendClientRequest,
-    ApiIDReadClientResponse:       callReadClientResponse,
-    ApiIDRegisterServerReqHandler: callRegisterServerReqHandler,
-    ApiIDReadClientRequest:        callReadClientRequest,
-    ApiIDSendClientResponse:       callSendClientResponse,
-    ApiIDCloseRequestChannel:      callCloseRequestChannel,
-    ApiIDCloseChannel:             callCloseChannel,
-    ApiIDPause:                    callPause,
-    ApiIDIsTelemetryIdle:          callIsTelemetryIdle,
-    ApiIDSysShutdown:              callSysShutdown,
+    ApiIDGetPubChannel:             callGetPubChannel,
+    ApiIDGetSubChannel:             callGetSubChannel,
+    ApiIDRunPubSubProxy:            callRunPubSubProxy,
+    ApiIDWriteJsonStringsChannel:   callWriteJsonStringsChannel,
+    ApiIDReadJsonStringsChannel:    callReadJsonStringsChannel,
+    ApiIDSendClientRequest:         callSendClientRequest,
+    ApiIDReadClientResponse:        callReadClientResponse,
+    ApiIDRegisterServerReqHandler:  callRegisterServerReqHandler,
+    ApiIDReadClientRequest:         callReadClientRequest,
+    ApiIDSendClientResponse:        callSendClientResponse,
+    ApiIDCloseRequestChannel:       callCloseRequestChannel,
+    ApiIDCloseChannel:              callCloseChannel,
+    ApiIDPause:                     callPause,
+    ApiIDIsTelemetryIdle:           callIsTelemetryIdle,
+    ApiIDDoSysShutdown:             callDoSysShutdown,
+    ApiIDInitSysShutdown:           callInitSysShutdown,
 }
 
 const ANONYMOUS = ""

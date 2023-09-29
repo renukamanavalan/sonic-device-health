@@ -245,9 +245,13 @@ func (p *sysShutdown_t) doShutdown(toutSecs int) {
 
 var sysShutdown *sysShutdown_t
 
-func init() {
+func InitSysShutdown() {
     /* 20 - Just some initial capacity. */
     sysShutdown = &sysShutdown_t{make(chan int, 20), new(sync.WaitGroup), false}
+}
+
+func init() {
+    InitSysShutdown()
 }
 
 func RegisterForSysShutdown(caller string) <-chan int {

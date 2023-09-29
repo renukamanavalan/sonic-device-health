@@ -312,14 +312,24 @@ func callIsTelemetryIdle(args []any, cache SuiteCache_t) []any {
     return []any{ret, err}
 }
 
-func callSysShutdown(args []any, cache SuiteCache_t) []any {
+func callDoSysShutdown(args []any, cache SuiteCache_t) []any {
     var err error
     if len(args) != 1 {
-        err = cmn.LogError("Pause need timeout in seconds")
+        err = cmn.LogError("shutdown need timeout in seconds")
     } else if tout, ok := args[0].(int); !ok {
         err = cmn.LogError("Expect timeout as int != type(%T)", args[0])
     } else {
         cmn.DoSysShutdown(tout)
+    }
+    return []any{err}
+}
+
+func callInitSysShutdown(args []any, cache SuiteCache_t) []any {
+    var err error
+    if len(args) != 0 {
+        err = cmn.LogError("init shutdown takes no args")
+    } else {
+        cmn.InitSysShutdown()
     }
     return []any{err}
 }

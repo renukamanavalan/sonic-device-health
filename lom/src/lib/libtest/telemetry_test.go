@@ -5,6 +5,7 @@ import (
     "testing"
     "time"
 
+    cmn "lom/src/lib/lomcommon"
     script "lom/src/lib/lomscripted"
     tele "lom/src/lib/lomtelemetry"
 )
@@ -77,8 +78,11 @@ func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
 func TestRunTeleSuites(t *testing.T) {
     ctTimeout := tele.SUB_CHANNEL_TIMEOUT
     tele.SUB_CHANNEL_TIMEOUT = time.Duration(1) * time.Second
+    cmn.InitSysShutdown()   /* Ensure clean init of the object */
+
     defer func() {
         tele.SUB_CHANNEL_TIMEOUT = ctTimeout
+        cmn.InitSysShutdown()   /* Ensure clean init of the object */
     }()
 
     for _, suite := range testTelemetrySuites {

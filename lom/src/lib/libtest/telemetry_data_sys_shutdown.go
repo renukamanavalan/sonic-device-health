@@ -343,13 +343,13 @@ var pubSubShutdownSuite = testSuite_t{
          * Initiate system shutdown. Ensure everyone go down
          */
         testEntry_t{
-            script.ApiIDSysShutdown,
+            script.ApiIDDoSysShutdown,
             []script.Param_t{}, /* Missed args */
             []result_t{NON_NIL_ERROR},
             "insufficient args",
         },
         testEntry_t{
-            script.ApiIDSysShutdown,
+            script.ApiIDDoSysShutdown,
             []script.Param_t{ /* Incorrect arg type */
                 script.Param_t{script.ANONYMOUS, false, nil},
             },
@@ -357,7 +357,7 @@ var pubSubShutdownSuite = testSuite_t{
             "incorrect arg",
         },
         testEntry_t{
-            script.ApiIDSysShutdown,
+            script.ApiIDDoSysShutdown,
             []script.Param_t{ /* Timeout as 2 secs */
                 script.Param_t{script.ANONYMOUS, 2, nil},
             },
@@ -404,6 +404,18 @@ var pubSubShutdownSuite = testSuite_t{
             []script.Param_t{script.Param_t{"chType_1", tele.CHANNEL_TYPE_EVENTS, nil}},
             []result_t{NIL_ANY, NIL_ANY, NON_NIL_ERROR},
             "Fail to run after sys shutdown",
+        },
+        testEntry_t{
+            script.ApiIDInitSysShutdown,
+            []script.Param_t{ script.Param_t{script.ANONYMOUS, 2, nil} }, /* redundant arg */
+            []result_t{NON_NIL_ERROR},
+            "excess args to fail",
+        },
+        testEntry_t{
+            script.ApiIDInitSysShutdown,
+            []script.Param_t{}, /* no args required */
+            []result_t{NIL_ERROR},
+            "Initialized for a clean state, just in case for subsequent tests.",
         },
         PAUSE1,
         TELE_IDLE_CHECK,
