@@ -111,10 +111,10 @@ func validateNonNilError(n string, vExp, vRet any) bool {
 }
 
 var emptyVals = map[string]bool{
-    "<nil>":    true,
-    "{}":       true,
-    "[]":       true,
-    "":         true,
+    "<nil>": true,
+    "{}":    true,
+    "[]":    true,
+    "":      true,
 }
 
 func checkNil(n string, vRet any, expNil bool) bool {
@@ -125,7 +125,6 @@ func checkNil(n string, vRet any, expNil bool) bool {
     cmn.LogError("validate for nil(%v) failed n(%s) vRet(%v)(%T)", expNil, n, vRet, vRet)
     return false
 }
-
 
 func validateNil(n string, vExp, vRet any) bool {
     return checkNil(n, vRet, true)
@@ -385,5 +384,5 @@ var testTelemetrySuites = []*testSuite_t{
     &scriptAPIValidate,
     &scriptAPIValidate_2,
     &pubSubBindFail,
-    &pubSubShutdownSuite,   /* KEEP this as last suite as it invokes irreversible shutdown */
+    &pubSubShutdownSuite, /* KEEP this as last suite as it invokes irreversible shutdown */
 }

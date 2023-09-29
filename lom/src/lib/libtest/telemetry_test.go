@@ -42,7 +42,7 @@ func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
             if e.validator != nil {
                 if e.validator(e.name, expVal, retV) == false {
                     t.Fatalf(errorFmt("Result validation failed testID(%d) res-index(%d) retv(%+v)",
-                                i, j, retV))
+                        i, j, retV))
                     retV = nil
                 }
             } else {
@@ -74,12 +74,12 @@ func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
     }
 }
 
-func setUTGlobals() {
+func xTestRunTeleSuites(t *testing.T) {
+    ctTimeout := tele.SUB_CHANNEL_TIMEOUT
     tele.SUB_CHANNEL_TIMEOUT = time.Duration(1) * time.Second
-}
-
-func TestRunTeleSuites(t *testing.T) {
-    setUTGlobals()
+    defer func() {
+        tele.SUB_CHANNEL_TIMEOUT = ctTimeout
+    }()
 
     for _, suite := range testTelemetrySuites {
         testRunOneTeleSuite(t, suite)

@@ -42,9 +42,9 @@ var pubsub_types = chTypes_t{
 }
 
 var reqrep_types = chTypes_t{
-    CHANNEL_TYPE_ECHO:      true,
-    CHANNEL_TYPE_SCS:       true,
-    CHANNEL_TYPE_TEST_REQ:  true,
+    CHANNEL_TYPE_ECHO:     true,
+    CHANNEL_TYPE_SCS:      true,
+    CHANNEL_TYPE_TEST_REQ: true,
 }
 
 type chModeData_t struct {
@@ -164,7 +164,7 @@ func getContext() (*zmq.Context, error) {
         }
         if zctx == nil {
             err = cmn.LogError("Failed to get zmq context (%v) IsSysShuttingDown(%v)",
-                    err, cmn.IsSysShuttingDown())
+                err, cmn.IsSysShuttingDown())
         } else {
             /* Terminate on system shutdown */
             go terminateContext()
@@ -243,7 +243,7 @@ func getSocket(mode channelMode_t, chType ChannelType_t, requester string) (sock
 
     if err != nil {
         err = cmn.LogError("Failed to get socket sock(%p) info(%+v) mode(%v) type(%v) err(%v)",
-                    sock, info, mode, chType, err)
+            sock, info, mode, chType, err)
         return
     }
 
@@ -274,7 +274,7 @@ func getSocket(mode channelMode_t, chType ChannelType_t, requester string) (sock
         cmn.LogDebug("getSocket: sock(%v) requester(%s)", sock, requester)
     } else {
         err = cmn.LogError("Failed to bind/connect sock(%p) mode(%d) info(%+v) err(%v)",
-                    sock, mode, info, err)
+            sock, mode, info, err)
     }
     return
 }
@@ -304,10 +304,10 @@ func closeSocket(s *zmq.Socket) {
  * is closed, whichever occurs early.
  *
  * GoRoutune:
- *  Yes. 
+ *  Yes.
  *  shutdown:
  *      1. On System shutdown
- *      2. On close of its i/p channel chReq 
+ *      2. On close of its i/p channel chReq
  *
  * Input:
  *  chType - Type of channel
@@ -398,7 +398,7 @@ Loop:
  * Runs until either system is being shutdown.
  *
  * GoRoutune:
- *  Yes. 
+ *  Yes.
  *  shutdown:
  *      1. On System shutdown
  *      2. On close of chCtrl
@@ -439,8 +439,8 @@ func manageSubscribe(chType ChannelType_t, topic string, chRes chan<- JsonString
     }
 
     if err != nil {
-        err =  cmn.LogError("Failed to init sub socket sock(%p) err(%v) topic(%s)",
-                    sock, err, topic)
+        err = cmn.LogError("Failed to init sub socket sock(%p) err(%v) topic(%s)",
+            sock, err, topic)
     }
     /* Inform the caller the state of init */
     chRet <- err
@@ -587,9 +587,9 @@ func openSubChannel(chType ChannelType_t, topic string, chData chan<- JsonString
  * All subscribers for a channel type connect to single XPub point.
  * A proxy is started per channel type to connect the XPub & XSub.
  * This proxy is a simple dumb & no-latency pipe.
- * 
+ *
  * GoRoutune:
- *  Yes. 
+ *  Yes.
  *  shutdown:
  *      1. On System shutdown
  *      2. On close of chCtrl
@@ -645,13 +645,13 @@ func runPubSubProxyInt(chType ChannelType_t, chCtrl <-chan int, chRet chan<- err
     }
     if err == nil {
         if sock_ctrl_sub, err = getSocket(CHANNEL_MODE_PROXY_CTRL_SUB, chType,
-                        "ctrl-sub-for-proxy"); err == nil {
+            "ctrl-sub-for-proxy"); err == nil {
             err = sock_ctrl_sub.SetSubscribe("")
         }
     }
     if err != nil {
-        err = cmn.LogError("Failed to get sock(%p, %p, %p) info(%+v) err(%v)", 
-                sock_xsub, sock_xpub, sock_ctrl_sub, info, err)
+        err = cmn.LogError("Failed to get sock(%p, %p, %p) info(%+v) err(%v)",
+            sock_xsub, sock_xpub, sock_ctrl_sub, info, err)
         return
     }
 
@@ -742,7 +742,7 @@ func doRunPubSubProxy(chType ChannelType_t, chCtrl <-chan int) (err error) {
  * associated with the request.
  *
  * GoRoutune:
- *  Yes. 
+ *  Yes.
  *  shutdown:
  *      1. On System shutdown
  *      2. On close of chReq
@@ -766,7 +766,7 @@ type reqInfo_t struct {
 }
 
 func clientRequestHandler(reqType ChannelType_t, chReq <-chan *reqInfo_t,
-            chRet chan<- error, cleanupFn func()) {
+    chRet chan<- error, cleanupFn func()) {
 
     requester := fmt.Sprintf("clientRequestHandler_type(%s)", CHANNEL_TYPE_STR[reqType])
     sock, err := getSocket(CHANNEL_MODE_REQUEST, reqType, requester)
@@ -781,7 +781,7 @@ func clientRequestHandler(reqType ChannelType_t, chReq <-chan *reqInfo_t,
     }
     if err != nil {
         err = cmn.LogError("Failed to init clientRequestHandler sock(%p) err(%v) requester(%s)",
-                sock, err, requester)
+            sock, err, requester)
     }
 
     /* Inform the caller that function has initialized successfully or not */
@@ -821,7 +821,7 @@ Loop:
                 break Loop
             }
             reqList = append(reqList, data)
-        case <- time.After(time.Duration(tout) * time.Second):
+        case <-time.After(time.Duration(tout) * time.Second):
         }
 
         /* Process request */
@@ -830,20 +830,20 @@ Loop:
 
         if !state_recv {
             if len(reqList) != 0 {
-                tout = 0                /* No time pause until all requests are processed */
-                
-                req = reqList[0]        /* Take first request */
-                reqList = reqList[1:]   /* Remove first */
+                tout = 0 /* No time pause until all requests are processed */
+
+                req = reqList[0]      /* Take first request */
+                reqList = reqList[1:] /* Remove first */
 
                 if _, err = sock.Send(string(req.reqData), 0); err != nil {
                     /* Don't return; Just log error */
                     err = cmn.LogError("Failed to send request err(%v) requester(%s) data(%s)",
-                                err, requester, req.reqData)
-                } else  {
+                        err, requester, req.reqData)
+                } else {
                     state_recv = true
                 }
             } else {
-                tout = 300          /* Nothing todo until request */
+                tout = 300 /* Nothing todo until request */
             }
         }
         if state_recv {
@@ -858,7 +858,7 @@ Loop:
         if !state_recv && req != nil {
             req.chResData <- &ClientRes_t{ServerRes_t(res), err}
             close(req.chResData) /* No more writes as it is per request */
-            req = nil 
+            req = nil
         }
     }
     if req != nil {
@@ -935,7 +935,6 @@ func processRequest(reqType ChannelType_t, req ClientReq_t, chRes chan<- *Client
     return
 }
 
-
 /*
  * closeRequestChannel
  *
@@ -952,12 +951,12 @@ func processRequest(reqType ChannelType_t, req ClientReq_t, chRes chan<- *Client
  */
 func closeRequestChannel(reqType ChannelType_t) (err error) {
     if v, ok := clientReqChanList.Load(reqType); ok {
-        if ch, ok := v.(chan *reqInfo_t);ok {
+        if ch, ok := v.(chan *reqInfo_t); ok {
             clientReqChanList.Delete(reqType)
             close(ch)
         } else {
             err = cmn.LogError("val for req(%d) is incorrect type. (chan *reqInfo_t) != (%T)",
-                        reqType, v)
+                reqType, v)
         }
     } else {
         err = cmn.LogError("Failed to find open chan for reqType(%d) for close", reqType)
@@ -975,7 +974,7 @@ func closeRequestChannel(reqType ChannelType_t) (err error) {
  * Wait for handler to write its response via chRes and write the same into sock.
  *
  * GoRoutune:
- *  Yes. 
+ *  Yes.
  *  shutdown:
  *      1. On System shutdown
  *      2. On close of chRes
@@ -1015,7 +1014,7 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
 
     if err != nil {
         err = cmn.LogError("Failed to init. sock(%p) requester(%s) err(%v)",
-                sock, requester, err)
+            sock, requester, err)
     }
 
     /* Inform the caller the result of init */
@@ -1035,11 +1034,11 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     }()
 
     /* From here on the routine runs forever until shutdown */
-    
+
     /*
      * Read request from clients via socket
      * Socket calls are not blocking. They return with EAGAIN on timeout.
-     * 
+     *
      * Read request is sent to registered handler via channel chReq
      * This can *block* if handler is not reading it.
      *
@@ -1049,25 +1048,25 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
      * Upon reading write it back to client via socket. Socket write is async
      * hence the call does not block in any scenario.
      *
-     * Shutdown could be initiated by closing 
+     * Shutdown could be initiated by closing
      *      chShutdown -- Done by system
      *      chRes -- By registered handler to de-register
      * So both these channels to be watched periodically.
      */
     type LState_t int
     const (
-        LState_ReadReq LState_t = iota   /* Read via sock from client */
-        LState_WriteReq                     /* Write req to server via chan */
-        LState_ReadRes                      /* Read res from server via chan */
+        LState_ReadReq  LState_t = iota /* Read via sock from client */
+        LState_WriteReq                 /* Write req to server via chan */
+        LState_ReadRes                  /* Read res from server via chan */
         /* LState_WriteRes -- Not needed as write is non-blocking */
     )
     ctState := LState_ReadReq
-        
+
     rcvReq := ""
 Loop:
     for {
         cmn.LogDebug("DROP DROP; ctState = %d\n", ctState)
-        switch(ctState) {
+        switch ctState {
         case LState_ReadReq:
             /* Stay here until read request / shutdown */
             for {
@@ -1082,7 +1081,7 @@ Loop:
                         cmn.LogError("Receiving response w/o request (%v)(%T)", v, v)
                     }
                     break Loop
-                case <- time.After(time.Millisecond):
+                case <-time.After(time.Millisecond):
                     /* Helps to get back to reading request from client via socket */
                 }
                 if rcvReq, err = sock.Recv(0); err == zmq.Errno(syscall.EAGAIN) {
@@ -1092,7 +1091,7 @@ Loop:
                 } else {
                     ctState = LState_WriteReq
                     cmn.LogDebug("DROP DROP; change state: ctState = %d\n", ctState)
-                    break       /* Break from this for loop */
+                    break /* Break from this for loop */
                 }
             }
         case LState_WriteReq:
@@ -1154,4 +1153,3 @@ func initServerRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     }
     return
 }
-

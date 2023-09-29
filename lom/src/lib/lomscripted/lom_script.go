@@ -76,7 +76,7 @@ func callReadClientResponse(args []any, cache SuiteCache_t) []any {
     var val tele.ServerRes_t
     if len(args) != 2 {
         err = cmn.LogError("SendClientRequest expects 2 args. Given=%d", len(args))
-    } else if ch, ok := args[0].(<-chan *tele.ClientRes_t); (!ok || ch == nil) {
+    } else if ch, ok := args[0].(<-chan *tele.ClientRes_t); !ok || ch == nil {
         err = cmn.LogError("Expect non nil <-chan *tele.ClientRes_t != type(%T)", args[0])
     } else if tout, ok := args[1].(int); !ok {
         err = cmn.LogError("Expect int for timeout != type(%T)", args[1])
@@ -101,7 +101,7 @@ func callReadClientRequest(args []any, cache SuiteCache_t) []any {
     var val tele.ClientReq_t
     if len(args) != 2 {
         err = cmn.LogError("ReadJsonStringsChannel need 3 args, chan, read-count/fn & timeout ")
-    } else if ch, ok := args[0].(<-chan tele.ClientReq_t); (!ok || ch == nil) {
+    } else if ch, ok := args[0].(<-chan tele.ClientReq_t); !ok || ch == nil {
         err = cmn.LogError("Expect non-nil tele.ClientReq_t <-chan != type(%T)", args[0])
     } else if tout, ok := args[1].(int); !ok {
         err = cmn.LogError("Expect int for timeout != type(%T)", args[1])
@@ -122,7 +122,7 @@ func callSendClientResponse(args []any, cache SuiteCache_t) []any {
     var err error
     if len(args) != 3 {
         err = cmn.LogError("SendClientResponse need 3 args, as chan, data & timeout")
-    } else if ch, ok := args[0].(chan<- tele.ServerRes_t); (!ok || ch == nil) {
+    } else if ch, ok := args[0].(chan<- tele.ServerRes_t); !ok || ch == nil {
         err = cmn.LogError("Expect non-nil chan<- tele.ServerRes_t != type(%T)", args[0])
     } else if res, ok := args[1].(tele.ServerRes_t); !ok {
         err = cmn.LogError("Expect ServerRes_t != type(%T)", args[1])
@@ -184,7 +184,7 @@ func callWriteJsonStringsChannel(args []any, cache SuiteCache_t) []any {
     var err error
     if len(args) != 3 {
         err = cmn.LogError("WriteJsonStringsChannel need 3 args, as chan, data & timeout")
-    } else if ch, ok := args[0].(chan<- tele.JsonString_t); (!ok || ch == nil) {
+    } else if ch, ok := args[0].(chan<- tele.JsonString_t); !ok || ch == nil {
         err = cmn.LogError("Expect tele.JsonString_t chan<- != type(%T)", args[0])
     } else if tout, ok := args[2].(int); !ok {
         err = cmn.LogError("Expect int for timeout != type(%T)", args[2])
@@ -336,4 +336,3 @@ func CallByApiID(api ApiId_t, args []Param_t, cache SuiteCache_t) (retVals []any
     }
     return
 }
-

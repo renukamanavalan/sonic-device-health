@@ -9,7 +9,7 @@ func getTopic(chProducer ChannelProducer_t, suffix string) (topic string, err er
     data, ok := CHANNEL_PRODUCER_STR[chProducer]
     if !ok || (data.suffix_required && (suffix == "")) {
         err = cmn.LogError("producer match(%v) - ok(%v) or missing suffix",
-                    chProducer, ok)
+            chProducer, ok)
     } else if !data.suffix_required {
         topic = data.pattern
     } else {
@@ -183,7 +183,6 @@ func SendClientRequest(reqType ChannelType_t, req ClientReq_t) (chData <-chan *C
     }
     return
 }
-
 
 func CloseClientRequest(reqType ChannelType_t) error {
     return closeRequestChannel(reqType)
