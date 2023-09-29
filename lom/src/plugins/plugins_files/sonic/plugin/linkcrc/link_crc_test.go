@@ -17,10 +17,10 @@ import (
 
 func init() {
     configFiles := &lomcommon.ConfigFiles_t{}
-    configFiles.GlobalFl = "../../../../../lib/libTest/config/globals.conf.json"
-    configFiles.ActionsFl = "../../../../../lib/libTest/config/actions.conf.json"
-    configFiles.BindingsFl = "../../../../../lib/libTest/config/bindings.conf.json"
-    configFiles.ProcsFl = "../../../../../lib/libTest/config/procs.conf.json"
+    configFiles.GlobalFl = "../../../../../lib/libtest/config/globals.conf.json"
+    configFiles.ActionsFl = "../../../../../lib/libtest/config/actions.conf.json"
+    configFiles.BindingsFl = "../../../../../lib/libtest/config/bindings.conf.json"
+    configFiles.ProcsFl = "../../../../../lib/libtest/config/procs.conf.json"
     lomcommon.InitConfigMgr(configFiles)
 }
 
