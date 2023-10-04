@@ -1,4 +1,4 @@
-package lomtelemetry
+package main
 
 import (
     "bufio"

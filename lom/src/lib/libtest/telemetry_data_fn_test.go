@@ -38,118 +38,118 @@ func putValdataInPlay_1(name string, val any) (any, error) {
     }, nil
 }
 
-var pubSubFnSuite = testSuite_t{
-    id:          "pubSubFnSuite",
-    description: "Test pub sub for events - Good run",
-    tests: []testEntry_t{
-        testEntry_t{
+var pubSubFnSuite = ScriptSuite_t{
+    Id:          "pubSubFnSuite",
+    Description: "Test pub sub for events - Good run",
+    Entries: []ScriptEntry_t{
+        ScriptEntry_t{
             ApiIDRunPubSubProxy,
             []Param_t{Param_t{"chType_1", tele.CHANNEL_TYPE_EVENTS, nil}},
-            []result_t{
-                result_t{"chPrxyClose-0", nil, validateNonNil}, /* Save in cache */
+            []Result_t{
+                Result_t{"chPrxyClose-0", nil, ValidateNonNil}, /* Save in cache */
                 NIL_ERROR, /*Expect nil error */
             },
             "Rub pubsub proxy, required to bind publishers & subscribers",
         },
-        testEntry_t{
+        ScriptEntry_t{
             ApiIDGetSubChannel,
             []Param_t{
                 Param_t{"chType_1", nil, nil}, /* Fetch chType_1 from cache */
                 Param_t{"prod_0", tele.CHANNEL_PRODUCER_EMPTY, nil},
                 EMPTY_STRING,
             },
-            []result_t{
-                result_t{"chRead-0", nil, validateNonNil},     /* Save in cache */
-                result_t{"chSubClose-0", nil, validateNonNil}, /* Save in cache */
+            []Result_t{
+                Result_t{"chRead-0", nil, ValidateNonNil},     /* Save in cache */
+                Result_t{"chSubClose-0", nil, ValidateNonNil}, /* Save in cache */
                 NIL_ERROR,
             },
             "Get sub channel for same type as proxy above",
         },
-        testEntry_t{
+        ScriptEntry_t{
             ApiIDGetPubChannel,
             []Param_t{
                 Param_t{"chType_1", nil, nil}, /* Fetch chType_1 from cache */
                 Param_t{"prod_1", tele.CHANNEL_PRODUCER_ENGINE, nil},
                 EMPTY_STRING,
             },
-            []result_t{
-                result_t{"chWrite-0", nil, validateNonNil}, /* Save in cache */
-                result_t{ANONYMOUS, nil, validateNil},
+            []Result_t{
+                Result_t{"chWrite-0", nil, ValidateNonNil}, /* Save in cache */
+                Result_t{ANONYMOUS, nil, ValidateNil},
             },
             "Get pub channel for same type as proxy above",
         },
-        testEntry_t{
+        ScriptEntry_t{
             ApiIDWriteJsonStringsChannel,
             []Param_t{
                 Param_t{"chWrite-0", nil, nil},            /* Use chan from cache */
                 Param_t{"pub_0", nil, getValdataInPlay_1}, /* Save written data in cache */
                 Param_t{ANONYMOUS, 1, nil},         /* timeout = 1 second */
             },
-            []result_t{
-                result_t{ANONYMOUS, nil, validateNil},
+            []Result_t{
+                Result_t{ANONYMOUS, nil, ValidateNil},
             }, /*Expect nil error */
             "Write into pub channel created above",
         },
-        testEntry_t{
+        ScriptEntry_t{
             ApiIDReadJsonStringsChannel,
             []Param_t{
                 Param_t{"chRead-0", nil, nil},     /* Get chRead_0 from cache */
                 Param_t{ANONYMOUS, 5, nil}, /* read cnt = 5 */
                 Param_t{ANONYMOUS, 1, nil}, /* timeout = 1 second */
             },
-            []result_t{
-                result_t{"pub_0", nil, nil}, /* Validate against cache val for pub_0 */
-                result_t{ANONYMOUS, nil, validateNil},
+            []Result_t{
+                Result_t{"pub_0", nil, nil}, /* Validate against cache val for pub_0 */
+                Result_t{ANONYMOUS, nil, ValidateNil},
             },
             "read from sub channel created above",
         },
-        testEntry_t{
+        ScriptEntry_t{
             ApiIDWriteJsonStringsChannel,
             []Param_t{
                 Param_t{"chWrite-0", nil, nil},               /* Use chan from cache */
                 Param_t{ANONYMOUS, dataInPlay_1, nil}, /* Save written data in cache */
                 Param_t{ANONYMOUS, 1, nil},            /* timeout = 1 second */
             },
-            []result_t{
-                result_t{ANONYMOUS, nil, validateNil},
+            []Result_t{
+                Result_t{ANONYMOUS, nil, ValidateNil},
             }, /*Expect nil error */
             "Write into pub channel created above",
         },
-        testEntry_t{
+        ScriptEntry_t{
             ApiIDReadJsonStringsChannel,
             []Param_t{
                 Param_t{"chRead-0", nil, nil},                      /* Get chRead_0 from cache */
                 Param_t{ANONYMOUS, nil, putValdataInPlay_1}, /* read into fn*/
                 Param_t{ANONYMOUS, 1, nil},                  /* timeout = 1 second */
             },
-            []result_t{
-                result_t{ANONYMOUS, []tele.JsonString_t{}, nil}, /* Validate against cache val for pub_0 */
-                result_t{ANONYMOUS, nil, validateNil},
+            []Result_t{
+                Result_t{ANONYMOUS, []tele.JsonString_t{}, nil}, /* Validate against cache val for pub_0 */
+                Result_t{ANONYMOUS, nil, ValidateNil},
             },
             "read from sub channel created above",
         },
-        testEntry_t{
+        ScriptEntry_t{
             ApiIDCloseChannel,
             []Param_t{
                 Param_t{"chWrite-0", nil, nil}, /* Get chWrite_0 from cache */
             },
-            []result_t{NIL_ERROR},
+            []Result_t{NIL_ERROR},
             "Close pub chennel",
         },
-        testEntry_t{
+        ScriptEntry_t{
             ApiIDCloseChannel,
             []Param_t{
                 Param_t{"chSubClose-0", nil, nil}, /* Get from cache */
             },
-            []result_t{NIL_ERROR},
+            []Result_t{NIL_ERROR},
             "Close sub chennel",
         },
-        testEntry_t{
+        ScriptEntry_t{
             ApiIDCloseChannel,
             []Param_t{
                 Param_t{"chPrxyClose-0", nil, nil}, /* Get from cache */
             },
-            []result_t{NIL_ERROR},
+            []Result_t{NIL_ERROR},
             "Close proxy chennel",
         },
         PAUSE2,

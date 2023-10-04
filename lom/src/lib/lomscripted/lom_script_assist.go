@@ -13,7 +13,7 @@ import (
  * A entry {
  *  Identifies API by API ID
  *  Each arg is represented by param_t struct
- *  Each return value is expressed by result_t struct
+ *  Each return value is expressed by Result_t struct
  *
  * Named param or result entity is saved in cache.
  * Subseqent param/result could refer value from the cache.
@@ -35,7 +35,7 @@ type Result_t struct {
      */
     Name      string /* Assign name to this var. Can be ANONYMOUS. */
     ValExpect any    /* Expected Value of the var. */
-    Validator validatorFn_t
+    Validator ValidatorFn_t
 }
 
 type ScriptEntry_t struct {
@@ -54,29 +54,29 @@ type ScriptSuite_t struct {
 /* Commonly used entities are pre declared for ease of use */
 var EMPTY_STRING = Param_t{ANONYMOUS, "", nil}
 
-var NIL_ANY = result_t{ANONYMOUS, nil, validateNil}
+var NIL_ANY = Result_t{ANONYMOUS, nil, ValidateNil}
 var NIL_ERROR = NIL_ANY
-var NON_NIL_ERROR = result_t{ANONYMOUS, nil, validateNonNil}
-var TEST_FOR_TRUE = result_t{ANONYMOUS, true, nil}
-var TEST_FOR_FALSE = result_t{ANONYMOUS, false, nil}
+var NON_NIL_ERROR = Result_t{ANONYMOUS, nil, ValidateNonNil}
+var TEST_FOR_TRUE = Result_t{ANONYMOUS, true, nil}
+var TEST_FOR_FALSE = Result_t{ANONYMOUS, false, nil}
 var PAUSE1 = ScriptEntry_t{ /* Pause for 1 seconds */
     ApiIDPause,
     []Param_t{Param_t{ANONYMOUS, 1, nil}},
-    []result_t{NIL_ERROR},
+    []Result_t{NIL_ERROR},
     "Pause for 1 seconds",
 }
 
 var PAUSE2 = ScriptEntry_t{ /* Pause for 2 seconds */
     ApiIDPause,
     []Param_t{Param_t{ANONYMOUS, 2, nil}},
-    []result_t{NIL_ERROR},
+    []Result_t{NIL_ERROR},
     "Pause for 2 seconds",
 }
 
 var TELE_IDLE_CHECK = ScriptEntry_t{
     ApiIDIsTelemetryIdle,
     []Param_t{},
-    []result_t{TEST_FOR_TRUE, NIL_ERROR},
+    []Result_t{TEST_FOR_TRUE, NIL_ERROR},
     "Test if no telemetry channels are open",
 }
 
@@ -98,7 +98,7 @@ var emptyVals = map[string]bool{
     "":      true,
 }
 
-func CheckNil(n string, vRet any, expNil bool) bool {
+func checkNil(n string, vRet any, expNil bool) bool {
     if _, ok := emptyVals[fmt.Sprintf("%v", vRet)]; ok == expNil {
         cmn.LogDebug("validate for nil(%v) succeeded n(%s) vRet(%v)(%T)", expNil, n, vRet, vRet)
         return true
@@ -115,37 +115,38 @@ func ValidateNonNil(n string, vExp, vRet any) bool {
     return checkNil(n, vRet, false)
 }
 
-var currentCache script.SuiteCache_t
+var currentCache SuiteCache_t
                     
-func ResetSuiteCache() { 
-    currentCache = script.SuiteCache_t{}
+func ResetSuiteCache() SuiteCache_t { 
+    currentCache = SuiteCache_t{}
+    return currentCache
 }               
             
-func GetSuiteCache() script.SuiteCache_t {
+func GetSuiteCache() SuiteCache_t {
     return currentCache
 }
 
 func RunOneScriptSuite(suite *ScriptSuite_t) (err error) {
     /* Caches all variables for reference across script entries */
-    ResetSuiteCache()           /* Ensure new */
+    cache := ResetSuiteCache()  /* Ensure new */
     defer ResetSuiteCache()     /* Clean up cache */
 
     for i, entry := range suite.Entries {
-        if retVals, ok := script.CallByApiID(entry.api, entry.args, cache); !ok {
-            err = cmn.LogError("Failed to find API (%v)", entry.api)
-        } else if len(retVals) != len(entry.result) {
-            err = cmn.LogError("%s: Return length (%d) != expected (%d)", tid, len(retVals), len(entry.result))
+        if retVals, ok := CallByApiID(entry.Api, entry.Args, cache); !ok {
+            err = cmn.LogError("Failed to find API (%v)", entry.Api)
+        } else if len(retVals) != len(entry.Result) {
+            err = cmn.LogError("Return length (%d) != expected (%d)", len(retVals), len(entry.Result))
         } else {
-            for j, e := range entry.result {
+            for j, e := range entry.Result {
                 /*
                  * For each try to Getval.
                  * If non nil validator fn exists, it dictates.
                  * Else compare read value from GetVal with returned value
                  */
                 retV := retVals[j]
-                expVal := cache.GetVal(e.name, e.valExpect, nil)
-                if e.validator != nil {
-                    if e.validator(e.name, expVal, retV) == false {
+                expVal := cache.GetVal(e.Name, e.ValExpect, nil)
+                if e.Validator != nil {
+                    if e.Validator(e.Name, expVal, retV) == false {
                         err = cmn.LogError("Result validation failed suite-index(%d) res-index(%d) retv(%+v)",
                             i, j, retV)
                         retV = nil
@@ -155,29 +156,30 @@ func RunOneScriptSuite(suite *ScriptSuite_t) (err error) {
                     case []tele.JsonString_t:
                         expL := expVal.([]tele.JsonString_t)
                         if retL, ok := retV.([]tele.JsonString_t); !ok {
-                            err = cmn.LogError("%s: ExpVal(%T) != RetV(%T)", tid, expVal, retV)
+                            err = cmn.LogError("ExpVal(%T) != RetV(%T)", expVal, retV)
                         } else if len(expL) != len(retL) {
-                            err = cmn.LogError("%s: len Mismatch ExpVal (%d) != retVal (%d)",
-                                tid, len(expL), len(retL))
+                            err = cmn.LogError("len Mismatch ExpVal (%d) != retVal (%d)",
+                                len(expL), len(retL))
                         } else {
                             for i, e := range expL {
                                 if e != retL[i] {
-                                    err = cmn.LogError("%s: val Mismatch index(%d) (%s) != (%s)",
-                                        tid, e, retL[i])
+                                    err = cmn.LogError("val Mismatch index(%d) (%s) != (%s)",
+                                        e, retL[i])
                                 }
                             }
                         }
                     default:
                         if expVal != retV {
-                            err = cmn.LogError("%s: ExpVal(%v) != RetV(%v)(%T)", tid, expVal, retV, retV)
+                            err = cmn.LogError("ExpVal(%v) != RetV(%v)(%T)", expVal, retV, retV)
                         }
                     }
                 }
-                cache.SetVal(e.name, retV)
+                cache.SetVal(e.Name, retV)
             }
         }
         if err != nil {
-            return
+            break
         }
     }
+    return
 }

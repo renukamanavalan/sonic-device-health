@@ -15,11 +15,11 @@ const (
     CHANNEL_TYPE_TEST_REQ
 )
 
-func ToChannelType(int v) (ChannelType_t, err) {
-    if v <= CHANNEL_TYPE_TEST_REQ {
+func ToChannelType(v int) (ChannelType_t, error) {
+    if v <= int(CHANNEL_TYPE_TEST_REQ) {
         return ChannelType_t(v), nil
     } 
-    return CHANNEL_TYPE_EVENTS, lom.LogError("Invalid value for chType (%d)", v)
+    return CHANNEL_TYPE_EVENTS, cmn.LogError("Invalid value for chType (%d)", v)
 }
 
 var CHANNEL_TYPE_STR = map[ChannelType_t]string{
@@ -52,11 +52,11 @@ const (
     CHANNEL_PRODUCER_EMPTY
 )
 
-func ToChannelPropducer(int v) (ChannelPropducer_t, err) {
-    if v <= CHANNEL_PRODUCER_OTHER {
+func ToChannelPropducer(v int) (ChannelProducer_t, error) {
+    if v <= int(CHANNEL_PRODUCER_OTHER) {
         return ChannelProducer_t(v), nil
     } 
-    return CHANNEL_PRODUCER_EMPTY, lom.LogError("Invalid value for chProducer")
+    return CHANNEL_PRODUCER_EMPTY, cmn.LogError("Invalid value for chProducer")
 }
 
 type CHANNEL_PRODUCER_DATA_t struct {
