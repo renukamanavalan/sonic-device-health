@@ -191,7 +191,7 @@ func callWriteJsonStringsChannel(args []any, cache SuiteCache_t) []any {
     } else {
         if val, ok := args[1].([]tele.JsonString_t); ok {
             err = writeJsonStringsData(ch, val, tout)
-        } else if val, ok := args[1].(func(int, SuiteCache_t) (*StreamingDataEntity_t, error)); ok {
+        } else if val, ok := args[1].(GetValStreamingFn_t); ok {
             err = writeJsonStringStreaming(ch, val, tout, cache)
         } else {
             err = cmn.LogError("Unknown data type (%T)", args[1])

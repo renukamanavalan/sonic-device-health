@@ -6,13 +6,13 @@ import (
     "time"
 
     cmn "lom/src/lib/lomcommon"
-    script "lom/src/lib/lomscripted"
+    . "lom/src/lib/lomscripted"
     tele "lom/src/lib/lomtelemetry"
 )
 
 func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
     /* Caches all variables for reference across test entries */
-    cache := script.SuiteCache_t{}
+    cache := SuiteCache_t{}
     setTestCache(cache)
     defer resetTestCache()
 
@@ -24,7 +24,7 @@ func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
         t.Logf(logFmt("Starting test[%d] - {%v} {%s}....", i, entry.api, entry.message))
         tid := fmt.Sprintf("%s:%d:%s", suite.id, i, entry.api)
 
-        retVals, ok := script.CallByApiID(entry.api, entry.args, cache)
+        retVals, ok := CallByApiID(entry.api, entry.args, cache)
 
         if !ok {
             t.Fatalf(fatalFmt("%s: Failed to find API (%v)", tid, entry.api))

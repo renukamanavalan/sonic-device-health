@@ -5,7 +5,7 @@ import (
 
     zmq "github.com/pebbe/zmq4"
     cmn "lom/src/lib/lomcommon"
-    script "lom/src/lib/lomscripted"
+    . "lom/src/lib/lomscripted"
     tele "lom/src/lib/lomtelemetry"
 )
 
@@ -82,28 +82,28 @@ var pubSubBindFail = testSuite_t{
     description: "Test pub sub for request & response - Good run",
     tests: []testEntry_t{
         testEntry_t{ /* Pre-bind the address to simulate failure */
-            script.ApiIDRunPubSubProxy,
-            []script.Param_t{
-                script.Param_t{"chType_E", tele.CHANNEL_TYPE_EVENTS, fail_ctrl_port},
+            ApiIDRunPubSubProxy,
+            []Param_t{
+                Param_t{"chType_E", tele.CHANNEL_TYPE_EVENTS, fail_ctrl_port},
             },
             []result_t{NIL_ANY, NON_NIL_ERROR},
             "Xsub bind failure",
         },
         testEntry_t{
-            script.ApiIDRunPubSubProxy,
-            []script.Param_t{script.Param_t{script.ANONYMOUS, nil, cleanup_ctx_port}},
+            ApiIDRunPubSubProxy,
+            []Param_t{Param_t{ANONYMOUS, nil, cleanup_ctx_port}},
             []result_t{NIL_ANY, NON_NIL_ERROR},
             "Intentional failure to call cleanup",
         },
         testEntry_t{ /* Test handler shutdown in stat = LState_WriteReq */
-            script.ApiIDRegisterServerReqHandler,
-            []script.Param_t{script.Param_t{"chType_1", tele.CHANNEL_TYPE_ECHO, fail_response_port}},
+            ApiIDRegisterServerReqHandler,
+            []Param_t{Param_t{"chType_1", tele.CHANNEL_TYPE_ECHO, fail_response_port}},
             []result_t{NIL_ANY, NIL_ANY, NON_NIL_ERROR},
             "Duplicate req to fail",
         },
         testEntry_t{
-            script.ApiIDRunPubSubProxy,
-            []script.Param_t{script.Param_t{script.ANONYMOUS, nil, cleanup_ctx_port}},
+            ApiIDRunPubSubProxy,
+            []Param_t{Param_t{ANONYMOUS, nil, cleanup_ctx_port}},
             []result_t{NIL_ANY, NON_NIL_ERROR},
             "Intentional failure to call cleanup",
         },
