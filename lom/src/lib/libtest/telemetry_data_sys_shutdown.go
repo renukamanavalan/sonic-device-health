@@ -6,9 +6,8 @@ import (
 )
 
 /*
- * BIG NOTE:  Let this be a last test suite.
- * After shutdown, no API will succeed
- * There is no way to revert shutdown -- One way to exit
+ * Register all long running handlers
+ * Raise sys shutdown and call for idle check
  */
 var pubSubShutdownSuite = ScriptSuite_t{
     Id:          "pubSubShutdownSuite",
@@ -32,7 +31,7 @@ var pubSubShutdownSuite = ScriptSuite_t{
         ScriptEntry_t{ /* Get sub channel for events from engine only. */
             ApiIDGetSubChannel,
             []Param_t{
-                Param_t{"chType_E", nil, nil}, /* Fetch chType_1 from cache */
+                Param_t{"chType_E", nil, nil}, /* Fetch from cache */
                 Param_t{"prod_E", tele.CHANNEL_PRODUCER_ENGINE, nil},
                 EMPTY_STRING,
             },
@@ -80,11 +79,13 @@ var pubSubShutdownSuite = ScriptSuite_t{
         },
         PAUSE1,
         /* Handler terminated by unsolicited response END in LState_ReadReq state*/
+        /* On any failure to terminate will fail next RegisterServerReqHandler call for same type */
 
         /* Handler terminated by unsolicited response BEGIN in LState_WriteReq state*/
         ScriptEntry_t{ /* Test handler shutdown in stat = LState_WriteReq */
             ApiIDRegisterServerReqHandler,
-            []Param_t{Param_t{"chType_1", tele.CHANNEL_TYPE_ECHO, nil}},
+            /* Get from last register req which must have terminated */
+            []Param_t{Param_t{"chType_1", nil, nil}},
             []Result_t{
                 Result_t{"chSerReq-0", nil, ValidateNonNil}, /* chan for incoming req */
                 Result_t{"chSerRes-0", nil, ValidateNonNil}, /* chan for outgoing res */
@@ -125,13 +126,14 @@ var pubSubShutdownSuite = ScriptSuite_t{
             ApiIDCloseRequestChannel, /* explicit request to close for req channel */
             []Param_t{Param_t{"chType_1", nil, nil}},
             []Result_t{NIL_ERROR},
-            "Close channel created for client requests.",
+            "Close channel created for client requests - LState_WriteReq",
         },
         PAUSE1, /* Wait for async shutdown */
         /* Handler terminated by unsolicited response BEGIN in LState_WriteReq state*/
 
         /* Handler terminated by closed res chan BEGIN in LState_ReadReq state*/
         ScriptEntry_t{ /* Test handler shutdown in stat = LState_ReadReq */
+            /* Get from last register req which must have terminated */
             ApiIDRegisterServerReqHandler,
             []Param_t{Param_t{"chType_1", tele.CHANNEL_TYPE_ECHO, nil}},
             []Result_t{
@@ -214,7 +216,7 @@ var pubSubShutdownSuite = ScriptSuite_t{
                 Result_t{"chClientRes-0", nil, ValidateNonNil}, /* chan to read response */
                 NIL_ERROR,
             },
-            "take server to LState_WriteReq for closed test",
+            "take server to LState_ReadRes for closed test",
         },
         ScriptEntry_t{
             ApiIDReadClientRequest,
@@ -364,6 +366,7 @@ var pubSubShutdownSuite = ScriptSuite_t{
             []Result_t{NIL_ERROR},
             "Initiate system shutdown",
         },
+        TELE_IDLE_CHECK,        /* Expect all active handlers to go down */
         ScriptEntry_t{
             ApiIDGetPubChannel, /* Simulate publish from engine */
             []Param_t{
@@ -405,6 +408,8 @@ var pubSubShutdownSuite = ScriptSuite_t{
             []Result_t{NIL_ANY, NIL_ANY, NON_NIL_ERROR},
             "Fail to run after sys shutdown",
         },
+        PAUSE1,
+        TELE_IDLE_CHECK,
         ScriptEntry_t{
             ApiIDInitSysShutdown,
             []Param_t{ Param_t{ANONYMOUS, 2, nil} }, /* redundant arg */
@@ -417,7 +422,5 @@ var pubSubShutdownSuite = ScriptSuite_t{
             []Result_t{NIL_ERROR},
             "Initialized for a clean state, just in case for subsequent tests.",
         },
-        PAUSE1,
-        TELE_IDLE_CHECK,
     },
 }

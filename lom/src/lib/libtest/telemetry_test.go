@@ -20,7 +20,7 @@ func testRunOneTeleSuite(t *testing.T, suite *ScriptSuite_t) {
     defer func() { t.Logf(logFmt("Ended test suite - {%s} ....", suite.Id)) }()
 
     for i, entry := range suite.Entries {
-        tid := fmt.Sprintf("%s:%d:%s", suite.Id, i, entry.Api)
+        tid := fmt.Sprintf("%s:%d:%s: ", suite.Id, i, entry.Api)
         t.Logf(logFmt("%s: Starting test[%d] - {%v} {%s}....", tid, i, entry.Api, entry.Message))
 
         retVals, ok := CallByApiID(entry.Api, entry.Args, cache)
