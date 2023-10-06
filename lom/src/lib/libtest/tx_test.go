@@ -1397,7 +1397,7 @@ func TestShutdown(t *testing.T) {
     }
 
     DoSysShutdown(0)
-    InitSysShutdown()       /* clean state for subsequent tests */
+    InitSysShutdown() /* clean state for subsequent tests */
     //LogDebug("---------- COMPLETE ----------------")
 }
 

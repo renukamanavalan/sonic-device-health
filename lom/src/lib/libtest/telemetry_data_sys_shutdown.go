@@ -407,7 +407,7 @@ var pubSubShutdownSuite = testSuite_t{
         },
         testEntry_t{
             script.ApiIDInitSysShutdown,
-            []script.Param_t{ script.Param_t{script.ANONYMOUS, 2, nil} }, /* redundant arg */
+            []script.Param_t{script.Param_t{script.ANONYMOUS, 2, nil}}, /* redundant arg */
             []result_t{NON_NIL_ERROR},
             "excess args to fail",
         },

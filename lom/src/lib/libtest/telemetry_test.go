@@ -78,11 +78,11 @@ func testRunOneTeleSuite(t *testing.T, suite *testSuite_t) {
 func TestRunTeleSuites(t *testing.T) {
     ctTimeout := tele.SUB_CHANNEL_TIMEOUT
     tele.SUB_CHANNEL_TIMEOUT = time.Duration(1) * time.Second
-    cmn.InitSysShutdown()   /* Ensure clean init of the object */
+    cmn.InitSysShutdown() /* Ensure clean init of the object */
 
     defer func() {
         tele.SUB_CHANNEL_TIMEOUT = ctTimeout
-        cmn.InitSysShutdown()   /* Ensure clean init of the object */
+        cmn.InitSysShutdown() /* Ensure clean init of the object */
     }()
 
     for _, suite := range testTelemetrySuites {

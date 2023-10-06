@@ -564,7 +564,7 @@ func TestLogPeriodic(t *testing.T) {
     t.Run("success", func(t *testing.T) {
         //lomcommon.RegisterForSysShutdown("plugin_manager")
         notifyChan := make(chan bool)
-        initShutdown = false
+        initShutdown := false
 
         go func() {
             <-notifyChan
