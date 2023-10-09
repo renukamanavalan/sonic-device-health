@@ -2,16 +2,20 @@ package libtest
 
 import (
     "fmt"
+    "time"
 )
 
 func fatalFmt(s string, vals ...any) string {
-    return fmt.Sprintf("***Fatal failure****: "+s, vals...)
+    prefix := fmt.Sprintf("***Fatal failure****:(%v): (%s)", time.Now().UnixMilli(), s)
+    return fmt.Sprintf(prefix, vals...)
 }
 
 func errorFmt(s string, vals ...any) string {
-    return fmt.Sprintf("***Error failure****: "+s, vals...)
+    prefix := fmt.Sprintf("***Error failure****:(%v): (%s)", time.Now().UnixMilli(), s)
+    return fmt.Sprintf(prefix, vals...)
 }
 
 func logFmt(s string, vals ...any) string {
-    return fmt.Sprintf("***Log****: "+s, vals...)
+    prefix := fmt.Sprintf("***Log****:(%v): (%s)", time.Now().UnixMilli(), s)
+    return fmt.Sprintf(prefix, vals...)
 }

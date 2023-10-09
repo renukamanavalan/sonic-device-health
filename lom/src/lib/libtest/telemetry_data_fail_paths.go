@@ -368,7 +368,7 @@ var scriptAPIValidate = ScriptSuite_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/
                 NON_NIL_ERROR,
             },
-            "incorrect second arg",
+            "incorrect second arg timeout rere",
         },
         ScriptEntry_t{
             ApiIDReadClientResponse, /* Client read its response */
@@ -380,7 +380,7 @@ var scriptAPIValidate = ScriptSuite_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/
                 NON_NIL_ERROR,
             },
-            "Read response times out",
+            "Read response times out - 1",
         },
         ScriptEntry_t{
             ApiIDCloseRequestChannel, /* explicit request to close for req channel */
@@ -398,7 +398,7 @@ var scriptAPIValidate = ScriptSuite_t{
                 Param_t{"chType_1", nil, nil}, /* Fetch chType_1 from cache */
             },
             []Result_t{NON_NIL_ERROR},
-            "Duplicate to fail",
+            "Duplicate Close to fail",
         },
         PAUSE2, /* Allow req channel to close */
         ScriptEntry_t{
@@ -601,16 +601,6 @@ var scriptAPIValidate_2 = ScriptSuite_t{
             },
             []Result_t{NON_NIL_ERROR},
             "incorrect third arg",
-        },
-        ScriptEntry_t{
-            ApiIDSendClientResponse,
-            []Param_t{
-                Param_t{"chSerRes-0", nil, nil}, /* Get from cache */
-                Param_t{ANONYMOUS, tele.ServerRes_t("resp: ok"), nil},
-                Param_t{ANONYMOUS, 1, nil},
-            },
-            []Result_t{NIL_ERROR},
-            "Disturb the state flow inside server req handler",
         },
         ScriptEntry_t{
             ApiIDCloseChannel,

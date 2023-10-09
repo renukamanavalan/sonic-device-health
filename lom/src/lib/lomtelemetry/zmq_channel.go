@@ -29,7 +29,7 @@ const ZMQ_PROXY_CTRL_PORT = 5950
 
 const ZMQ_ADDRESS = "tcp://127.0.0.1:%d"
 
-var HALF_SECOND = time.Duration(500) * time.Millisecon
+var HALF_SECOND = time.Duration(500) * time.Millisecond
 
 var SOCK_SND_TIMEOUT = HALF_SECOND      /* Send max blocks .5 sec */
 var SOCK_RCV_TIMEOUT = HALF_SECOND      /* Recv max blocks .5 sec */
@@ -60,7 +60,7 @@ const (
 )
 
 func getSockMode(sType zmq.Type) int {
-    switch(stype):
+    switch(sType) {
     case zmq.PUB:
         return SOCK_MODE_SEND
     case zmq.SUB:
@@ -68,7 +68,7 @@ func getSockMode(sType zmq.Type) int {
     case zmq.REQ, zmq.REP:
         return SOCK_MODE_SEND | SOCK_MODE_RECV
     default:
-        LogPanic("Unknown socket type (%v)", sType)
+        cmn.LogPanic("Unknown socket type (%v)", sType)
         return 0
     }
 }
@@ -296,14 +296,14 @@ func getSocket(mode channelMode_t, chType ChannelType_t, requester string) (sock
         /* Context termination will sleep this long, for any message drain */
     }
 
-    mode := getSockMode(info.sType)
+    txMode := getSockMode(info.sType)
     if err == nil {
-        if mode & SOCK_MODE_SEND {
+        if (txMode & SOCK_MODE_SEND) == SOCK_MODE_SEND {
             err = sock.SetSndtimeo(SOCK_SND_TIMEOUT)
         }
     }
     if err == nil {
-        if mode & SOCK_MODE_RECV {
+        if (txMode & SOCK_MODE_RECV) == SOCK_MODE_RECV {
             err = sock.SetRcvtimeo(SOCK_RCV_TIMEOUT)
         }
     }
@@ -1017,6 +1017,7 @@ func closeRequestChannel(reqType ChannelType_t) (err error) {
         if ch, ok := v.(chan *reqInfo_t); ok {
             clientReqChanList.Delete(reqType)
             close(ch)
+            cmn.LogDebug("closed client req channel for type (%s)", CHANNEL_TYPE_STR[reqType])
         } else {
             err = cmn.LogError("val for req(%d) is incorrect type. (chan *reqInfo_t) != (%T)",
                 reqType, v)
@@ -1071,10 +1072,6 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
         cleanupFn()
     }()
 
-    if err == nil {
-        err = sock.SetRcvtimeo(time.Second)
-    }
-
     if err != nil {
         err = cmn.LogError("Failed to init. sock(%p) requester(%s) err(%v)",
             sock, requester, err)
@@ -1128,7 +1125,6 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     rcvReq := ""
 Loop:
     for {
-        cmn.LogDebug("DROP DROP; ctState = %d\n", ctState)
         switch ctState {
         case LState_ReadReq:
             /* Stay here until read request / shutdown */
@@ -1139,11 +1135,7 @@ Loop:
                     cmn.LogInfo("serverRequestHandler shutting down requester:(%s)", requester)
                     break Loop
                 case v, ok := <-chRes:
-                    if !ok {
-                        cmn.LogInfo("input response channel closed; Close this handler")
-                    } else {
-                        cmn.LogError("Receiving response w/o request (%v)(%T)", v, v)
-                    }
+                    cmn.LogInfo("input response channel closed/unsolicited ok=(%v) v(%v); Close this handler", ok, v)
                     break Loop
                 default:
                 }
@@ -1154,7 +1146,6 @@ Loop:
                     cmn.LogError("Failed to receive msg err(%v for (%s)", requester)
                 } else {
                     ctState = LState_WriteReq
-                    cmn.LogDebug("DROP DROP; change state: ctState = %d\n", ctState)
                     break /* Break from this for loop */
                 }
             }
@@ -1174,7 +1165,6 @@ Loop:
             case chReq <- ClientReq_t(rcvReq):
                 /* Send request to registered server side handler */
                 ctState = LState_ReadRes
-                cmn.LogDebug("DROP DROP; change state: ctState = %d\n", ctState)
             }
         case LState_ReadRes:
             /* Stay here until response from handler or shutdown */
@@ -1193,7 +1183,6 @@ Loop:
                         cmn.LogDebug("Sent response back to client (%v)(%T)", v, v)
                     }
                     ctState = LState_ReadReq
-                    cmn.LogDebug("DROP DROP; change state: ctState = %d\n", ctState)
                 }
             }
         }

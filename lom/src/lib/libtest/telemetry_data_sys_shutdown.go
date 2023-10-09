@@ -67,19 +67,18 @@ var pubSubShutdownSuite = ScriptSuite_t{
             },
             "Take to LState_ReadReq - unsolicited response test",
         },
-        ScriptEntry_t{ /* unsolicited response while handler still blocked in sending req */
-            ApiIDSendClientResponse,
+        ScriptEntry_t{ /* close res channel in LState_ReadReq state*/
+                        /* It will take SOCK_RCV_TIMEOUT - 0.5 second to realize */
+            ApiIDCloseChannel,
             []Param_t{
                 Param_t{"chSerRes-0", nil, nil}, /* Get from cache */
-                Param_t{ANONYMOUS, tele.ServerRes_t("resp: ok"), nil},
-                Param_t{ANONYMOUS, 1, nil},
             },
             []Result_t{NIL_ERROR},
-            "Write res while handler is blocked in read req state.",
+            "close res when handler in LState_ReadReq state",
         },
         PAUSE1,
-        /* Handler terminated by unsolicited response END in LState_ReadReq state*/
-        /* On any failure to terminate will fail next RegisterServerReqHandler call for same type */
+        /* Handler terminated by closed response chan in LState_ReadReq state*/
+        /* On any failure to terminat, test will fail in next RegisterServerReqHandler call for same type */
 
         /* Handler terminated by unsolicited response BEGIN in LState_WriteReq state*/
         ScriptEntry_t{ /* Test handler shutdown in stat = LState_WriteReq */

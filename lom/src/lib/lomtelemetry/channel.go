@@ -1,7 +1,6 @@
 package lomtelemetry
 
 import (
-    cmn "lom/src/lib/lomcommon"
 )
 
 type ChannelType_t int
@@ -14,13 +13,6 @@ const (
     CHANNEL_TYPE_SCS
     CHANNEL_TYPE_TEST_REQ
 )
-
-func ToChannelType(v int) (ChannelType_t, error) {
-    if v <= int(CHANNEL_TYPE_TEST_REQ) {
-        return ChannelType_t(v), nil
-    } 
-    return CHANNEL_TYPE_EVENTS, cmn.LogError("Invalid value for chType (%d)", v)
-}
 
 var CHANNEL_TYPE_STR = map[ChannelType_t]string{
     CHANNEL_TYPE_EVENTS:    "CHANNEL_TYPE_EVENTS",
@@ -51,13 +43,6 @@ const (
     CHANNEL_PRODUCER_OTHER
     CHANNEL_PRODUCER_EMPTY
 )
-
-func ToChannelPropducer(v int) (ChannelProducer_t, error) {
-    if v <= int(CHANNEL_PRODUCER_OTHER) {
-        return ChannelProducer_t(v), nil
-    } 
-    return CHANNEL_PRODUCER_EMPTY, cmn.LogError("Invalid value for chProducer")
-}
 
 type CHANNEL_PRODUCER_DATA_t struct {
     pattern         string
