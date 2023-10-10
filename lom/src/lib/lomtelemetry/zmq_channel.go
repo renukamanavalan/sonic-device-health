@@ -818,6 +818,10 @@ func clientRequestHandler(reqType ChannelType_t, chReq <-chan *reqInfo_t,
         cleanupFn()
     }()
 
+    if err == nil {
+        /* Recv blocks on resp. Nake it smaller to enable not to miss future reqs */
+        err = sock.SetRcvtimeo(time.Duration(50) * time.Millisecond)
+    }
     if err != nil {
         err = cmn.LogError("Failed to init clientRequestHandler sock(%p) err(%v) requester(%s)",
             sock, err, requester)
