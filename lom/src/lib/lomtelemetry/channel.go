@@ -1,7 +1,6 @@
 package lomtelemetry
 
-import (
-)
+import ()
 
 type ChannelType_t int
 

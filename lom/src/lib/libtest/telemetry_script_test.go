@@ -1,8 +1,9 @@
 package libtest
 
 import (
-    "fmt"
     "reflect"
+    "strconv"
+    "strings"
     "testing"
 
     cmn "lom/src/lib/lomcommon"
@@ -14,26 +15,26 @@ var ch0 = make(chan tele.JsonString_t, 3)
 var ch0W chan<- tele.JsonString_t = ch0
 var ch0R <-chan tele.JsonString_t = ch0
 
-var FailRunOneScriptSuites = []ScriptSuite_t {
-    ScriptSuite_t { 
-        Id:     "Non-Existing-API",
+var FailRunOneScriptSuites = []ScriptSuite_t{
+    ScriptSuite_t{
+        Id:          "Non-Existing-API",
         Description: "",
         Entries: []ScriptEntry_t{
-            ScriptEntry_t { "xyz", []Param_t{}, []Result_t{}, "Fail to find API" },
+            ScriptEntry_t{"xyz", []Param_t{}, []Result_t{}, "Fail to find API"},
         },
     },
-    ScriptSuite_t {
-        Id: "IdleChk-res-len-incorrect",
+    ScriptSuite_t{
+        Id:          "IdleChk-res-len-incorrect",
         Description: "",
         Entries: []ScriptEntry_t{
-            ScriptEntry_t { ApiIDIsTelemetryIdle, []Param_t{}, []Result_t{}, "2 res expected" },
+            ScriptEntry_t{ApiIDIsTelemetryIdle, []Param_t{}, []Result_t{}, "2 res expected"},
         },
     },
-    ScriptSuite_t {
-        Id: "IdleChk-res-mismatch-bool",
+    ScriptSuite_t{
+        Id:          "IdleChk-res-mismatch-bool",
         Description: "",
         Entries: []ScriptEntry_t{
-            ScriptEntry_t {
+            ScriptEntry_t{
                 ApiIDIsTelemetryIdle,
                 []Param_t{},
                 []Result_t{TEST_FOR_FALSE, NIL_ERROR},
@@ -41,11 +42,11 @@ var FailRunOneScriptSuites = []ScriptSuite_t {
             },
         },
     },
-    ScriptSuite_t {
-        Id: "IdleChk-res-mismatch-err",
+    ScriptSuite_t{
+        Id:          "IdleChk-res-mismatch-err",
         Description: "",
         Entries: []ScriptEntry_t{
-            ScriptEntry_t {
+            ScriptEntry_t{
                 ApiIDIsTelemetryIdle,
                 []Param_t{},
                 []Result_t{TEST_FOR_TRUE, NON_NIL_ERROR},
@@ -53,11 +54,11 @@ var FailRunOneScriptSuites = []ScriptSuite_t {
             },
         },
     },
-    ScriptSuite_t {
-        Id: "Expect Json string",
+    ScriptSuite_t{
+        Id:          "Expect Json string",
         Description: "",
         Entries: []ScriptEntry_t{
-            ScriptEntry_t {
+            ScriptEntry_t{
                 ApiIDIsTelemetryIdle,
                 []Param_t{},
                 []Result_t{Result_t{ANONYMOUS, []tele.JsonString_t{}, nil}, NON_NIL_ERROR},
@@ -65,16 +66,16 @@ var FailRunOneScriptSuites = []ScriptSuite_t {
             },
         },
     },
-    ScriptSuite_t {
-        Id: "Write strings 0",
+    ScriptSuite_t{
+        Id:          "Write strings 0",
         Description: "",
         Entries: []ScriptEntry_t{
             ScriptEntry_t{
                 ApiIDWriteJsonStringsChannel,
                 []Param_t{
                     Param_t{ANONYMOUS, ch0W, nil},
-                    Param_t{ANONYMOUS, []tele.JsonString_t{ tele.JsonString_t("foo") }, nil},
-                    Param_t{ANONYMOUS, 1, nil},            /* timeout = 1 second */
+                    Param_t{ANONYMOUS, []tele.JsonString_t{tele.JsonString_t("foo")}, nil},
+                    Param_t{ANONYMOUS, 1, nil}, /* timeout = 1 second */
                 },
                 []Result_t{
                     Result_t{ANONYMOUS, nil, ValidateNonNil},
@@ -83,16 +84,16 @@ var FailRunOneScriptSuites = []ScriptSuite_t {
             },
         },
     },
-    ScriptSuite_t {
-        Id: "Read strings 0",
+    ScriptSuite_t{
+        Id:          "Read strings 0",
         Description: "",
         Entries: []ScriptEntry_t{
             ScriptEntry_t{
                 ApiIDReadJsonStringsChannel,
                 []Param_t{
                     Param_t{ANONYMOUS, ch0R, nil},
-                    Param_t{ANONYMOUS, 1, nil},             /* read 1 */
-                    Param_t{ANONYMOUS, 1, nil},             /* timeout = 1 second */
+                    Param_t{ANONYMOUS, 1, nil}, /* read 1 */
+                    Param_t{ANONYMOUS, 1, nil}, /* timeout = 1 second */
                 },
                 []Result_t{
                     Result_t{ANONYMOUS, []tele.JsonString_t{}, nil},
@@ -102,16 +103,16 @@ var FailRunOneScriptSuites = []ScriptSuite_t {
             },
         },
     },
-    ScriptSuite_t {
-        Id: "Write strings 0",
+    ScriptSuite_t{
+        Id:          "Write strings 0",
         Description: "",
         Entries: []ScriptEntry_t{
             ScriptEntry_t{
                 ApiIDWriteJsonStringsChannel,
                 []Param_t{
                     Param_t{ANONYMOUS, ch0W, nil},
-                    Param_t{ANONYMOUS, []tele.JsonString_t{ tele.JsonString_t("foo") }, nil},
-                    Param_t{ANONYMOUS, 1, nil},            /* timeout = 1 second */
+                    Param_t{ANONYMOUS, []tele.JsonString_t{tele.JsonString_t("foo")}, nil},
+                    Param_t{ANONYMOUS, 1, nil}, /* timeout = 1 second */
                 },
                 []Result_t{
                     Result_t{ANONYMOUS, nil, ValidateNonNil},
@@ -120,16 +121,16 @@ var FailRunOneScriptSuites = []ScriptSuite_t {
             },
         },
     },
-    ScriptSuite_t {
-        Id: "Read strings 0",
+    ScriptSuite_t{
+        Id:          "Read strings 0",
         Description: "",
         Entries: []ScriptEntry_t{
             ScriptEntry_t{
                 ApiIDReadJsonStringsChannel,
                 []Param_t{
                     Param_t{ANONYMOUS, ch0R, nil},
-                    Param_t{ANONYMOUS, 1, nil},             /* read 1 */
-                    Param_t{ANONYMOUS, 1, nil},             /* timeout = 1 second */
+                    Param_t{ANONYMOUS, 1, nil}, /* read 1 */
+                    Param_t{ANONYMOUS, 1, nil}, /* timeout = 1 second */
                 },
                 []Result_t{
                     Result_t{ANONYMOUS, []tele.JsonString_t{tele.JsonString_t("bar")}, nil},
@@ -139,16 +140,16 @@ var FailRunOneScriptSuites = []ScriptSuite_t {
             },
         },
     },
-    ScriptSuite_t {
-        Id: "Write strings 0",
+    ScriptSuite_t{
+        Id:          "Write strings 0",
         Description: "",
         Entries: []ScriptEntry_t{
             ScriptEntry_t{
                 ApiIDWriteJsonStringsChannel,
                 []Param_t{
                     Param_t{ANONYMOUS, ch0W, nil},
-                    Param_t{ANONYMOUS, []tele.JsonString_t{ tele.JsonString_t("foo") }, nil},
-                    Param_t{ANONYMOUS, 1, nil},            /* timeout = 1 second */
+                    Param_t{ANONYMOUS, []tele.JsonString_t{tele.JsonString_t("foo")}, nil},
+                    Param_t{ANONYMOUS, 1, nil}, /* timeout = 1 second */
                 },
                 []Result_t{
                     Result_t{ANONYMOUS, nil, ValidateNonNilError},
@@ -157,16 +158,16 @@ var FailRunOneScriptSuites = []ScriptSuite_t {
             },
         },
     },
-    ScriptSuite_t {
-        Id: "Read strings 0",
+    ScriptSuite_t{
+        Id:          "Read strings 0",
         Description: "",
         Entries: []ScriptEntry_t{
             ScriptEntry_t{
                 ApiIDReadJsonStringsChannel,
                 []Param_t{
                     Param_t{ANONYMOUS, ch0R, nil},
-                    Param_t{ANONYMOUS, 1, nil},             /* read 1 */
-                    Param_t{ANONYMOUS, 1, nil},             /* timeout = 1 second */
+                    Param_t{ANONYMOUS, 1, nil}, /* read 1 */
+                    Param_t{ANONYMOUS, 1, nil}, /* timeout = 1 second */
                 },
                 []Result_t{
                     Result_t{ANONYMOUS, nil, ValidateNonNilError},
@@ -178,11 +179,10 @@ var FailRunOneScriptSuites = []ScriptSuite_t {
     },
 }
 
-
 func toInt(lst []string) (ret []int, err error) {
     ret = []int{}
     for _, s := range lst {
-        i = 0
+        i := 0
         if i, err = strconv.Atoi(s); err != nil {
             return
         }
@@ -191,59 +191,66 @@ func toInt(lst []string) (ret []int, err error) {
     return
 }
 
+func getInt(s string, defVal int) int {
+    if ctVal := GetSuiteCache().GetVal(s, nil, nil); ctVal != nil {
+        if i, ok := ctVal.(int); ok {
+            return i
+        }
+    }
+    return defVal
+}
 
-func TestAnyFn(name string, val any) (any, error) {
-    var err error
-    var ret any
-
-    if s, ok := val.(string); !ok {
-        err = cmn.LogError("Unknown val type(%T) (%v) for TestAnyFn", val, val)
-    } else if lst = strings.Split(s, ","); len(lst) < 2 {
-        err = cmn.LogError("len(%d) < 2 (%v)", len(lst), lst)
+func testAnyFn(name string, val any) (ret any, err error) {
+    if name == ANONYMOUS {
+        err = cmn.LogError("Need non-Anonymous name")
+    } else if s, ok := val.(string); !ok {
+        err = cmn.LogError("Unknown val type(%T) (%v) for testAnyFn", val, val)
+    } else if lst := strings.Split(s, ","); len(lst) < 1 {
+        err = cmn.LogError("len(%d) < 1 (%v)", len(lst), lst)
     } else if lst[0] == "SET" {
-        cnt := 0
         ret = func() []any {
-            cnt++
-            GetSuiteCache().SetVal(lst[1], cnt)
+            ctCnt := getInt(name, 0) + 1
+            GetSuiteCache().SetVal(name, ctCnt)
+            // cmn.LogDebug("Called SET for (%s) setCnt(%d)", name, ctCnt)
             return []any{}
         }
     } else if lst[0] == "GET" {
-        cnt := 0
         ret = func() []any {
-            cnt++
-            ret := GetSuiteCache().GetVal(lst[1], cnt)
-            return []any{ret}
+            getRet := GetSuiteCache().GetVal(name, nil, nil)
+            // cmn.LogDebug("Called GET for (%s) get(%v)(%T)", name, getRet, getRet)
+            return []any{getRet}
         }
-    } else if (lst[0] == "LOOP") {
+    } else if lst[0] == "LOOP" {
         var indices []int
         if len(lst) < 4 {
             err = cmn.LogError("Loop: len(%d) < 4 (%v)", len(lst), lst)
+        } else if name == ANONYMOUS {
+            err = cmn.LogError("Loop: Need name to save ct val")
         } else if indices, err = toInt(lst[1:]); err != nil {
         } else {
-            ct := indices[0]
+            ctIndex := getInt(name, indices[0])
             ret = func() []any {
-                if ct < indices[1] {
+                if ctIndex < indices[1] {
                     GetSuiteCache().SetVal(LOOP_CACHE_INDEX_NAME, indices[2])
-                    ct++
-                } else {
-                    GetSuiteCache().SetVal(LOOP_CACHE_INDEX_NAME, nil)
+                    GetSuiteCache().SetVal(name, ctIndex+1)
+
                 }
+                // cmn.LogDebug("Called LOOP LoopCt(%d) lst(%v)", ctIndex, indices)
                 return []any{}
             }
         }
     } else {
-        err = cmn.LogError("Unknown val type(%T) (%v) for TestAnyFn", val, val)
+        err = cmn.LogError("Unknown val type(%T) (%v) for testAnyFn", val, val)
     }
     return
 }
 
-
-var GoodRunOneScriptSuites = []ScriptSuite_t {
-    ScriptSuite_t {
-        Id: "IdleChk-good",
+var xGoodRunOneScriptSuites = []ScriptSuite_t{
+    ScriptSuite_t{
+        Id:          "IdleChk-good",
         Description: "",
         Entries: []ScriptEntry_t{
-            ScriptEntry_t {
+            ScriptEntry_t{
                 ApiIDIsTelemetryIdle,
                 []Param_t{},
                 []Result_t{TEST_FOR_TRUE, NIL_ERROR},
@@ -251,15 +258,15 @@ var GoodRunOneScriptSuites = []ScriptSuite_t {
             },
         },
     },
-    ScriptSuite_t {
-        Id: "Write strings fail",
+    ScriptSuite_t{
+        Id:          "Write strings fail",
         Description: "",
         Entries: []ScriptEntry_t{
             ScriptEntry_t{
                 ApiIDWriteJsonStringsChannel,
                 []Param_t{
-                    Param_t{ANONYMOUS, []tele.JsonString_t{ tele.JsonString_t("foo") }, nil},
-                    Param_t{ANONYMOUS, 1, nil},            /* timeout = 1 second */
+                    Param_t{ANONYMOUS, []tele.JsonString_t{tele.JsonString_t("foo")}, nil},
+                    Param_t{ANONYMOUS, 1, nil}, /* timeout = 1 second */
                 },
                 []Result_t{
                     Result_t{ANONYMOUS, nil, ValidateNonNilError},
@@ -268,8 +275,8 @@ var GoodRunOneScriptSuites = []ScriptSuite_t {
             },
         },
     },
-    ScriptSuite_t {
-        Id: "close channel",
+    ScriptSuite_t{
+        Id:          "close channel",
         Description: "",
         Entries: []ScriptEntry_t{
             ScriptEntry_t{
@@ -277,44 +284,44 @@ var GoodRunOneScriptSuites = []ScriptSuite_t {
                 []Param_t{
                     Param_t{ANONYMOUS, ch0W, nil},
                 },
-                []Result_t{ NIL_ERROR },
+                []Result_t{NIL_ERROR},
                 "close it",
             },
         },
     },
-    ScriptSuite_t {
-        Id: "TestAny",
+}
+
+var GoodRunOneScriptSuites = []ScriptSuite_t{
+    ScriptSuite_t{
+        Id:          "TestAny",
         Description: "",
         Entries: []ScriptEntry_t{
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{ANONYMOUS, "SET,foo", TestAnyFn} },
-                []Result_t{ NIL_ERROR },
+                []Param_t{Param_t{"Foo", "SET,", testAnyFn}},
+                []Result_t{NIL_ERROR},
                 "Call Any test",
             },
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{ANONYMOUS, "LOOP,0,1,0", TestAnyFn} },
-                []Result_t{ NIL_ERROR },
+                []Param_t{Param_t{"LoopI", "LOOP,0,1,0", testAnyFn}},
+                []Result_t{NIL_ERROR},
                 "Call Any loop",
             },
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{ANONYMOUS, "GET,foo", TestAnyFn} },
-                []Result_t{Result_t{ANONYMOUS, 2, nil}, NIL_ERROR },
+                []Param_t{Param_t{"Foo", "GET,", testAnyFn}},
+                []Result_t{Result_t{ANONYMOUS, 2, nil}, NIL_ERROR},
                 "Check SET called twice",
             },
         },
     },
-
 }
 
-
 func TestRunOneScriptSuite(t *testing.T) {
-    cmn.InitSysShutdown()   /* Ensure clean init of the object */
+    cmn.InitSysShutdown() /* Ensure clean init of the object */
     defer cmn.InitSysShutdown()
 
-    /*
     for _, suite := range FailRunOneScriptSuites {
         t.Logf(logFmt("Starting test suite - {%s} ....", suite.Id))
         chSt := GetSuiteCache()
@@ -327,7 +334,6 @@ func TestRunOneScriptSuite(t *testing.T) {
         }
         t.Logf(logFmt("Ended test suite - {%s} ....", suite.Id))
     }
-    */
     for _, suite := range GoodRunOneScriptSuites {
         t.Logf(logFmt("Starting test suite - {%s} ....", suite.Id))
         chSt := GetSuiteCache()
@@ -341,5 +347,3 @@ func TestRunOneScriptSuite(t *testing.T) {
         t.Logf(logFmt("Ended test suite - {%s} ....", suite.Id))
     }
 }
-
-

@@ -334,6 +334,17 @@ func callInitSysShutdown(args []any, cache SuiteCache_t) []any {
     return []any{err}
 }
 
+func callAnyFn(args []any, cache SuiteCache_t) (ret []any) {
+    if len(args) != 1 {
+        ret = append(ret, cmn.LogError("Need fn to call. Expect 1. Got(%d)", len(args)))
+    } else if fn, ok := args[0].(func() []any); !ok {
+        ret = append(ret, cmn.LogError("Incorrect type AnyFn_t != (%T)", args[0]))
+    } else {
+        ret = append(fn(), nil)
+    }
+    return
+}
+
 func CallByApiID(api ApiId_t, args []Param_t, cache SuiteCache_t) (retVals []any, ok bool) {
     var fn ApiFn_t
 

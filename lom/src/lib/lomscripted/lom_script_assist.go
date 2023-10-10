@@ -10,7 +10,7 @@ import (
  * Helper to create a suite of entries and run.
  *
  * Validation may be added to abort the suite on a failing entry.
- * A entry {
+ * A entry:
  *  Identifies API by API ID
  *  Each arg is represented by param_t struct
  *  Each return value is expressed by Result_t struct
@@ -116,22 +116,27 @@ func ValidateNonNil(n string, vExp, vRet any) bool {
 }
 
 var currentCache SuiteCache_t
-                    
-func ResetSuiteCache() SuiteCache_t { 
+
+func ResetSuiteCache() SuiteCache_t {
     currentCache = SuiteCache_t{}
     return currentCache
-}               
-            
+}
+
 func GetSuiteCache() SuiteCache_t {
     return currentCache
 }
 
+/* Any fn can update index via cache */
+const LOOP_CACHE_INDEX_NAME = "__LoopIndex__"
+
 func RunOneScriptSuite(suite *ScriptSuite_t) (err error) {
     /* Caches all variables for reference across script entries */
-    cache := ResetSuiteCache()  /* Ensure new */
-    defer ResetSuiteCache()     /* Clean up cache */
+    cache := ResetSuiteCache() /* Ensure new */
+    defer ResetSuiteCache()    /* Clean up cache */
 
-    for i, entry := range suite.Entries {
+    ctIndex := 0
+    for ctIndex < len(suite.Entries) {
+        entry := suite.Entries[ctIndex]
         if retVals, ok := CallByApiID(entry.Api, entry.Args, cache); !ok {
             err = cmn.LogError("Failed to find API (%v)", entry.Api)
         } else if len(retVals) != len(entry.Result) {
@@ -148,7 +153,7 @@ func RunOneScriptSuite(suite *ScriptSuite_t) (err error) {
                 if e.Validator != nil {
                     if e.Validator(e.Name, expVal, retV) == false {
                         err = cmn.LogError("Result validation failed suite-index(%d) res-index(%d) retv(%+v)",
-                            i, j, retV)
+                            ctIndex, j, retV)
                         retV = nil
                     }
                 } else {
@@ -177,6 +182,27 @@ func RunOneScriptSuite(suite *ScriptSuite_t) (err error) {
                 cache.SetVal(e.Name, retV)
             }
         }
+        if chkIndx := cache.GetVal(LOOP_CACHE_INDEX_NAME, nil, nil); chkIndx != nil {
+            if val, ok := chkIndx.(int); !ok {
+                err = cmn.LogError("Expect int for (%s) (%T)", LOOP_CACHE_INDEX_NAME, chkIndx)
+            } else {
+                j := val
+                if val < 0 {
+                    j = ctIndex + val
+                }
+                if (j < 0) || (j > len(suite.Entries)) {
+                    err = cmn.LogError("Invalid (%s) ctIndex=%d new=%d val=%d len(%d)",
+                        ctIndex, j, val, len(suite.Entries))
+                } else {
+                    ctIndex = j
+                    cmn.LogInfo("Loop index reset fromn %d to %d", ctIndex+1, j)
+                }
+            }
+            cache.SetVal(LOOP_CACHE_INDEX_NAME, nil)    /* Clear the setting */
+        } else {
+            ctIndex++
+        }
+
         if err != nil {
             break
         }

@@ -31,11 +31,11 @@ const ZMQ_ADDRESS = "tcp://127.0.0.1:%d"
 
 var HALF_SECOND = time.Duration(500) * time.Millisecond
 
-var SOCK_SND_TIMEOUT = HALF_SECOND      /* Send max blocks .5 sec */
-var SOCK_RCV_TIMEOUT = HALF_SECOND      /* Recv max blocks .5 sec */
+var SOCK_SND_TIMEOUT = HALF_SECOND /* Send max blocks .5 sec */
+var SOCK_RCV_TIMEOUT = HALF_SECOND /* Recv max blocks .5 sec */
 
-var RES_CHANNEL_TIMEOUT = HALF_SECOND   /* Client req handler timeout to write res */
-var SUB_CHANNEL_TIMEOUT = HALF_SECOND   /* Sub handler timeout to write rcvd data */
+var RES_CHANNEL_TIMEOUT = HALF_SECOND /* Client req handler timeout to write res */
+var SUB_CHANNEL_TIMEOUT = HALF_SECOND /* Sub handler timeout to write rcvd data */
 
 var ZMQ_ASYNC_CONNECT_PAUSE = time.Duration(300) * time.Millisecond
 
@@ -60,7 +60,7 @@ const (
 )
 
 func getSockMode(sType zmq.Type) int {
-    switch(sType) {
+    switch sType {
     case zmq.PUB:
         return SOCK_MODE_SEND
     case zmq.SUB:
@@ -72,7 +72,6 @@ func getSockMode(sType zmq.Type) int {
         return 0
     }
 }
-
 
 type chModeData_t struct {
     types     chTypes_t
@@ -418,7 +417,7 @@ Loop:
             }
             if _, err = sock.SendMessage(topic, data); err != nil {
                 /*
-                 * Error could be timeout as we set SNDTIMEO. But we set it for 
+                 * Error could be timeout as we set SNDTIMEO. But we set it for
                  * 0.5 second (SOCK_SND_TIMEOUT). So no point in retrying even if
                  * it is timeout which comes as zmq.Errno(syscall.EAGAIN)
                  */
@@ -929,10 +928,10 @@ Loop:
         }
     }
     if req != nil {
-        close(req.chResData)    /* No more writes as it is per request */
+        close(req.chResData) /* No more writes as it is per request */
     }
     for _, r := range reqList {
-        close(r.chResData)      /* All waiting clients gets unblocked */
+        close(r.chResData) /* All waiting clients gets unblocked */
     }
     cmn.LogInfo("Terminating clientRequestHandler for (%s)", requester)
 }
