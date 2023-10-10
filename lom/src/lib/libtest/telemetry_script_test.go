@@ -15,6 +15,77 @@ var ch0 = make(chan tele.JsonString_t, 3)
 var ch0W chan<- tele.JsonString_t = ch0
 var ch0R <-chan tele.JsonString_t = ch0
 
+func toInt(lst []string) (ret []int, err error) {
+    ret = []int{}
+    for _, s := range lst {
+        i := 0
+        if i, err = strconv.Atoi(s); err != nil {
+            return
+        }
+        ret = append(ret, i)
+    }
+    return
+}
+
+func getInt(s string, defVal int) int {
+    if ctVal := GetSuiteCache().GetVal(s, nil, nil); ctVal != nil {
+        if i, ok := ctVal.(int); ok {
+            return i
+        }
+    }
+    return defVal
+}
+
+func testAnyFn(name string, val any) (ret any, err error) {
+    if name == ANONYMOUS {
+        err = cmn.LogError("Need non-Anonymous name")
+    } else if s, ok := val.(string); !ok {
+        err = cmn.LogError("Unknown val type(%T) (%v) for testAnyFn", val, val)
+    } else if lst := strings.Split(s, ","); len(lst) < 1 {
+        err = cmn.LogError("len(%d) < 1 (%v)", len(lst), lst)
+    } else if lst[0] == "SET" {
+        ret = func() []any {
+            ctCnt := getInt(name, 0) + 1
+            GetSuiteCache().SetVal(name, ctCnt)
+            // cmn.LogDebug("Called SET for (%s) setCnt(%d)", name, ctCnt)
+            return []any{}
+        }
+    } else if lst[0] == "GET" {
+        ret = func() []any {
+            getRet := GetSuiteCache().GetVal(name, nil, nil)
+            // cmn.LogDebug("Called GET for (%s) get(%v)(%T)", name, getRet, getRet)
+            return []any{getRet}
+        }
+    } else if lst[0] == "LOOP" {
+        var indices []int
+        if len(lst) < 4 {
+            err = cmn.LogError("Loop: len(%d) < 4 (%v)", len(lst), lst)
+        } else if name == ANONYMOUS {
+            err = cmn.LogError("Loop: Need name to save ct val")
+        } else if indices, err = toInt(lst[1:]); err != nil {
+        } else {
+            ctIndex := getInt(name, indices[0])
+            ret = func() []any {
+                if ctIndex < indices[1] {
+                    GetSuiteCache().SetVal(LOOP_CACHE_INDEX_NAME, indices[2])
+                    GetSuiteCache().SetVal(name, ctIndex+1)
+
+                }
+                // cmn.LogDebug("Called LOOP LoopCt(%d) lst(%v)", ctIndex, indices)
+                return []any{}
+            }
+        }
+    } else if lst[0] == "LOOPCORRUPT" {
+        ret = func() []any {
+            GetSuiteCache().SetVal(LOOP_CACHE_INDEX_NAME, "Junk")
+            return []any{}
+        }
+    } else {
+        err = cmn.LogError("Unknown val type(%T) (%v) for testAnyFn", val, val)
+    }
+    return
+}
+
 var FailRunOneScriptSuites = []ScriptSuite_t{
     ScriptSuite_t{
         Id:          "Non-Existing-API",
@@ -177,75 +248,45 @@ var FailRunOneScriptSuites = []ScriptSuite_t{
             },
         },
     },
+    ScriptSuite_t{
+        Id:          "TestAnyFailIncorrectIndexback",
+        Description: "",
+        Entries: []ScriptEntry_t{
+            ScriptEntry_t{
+                ApiIDAny,
+                []Param_t{Param_t{"Foo", "SET,", testAnyFn}},
+                []Result_t{NIL_ERROR},
+                "Call Any test",
+            },
+            ScriptEntry_t{
+                ApiIDAny,
+                []Param_t{Param_t{"LoopI", "LOOP,0,3,-2", testAnyFn}},
+                []Result_t{NIL_ERROR},
+                "-2 should fail index",
+            },
+        },
+    },
+    ScriptSuite_t{
+        Id:          "TestAnyFailCorruiptIndex",
+        Description: "",
+        Entries: []ScriptEntry_t{
+            ScriptEntry_t{
+                ApiIDAny,
+                []Param_t{Param_t{"Foo", "SET,", testAnyFn}},
+                []Result_t{NIL_ERROR},
+                "Call Any test",
+            },
+            ScriptEntry_t{
+                ApiIDAny,
+                []Param_t{Param_t{"LoopC", "LOOPCORRUPT,0,3,0", testAnyFn}},
+                []Result_t{NIL_ERROR},
+                "Index is set for incorrect data type",
+            },
+        },
+    },
 }
 
-func toInt(lst []string) (ret []int, err error) {
-    ret = []int{}
-    for _, s := range lst {
-        i := 0
-        if i, err = strconv.Atoi(s); err != nil {
-            return
-        }
-        ret = append(ret, i)
-    }
-    return
-}
-
-func getInt(s string, defVal int) int {
-    if ctVal := GetSuiteCache().GetVal(s, nil, nil); ctVal != nil {
-        if i, ok := ctVal.(int); ok {
-            return i
-        }
-    }
-    return defVal
-}
-
-func testAnyFn(name string, val any) (ret any, err error) {
-    if name == ANONYMOUS {
-        err = cmn.LogError("Need non-Anonymous name")
-    } else if s, ok := val.(string); !ok {
-        err = cmn.LogError("Unknown val type(%T) (%v) for testAnyFn", val, val)
-    } else if lst := strings.Split(s, ","); len(lst) < 1 {
-        err = cmn.LogError("len(%d) < 1 (%v)", len(lst), lst)
-    } else if lst[0] == "SET" {
-        ret = func() []any {
-            ctCnt := getInt(name, 0) + 1
-            GetSuiteCache().SetVal(name, ctCnt)
-            // cmn.LogDebug("Called SET for (%s) setCnt(%d)", name, ctCnt)
-            return []any{}
-        }
-    } else if lst[0] == "GET" {
-        ret = func() []any {
-            getRet := GetSuiteCache().GetVal(name, nil, nil)
-            // cmn.LogDebug("Called GET for (%s) get(%v)(%T)", name, getRet, getRet)
-            return []any{getRet}
-        }
-    } else if lst[0] == "LOOP" {
-        var indices []int
-        if len(lst) < 4 {
-            err = cmn.LogError("Loop: len(%d) < 4 (%v)", len(lst), lst)
-        } else if name == ANONYMOUS {
-            err = cmn.LogError("Loop: Need name to save ct val")
-        } else if indices, err = toInt(lst[1:]); err != nil {
-        } else {
-            ctIndex := getInt(name, indices[0])
-            ret = func() []any {
-                if ctIndex < indices[1] {
-                    GetSuiteCache().SetVal(LOOP_CACHE_INDEX_NAME, indices[2])
-                    GetSuiteCache().SetVal(name, ctIndex+1)
-
-                }
-                // cmn.LogDebug("Called LOOP LoopCt(%d) lst(%v)", ctIndex, indices)
-                return []any{}
-            }
-        }
-    } else {
-        err = cmn.LogError("Unknown val type(%T) (%v) for testAnyFn", val, val)
-    }
-    return
-}
-
-var xGoodRunOneScriptSuites = []ScriptSuite_t{
+var GoodRunOneScriptSuites = []ScriptSuite_t{
     ScriptSuite_t{
         Id:          "IdleChk-good",
         Description: "",
@@ -289,9 +330,6 @@ var xGoodRunOneScriptSuites = []ScriptSuite_t{
             },
         },
     },
-}
-
-var GoodRunOneScriptSuites = []ScriptSuite_t{
     ScriptSuite_t{
         Id:          "TestAny",
         Description: "",
@@ -304,14 +342,38 @@ var GoodRunOneScriptSuites = []ScriptSuite_t{
             },
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{"LoopI", "LOOP,0,1,0", testAnyFn}},
+                []Param_t{Param_t{"LoopI", "LOOP,0,3,0", testAnyFn}},
                 []Result_t{NIL_ERROR},
                 "Call Any loop",
             },
             ScriptEntry_t{
                 ApiIDAny,
                 []Param_t{Param_t{"Foo", "GET,", testAnyFn}},
-                []Result_t{Result_t{ANONYMOUS, 2, nil}, NIL_ERROR},
+                []Result_t{Result_t{ANONYMOUS, 4, nil}, NIL_ERROR},
+                "Check SET called twice",
+            },
+        },
+    },
+    ScriptSuite_t{
+        Id:          "TestAny",
+        Description: "",
+        Entries: []ScriptEntry_t{
+            ScriptEntry_t{
+                ApiIDAny,
+                []Param_t{Param_t{"Foo", "SET,", testAnyFn}},
+                []Result_t{NIL_ERROR},
+                "Call Any test",
+            },
+            ScriptEntry_t{
+                ApiIDAny,
+                []Param_t{Param_t{"LoopI", "LOOP,0,2,-1", testAnyFn}},
+                []Result_t{NIL_ERROR},
+                "Call Any loop",
+            },
+            ScriptEntry_t{
+                ApiIDAny,
+                []Param_t{Param_t{"Foo", "GET,", testAnyFn}},
+                []Result_t{Result_t{ANONYMOUS, 3, nil}, NIL_ERROR},
                 "Check SET called twice",
             },
         },

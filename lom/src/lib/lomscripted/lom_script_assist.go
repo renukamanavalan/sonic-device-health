@@ -169,7 +169,7 @@ func RunOneScriptSuite(suite *ScriptSuite_t) (err error) {
                             for i, e := range expL {
                                 if e != retL[i] {
                                     err = cmn.LogError("val Mismatch index(%d) (%s) != (%s)",
-                                        e, retL[i])
+                                        i, e, retL[i])
                                 }
                             }
                         }
@@ -192,7 +192,7 @@ func RunOneScriptSuite(suite *ScriptSuite_t) (err error) {
                 }
                 if (j < 0) || (j > len(suite.Entries)) {
                     err = cmn.LogError("Invalid (%s) ctIndex=%d new=%d val=%d len(%d)",
-                        ctIndex, j, val, len(suite.Entries))
+                        LOOP_CACHE_INDEX_NAME, ctIndex, j, val, len(suite.Entries))
                 } else {
                     ctIndex = j
                     cmn.LogInfo("Loop index reset fromn %d to %d", ctIndex+1, j)
