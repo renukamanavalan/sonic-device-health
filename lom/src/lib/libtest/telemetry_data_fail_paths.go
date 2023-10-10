@@ -110,7 +110,7 @@ var pubSubFailSuite = ScriptSuite_t{
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* No chan on error */
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* No chan on error */
-                NON_NIL_ERROR, /*Expect non nil error */
+                NON_NIL_ERROR,                         /*Expect non nil error */
             },
             "Expect request to fail due to incorrect request type",
         },
@@ -153,9 +153,9 @@ var scriptAPIValidate = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDGetPubChannel, /* Get a valid pub channel */
             []Param_t{
-                Param_t{ANONYMOUS, tele.CHANNEL_TYPE_ECHO, nil}, /* incorrect val*/
-                Param_t{"prod_PM", tele.CHANNEL_PRODUCER_PLMGR, nil},   /* from Plugin Mgr */
-                Param_t{"PMgr-1", "test", nil},                         /* non-empty suffix */
+                Param_t{ANONYMOUS, tele.CHANNEL_TYPE_ECHO, nil},      /* incorrect val*/
+                Param_t{"prod_PM", tele.CHANNEL_PRODUCER_PLMGR, nil}, /* from Plugin Mgr */
+                Param_t{"PMgr-1", "test", nil},                       /* non-empty suffix */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/
@@ -325,7 +325,7 @@ var scriptAPIValidate = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDReadClientResponse, /* Client read its response */
             []Param_t{
-                Param_t{ANONYMOUS, 1, nil},  /* timeout = 1 second */
+                Param_t{ANONYMOUS, 1, nil},         /* timeout = 1 second */
                 Param_t{"chClientRes-0", nil, nil}, /* Get chan from cache */
             },
             []Result_t{
@@ -361,8 +361,8 @@ var scriptAPIValidate = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDReadClientResponse, /* Client read its response */
             []Param_t{
-                Param_t{"chClientRes-0", nil, nil},     /* Get chan from cache */
-                Param_t{ANONYMOUS, "rere", nil}, /* timeout not int */
+                Param_t{"chClientRes-0", nil, nil}, /* Get chan from cache */
+                Param_t{ANONYMOUS, "rere", nil},    /* timeout not int */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/
@@ -374,7 +374,7 @@ var scriptAPIValidate = ScriptSuite_t{
             ApiIDReadClientResponse, /* Client read its response */
             []Param_t{
                 Param_t{"chClientRes-0", nil, nil}, /* Get chan from cache */
-                Param_t{ANONYMOUS, 1, nil},  /* timeout 1 sec */
+                Param_t{ANONYMOUS, 1, nil},         /* timeout 1 sec */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/
@@ -405,7 +405,7 @@ var scriptAPIValidate = ScriptSuite_t{
             ApiIDReadClientResponse, /* Client read its response */
             []Param_t{
                 Param_t{"chClientRes-0", nil, nil}, /* Get chan from cache */
-                Param_t{ANONYMOUS, 1, nil},  /* timeout 1 sec */
+                Param_t{ANONYMOUS, 1, nil},         /* timeout 1 sec */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/
@@ -461,8 +461,8 @@ var scriptAPIValidate = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDReadClientRequest,
             []Param_t{
-                Param_t{"chSerReq-0", nil, nil},      /* Get chRead_0 from cache */
-                Param_t{ANONYMOUS, true, nil}, /* Invalid timeout */
+                Param_t{"chSerReq-0", nil, nil}, /* Get chRead_0 from cache */
+                Param_t{ANONYMOUS, true, nil},   /* Invalid timeout */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/
@@ -473,8 +473,8 @@ var scriptAPIValidate = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDReadClientRequest,
             []Param_t{
-                Param_t{"chSerReq-0", nil, nil},   /* Get chRead_0 from cache */
-                Param_t{ANONYMOUS, 1, nil}, /* valid timeout */
+                Param_t{"chSerReq-0", nil, nil}, /* Get chRead_0 from cache */
+                Param_t{ANONYMOUS, 1, nil},      /* valid timeout */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* no result */
@@ -494,8 +494,8 @@ var scriptAPIValidate = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDReadClientRequest,
             []Param_t{
-                Param_t{"chSerReq-0", nil, nil},   /* Get from cache */
-                Param_t{ANONYMOUS, 1, nil}, /* valid timeout */
+                Param_t{"chSerReq-0", nil, nil}, /* Get from cache */
+                Param_t{ANONYMOUS, 1, nil},      /* valid timeout */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Read fails with timeout */
@@ -661,8 +661,8 @@ var scriptAPIValidate_2 = ScriptSuite_t{
             ApiIDWriteJsonStringsChannel,
             []Param_t{
                 Param_t{"validChJson", chWrNonNilJson, nil}, /* Use valid chan */
-                Param_t{ANONYMOUS, true, nil},        /* Incorrect arg */
-                Param_t{ANONYMOUS, 1, nil},           /* timeout = 1 second */
+                Param_t{ANONYMOUS, true, nil},               /* Incorrect arg */
+                Param_t{ANONYMOUS, 1, nil},                  /* timeout = 1 second */
             },
             []Result_t{NON_NIL_ERROR},
             "Incorrect second arg",
@@ -670,7 +670,7 @@ var scriptAPIValidate_2 = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDWriteJsonStringsChannel,
             []Param_t{
-                Param_t{"validChJson", nil, nil},                      /* Use valid chan from cache */
+                Param_t{"validChJson", nil, nil},               /* Use valid chan from cache */
                 Param_t{ANONYMOUS, []tele.JsonString_t{}, nil}, /* valid arg */
                 Param_t{ANONYMOUS, "1", nil},                   /* incorrect type */
             },
@@ -737,9 +737,9 @@ var scriptAPIValidate_2 = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDReadJsonStringsChannel,
             []Param_t{
-                Param_t{"validChRdJson", nil, nil},   /* Use valid chan from cache */
-                Param_t{ANONYMOUS, true, nil}, /* Incorrect arg. expect cnt */
-                Param_t{ANONYMOUS, 1, nil},    /* timeout = 1 second */
+                Param_t{"validChRdJson", nil, nil}, /* Use valid chan from cache */
+                Param_t{ANONYMOUS, true, nil},      /* Incorrect arg. expect cnt */
+                Param_t{ANONYMOUS, 1, nil},         /* timeout = 1 second */
             },
             []Result_t{NIL_ANY, NON_NIL_ERROR},
             "Incorrect second arg",
@@ -747,9 +747,9 @@ var scriptAPIValidate_2 = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDReadJsonStringsChannel,
             []Param_t{
-                Param_t{"validChRdJson", nil, nil},  /* Use valid chan from cache */
-                Param_t{ANONYMOUS, 1, nil},   /* valid arg */
-                Param_t{ANONYMOUS, "1", nil}, /* incorrect type */
+                Param_t{"validChRdJson", nil, nil}, /* Use valid chan from cache */
+                Param_t{ANONYMOUS, 1, nil},         /* valid arg */
+                Param_t{ANONYMOUS, "1", nil},       /* incorrect type */
             },
             []Result_t{NIL_ANY, NON_NIL_ERROR},
             "Incorrect third arg",

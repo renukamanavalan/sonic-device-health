@@ -35,8 +35,8 @@ var pubSubReqRepSuite = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDReadClientRequest, /* Server read req */
             []Param_t{
-                Param_t{"chSerReq-0", nil, nil},   /* Get chRead_0 from cache */
-                Param_t{ANONYMOUS, 1, nil}, /* timeout = 1 second */
+                Param_t{"chSerReq-0", nil, nil}, /* Get chRead_0 from cache */
+                Param_t{ANONYMOUS, 1, nil},      /* timeout = 1 second */
             },
             []Result_t{
                 Result_t{"req_0", nil, nil}, /* Validate against cache val for req_0 */
@@ -49,7 +49,7 @@ var pubSubReqRepSuite = ScriptSuite_t{
             []Param_t{
                 Param_t{"chSerRes-0", nil, nil},                     /* Use chan from cache */
                 Param_t{"res-0", tele.ServerRes_t("resp: ok"), nil}, /* Save written data in cache */
-                Param_t{ANONYMOUS, 1, nil},                   /* timeout = 1 second */
+                Param_t{ANONYMOUS, 1, nil},                          /* timeout = 1 second */
             },
             []Result_t{NIL_ERROR},
             "As server write your response",
@@ -58,7 +58,7 @@ var pubSubReqRepSuite = ScriptSuite_t{
             ApiIDReadClientResponse, /* Client read its response */
             []Param_t{
                 Param_t{"chClientRes-0", nil, nil}, /* Get chan from cache */
-                Param_t{ANONYMOUS, 1, nil},  /* timeout = 1 second */
+                Param_t{ANONYMOUS, 1, nil},         /* timeout = 1 second */
             },
             []Result_t{
                 Result_t{"res-0", nil, nil}, /* Validate against cache val for res_0 */
@@ -82,8 +82,8 @@ var pubSubReqRepSuite = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDReadClientRequest, /* Server read req */
             []Param_t{
-                Param_t{"chSerReq-0", nil, nil},   /* Get chRead_0 from cache */
-                Param_t{ANONYMOUS, 1, nil}, /* timeout = 1 second */
+                Param_t{"chSerReq-0", nil, nil}, /* Get chRead_0 from cache */
+                Param_t{ANONYMOUS, 1, nil},      /* timeout = 1 second */
             },
             []Result_t{
                 Result_t{"req_1", nil, nil}, /* Validate against cache val for req_1 */
@@ -96,7 +96,7 @@ var pubSubReqRepSuite = ScriptSuite_t{
             []Param_t{
                 Param_t{"chSerRes-0", nil, nil},                           /* Use chan from cache */
                 Param_t{"res_1", tele.ServerRes_t("resp: Hi Mars!"), nil}, /* Save written data in cache */
-                Param_t{ANONYMOUS, 1, nil},                         /* timeout = 1 second */
+                Param_t{ANONYMOUS, 1, nil},                                /* timeout = 1 second */
             },
             []Result_t{NIL_ERROR},
             "As server write your response",
@@ -105,7 +105,7 @@ var pubSubReqRepSuite = ScriptSuite_t{
             ApiIDReadClientResponse, /* Client read its response */
             []Param_t{
                 Param_t{"chClientRes-0", nil, nil}, /* Get chan from cache */
-                Param_t{ANONYMOUS, 1, nil},  /* timeout = 1 second */
+                Param_t{ANONYMOUS, 1, nil},         /* timeout = 1 second */
             },
             []Result_t{
                 Result_t{"res_1", nil, nil}, /* Validate against cache val for res_0 */

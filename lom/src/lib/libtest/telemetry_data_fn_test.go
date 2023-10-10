@@ -83,7 +83,7 @@ var pubSubFnSuite = ScriptSuite_t{
             []Param_t{
                 Param_t{"chWrite-0", nil, nil},            /* Use chan from cache */
                 Param_t{"pub_0", nil, getValdataInPlay_1}, /* Save written data in cache */
-                Param_t{ANONYMOUS, 1, nil},         /* timeout = 1 second */
+                Param_t{ANONYMOUS, 1, nil},                /* timeout = 1 second */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil},
@@ -93,9 +93,9 @@ var pubSubFnSuite = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDReadJsonStringsChannel,
             []Param_t{
-                Param_t{"chRead-0", nil, nil},     /* Get chRead_0 from cache */
-                Param_t{ANONYMOUS, 5, nil}, /* read cnt = 5 */
-                Param_t{ANONYMOUS, 1, nil}, /* timeout = 1 second */
+                Param_t{"chRead-0", nil, nil}, /* Get chRead_0 from cache */
+                Param_t{ANONYMOUS, 5, nil},    /* read cnt = 5 */
+                Param_t{ANONYMOUS, 1, nil},    /* timeout = 1 second */
             },
             []Result_t{
                 Result_t{"pub_0", nil, nil}, /* Validate against cache val for pub_0 */
@@ -106,7 +106,7 @@ var pubSubFnSuite = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDWriteJsonStringsChannel,
             []Param_t{
-                Param_t{"chWrite-0", nil, nil},               /* Use chan from cache */
+                Param_t{"chWrite-0", nil, nil},        /* Use chan from cache */
                 Param_t{ANONYMOUS, dataInPlay_1, nil}, /* Save written data in cache */
                 Param_t{ANONYMOUS, 1, nil},            /* timeout = 1 second */
             },
@@ -118,7 +118,7 @@ var pubSubFnSuite = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDReadJsonStringsChannel,
             []Param_t{
-                Param_t{"chRead-0", nil, nil},                      /* Get chRead_0 from cache */
+                Param_t{"chRead-0", nil, nil},               /* Get chRead_0 from cache */
                 Param_t{ANONYMOUS, nil, putValdataInPlay_1}, /* read into fn*/
                 Param_t{ANONYMOUS, 1, nil},                  /* timeout = 1 second */
             },

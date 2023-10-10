@@ -68,7 +68,7 @@ var pubSubShutdownSuite = ScriptSuite_t{
             "Take to LState_ReadReq - unsolicited response test",
         },
         ScriptEntry_t{ /* close res channel in LState_ReadReq state*/
-                        /* It will take SOCK_RCV_TIMEOUT - 0.5 second to realize */
+            /* It will take SOCK_RCV_TIMEOUT - 0.5 second to realize */
             ApiIDCloseChannel,
             []Param_t{
                 Param_t{"chSerRes-0", nil, nil}, /* Get from cache */
@@ -220,8 +220,8 @@ var pubSubShutdownSuite = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDReadClientRequest,
             []Param_t{
-                Param_t{"chSerReq-2", nil, nil},   /* Get from cache */
-                Param_t{ANONYMOUS, 1, nil}, /* valid timeout */
+                Param_t{"chSerReq-2", nil, nil}, /* Get from cache */
+                Param_t{ANONYMOUS, 1, nil},      /* valid timeout */
             },
             []Result_t{
                 Result_t{"req_2", nil, nil}, /* Validate against cache val for req_0 */
@@ -317,8 +317,8 @@ var pubSubShutdownSuite = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDReadClientRequest,
             []Param_t{
-                Param_t{"chSerReq-1", nil, nil},   /* Get chRead_0 from cache */
-                Param_t{ANONYMOUS, 1, nil}, /* valid timeout */
+                Param_t{"chSerReq-1", nil, nil}, /* Get chRead_0 from cache */
+                Param_t{ANONYMOUS, 1, nil},      /* valid timeout */
             },
             []Result_t{
                 Result_t{"req_1", nil, nil}, /* Validate against cache val for req_1 */
@@ -365,7 +365,7 @@ var pubSubShutdownSuite = ScriptSuite_t{
             []Result_t{NIL_ERROR},
             "Initiate system shutdown",
         },
-        TELE_IDLE_CHECK,        /* Expect all active handlers to go down */
+        TELE_IDLE_CHECK, /* Expect all active handlers to go down */
         ScriptEntry_t{
             ApiIDGetPubChannel, /* Simulate publish from engine */
             []Param_t{
@@ -411,7 +411,7 @@ var pubSubShutdownSuite = ScriptSuite_t{
         TELE_IDLE_CHECK,
         ScriptEntry_t{
             ApiIDInitSysShutdown,
-            []Param_t{ Param_t{ANONYMOUS, 2, nil} }, /* redundant arg */
+            []Param_t{Param_t{ANONYMOUS, 2, nil}}, /* redundant arg */
             []Result_t{NON_NIL_ERROR},
             "excess args to fail",
         },

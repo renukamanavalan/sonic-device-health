@@ -79,9 +79,9 @@ var pubSubSuite = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDReadJsonStringsChannel,
             []Param_t{
-                Param_t{"chRead-0", nil, nil},     /* Get chRead_0 from cache */
-                Param_t{ANONYMOUS, 1, nil}, /* read cnt = 1 */
-                Param_t{ANONYMOUS, 1, nil}, /* timeout = 1 second */
+                Param_t{"chRead-0", nil, nil}, /* Get chRead_0 from cache */
+                Param_t{ANONYMOUS, 1, nil},    /* read cnt = 1 */
+                Param_t{ANONYMOUS, 1, nil},    /* timeout = 1 second */
             },
             []Result_t{
                 Result_t{"pub_0", nil, nil}, /* Validate against cache val for pub_0 */
@@ -223,9 +223,9 @@ var pubSubMultiSuite = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDReadJsonStringsChannel,
             []Param_t{
-                Param_t{"chRead-C", nil, nil},     /* read counters */
-                Param_t{ANONYMOUS, 1, nil}, /* read cnt = 1 */
-                Param_t{ANONYMOUS, 1, nil}, /* timeout = 1 second */
+                Param_t{"chRead-C", nil, nil}, /* read counters */
+                Param_t{ANONYMOUS, 1, nil},    /* read cnt = 1 */
+                Param_t{ANONYMOUS, 1, nil},    /* timeout = 1 second */
             },
             []Result_t{
                 Result_t{"pub_C", nil, nil}, /* Validate against cache val for pub_C */
@@ -236,9 +236,9 @@ var pubSubMultiSuite = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDReadJsonStringsChannel,
             []Param_t{
-                Param_t{"chRead-E", nil, nil},     /* read counters */
-                Param_t{ANONYMOUS, 1, nil}, /* read cnt = 1 */
-                Param_t{ANONYMOUS, 1, nil}, /* timeout = 1 second */
+                Param_t{"chRead-E", nil, nil}, /* read counters */
+                Param_t{ANONYMOUS, 1, nil},    /* read cnt = 1 */
+                Param_t{ANONYMOUS, 1, nil},    /* timeout = 1 second */
             },
             []Result_t{
                 Result_t{"pub_E", nil, nil}, /* Validate against cache val for pub_E */
