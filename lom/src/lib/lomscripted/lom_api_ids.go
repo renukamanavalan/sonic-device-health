@@ -92,7 +92,7 @@ func (s SuiteCache_t) GetVal(name string, val any, getFn GetValFn_t) (vRet any) 
         case func() []any:
         default:
             /* Save only values not functions */
-            s.SetVal(name, vRet) /* overwrite */     /* TODO: Overwrite with vRet */
+            s.SetVal(name, vRet) /* overwrite */
         }
     } else if ct, ok := s[name]; ok {
         vRet = ct

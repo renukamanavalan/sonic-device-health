@@ -198,7 +198,7 @@ func RunOneScriptSuite(suite *ScriptSuite_t) (err error) {
                     cmn.LogInfo("Loop index reset fromn %d to %d", ctIndex+1, j)
                 }
             }
-            cache.SetVal(LOOP_CACHE_INDEX_NAME, nil)    /* Clear the setting */
+            cache.SetVal(LOOP_CACHE_INDEX_NAME, nil) /* Clear the setting */
         } else {
             ctIndex++
         }

@@ -6,6 +6,7 @@ import (
     "os"
     cmn "lom/src/lib/lomcommon"
     tele "lom/src/lib/lomtelemetry"
+    toolstele "lom/src/tools/telemetry"
 )
 
 type CmdFn_t func() error
@@ -60,6 +61,8 @@ func telePublish() (err error) {
 
 
 func teleSubscribe() (err error) {
+    suite := tele.GetSubSuite(chType, chProducer, outWriter)
+    err = RunOneScriptSuite(suite)
     return
 }
 
@@ -92,7 +95,7 @@ func GetFileReader(fl string) (ret *bufio.Reader, err error) {
             return
         }
     }
-    inReader - bufio.NewReader(fp)
+    inReader = bufio.NewReader(fp)
     return
 }
 
