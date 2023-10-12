@@ -77,7 +77,9 @@ func GetCacheIntWithDef(s string, defVal int) int {
 
 
 func LoopFn(name string, val any) (ret any, err error) {
-    if lst, ok := val.([]int); !ok || (len(lst) != 3) {
+    if name == ANONYMOUS {
+        err = cmn.LogError("Expect non-anonymous name to save loop index")
+    } else if lst, ok := val.([]int); !ok || (len(lst) != 3) {
         err = cmn.LogError("Expect int slice of len 3 (%T) (%v)", val, val)
     } else {
         ctIndex := GetCacheIntWithDef(name, lst[0])
