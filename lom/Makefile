@@ -44,10 +44,12 @@ CMN_C_LIB=$(BUILD_DIR)/lib/cmn_c_lib.so
 # Binaries used in LoM system
 ENGINE_BIN := $(BIN_DIR)/LoMEngine
 PLUGIN_MANAGER_BIN := $(BIN_DIR)/LoMPluginMgr
+CLI_BIN := $(BIN_DIR)/LoMCli
 
 # Test binaries/flags
 LIB_TEST = $(TEST_DIR)/LibTested
 ENGINE_TEST = $(TEST_DIR)/EngineTested
+CLI_TEST = $(TEST_DIR)/CliTested
 PLUGIN_MANAGER_TEST = $(TEST_DIR)/PluginManagerTested
 SONIC_DBCLIENT_TEST =$(TEST_DIR)/SonicDbClientTested
 PY_TEST = $(TEST_DIR)/pytested
@@ -132,7 +134,7 @@ clean-aggregate-file_coverage:
 
 .PHONY: all clean format_code clean-extract_file_coverage add-extract_file_coverage clean-aggregate-file_coverage add-aggregate_file_coverage COMMON_DEPS
 
-COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(LIB_TEST) $(ENGINE_TEST) \
+COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(CLI_BIN) $(LIB_TEST) $(ENGINE_TEST) $(CLI_TEST) \
 	$(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(SONIC_LINK_CRC_MOCKER_TEST) $(PLUGINS_COMMON_TEST) \
 	$(PY_TEST) $(INTEGRATION_TEST)
 
@@ -152,6 +154,11 @@ $(ENGINE_BIN): $(SRC_FILES)
 	mkdir -p $(BIN_DIR)
 	$(call build_golang,$@,lom/src/engine,)
 	@echo -e "Successfully Build lom-engine\n\n"
+
+$(CLI_BIN): $(SRC_FILES)
+	mkdir -p $(BIN_DIR)
+	$(call build_golang,$@,lom/src/tools,)
+	@echo -e "Successfully Build lom-cli\n\n"
 
 $(PLUGIN_MANAGER_BIN): $(SRC_FILES)
 	mkdir -p $(BIN_DIR)
@@ -181,6 +188,18 @@ $(ENGINE_TEST): $(SRC_FILES) $(TEST_FILES)
 	fi
 	touch $@
 	@echo -e "Successfully completed engine Test\n\n"
+
+$(CLI_TEST): $(SRC_FILES) $(TEST_FILES)
+	mkdir -p $(TEST_DIR)
+	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/CliCoverprofile.out \
+		-coverpkg lom/src/tools/toolstelemetry \
+		-covermode=atomic $(LIB_TEST_FLAGS) lom/src/tools/toolstelemetry || (echo "ToolsTest failed $$?"; exit 1)
+	${GO} tool cover -html=$(TEST_DIR)/ToolsCoverprofile.out -o $(TEST_DIR)/ToolsCoverprofile.html
+	@if [ -f "$(TEST_DIR)/ToolsCoverprofile.html" ]; then \
+		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/ToolsCoverprofile.html; \
+	fi
+	touch $@
+	@echo -e "Successfully completed lom-cli Test\n\n"
 
 $(PLUGIN_MANAGER_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
