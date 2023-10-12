@@ -66,6 +66,43 @@ var PAUSE1 = ScriptEntry_t{ /* Pause for 1 seconds */
     "Pause for 1 seconds",
 }
 
+func GetCacheIntWithDef(s string, defVal int) int {
+    if ctVal := GetSuiteCache().GetVal(s, nil, nil); ctVal != nil {
+        if i, ok := ctVal.(int); ok {
+            return i
+        }
+    }
+    return defVal
+}
+
+
+func LoopFn(name string, val any) (ret any, err error) {
+    if lst, ok := val.([]int); !ok || (len(lst) != 3) {
+        err = cmn.LogError("Expect int slice of len 3 (%T) (%v)", val, val)
+    } else {
+        ctIndex := GetCacheIntWithDef(name, lst[0])
+        ret = func() []any {
+            if ctIndex < lst[1] {
+                GetSuiteCache().SetVal(LOOP_CACHE_INDEX_NAME, lst[2])
+                GetSuiteCache().SetVal(name, ctIndex+1)
+            }
+            return []any{}
+        }
+    }
+    return
+}
+
+
+var SAMPLE_LOOP_ENTRY = ScriptEntry_t {
+    ApiIDAny,
+    []Param_t{
+        Param_t{"LoopI", []int{0,5,-2}, LoopFn},   /* min=0 cnt=5 jump-index=-2 */
+    },
+    []Result_t { NIL_ERROR },
+    "Loop for cnt times previous 2 entries",
+}
+
+
 var PAUSE2 = ScriptEntry_t{ /* Pause for 2 seconds */
     ApiIDPause,
     []Param_t{Param_t{ANONYMOUS, 2, nil}},

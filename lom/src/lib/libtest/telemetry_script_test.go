@@ -27,15 +27,6 @@ func toInt(lst []string) (ret []int, err error) {
     return
 }
 
-func getInt(s string, defVal int) int {
-    if ctVal := GetSuiteCache().GetVal(s, nil, nil); ctVal != nil {
-        if i, ok := ctVal.(int); ok {
-            return i
-        }
-    }
-    return defVal
-}
-
 func testAnyFn(name string, val any) (ret any, err error) {
     if name == ANONYMOUS {
         err = cmn.LogError("Need non-Anonymous name")
@@ -45,7 +36,7 @@ func testAnyFn(name string, val any) (ret any, err error) {
         err = cmn.LogError("len(%d) < 1 (%v)", len(lst), lst)
     } else if lst[0] == "SET" {
         ret = func() []any {
-            ctCnt := getInt(name, 0) + 1
+            ctCnt := GetCacheIntWithDef(name, 0) + 1
             GetSuiteCache().SetVal(name, ctCnt)
             // cmn.LogDebug("Called SET for (%s) setCnt(%d)", name, ctCnt)
             return []any{}
@@ -64,7 +55,7 @@ func testAnyFn(name string, val any) (ret any, err error) {
             err = cmn.LogError("Loop: Need name to save ct val")
         } else if indices, err = toInt(lst[1:]); err != nil {
         } else {
-            ctIndex := getInt(name, indices[0])
+            ctIndex := GetCacheIntWithDef(name, indices[0])
             ret = func() []any {
                 if ctIndex < indices[1] {
                     GetSuiteCache().SetVal(LOOP_CACHE_INDEX_NAME, indices[2])
