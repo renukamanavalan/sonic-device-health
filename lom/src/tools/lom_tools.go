@@ -1,6 +1,5 @@
 package main
 
-
 import (
     "lom/src/tools/toolsmain"
 )
@@ -8,4 +7,3 @@ import (
 func main() {
     toolsmain.RunMain()
 }
-

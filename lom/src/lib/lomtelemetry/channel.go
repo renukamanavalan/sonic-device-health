@@ -1,6 +1,6 @@
 package lomtelemetry
 
-import ( 
+import (
     "fmt"
 )
 
@@ -13,7 +13,7 @@ const (
     CHANNEL_TYPE_ECHO
     CHANNEL_TYPE_SCS
     CHANNEL_TYPE_TEST_REQ
-    CHANNEL_TYPE_CNT            /* Not valid entry - more for cnt & validation */
+    CHANNEL_TYPE_CNT /* Not valid entry - more for cnt & validation */
 )
 
 var CHANNEL_TYPE_STR = map[ChannelType_t]string{
@@ -34,7 +34,7 @@ const (
     CHANNEL_MODE_RESPONSE
     CHANNEL_MODE_PROXY_CTRL_PUB
     CHANNEL_MODE_PROXY_CTRL_SUB
-    CHANNEL_MODE_CNT            /* Not valid entry - more for cnt & validation */
+    CHANNEL_MODE_CNT /* Not valid entry - more for cnt & validation */
 )
 
 type ChannelProducer_t int
@@ -45,7 +45,7 @@ const (
     CHANNEL_PRODUCER_PLUGIN
     CHANNEL_PRODUCER_OTHER
     CHANNEL_PRODUCER_EMPTY
-    CHANNEL_PRODUCER_CNT        /* Not valid entry - more for cnt & validation */
+    CHANNEL_PRODUCER_CNT /* Not valid entry - more for cnt & validation */
 )
 
 type CHANNEL_PRODUCER_DATA_t struct {
@@ -72,7 +72,6 @@ func GetProdStr(producer ChannelProducer_t, suffix string) string {
         return CHANNEL_PRODUCER_STR[producer].pattern
     }
 }
-
 
 type JsonString_t string
 type ClientReq_t JsonString_t

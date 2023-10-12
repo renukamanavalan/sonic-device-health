@@ -75,7 +75,6 @@ func GetCacheIntWithDef(s string, defVal int) int {
     return defVal
 }
 
-
 func LoopFn(name string, val any) (ret any, err error) {
     if name == ANONYMOUS {
         err = cmn.LogError("Expect non-anonymous name to save loop index")
@@ -94,16 +93,14 @@ func LoopFn(name string, val any) (ret any, err error) {
     return
 }
 
-
-var SAMPLE_LOOP_ENTRY = ScriptEntry_t {
+var SAMPLE_LOOP_ENTRY = ScriptEntry_t{
     ApiIDAny,
     []Param_t{
-        Param_t{"LoopI", []int{0,5,-2}, LoopFn},   /* min=0 cnt=5 jump-index=-2 */
+        Param_t{"LoopI", []int{0, 5, -2}, LoopFn}, /* min=0 cnt=5 jump-index=-2 */
     },
-    []Result_t { NIL_ERROR },
+    []Result_t{NIL_ERROR},
     "Loop for cnt times previous 2 entries",
 }
-
 
 var PAUSE2 = ScriptEntry_t{ /* Pause for 2 seconds */
     ApiIDPause,

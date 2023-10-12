@@ -251,7 +251,7 @@ var FailRunOneScriptSuites = []ScriptSuite_t{
             },
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{"LoopI", []int{0,3,-2}, LoopFn}},
+                []Param_t{Param_t{"LoopI", []int{0, 3, -2}, LoopFn}},
                 []Result_t{NIL_ERROR},
                 "-2 should fail index",
             },
@@ -269,7 +269,7 @@ var FailRunOneScriptSuites = []ScriptSuite_t{
             },
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{ANONYMOUS, []int{0,3,-2}, LoopFn}},
+                []Param_t{Param_t{ANONYMOUS, []int{0, 3, -2}, LoopFn}},
                 []Result_t{NIL_ERROR},
                 "Require non-empty name for loop param",
             },
@@ -399,7 +399,7 @@ var GoodRunOneScriptSuites = []ScriptSuite_t{
             },
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{"LoopI", []int{0,-2}, LoopFn}},
+                []Param_t{Param_t{"LoopI", []int{0, -2}, LoopFn}},
                 []Result_t{NON_NIL_ERROR},
                 "Loop needs 3 ints in val",
             },
