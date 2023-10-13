@@ -31,6 +31,7 @@ const (
     ApiIDIsTelemetryIdle                  = "IsTelemetryIdle"
     ApiIDDoSysShutdown                    = "DoSysShutdown"
     ApiIDInitSysShutdown                  = "InitSysShutdown"
+    ApiIDAny                              = "AnyFn"
 )
 
 type ApiFn_t func(args []any, cache SuiteCache_t) []any
@@ -52,6 +53,7 @@ var LomAPIByIds = map[ApiId_t]ApiFn_t{
     ApiIDIsTelemetryIdle:          callIsTelemetryIdle,
     ApiIDDoSysShutdown:            callDoSysShutdown,
     ApiIDInitSysShutdown:          callInitSysShutdown,
+    ApiIDAny:                      callAnyFn,
 }
 
 const ANONYMOUS = ""
@@ -87,9 +89,10 @@ func (s SuiteCache_t) GetVal(name string, val any, getFn GetValFn_t) (vRet any) 
         switch vRet.(type) {
         case func(int, SuiteCache_t) (*StreamingDataEntity_t, error):
         case func(int, tele.JsonString_t, SuiteCache_t) (bool, error):
+        case func() []any:
         default:
             /* Save only values not functions */
-            s.SetVal(name, val) /* overwrite */
+            s.SetVal(name, vRet) /* overwrite */
         }
     } else if ct, ok := s[name]; ok {
         vRet = ct
@@ -109,3 +112,5 @@ type Param_t struct {
     GetFn GetValFn_t /* Fn to get param val */
     /* If nil expect this var to pre-exist in cache. */
 }
+
+type AnyFn_t func() []any

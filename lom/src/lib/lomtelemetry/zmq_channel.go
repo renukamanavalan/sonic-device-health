@@ -29,7 +29,14 @@ const ZMQ_PROXY_CTRL_PORT = 5950
 
 const ZMQ_ADDRESS = "tcp://127.0.0.1:%d"
 
-var SUB_CHANNEL_TIMEOUT = time.Duration(10) * time.Second
+var HALF_SECOND = time.Duration(500) * time.Millisecond
+
+var SOCK_SND_TIMEOUT = HALF_SECOND /* Send max blocks .5 sec */
+var SOCK_RCV_TIMEOUT = HALF_SECOND /* Recv max blocks .5 sec */
+
+var RES_CHANNEL_TIMEOUT = HALF_SECOND /* Client req handler timeout to write res */
+var SUB_CHANNEL_TIMEOUT = HALF_SECOND /* Sub handler timeout to write rcvd data */
+
 var ZMQ_ASYNC_CONNECT_PAUSE = time.Duration(300) * time.Millisecond
 
 /* Logical grouping of ChannelType_t values for validation use */
@@ -45,6 +52,25 @@ var reqrep_types = chTypes_t{
     CHANNEL_TYPE_ECHO:     true,
     CHANNEL_TYPE_SCS:      true,
     CHANNEL_TYPE_TEST_REQ: true,
+}
+
+const (
+    SOCK_MODE_SEND = 1
+    SOCK_MODE_RECV = 2
+)
+
+func getSockMode(sType zmq.Type) int {
+    switch sType {
+    case zmq.PUB:
+        return SOCK_MODE_SEND
+    case zmq.SUB:
+        return SOCK_MODE_RECV
+    case zmq.REQ, zmq.REP:
+        return SOCK_MODE_SEND | SOCK_MODE_RECV
+    default:
+        cmn.LogPanic("Unknown socket type (%v)", sType)
+        return 0
+    }
 }
 
 type chModeData_t struct {
@@ -269,6 +295,17 @@ func getSocket(mode channelMode_t, chType ChannelType_t, requester string) (sock
         /* Context termination will sleep this long, for any message drain */
     }
 
+    txMode := getSockMode(info.sType)
+    if err == nil {
+        if (txMode & SOCK_MODE_SEND) == SOCK_MODE_SEND {
+            err = sock.SetSndtimeo(SOCK_SND_TIMEOUT)
+        }
+    }
+    if err == nil {
+        if (txMode & SOCK_MODE_RECV) == SOCK_MODE_RECV {
+            err = sock.SetRcvtimeo(SOCK_RCV_TIMEOUT)
+        }
+    }
     if err == nil {
         socketsList.Store(sock, fmt.Sprintf("mode(%d)_chType(%d)_(%s)", mode, chType, requester))
         cmn.LogDebug("getSocket: sock(%v) requester(%s)", sock, requester)
@@ -379,6 +416,11 @@ Loop:
                 break Loop
             }
             if _, err = sock.SendMessage(topic, data); err != nil {
+                /*
+                 * Error could be timeout as we set SNDTIMEO. But we set it for
+                 * 0.5 second (SOCK_SND_TIMEOUT). So no point in retrying even if
+                 * it is timeout which comes as zmq.Errno(syscall.EAGAIN)
+                 */
                 /* Don't return; Just log error */
                 cmn.LogError("Failed to publish err(%v) requester(%s) data(%s)",
                     err, requester, data)
@@ -433,9 +475,7 @@ func manageSubscribe(chType ChannelType_t, topic string, chRes chan<- JsonString
     defer closeSocket(sock)
 
     if err == nil {
-        if err = sock.SetSubscribe(topic); err == nil {
-            err = sock.SetRcvtimeo(time.Second)
-        }
+        err = sock.SetSubscribe(topic)
     }
 
     if err != nil {
@@ -475,7 +515,7 @@ Loop:
         }
 
         if data, e := sock.RecvMessage(0); e == zmq.Errno(syscall.EAGAIN) {
-            /* Continue the loop */
+            /* Continue the loop. RCVTIMEO  is set for SOCK_RCV_TIMEOUT */
         } else if e != nil {
             cmn.LogError("Failed to receive msg err(%v) for (%s)", e, requester)
         } else if len(data) != 2 {
@@ -698,8 +738,9 @@ func runPubSubProxyInt(chType ChannelType_t, chCtrl <-chan int, chRet chan<- err
         /* Terminate proxy. Just a write breaks the zmq.Proxy loop. */
         if _, err = sock_ctrl_pub.Send("TERMINATE", 0); err != nil {
             cmn.LogError("Failed to write proxy control publisher to terminate proxy(%v)", err)
+        } else {
+            cmn.LogInfo("Signaled down zmq proxy")
         }
-        cmn.LogInfo("Signaled down zmq proxy")
     }()
 
     err = <-chShutErr
@@ -777,7 +818,8 @@ func clientRequestHandler(reqType ChannelType_t, chReq <-chan *reqInfo_t,
     }()
 
     if err == nil {
-        err = sock.SetRcvtimeo(time.Second)
+        /* Recv blocks on resp. Nake it smaller to enable not to miss future reqs */
+        err = sock.SetRcvtimeo(time.Duration(50) * time.Millisecond)
     }
     if err != nil {
         err = cmn.LogError("Failed to init clientRequestHandler sock(%p) err(%v) requester(%s)",
@@ -821,6 +863,11 @@ Loop:
                 break Loop
             }
             reqList = append(reqList, data)
+            /*
+             * TODO: Add a timestamp to req entry as time of read.
+             * If it can't be sent out within set timeout, abort & fail it
+             * w/o sending to server.
+             */
         case <-time.After(time.Duration(tout) * time.Second):
         }
 
@@ -830,15 +877,20 @@ Loop:
 
         if !state_recv {
             if len(reqList) != 0 {
-                tout = 0 /* No time pause until all requests are processed */
+                tout = 0 /* No time to pause until all requests are processed */
 
                 req = reqList[0]      /* Take first request */
                 reqList = reqList[1:] /* Remove first */
 
                 if _, err = sock.Send(string(req.reqData), 0); err != nil {
+                    /*
+                     * This could be timeout (EAGAIN). But timeout is 0.5 sec,
+                     * so treat it as failure. On failure this req gets dropped.
+                     */
                     /* Don't return; Just log error */
                     err = cmn.LogError("Failed to send request err(%v) requester(%s) data(%s)",
                         err, requester, req.reqData)
+                    /* code below will send response */
                 } else {
                     state_recv = true
                 }
@@ -847,8 +899,13 @@ Loop:
             }
         }
         if state_recv {
+            /*
+             * Request successfully sent. Wait for response. You can't timeout here
+             * and move on to next, as it being REQ-REP sock, you can't send again
+             * until we receive.
+             */
             if res, err = sock.Recv(0); err == zmq.Errno(syscall.EAGAIN) {
-                /* Do nothing */
+                /* Do nothing. Until recv, nothing can be sent. So stay in this state. */
             } else {
                 /* Receive complete with or w/o error */
                 state_recv = false
@@ -856,7 +913,16 @@ Loop:
         }
 
         if !state_recv && req != nil {
-            req.chResData <- &ClientRes_t{ServerRes_t(res), err}
+            /* Reach here upon successfully receiving response or on send failure */
+            select {
+            case req.chResData <- &ClientRes_t{ServerRes_t(res), err}:
+                /* Response sent back to caller via channel provided in request */
+            case <-time.After(RES_CHANNEL_TIMEOUT):
+                /*
+                 * Client who gave this chan is neither reading it nor gave a
+                 * buffered channel. Drop it and move on.
+                 */
+            }
             close(req.chResData) /* No more writes as it is per request */
             req = nil
         }
@@ -865,7 +931,7 @@ Loop:
         close(req.chResData) /* No more writes as it is per request */
     }
     for _, r := range reqList {
-        close(r.chResData)
+        close(r.chResData) /* All waiting clients gets unblocked */
     }
     cmn.LogInfo("Terminating clientRequestHandler for (%s)", requester)
 }
@@ -954,6 +1020,7 @@ func closeRequestChannel(reqType ChannelType_t) (err error) {
         if ch, ok := v.(chan *reqInfo_t); ok {
             clientReqChanList.Delete(reqType)
             close(ch)
+            cmn.LogDebug("closed client req channel for type (%s)", CHANNEL_TYPE_STR[reqType])
         } else {
             err = cmn.LogError("val for req(%d) is incorrect type. (chan *reqInfo_t) != (%T)",
                 reqType, v)
@@ -1008,10 +1075,6 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
         cleanupFn()
     }()
 
-    if err == nil {
-        err = sock.SetRcvtimeo(time.Second)
-    }
-
     if err != nil {
         err = cmn.LogError("Failed to init. sock(%p) requester(%s) err(%v)",
             sock, requester, err)
@@ -1065,32 +1128,27 @@ func serverRequestHandler(reqType ChannelType_t, chReq chan<- ClientReq_t,
     rcvReq := ""
 Loop:
     for {
-        cmn.LogDebug("DROP DROP; ctState = %d\n", ctState)
         switch ctState {
         case LState_ReadReq:
             /* Stay here until read request / shutdown */
             for {
+                /* Watch for shutdown or unsolicited response or close res channel */
                 select {
                 case <-chShutdown:
                     cmn.LogInfo("serverRequestHandler shutting down requester:(%s)", requester)
                     break Loop
                 case v, ok := <-chRes:
-                    if !ok {
-                        cmn.LogInfo("input response channel closed; Close this handler")
-                    } else {
-                        cmn.LogError("Receiving response w/o request (%v)(%T)", v, v)
-                    }
+                    cmn.LogInfo("input response channel closed/unsolicited ok=(%v) v(%v); Close this handler", ok, v)
                     break Loop
-                case <-time.After(time.Millisecond):
-                    /* Helps to get back to reading request from client via socket */
+                default:
                 }
+                /* Receive blocks for SOCK_RCV_TIMEOUT */
                 if rcvReq, err = sock.Recv(0); err == zmq.Errno(syscall.EAGAIN) {
                     /* Continue the loop */
                 } else if err != nil {
                     cmn.LogError("Failed to receive msg err(%v for (%s)", requester)
                 } else {
                     ctState = LState_WriteReq
-                    cmn.LogDebug("DROP DROP; change state: ctState = %d\n", ctState)
                     break /* Break from this for loop */
                 }
             }
@@ -1110,7 +1168,6 @@ Loop:
             case chReq <- ClientReq_t(rcvReq):
                 /* Send request to registered server side handler */
                 ctState = LState_ReadRes
-                cmn.LogDebug("DROP DROP; change state: ctState = %d\n", ctState)
             }
         case LState_ReadRes:
             /* Stay here until response from handler or shutdown */
@@ -1129,7 +1186,6 @@ Loop:
                         cmn.LogDebug("Sent response back to client (%v)(%T)", v, v)
                     }
                     ctState = LState_ReadReq
-                    cmn.LogDebug("DROP DROP; change state: ctState = %d\n", ctState)
                 }
             }
         }

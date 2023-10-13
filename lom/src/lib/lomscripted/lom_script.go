@@ -1,8 +1,6 @@
 package lomscripted
 
 import (
-    "errors"
-    "fmt"
     "time"
 
     cmn "lom/src/lib/lomcommon"
@@ -84,13 +82,13 @@ func callReadClientResponse(args []any, cache SuiteCache_t) []any {
         select {
         case v, ok := <-ch:
             if !ok {
-                err = errors.New("CLOSED")
+                err = cmn.LogError("CLOSED")
             } else {
                 err = v.Err
                 val = v.Res
             }
         case <-time.After(time.Duration(tout) * time.Second):
-            err = errors.New("TIMEOUT")
+            err = cmn.LogError("TIMEOUT")
         }
     }
     return []any{val, err}
@@ -133,7 +131,7 @@ func callSendClientResponse(args []any, cache SuiteCache_t) []any {
         case ch <- res:
 
         case <-time.After(time.Duration(tout) * time.Second):
-            err = errors.New(fmt.Sprintf("SendClientResponse TIMEOUT (%d) secs", tout))
+            err = cmn.LogError("SendClientResponse TIMEOUT (%d) secs", tout)
         }
     }
     return []any{err}
@@ -156,10 +154,11 @@ func writeJsonStringsData(ch chan<- tele.JsonString_t, d []tele.JsonString_t, to
     for i, val := range d {
         select {
         case ch <- val:
+            cmn.LogDebug("DROP DROP: writeJsonStringsData (%d):(%s)", i, val)
 
         case <-time.After(time.Duration(tout) * time.Second):
-            err = errors.New(fmt.Sprintf("Write chan timeout on index(%d/%d) after (%d) seconds",
-                i, len(d), tout))
+            err = cmn.LogError("Write chan timeout on index(%d/%d) after (%d) seconds",
+                i, len(d), tout)
             return
         }
     }
@@ -208,14 +207,15 @@ Loop:
         select {
         case val, ok := <-ch:
             if !ok {
-                err = errors.New("CLOSED")
+                err = cmn.LogError("CLOSED")
                 break Loop
             } else {
+                cmn.LogDebug("DROP DROP: readJsonStrings (%d): (%s)", i, val)
                 vals = append(vals, val)
             }
 
         case <-time.After(time.Duration(tout) * time.Second):
-            err = errors.New("TIMEOUT")
+            err = cmn.LogError("TIMEOUT")
             break Loop
         }
     }
@@ -229,7 +229,8 @@ func readJsonStringStreaming(ch <-chan tele.JsonString_t, tout int, wrFn PutValS
     cache SuiteCache_t) (err error) {
     more := true
     for i := 0; more && (err == nil); i++ {
-        if vals, err := readJsonStrings(ch, tout, 1); err == nil {
+        var vals []tele.JsonString_t
+        if vals, err = readJsonStrings(ch, tout, 1); err == nil {
             more, err = wrFn(i, vals[0], cache)
         }
     }
@@ -332,6 +333,17 @@ func callInitSysShutdown(args []any, cache SuiteCache_t) []any {
         cmn.InitSysShutdown()
     }
     return []any{err}
+}
+
+func callAnyFn(args []any, cache SuiteCache_t) (ret []any) {
+    if len(args) != 1 {
+        ret = append(ret, cmn.LogError("Need fn to call. Expect 1. Got(%d)", len(args)))
+    } else if fn, ok := args[0].(func() []any); !ok {
+        ret = append(ret, cmn.LogError("Incorrect type AnyFn_t != (%T)", args[0]))
+    } else {
+        ret = append(fn(), nil)
+    }
+    return
 }
 
 func CallByApiID(api ApiId_t, args []Param_t, cache SuiteCache_t) (retVals []any, ok bool) {
