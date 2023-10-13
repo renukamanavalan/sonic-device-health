@@ -76,7 +76,7 @@ func SetPrefix(p string) {
 }
 
 func getPrefix(skip int) string {
-    prefix := apprefix
+    caller := ""
     if _, fl, ln, ok := runtime.Caller(skip); ok {
         /*
          * sample fl = /home/localadmin/tools/go/caller/t.go
@@ -96,9 +96,9 @@ func getPrefix(skip int) string {
             c -= 1 /* go for 2 if you can. Note: with leading slash first is null */
         }
         /* prefix = caller/t.go, for the example above */
-        prefix = prefix + fmt.Sprintf("%s:%d:", strings.Join(l[c-1:], "/"), ln)
+        caller = fmt.Sprintf("%s:%d:", strings.Join(l[c-1:], "/"), ln)
     }
-    return prefix
+    return apprefix + time.Now().Format("2006-01-02T15:04:05.000") + ": " + caller
 }
 
 /*
@@ -616,6 +616,7 @@ func AddOneShotTimer(tout int64, msg string, f func()) *OneShotEntry_t {
         go oneShotTimer.runOneShotTimer()
         LogDebug("Started oneShotTimer.runOneShotTimer")
     }
+    LogMessageWithSkip(1, syslog.LOG_DEBUG, "oneShotTimer: (%v) (%s)", tout, msg)
     /* Caller can disable and/or get status; optional */
     return tmr
 }

@@ -708,6 +708,8 @@ func runPubSubProxyInt(chType ChannelType_t, chCtrl <-chan int, chRet chan<- err
         var sock_ctrl_pub *zmq.Socket
 
         sock_ctrl_pub, err = getSocket(CHANNEL_MODE_PROXY_CTRL_PUB, chType, "ctrl-pub-for-proxy")
+        /* Get time now */
+        tSt := time.Now().UnixMilli()
 
         chShutErr <- err
         close(chShutErr)
@@ -735,6 +737,15 @@ func runPubSubProxyInt(chType ChannelType_t, chCtrl <-chan int, chRet chan<- err
         }
         cmn.LogInfo("Signalling down zmq proxy")
 
+        /*
+         * Make sure at the least 400ms passed since PUB sock creation to let it
+         * become available. Any send before it completes its async connection
+         * will be dropped.
+         */
+        if tCt := time.Now().UnixMilli(); tCt-tSt <= 400 {
+            time.Sleep(time.Duration(400-(tCt-tSt)) * time.Millisecond)
+            cmn.LogInfo("Pause for ctrl-pub-for-proxy for (%d) milliseconds", (400 - (tCt - tSt)))
+        }
         /* Terminate proxy. Just a write breaks the zmq.Proxy loop. */
         if _, err = sock_ctrl_pub.Send("TERMINATE", 0); err != nil {
             cmn.LogError("Failed to write proxy control publisher to terminate proxy(%v)", err)

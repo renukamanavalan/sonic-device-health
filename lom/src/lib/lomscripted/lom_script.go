@@ -313,6 +313,74 @@ func callIsTelemetryIdle(args []any, cache SuiteCache_t) []any {
     return []any{ret, err}
 }
 
+func callTelemetryServiceInit(args []any, cache SuiteCache_t) []any {
+    var err error
+    if len(args) != 0 {
+        err = cmn.LogError("TelemetryServiceInit needs no args (%d)", len(args))
+    } else {
+        err = tele.TelemetryServiceInit()
+    }
+    return []any{err}
+}
+
+func callTelemetryServiceShut(args []any, cache SuiteCache_t) []any {
+    var err error
+    if len(args) != 0 {
+        err = cmn.LogError("TelemetryServiceInit needs no args (%d)", len(args))
+    } else {
+        tele.TelemetryServiceShut()
+    }
+    return []any{err}
+}
+
+func callPublishInit(args []any, cache SuiteCache_t) []any {
+    var err error
+    if len(args) != 2 {
+        err = cmn.LogError("GetPubChannel expects 2 args. Given=%d", len(args))
+    } else if producer, ok := args[0].(tele.ChannelProducer_t); !ok {
+        err = cmn.LogError("Expect tele.ChannelProducer_t != type(%T)", args[0])
+    } else if suffix, ok := args[1].(string); !ok {
+        err = cmn.LogError("Expect string != type(%T)", args[1])
+    } else {
+        err = tele.PublishInit(producer, suffix)
+    }
+    return []any{err}
+}
+
+func callPublishTerminate(args []any, cache SuiteCache_t) []any {
+    var err error
+    if len(args) != 0 {
+        err = cmn.LogError("TelemetryServiceInit needs no args (%d)", len(args))
+    } else {
+        tele.PublishTerminate()
+    }
+    return []any{err}
+}
+
+func callPublishEvent(args []any, cache SuiteCache_t) []any {
+    var err error
+    if len(args) != 1 {
+        err = cmn.LogError("PublishEvent needs 1 args (%d)", len(args))
+    } else if data, ok := args[0].(any); !ok {
+        err = cmn.LogError("Expect data type any != type(%T)", args[0])
+    } else {
+        err = tele.PublishEvent(data)
+    }
+    return []any{err}
+}
+
+func callPublishCounters(args []any, cache SuiteCache_t) []any {
+    var err error
+    if len(args) != 1 {
+        err = cmn.LogError("PublishCounters needs 1 args (%d)", len(args))
+    } else if data, ok := args[0].(any); !ok {
+        err = cmn.LogError("Expect data type any != type(%T)", args[0])
+    } else {
+        err = tele.PublishCounters(data)
+    }
+    return []any{err}
+}
+
 func callDoSysShutdown(args []any, cache SuiteCache_t) []any {
     var err error
     if len(args) != 1 {

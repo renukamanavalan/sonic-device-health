@@ -405,7 +405,7 @@ func (p *SeqHandler_t) publishResponse(res *ActionResponseData, complete bool) {
                 m.State = ANOMALY_PUB_STATUS_COMPLETE
             }
         }
-        PublishEvent(m)
+        publishEngineEvent(m)
     }
 }
 

@@ -2,6 +2,7 @@ package lomtelemetry
 
 import (
     "fmt"
+    cmn "lom/src/lib/lomcommon"
 )
 
 type ChannelType_t int
@@ -61,16 +62,19 @@ var CHANNEL_PRODUCER_STR = map[ChannelProducer_t]CHANNEL_PRODUCER_DATA_t{
     CHANNEL_PRODUCER_EMPTY:  CHANNEL_PRODUCER_DATA_t{"", false},
 }
 
-func GetProdStr(producer ChannelProducer_t, suffix string) string {
+func GetProdStr(producer ChannelProducer_t, suffix string) (
+    ret string, err error) {
     d := CHANNEL_PRODUCER_STR[producer]
     if d.suffix_required {
         if suffix == "" {
-            suffix = "<UNKNOWN>"
+            err = cmn.LogError("Require suffix for producer (%+v)", CHANNEL_PRODUCER_STR[producer])
+        } else {
+            ret = fmt.Sprintf(CHANNEL_PRODUCER_STR[producer].pattern, suffix)
         }
-        return fmt.Sprintf(CHANNEL_PRODUCER_STR[producer].pattern, suffix)
     } else {
-        return CHANNEL_PRODUCER_STR[producer].pattern
+        ret = CHANNEL_PRODUCER_STR[producer].pattern
     }
+    return
 }
 
 type JsonString_t string

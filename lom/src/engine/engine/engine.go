@@ -5,6 +5,7 @@ import (
     "flag"
     . "lom/src/lib/lomcommon"
     . "lom/src/lib/lomipc"
+    tele "lom/src/lib/lomtelemetry"
     "os"
     "os/signal"
     "syscall"
@@ -22,6 +23,12 @@ type engine_t struct {
 
 var cfgPath = ""
 var engineInst *engine_t
+
+var publishEventFn = tele.PublishEvent
+
+func publishEngineEvent(data any) error {
+    return publishEventFn(data)
+}
 
 /*
  * Read client requests via engine Lib API and route it to
@@ -167,6 +174,14 @@ func EngineStartup(path string) (*engine_t, error) {
     tx, err := ServerInit()
     if err != nil {
         return nil, LogError("Failed to call ServerInit")
+    }
+
+    if err = tele.TelemetryServiceInit(); err != nil {
+        return nil, LogError("Failed to init telemetry")
+    }
+
+    if err = tele.PublishInit(tele.CHANNEL_PRODUCER_ENGINE, ""); err != nil {
+        return nil, LogError("Failed to init telemetry publish")
     }
 
     chTrack := make(chan int, 2)     /* To track start/end of loop */

@@ -66,9 +66,9 @@ func telePublish() error {
         tele.ChannelProducer_t(*chProducerP), *chProducerSuffixP, inReader); err != nil {
         return err
     } else {
+        prStr, _ := tele.GetProdStr(tele.ChannelProducer_t(*chProducerP), *chProducerSuffixP)
         cmn.LogInfo("Running Publish for chType(%s) chProducer(%s) for file(%s)",
-            tele.CHANNEL_TYPE_STR[tele.ChannelType_t(*chTypeP)],
-            tele.GetProdStr(tele.ChannelProducer_t(*chProducerP), *chProducerSuffixP), *inFileP)
+            tele.CHANNEL_TYPE_STR[tele.ChannelType_t(*chTypeP)], prStr, *inFileP)
         return script.RunOneScriptSuite(suite)
     }
 }
@@ -78,9 +78,9 @@ func teleSubscribe() error {
         tele.ChannelProducer_t(*chProducerP), *chProducerSuffixP, outWriter); err != nil {
         return err
     } else {
+        prStr, _ := tele.GetProdStr(tele.ChannelProducer_t(*chProducerP), *chProducerSuffixP)
         cmn.LogInfo("Running Subscribe for chType(%s) chProducer(%s) for file(%s)",
-            tele.CHANNEL_TYPE_STR[tele.ChannelType_t(*chTypeP)],
-            tele.GetProdStr(tele.ChannelProducer_t(*chProducerP), *chProducerSuffixP), *outFileP)
+            tele.CHANNEL_TYPE_STR[tele.ChannelType_t(*chTypeP)], prStr, *outFileP)
         return script.RunOneScriptSuite(suite)
     }
 }
