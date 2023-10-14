@@ -4,6 +4,7 @@ import (
     "errors"
     . "lom/src/lib/lomscripted"
     tele "lom/src/lib/lomtelemetry"
+    "math"
 )
 
 var pubSubFailSuite = ScriptSuite_t{
@@ -126,6 +127,132 @@ var scriptAPIValidate = ScriptSuite_t{
     Id:          "ScriptAPIValidation", /* All the below are for failure only */
     Description: "For corner & failure cases",
     Entries: []ScriptEntry_t{
+        ScriptEntry_t{
+            ApiIDTelemetryServiceInit,
+            []Param_t{
+                Param_t{ANONYMOUS, 1, nil}, /* Redundant arg */
+            },
+            []Result_t{
+                NON_NIL_ERROR,
+            },
+            "Excess args",
+        },
+        ScriptEntry_t{
+            ApiIDTelemetryServiceShut,
+            []Param_t{
+                Param_t{ANONYMOUS, 1, nil}, /* Redundant arg */
+            },
+            []Result_t{
+                NON_NIL_ERROR,
+            },
+            "Excess args",
+        },
+        ScriptEntry_t{
+            ApiIDPublishInit,
+            []Param_t{
+                Param_t{ANONYMOUS, 1, nil}, /* Redundant arg */
+            },
+            []Result_t{
+                NON_NIL_ERROR,
+            },
+            "fewer args",
+        },
+        ScriptEntry_t{
+            ApiIDPublishInit,
+            []Param_t{
+                Param_t{ANONYMOUS, true, nil}, /* Incorrect arg */
+                Param_t{ANONYMOUS, "", nil},   /* Correct arg */
+            },
+            []Result_t{
+                NON_NIL_ERROR,
+            },
+            "Incorrect first arg",
+        },
+        ScriptEntry_t{
+            ApiIDPublishInit,
+            []Param_t{
+                Param_t{ANONYMOUS, tele.ChannelProducer_t(0), nil}, /* Correct arg */
+                Param_t{ANONYMOUS, true, nil},                      /* incorrect arg */
+            },
+            []Result_t{
+                NON_NIL_ERROR,
+            },
+            "Incorrect second arg",
+        },
+        ScriptEntry_t{
+            ApiIDPublishInit,
+            []Param_t{
+                Param_t{ANONYMOUS, tele.ChannelProducer_t(1), nil}, /* Correct arg */
+                Param_t{ANONYMOUS, "", nil},                        /* require non-empty*/
+            },
+            []Result_t{
+                NON_NIL_ERROR,
+            },
+            "Incorrect second arg",
+        },
+        ScriptEntry_t{
+            ApiIDPublishEvent,
+            []Param_t{
+                Param_t{ANONYMOUS, "{}", nil}, /* good arg */
+            },
+            []Result_t{
+                NON_NIL_ERROR,
+            },
+            "Last publish init has left behind incorrect values",
+        },
+        ScriptEntry_t{
+            ApiIDPublishTerminate,
+            []Param_t{
+                Param_t{ANONYMOUS, 1, nil}, /* Redundant arg */
+            },
+            []Result_t{
+                NON_NIL_ERROR,
+            },
+            "Excess args",
+        },
+        ScriptEntry_t{
+            ApiIDPublishEvent,
+            []Param_t{
+                Param_t{ANONYMOUS, 1, nil}, /* Redundant arg */
+                Param_t{ANONYMOUS, 1, nil}, /* Redundant arg */
+            },
+            []Result_t{
+                NON_NIL_ERROR,
+            },
+            "Excess args",
+        },
+        ScriptEntry_t{
+            ApiIDPublishEvent,
+            []Param_t{
+                Param_t{ANONYMOUS, math.Inf(1), nil}, /* Redundant arg */
+            },
+            []Result_t{
+                NON_NIL_ERROR,
+            },
+            "Incorrect JSON val",
+        },
+        ScriptEntry_t{
+            ApiIDPublishCounters,
+            []Param_t{
+                Param_t{ANONYMOUS, math.Inf(1), nil}, /* Redundant arg */
+            },
+            []Result_t{
+                NON_NIL_ERROR,
+            },
+            "Incorrect JSON val",
+        },
+        ScriptEntry_t{
+            ApiIDPublishCounters,
+            []Param_t{},
+            []Result_t{NON_NIL_ERROR},
+            "Fewer args",
+        },
+        ScriptEntry_t{
+            ApiIDAny,
+            []Param_t{},
+            []Result_t{NON_NIL_ERROR},
+            "Fewer args",
+        },
         ScriptEntry_t{
             ApiIDGetPubChannel,
             []Param_t{

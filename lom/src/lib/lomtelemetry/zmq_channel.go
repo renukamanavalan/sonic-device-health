@@ -55,45 +55,40 @@ var reqrep_types = chTypes_t{
 }
 
 const (
-    SOCK_MODE_SEND = 1
-    SOCK_MODE_RECV = 2
+    SOCK_MODE_SEND    = 1
+    SOCK_MODE_RECV    = 2
+    SOCK_MODE_SND_RCV = (SOCK_MODE_SEND | SOCK_MODE_RECV)
 )
-
-func getSockMode(sType zmq.Type) int {
-    switch sType {
-    case zmq.PUB:
-        return SOCK_MODE_SEND
-    case zmq.SUB:
-        return SOCK_MODE_RECV
-    case zmq.REQ, zmq.REP:
-        return SOCK_MODE_SEND | SOCK_MODE_RECV
-    default:
-        cmn.LogPanic("Unknown socket type (%v)", sType)
-        return 0
-    }
-}
 
 type chModeData_t struct {
     types     chTypes_t
     startPort int
     sType     zmq.Type
     isConnect bool /* connect / bind socket */
+    mode      int  /* SOCK_MODE_* */
 }
 
 /* Mapping mode to acceptable types for validation */
 var chModeInfo = map[channelMode_t]chModeData_t{
-    CHANNEL_MODE_PUBLISHER:      chModeData_t{pubsub_types, ZMQ_XSUB_START_PORT, zmq.PUB, true},
-    CHANNEL_MODE_SUBSCRIBER:     chModeData_t{pubsub_types, ZMQ_XPUB_START_PORT, zmq.SUB, true},
-    CHANNEL_MODE_REQUEST:        chModeData_t{reqrep_types, ZMQ_REQ_REP_START_PORT, zmq.REQ, true},
-    CHANNEL_MODE_RESPONSE:       chModeData_t{reqrep_types, ZMQ_REQ_REP_START_PORT, zmq.REP, false},
-    CHANNEL_MODE_PROXY_CTRL_PUB: chModeData_t{pubsub_types, ZMQ_PROXY_CTRL_PORT, zmq.PUB, false},
-    CHANNEL_MODE_PROXY_CTRL_SUB: chModeData_t{pubsub_types, ZMQ_PROXY_CTRL_PORT, zmq.SUB, true},
+    CHANNEL_MODE_PUBLISHER: chModeData_t{
+        pubsub_types, ZMQ_XSUB_START_PORT, zmq.PUB, true, SOCK_MODE_SEND},
+    CHANNEL_MODE_SUBSCRIBER: chModeData_t{
+        pubsub_types, ZMQ_XPUB_START_PORT, zmq.SUB, true, SOCK_MODE_RECV},
+    CHANNEL_MODE_REQUEST: chModeData_t{
+        reqrep_types, ZMQ_REQ_REP_START_PORT, zmq.REQ, true, SOCK_MODE_SND_RCV},
+    CHANNEL_MODE_RESPONSE: chModeData_t{
+        reqrep_types, ZMQ_REQ_REP_START_PORT, zmq.REP, false, SOCK_MODE_SND_RCV},
+    CHANNEL_MODE_PROXY_CTRL_PUB: chModeData_t{
+        pubsub_types, ZMQ_PROXY_CTRL_PORT, zmq.PUB, false, SOCK_MODE_SEND},
+    CHANNEL_MODE_PROXY_CTRL_SUB: chModeData_t{
+        pubsub_types, ZMQ_PROXY_CTRL_PORT, zmq.SUB, true, SOCK_MODE_RECV},
 }
 
 type sockInfo_t struct {
     address   string
     sType     zmq.Type
     isConnect bool
+    mode      int
 }
 
 /* Global variables tracking all active objects */
@@ -168,8 +163,7 @@ func getAddress(mode channelMode_t, chType ChannelType_t) (sockInfo *sockInfo_t,
     } else {
         sockInfo = &sockInfo_t{
             fmt.Sprintf(ZMQ_ADDRESS, info.startPort+int(chType)),
-            info.sType,
-            info.isConnect}
+            info.sType, info.isConnect, info.mode}
         cmn.LogDebug("Address: (%+v) mode=(%v) chType(%s)\n", *sockInfo, mode, CHANNEL_TYPE_STR[chType])
     }
     return
@@ -295,14 +289,13 @@ func getSocket(mode channelMode_t, chType ChannelType_t, requester string) (sock
         /* Context termination will sleep this long, for any message drain */
     }
 
-    txMode := getSockMode(info.sType)
     if err == nil {
-        if (txMode & SOCK_MODE_SEND) == SOCK_MODE_SEND {
+        if (info.mode & SOCK_MODE_SEND) == SOCK_MODE_SEND {
             err = sock.SetSndtimeo(SOCK_SND_TIMEOUT)
         }
     }
     if err == nil {
-        if (txMode & SOCK_MODE_RECV) == SOCK_MODE_RECV {
+        if (info.mode & SOCK_MODE_RECV) == SOCK_MODE_RECV {
             err = sock.SetRcvtimeo(SOCK_RCV_TIMEOUT)
         }
     }

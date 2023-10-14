@@ -361,10 +361,8 @@ func callPublishEvent(args []any, cache SuiteCache_t) []any {
     var err error
     if len(args) != 1 {
         err = cmn.LogError("PublishEvent needs 1 args (%d)", len(args))
-    } else if data, ok := args[0].(any); !ok {
-        err = cmn.LogError("Expect data type any != type(%T)", args[0])
     } else {
-        err = tele.PublishEvent(data)
+        err = tele.PublishEvent(args[0])
     }
     return []any{err}
 }
@@ -373,10 +371,8 @@ func callPublishCounters(args []any, cache SuiteCache_t) []any {
     var err error
     if len(args) != 1 {
         err = cmn.LogError("PublishCounters needs 1 args (%d)", len(args))
-    } else if data, ok := args[0].(any); !ok {
-        err = cmn.LogError("Expect data type any != type(%T)", args[0])
     } else {
-        err = tele.PublishCounters(data)
+        err = tele.PublishCounters(args[0])
     }
     return []any{err}
 }
