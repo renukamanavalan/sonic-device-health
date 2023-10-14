@@ -27,6 +27,12 @@ const (
     ApiIDSendClientResponse               = "SendClientResponse"
     ApiIDCloseRequestChannel              = "CloseRequestChannel"
     ApiIDCloseChannel                     = "CloseChannel"
+    ApiIDPublishEvent                     = "PublishEvent"
+    ApiIDPublishCounters                  = "PublishCounters"
+    ApiIDPublishInit                      = "PublishInit"
+    ApiIDPublishTerminate                 = "PublishTerminate"
+    ApiIDTelemetryServiceInit             = "TelemetryServiceInit"
+    ApiIDTelemetryServiceShut             = "TelemetryServiceShut"
     ApiIDPause                            = "pause"
     ApiIDIsTelemetryIdle                  = "IsTelemetryIdle"
     ApiIDDoSysShutdown                    = "DoSysShutdown"
@@ -49,6 +55,12 @@ var LomAPIByIds = map[ApiId_t]ApiFn_t{
     ApiIDSendClientResponse:       callSendClientResponse,
     ApiIDCloseRequestChannel:      callCloseRequestChannel,
     ApiIDCloseChannel:             callCloseChannel,
+    ApiIDPublishEvent:             callPublishEvent,
+    ApiIDPublishCounters:          callPublishCounters,
+    ApiIDPublishInit:              callPublishInit,
+    ApiIDPublishTerminate:         callPublishTerminate,
+    ApiIDTelemetryServiceInit:     callTelemetryServiceInit,
+    ApiIDTelemetryServiceShut:     callTelemetryServiceShut,
     ApiIDPause:                    callPause,
     ApiIDIsTelemetryIdle:          callIsTelemetryIdle,
     ApiIDDoSysShutdown:            callDoSysShutdown,

@@ -27,7 +27,6 @@ import (
     "log/syslog"
     . "lom/src/lib/lomcommon"
     . "lom/src/lib/lomipc"
-    "math"
     "net/rpc"
     "os"
     "path/filepath"
@@ -1253,27 +1252,6 @@ func TestPeriodic(t *testing.T) {
         }
         time.Sleep(2 * time.Second)
 
-    }
-
-    {
-        m := map[string]string{
-            "foo":  "bar",
-            "val":  "42",
-            "data": "xxx",
-        }
-        SetPublishAPI(PublishString)
-        s := PublishEvent(m)
-        exp := `{"data":"xxx","foo":"bar","val":"42"}`
-        if s != exp {
-            t.Errorf("Incorrect publish string (%s) != (%s)", s, exp)
-        }
-        {
-            /* simulate failure */
-            exp := "json: unsupported value: +Inf"
-            if s := PublishEvent(math.Inf(1)); s != exp {
-                t.Errorf("Failed match failure msg. (%s) != (%s)", exp, s)
-            }
-        }
     }
     {
         err := LogError("Blah Blah")

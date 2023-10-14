@@ -12,6 +12,7 @@ import (
  *  Identifies API by API ID
  *  Each arg is represented by param_t struct
  *  Each return value is expressed by Result_t struct
+ * }
  *
  * Named param or result entity is saved in cache.
  * Subseqent param/result could refer value from the cache.
@@ -28,18 +29,25 @@ var pubSubSuite = ScriptSuite_t{
     Description: "Test pub sub for events - Good run",
     Entries: []ScriptEntry_t{
         ScriptEntry_t{
-            ApiIDRunPubSubProxy,
-            []Param_t{Param_t{"chType_1", tele.CHANNEL_TYPE_EVENTS, nil}},
+            ApiIDTelemetryServiceInit,
+            []Param_t{},
             []Result_t{
-                Result_t{"chPrxyClose-0", nil, ValidateNonNil}, /* Save in cache */
                 NIL_ERROR, /*Expect nil error */
             },
             "Rub pubsub proxy, required to bind publishers & subscribers",
         },
         ScriptEntry_t{
+            ApiIDTelemetryServiceInit,
+            []Param_t{},
+            []Result_t{
+                NON_NIL_ERROR, /*Expect NON nil error */
+            },
+            "Duplicate init expect to fail",
+        },
+        ScriptEntry_t{
             ApiIDGetSubChannel,
             []Param_t{
-                Param_t{"chType_1", nil, nil}, /* Fetch chType_1 from cache */
+                Param_t{"chType_1", tele.CHANNEL_TYPE_EVENTS, nil},
                 Param_t{"prod_0", tele.CHANNEL_PRODUCER_EMPTY, nil},
                 EMPTY_STRING,
             },
@@ -51,30 +59,21 @@ var pubSubSuite = ScriptSuite_t{
             "Get sub channel for same type as proxy above",
         },
         ScriptEntry_t{
-            ApiIDGetPubChannel,
+            ApiIDPublishInit,
             []Param_t{
-                Param_t{"chType_1", nil, nil}, /* Fetch chType_1 from cache */
                 Param_t{"prod_1", tele.CHANNEL_PRODUCER_ENGINE, nil},
                 EMPTY_STRING,
             },
-            []Result_t{
-                Result_t{"chWrite-0", nil, ValidateNonNil}, /* Save in cache */
-                Result_t{ANONYMOUS, nil, ValidateNil},
-            },
-            "Get pub channel for same type as proxy above",
+            []Result_t{NIL_ERROR},
+            "Init pub channel for same type as proxy above",
         },
         ScriptEntry_t{
-            ApiIDWriteJsonStringsChannel,
+            ApiIDPublishEvent,
             []Param_t{
-                Param_t{"chWrite-0", nil, nil}, /* Use chan from cache */
-                Param_t{"pub_0", []tele.JsonString_t{
-                    tele.JsonString_t("Hello World!")}, nil}, /* Save written data in cache */
-                Param_t{ANONYMOUS, 1, nil}, /* timeout = 1 second */
+                Param_t{ANONYMOUS, map[string]string{"foo": "bar"}, nil}, /* Save written data in cache */
             },
-            []Result_t{
-                Result_t{ANONYMOUS, nil, ValidateNil},
-            }, /*Expect nil error */
-            "Write into pub channel created above",
+            []Result_t{NIL_ERROR},
+            "Publish data",
         },
         ScriptEntry_t{
             ApiIDReadJsonStringsChannel,
@@ -84,18 +83,17 @@ var pubSubSuite = ScriptSuite_t{
                 Param_t{ANONYMOUS, 1, nil},    /* timeout = 1 second */
             },
             []Result_t{
-                Result_t{"pub_0", nil, nil}, /* Validate against cache val for pub_0 */
+                Result_t{ANONYMOUS, []tele.JsonString_t{
+                    tele.JsonString_t("{\"foo\":\"bar\"}")}, nil}, /* Validate against cache val for pub_0 */
                 Result_t{ANONYMOUS, nil, ValidateNil},
             },
             "read from sub channel created above",
         },
         ScriptEntry_t{
-            ApiIDCloseChannel,
-            []Param_t{
-                Param_t{"chWrite-0", nil, nil}, /* Get chWrite_0 from cache */
-            },
+            ApiIDPublishTerminate,
+            []Param_t{},
             []Result_t{NIL_ERROR},
-            "Close pub chennel",
+            "Close pub channels",
         },
         ScriptEntry_t{
             ApiIDCloseChannel,
@@ -106,12 +104,10 @@ var pubSubSuite = ScriptSuite_t{
             "Close sub chennel",
         },
         ScriptEntry_t{
-            ApiIDCloseChannel,
-            []Param_t{
-                Param_t{"chPrxyClose-0", nil, nil}, /* Get from cache */
-            },
+            ApiIDTelemetryServiceShut,
+            []Param_t{},
             []Result_t{NIL_ERROR},
-            "Close proxy chennel",
+            "Close proxy channels",
         },
         PAUSE2,
         TELE_IDLE_CHECK,

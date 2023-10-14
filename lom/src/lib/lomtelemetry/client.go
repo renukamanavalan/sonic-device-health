@@ -1,22 +1,10 @@
 package lomtelemetry
 
 import (
-    "fmt"
+    "encoding/json"
     cmn "lom/src/lib/lomcommon"
+    "time"
 )
-
-func getTopic(chProducer ChannelProducer_t, suffix string) (topic string, err error) {
-    data, ok := CHANNEL_PRODUCER_STR[chProducer]
-    if !ok || (data.suffix_required && (suffix == "")) {
-        err = cmn.LogError("producer match(%v) - ok(%v) or missing suffix",
-            chProducer, ok)
-    } else if !data.suffix_required {
-        topic = data.pattern
-    } else {
-        topic = fmt.Sprintf(data.pattern, suffix)
-    }
-    return
-}
 
 /*
  * GetPubChannel
@@ -45,10 +33,12 @@ func getTopic(chProducer ChannelProducer_t, suffix string) (topic string, err er
  *  err - Any error
  *
  */
+const PUB_BUFFER_CNT = 100 /* Allow publishers for short bursts */
+
 func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
     pluginName string) (chData chan<- JsonString_t, err error) {
 
-    ch := make(chan JsonString_t)
+    ch := make(chan JsonString_t, PUB_BUFFER_CNT)
 
     defer func() {
         if err != nil {
@@ -58,7 +48,7 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
     }()
 
     prefix := ""
-    if prefix, err = getTopic(producer, pluginName); err != nil {
+    if prefix, err = GetProdStr(producer, pluginName); err != nil {
         /* err is detailed enough */
     } else if err = openPubChannel(chtype, prefix, ch); err != nil {
         err = cmn.LogError("Failed to get pub channel (%v)", err)
@@ -101,7 +91,7 @@ func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
     }()
 
     prefix := ""
-    if prefix, err = getTopic(receiveFrom, pluginName); err == nil {
+    if prefix, err = GetProdStr(receiveFrom, pluginName); err == nil {
         if err = openSubChannel(chtype, prefix, ch, chCl); err != nil {
             err = cmn.LogError("Failed to get sub channel (%v)", err)
         } else {
@@ -225,4 +215,154 @@ func RegisterServerReqHandler(reqType ChannelType_t) (chDataReq <-chan ClientReq
 
 func IsTelemetryIdle() bool {
     return isZMQIdle()
+}
+
+/*
+ * There can be multiple publishers for events & counters. Even a plugin may
+ * choose to publish an event and/or counter. So we need a central proxy to bind
+ * all the multiple publishers and route publish data from multiple sources to
+ * one or more subscribers.
+ *
+ * The proxy can be closed in 2 ways.
+ * 1. Close the chan returned by RunPubSubProxy call.
+ * 2. They listen to system shutdown to exit.
+ *
+ * Services are initialized for all pub/sub channel types.
+ */
+var teleProxies = map[ChannelType_t]chan<- int{}
+
+func TelemetryServiceInit() (err error) {
+    for _, chType := range []ChannelType_t{CHANNEL_TYPE_EVENTS, CHANNEL_TYPE_COUNTERS} {
+        if chanVal, e := RunPubSubProxy(chType); e != nil {
+            err = cmn.LogError("Failed to run proxy for (%s) err(%v)",
+                CHANNEL_TYPE_STR[chType], e)
+            break
+        } else {
+            teleProxies[chType] = chanVal
+        }
+    }
+    if err != nil {
+        TelemetryServiceShut() /* Close any created */
+    }
+    return
+}
+
+func TelemetryServiceShut() {
+    for _, chanVal := range teleProxies {
+        close(chanVal)
+    }
+    teleProxies = map[ChannelType_t]chan<- int{}
+}
+
+var openedPubChannels = map[ChannelType_t]chan<- JsonString_t{}
+
+var PUBLISH_TIMEOUT = time.Duration(500) * time.Millisecond
+
+/*
+ * PublishInit
+ *
+ * Init publishers
+ *
+ * Input:
+ *      chProducer  - Tag the producer as in ChannelProducer_t
+ *      producerName- Except engine, everyone can run in multiple instances.
+ *                    Hence, provide a name.
+ *      None
+ *
+ * Output:
+ *      None
+ *
+ * Return:
+ *      None
+ */
+var savedProducerType = CHANNEL_PRODUCER_CNT
+var savedProducerName = ""
+
+func PublishInit(chProducer ChannelProducer_t, producerName string) error {
+    savedProducerType = chProducer
+    savedProducerName = producerName
+    if s, err := GetProdStr(chProducer, producerName); err != nil {
+        return err
+    } else {
+        cmn.LogInfo("PublishInit succeeded for (%s)", s)
+        return nil
+    }
+}
+
+/*
+ * PublishTerminate
+ *
+ * Way to close all Publishers
+ *
+ * Input:
+ *      None
+ *
+ * Output:
+ *      None
+ *
+ * Return:
+ *      None
+ */
+func PublishTerminate() {
+    for chType, pubChan := range openedPubChannels {
+        close(pubChan)
+        cmn.LogInfo("Closed PUB channel for (%s)", CHANNEL_TYPE_STR[chType])
+    }
+    openedPubChannels = map[ChannelType_t]chan<- JsonString_t{}
+    /*
+     * NOTE: Close is asynchronous as the watching workers/minions
+     * are running as independent Go routines
+     */
+}
+
+/*
+ *  Publish as event
+ *  Creates pub channel on first publish
+ *
+ *  Input:
+ *      chType      - Channel type as events / counters
+ *      data        - A map of data that is converted to JSON string & published.
+ *
+ *  Output:
+ *      None
+ *
+ *  Return:
+ *      The string that was published.
+ *
+ */
+func PublishAny(chType ChannelType_t, data any) (err error) {
+    msg := ""
+    if b, e := json.Marshal(data); e != nil {
+        err = cmn.LogError("Failed to marshal map (%v) err(%v)", data, e)
+        return
+    } else {
+        msg = string(b)
+        cmn.LogInfo(CHANNEL_TYPE_STR[chType] + ": " + msg) /* Record in syslog */
+    }
+
+    ch, ok := openedPubChannels[chType]
+    if !ok {
+        if ch, err = GetPubChannel(chType, savedProducerType, savedProducerName); err != nil {
+            err = cmn.LogError("Failing to get channel (%v) data(%s)", err, msg)
+            return
+        } else {
+            cmn.LogInfo("Opened PUB channel for (%s)", CHANNEL_TYPE_STR[chType])
+            openedPubChannels[chType] = ch
+        }
+    }
+    select {
+    case ch <- JsonString_t(msg):
+        // Succeeded
+    case <-time.After(PUBLISH_TIMEOUT):
+        err = cmn.LogError("Failing to publish due to timeout. data(%s)", msg)
+    }
+    return
+}
+
+func PublishEvent(data any) (err error) {
+    return PublishAny(CHANNEL_TYPE_EVENTS, data)
+}
+
+func PublishCounters(data any) (err error) {
+    return PublishAny(CHANNEL_TYPE_COUNTERS, data)
 }
