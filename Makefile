@@ -6,6 +6,7 @@ SHELL = /bin/bash
 GO_BUILD_DIR := lom/build
 ENGINE_TARGET := $(GO_BUILD_DIR)/bin/LoMEngine
 PLMGR_TARGET := $(GO_BUILD_DIR)/bin/LoMPluginMgr
+CLI_TARGET := $(GO_BUILD_DIR)/bin/LoMCli
 CMN_C_LIB := $(GO_BUILD_DIR)/lib/cmn_c_lib.so
 ENGINE_CONFIG := config/*.conf.json
 
@@ -30,6 +31,7 @@ install:
 	$(MKDIR) -p $(DESTDIR)/usr/share/lom
 	$(CP) $(ENGINE_TARGET) $(DESTDIR)/usr/bin
 	$(CP) $(PLMGR_TARGET) $(DESTDIR)/usr/bin
+	$(CP) $(CLI_TARGET) $(DESTDIR)/usr/bin
 	$(CP) $(CMN_C_LIB) $(DESTDIR)/usr/lib
 	$(CP) $(ENGINE_CONFIG) $(DESTDIR)/usr/share/lom/
 
