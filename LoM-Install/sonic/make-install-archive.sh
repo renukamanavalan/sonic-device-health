@@ -14,12 +14,34 @@ fi
 BUILD_VER=$(cat fsroot-broadcom/etc/sonic/sonic_version.yml | grep -e "^build_version" | cut -f2 -d\'| cut -f1 -d .)
 [[ "${BUILD_VER}" == "" ]] && { echo "Failed to get build version"; exit ${ERR_USAGE}; }
 
+SRC_DIR="$(dirname $0)/../.."
+
+INSTALL_SRC_DIR="${SRC_DIR}/LoM-Install/sonic"
 WORK_DIR="$(pwd)/tmp/DH-install"
 PAYLOAD_DIR="${WORK_DIR}/payload"
 HOST_DIR="${PAYLOAD_DIR}/${HOST_SUBDIR}"
 INSTALL_DIR="${PAYLOAD_DIR}/${INSTALL_SUBDIR}"
 INSTALLER_ARCHIVE=LoM-Install.tar.gz
 INSTALLER_SELF_EXTRACT=LoM-Install.bsx
+INCLUDE_TEST_ARCHIVE=""
+
+INTEGRATION_TEST_BIN="integration_test_installer.sh"
+INTEGRATION_TEST_SRC="${SRC_DIR}/lom/integration_test/${INTEGRATION_TEST_BIN}"
+INTEGRATION_TEST_DST="${PAYLOAD_DIR}/${TEST_SUBDIR}/${INTEGRATION_TEST_BIN}"
+
+while getopts "t" opt; do
+  case ${opt} in
+    t )
+        INCLUDE_TEST_ARCHIVE="yes"
+        echo "Include test archive"
+        ;;
+   \? )
+     echo "Valid options: [-t]"
+     exit 1
+     ;;
+  esac
+done
+
 
 rm -rf ${WORK_DIR}
 
@@ -30,14 +52,21 @@ do
 done
 popd
 
-echo "1"
 INSTALL_FILES="target/${IMAGE_FILE} \
-    src/sonic-device-health/install/sonic/${INSTALL_SCRIPT} \
-    src/sonic-device-health/install/sonic/${COMMON_SCRIPT}"
+    ${INSTALL_SRC_DIR}/${INSTALL_SCRIPT} \
+    ${INSTALL_SRC_DIR}/${COMMON_SCRIPT}"
 
 for i in ${INSTALL_FILES}; do
     cpFile $i ${INSTALL_DIR}/$(basename $i)
 done
+
+
+if [[ "${INCLUDE_TEST_ARCHIVE}" != "" ]]; then
+    cpFile ${INTEGRATION_TEST_SRC} ${INTEGRATION_TEST_DST}
+    echo "Copied integration-test code: ${INTEGRATION_TEST_BIN}"
+else
+    echo "Skip to copy integration-test code: ${INTEGRATION_TEST_BIN}"
+fi
 
 BUILDVER=${BUILD_VER} TIMESTAMP="$(date +%s)" j2 -o ${INSTALL_DIR}/VERSION -f env src/sonic-device-health/LoM_Version.j2
 
@@ -46,7 +75,7 @@ tar -cvzf ${WORK_DIR}/${INSTALLER_ARCHIVE} .
 [[ $? != 0 ]] && { echo "Failed to archive"; exit ${ERR_TAR}; }
 popd
 
-cpFile src/sonic-device-health/install/decompress ${WORK_DIR}
+cpFile ${INSTALL_SRC_DIR}/../decompress ${WORK_DIR}
 
 pushd ${WORK_DIR}
 cat decompress ${INSTALLER_ARCHIVE} > ${INSTALLER_SELF_EXTRACT}

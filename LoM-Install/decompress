@@ -13,7 +13,11 @@ tail -n+$ARCHIVE $0 | tar xzv -C $TMPDIR
 
 CDIR=`pwd`
 cd $TMPDIR
-./install/LoM-install.sh -i
+
+if  [[ $# -ne 0 ]]; then
+    ./install/LoM-install.sh $@
+fi
+
 RET=$?
 
 cd $CDIR

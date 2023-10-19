@@ -27,6 +27,7 @@ install:
 	@echo 'install: Destdir:$(DESTDIR)'
 	$(RM) -rf $(DESTDIR)
 	$(MKDIR) -p $(DESTDIR)/usr/bin
+	$(MKDIR) -p $(DESTDIR)/test-bin
 	$(MKDIR) -p $(DESTDIR)/usr/lib
 	$(MKDIR) -p $(DESTDIR)/usr/share/lom
 	$(CP) $(ENGINE_TARGET) $(DESTDIR)/usr/bin
