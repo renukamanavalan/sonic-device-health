@@ -288,6 +288,9 @@ function installCode()
     done
     popd
 
+    mkdir -p /usr/share/device_health/
+    [[ $? != 0 ]] && { fail "Failed to create /usr/share/lom/ dir" ${ERR_INSTALL_CODE}; }
+
     fl="$(dirname $0)/../install/${IMAGE_FILE}"
     docker load -i ${fl}
     [[ $? != 0 ]] && { fail "Failed to load docker image ${fl}" ${ERR_INSTALL_CODE}; }

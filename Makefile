@@ -9,6 +9,7 @@ PLMGR_TARGET := $(GO_BUILD_DIR)/bin/LoMPluginMgr
 CLI_TARGET := $(GO_BUILD_DIR)/bin/LoMCli
 CMN_C_LIB := $(GO_BUILD_DIR)/lib/cmn_c_lib.so
 ENGINE_CONFIG := config/*.conf.json
+VERSION_FILE := LoM-Version
 
 MKDIR := mkdir
 CP := cp
@@ -35,6 +36,7 @@ install:
 	$(CP) $(CLI_TARGET) $(DESTDIR)/usr/bin
 	$(CP) $(CMN_C_LIB) $(DESTDIR)/usr/lib
 	$(CP) $(ENGINE_CONFIG) $(DESTDIR)/usr/share/lom/
+	$(CP) $(VERSION_FILE) $(DESTDIR)/usr/share/lom/
 
 
 deinstall:
