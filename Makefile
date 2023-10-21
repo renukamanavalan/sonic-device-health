@@ -61,5 +61,4 @@ clean:
 	pushd lom
 	$(MAKE) -f Makefile $@
 	popd
-	$(RM) -f $(VERSION_CONFIG)
 
