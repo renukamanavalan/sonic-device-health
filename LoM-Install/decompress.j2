@@ -5,6 +5,12 @@ echo "==========================="
 echo "Self-extracting LoM archive"
 echo "==========================="
 
+VERSION={{ LoMVersion }}
+if  [[ $# == 1 && "$1" == "-v" ]]; then
+    echo ${VERSION}
+    exit 0
+fi
+
 export TMPDIR=`mktemp -d /tmp/selfextract.XXXXXX`
 
 ARCHIVE=`awk '/^__ARCHIVE_BELOW__/ {print NR + 1; exit 0; }' $0`

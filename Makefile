@@ -8,18 +8,33 @@ ENGINE_TARGET := $(GO_BUILD_DIR)/bin/LoMEngine
 PLMGR_TARGET := $(GO_BUILD_DIR)/bin/LoMPluginMgr
 CLI_TARGET := $(GO_BUILD_DIR)/bin/LoMCli
 CMN_C_LIB := $(GO_BUILD_DIR)/lib/cmn_c_lib.so
-ENGINE_CONFIG := config/*.conf.json
-VERSION_FILE := LoM-Version
+CONFIG_DIR := config
+LOM_CONFIG := $(CONFIG_DIR)/*.json
+VERSION_CONFIG := $(CONFIG_DIR)/LoM-Version.json
 
 MKDIR := mkdir
 CP := cp
 RM := rm
 
-all: go-all
+ifeq ($(SONIC_IMAGE_VERSION),)
+	override SONIC_IMAGE_VERSION := "0.0.0"
+endif
+
+all: go-all $(VERSION_CONFIG)
 
 go-all:
 	@echo "+++ --- Making Go --- +++"
-	cd lom && $(MAKE) -f Makefile all
+	pushd lom
+	$(MAKE) -f Makefile all
+	popd
+	@echo "+++ --- Making Go DONE --- +++"
+
+# Generate conf files
+$(VERSION_CONFIG): $(CONFIG_DIR)/LoM-Version.json.j2
+	@echo "+++ --- Creating Version JSON $(HOST_OS_VERSION)--- +++"
+	$(shell HOST_OS_VERSION=$(SONIC_IMAGE_VERSION) HOST_VENDOR=SONiC j2 -o $(VERSION_CONFIG) $(CONFIG_DIR)/LoM-Version.json.j2)
+	@echo "+++ --- Creating Version JSON DONE --- +++"
+
 
 # e.g. make -j16 install DESTDIR=/sonic/src/sonic-eventd/debian/tmp
 #            AM_UPDATE_INFO_DIR=no "INSTALL=install --strip-program=true"
@@ -35,8 +50,7 @@ install:
 	$(CP) $(PLMGR_TARGET) $(DESTDIR)/usr/bin
 	$(CP) $(CLI_TARGET) $(DESTDIR)/usr/bin
 	$(CP) $(CMN_C_LIB) $(DESTDIR)/usr/lib
-	$(CP) $(ENGINE_CONFIG) $(DESTDIR)/usr/share/lom/
-	$(CP) $(VERSION_FILE) $(DESTDIR)/usr/share/lom/
+	$(CP) $(LOM_CONFIG) $(DESTDIR)/usr/share/lom/
 
 
 deinstall:
@@ -44,4 +58,8 @@ deinstall:
 	$(RM) -rf $(DESTDIR)/share/lom
 
 clean:
-	cd lom && $(MAKE) -f Makefile $@
+	pushd lom
+	$(MAKE) -f Makefile $@
+	popd
+	$(RM) -f $(VERSION_CONFIG)
+

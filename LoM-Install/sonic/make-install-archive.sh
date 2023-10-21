@@ -14,9 +14,9 @@ fi
 BUILD_VER=$(cat fsroot-broadcom/etc/sonic/sonic_version.yml | grep -e "^build_version" | cut -f2 -d\'| cut -f1 -d .)
 [[ "${BUILD_VER}" == "" ]] && { echo "Failed to get build version"; exit ${ERR_USAGE}; }
 
-SRC_DIR="$(dirname $0)/../.."
+INSTALL_SRC_DIR="$(dirname $0)"
+LOM_SRC_DIR="${INSTALL_SRC_DIR}/../.."
 
-INSTALL_SRC_DIR="${SRC_DIR}/LoM-Install/sonic"
 WORK_DIR="$(pwd)/tmp/DH-install"
 PAYLOAD_DIR="${WORK_DIR}/payload"
 HOST_DIR="${PAYLOAD_DIR}/${HOST_SUBDIR}"
@@ -26,7 +26,7 @@ INSTALLER_SELF_EXTRACT=LoM-Install.bsx
 INCLUDE_TEST_ARCHIVE=""
 
 INTEGRATION_TEST_BIN="integration_test_installer.sh"
-INTEGRATION_TEST_SRC="${SRC_DIR}/lom/integration_test/${INTEGRATION_TEST_BIN}"
+INTEGRATION_TEST_SRC="${LOM_SRC_DIR}/lom/integration_test/${INTEGRATION_TEST_BIN}"
 INTEGRATION_TEST_DST="${PAYLOAD_DIR}/${TEST_SUBDIR}/${INTEGRATION_TEST_BIN}"
 
 while getopts "t" opt; do
@@ -75,7 +75,7 @@ tar -cvzf ${WORK_DIR}/${INSTALLER_ARCHIVE} .
 [[ $? != 0 ]] && { echo "Failed to archive"; exit ${ERR_TAR}; }
 popd
 
-cpFile ${INSTALL_SRC_DIR}/../decompress ${WORK_DIR}
+j2 -o ${WORK_DIR}/decompress -f json ${INSTALL_SRC_DIR}/../decompress.j2 ${LOM_SRC_DIR}/config/LoM-Version.json
 
 pushd ${WORK_DIR}
 cat decompress ${INSTALLER_ARCHIVE} > ${INSTALLER_SELF_EXTRACT}
