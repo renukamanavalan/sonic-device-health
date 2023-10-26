@@ -1,15 +1,15 @@
 #! /bin/bash
 
-echo ""
-echo "==========================="
-echo "Self-extracting LoM archive"
-echo "==========================="
-
 VERSION={{ LoMVersion }}
 if  [[ $# == 1 && "$1" == "-v" ]]; then
     echo ${VERSION}
     exit 0
 fi
+
+echo ""
+echo "==========================="
+echo "Self-extracting LoM archive"
+echo "==========================="
 
 export TMPDIR=`mktemp -d /tmp/selfextract.XXXXXX`
 
