@@ -2,18 +2,6 @@
 
 source $(dirname $0)/common.sh
 
-[ ! -d "./target" ] && { echo "Run from buildimage root"; exit ${ERR_USAGE}; }
-[ ! -f "./target/docker-device-health.gz" ] && { echo "Build docker"; exit ${ERR_USAGE}; }
-[ ! -f "./target/sonic-broadcom.bin" ] && { echo "Build binary image to get service files"; exit ${ERR_USAGE}; }
-if [[ "./target/docker-device-health.gz" -nt "./target/sonic-broadcom.bin" ]]; then
-      echo "./target/docker-device-health.gz" is newer than "./target/sonic-broadcom.bin"
-      echo "re-build image to ensure service files are latest"
-      exit ${ERR_USAGE}
-fi
-
-BUILD_VER=$(cat fsroot-broadcom/etc/sonic/sonic_version.yml | grep -e "^build_version" | cut -f2 -d\'| cut -f1 -d .)
-[[ "${BUILD_VER}" == "" ]] && { echo "Failed to get build version"; exit ${ERR_USAGE}; }
-
 INSTALL_SRC_DIR="$(dirname $0)"
 LOM_SRC_DIR="${INSTALL_SRC_DIR}/../.."
 
@@ -28,6 +16,29 @@ INCLUDE_TEST_ARCHIVE=""
 INTEGRATION_TEST_BIN="integration_test_installer.sh"
 INTEGRATION_TEST_SRC="${LOM_SRC_DIR}/lom/integration_test/${INTEGRATION_TEST_BIN}"
 INTEGRATION_TEST_DST="${PAYLOAD_DIR}/${TEST_SUBDIR}/${INTEGRATION_TEST_BIN}"
+
+INSTALL_FILES="target/${IMAGE_FILE} \
+    ${INSTALL_SRC_DIR}/${INSTALL_SCRIPT} \
+    ${INSTALL_SRC_DIR}/${COMMON_SCRIPT}"
+
+# Validate ...
+[[ ! -d "./target" ]] && { echo "Run from buildimage root"; exit ${ERR_USAGE}; }
+for i in ${HOST_FILES}
+do
+    [[ ! -f fsroot-broadcom/$i ]] && { echo "Missing file fsroot-broadcom/$i"; exit ${ERR_USAGE}; }
+done
+
+for i in ${INSTALL_FILES}
+do
+    [[ ! -f $i ]] && { echo "Missing file $i"; exit ${ERR_USAGE}; }
+done
+
+
+SONIC_VER_FILE="fsroot-broadcom/etc/sonic/sonic_version.yml"
+[[ ! -f ${SONIC_VER_FILE} ]] && { echo "Missing file ${SONIC_VER_FILE}"; exit ${ERR_USAGE}; }
+
+BUILD_VER=$(cat ${SONIC_VER_FILE} | grep -e "^build_version" | cut -f2 -d\'| cut -f1 -d .)
+[[ "${BUILD_VER}" == "" ]] && { echo "Failed to get build version"; exit ${ERR_USAGE}; }
 
 while getopts "t" opt; do
   case ${opt} in
@@ -51,10 +62,6 @@ do
     cpFile $i ${HOST_DIR}/$i
 done
 popd
-
-INSTALL_FILES="target/${IMAGE_FILE} \
-    ${INSTALL_SRC_DIR}/${INSTALL_SCRIPT} \
-    ${INSTALL_SRC_DIR}/${COMMON_SCRIPT}"
 
 for i in ${INSTALL_FILES}; do
     cpFile $i ${INSTALL_DIR}/$(basename $i)
@@ -83,3 +90,4 @@ chmod a+x ${INSTALLER_SELF_EXTRACT}
 popd
 
 echo "${WORK_DIR}/${INSTALLER_SELF_EXTRACT} is created"
+cp ${WORK_DIR}/${INSTALLER_SELF_EXTRACT} target/
