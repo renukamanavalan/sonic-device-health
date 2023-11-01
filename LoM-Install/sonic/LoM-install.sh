@@ -176,6 +176,8 @@ function forceClean()
 
     bClean=$(( $1 & 2 ))
     iClean=$(( $1 & 1 ))
+
+    rm -rf /usr/share/device_health/
     pushd / 
     for i in ${HOST_FILES}; do 
         if [[ ${bClean} != 0 ]]; then
