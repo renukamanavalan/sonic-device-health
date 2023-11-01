@@ -1,0 +1,112 @@
+package libtest
+
+import (
+    "fmt"
+
+    zmq "github.com/pebbe/zmq4"
+    cmn "lom/src/lib/lomcommon"
+    . "lom/src/lib/lomscripted"
+    tele "lom/src/lib/lomtelemetry"
+)
+
+var tctx *zmq.Context
+var tsock *zmq.Socket
+
+func fail_ctrl_port(name string, val any) (retV any, err error) {
+    retV = val
+
+    if tctx != nil || tsock != nil {
+        err = cmn.LogError("Check test code. Expect nil")
+    }
+    tctx, err = zmq.NewContext()
+
+    if err == nil {
+        tsock, err = tctx.NewSocket(zmq.XSUB)
+    }
+    if err == nil {
+        chType, ok := val.(tele.ChannelType_t)
+        if !ok {
+            err = cmn.LogError("expect tele.ChannelType_t != (%T)", val)
+        } else {
+            addr := fmt.Sprintf(tele.ZMQ_ADDRESS, tele.ZMQ_PROXY_CTRL_PORT+int(chType))
+            err = tsock.Bind(addr)
+        }
+    }
+    return
+}
+
+func fail_response_port(name string, val any) (retV any, err error) {
+    retV = val
+
+    if tctx != nil || tsock != nil {
+        err = cmn.LogError("Check test code. Expect nil")
+    }
+    tctx, err = zmq.NewContext()
+
+    if err == nil {
+        tsock, err = tctx.NewSocket(zmq.REP)
+    }
+    if err == nil {
+        chType, ok := val.(tele.ChannelType_t)
+        if !ok {
+            err = cmn.LogError("expect tele.ChannelType_t != (%T)", val)
+        } else {
+            addr := fmt.Sprintf(tele.ZMQ_ADDRESS, tele.ZMQ_REQ_REP_START_PORT+int(chType))
+            err = tsock.Bind(addr)
+        }
+    }
+    return
+}
+
+func cleanup_ctx_port(name string, val any) (ret any, err error) {
+    if tsock != nil {
+        tsock.Close()
+        tsock = nil
+    }
+    if tctx != nil {
+        cmn.LogDebug("Terminating test context")
+        tctx.Term()
+        tctx = nil
+        cmn.LogDebug("Terminated test context")
+    }
+    return
+}
+
+/*
+ * BIG NOTE:  Let this be a last test suite.
+ * After shutdown, no API will succeed
+ * There is no way to revert shutdown -- One way to exit
+ */
+var pubSubBindFail = ScriptSuite_t{
+    Id:          "pubSubBindFailSuite",
+    Description: "Test pub sub for request & response - Good run",
+    Entries: []ScriptEntry_t{
+        ScriptEntry_t{ /* Pre-bind the address to simulate failure */
+            ApiIDRunPubSubProxy,
+            []Param_t{
+                Param_t{"chType_E", tele.CHANNEL_TYPE_EVENTS, fail_ctrl_port},
+            },
+            []Result_t{NIL_ANY, NON_NIL_ERROR},
+            "Xsub bind failure",
+        },
+        ScriptEntry_t{
+            ApiIDRunPubSubProxy,
+            []Param_t{Param_t{ANONYMOUS, nil, cleanup_ctx_port}},
+            []Result_t{NIL_ANY, NON_NIL_ERROR},
+            "Intentional failure to call cleanup",
+        },
+        ScriptEntry_t{ /* Test handler shutdown in stat = LState_WriteReq */
+            ApiIDRegisterServerReqHandler,
+            []Param_t{Param_t{"chType_1", tele.CHANNEL_TYPE_ECHO, fail_response_port}},
+            []Result_t{NIL_ANY, NIL_ANY, NON_NIL_ERROR},
+            "Duplicate req to fail",
+        },
+        ScriptEntry_t{
+            ApiIDRunPubSubProxy,
+            []Param_t{Param_t{ANONYMOUS, nil, cleanup_ctx_port}},
+            []Result_t{NIL_ANY, NON_NIL_ERROR},
+            "Intentional failure to call cleanup",
+        },
+        TELE_IDLE_CHECK,
+    },
+}

@@ -1,4 +1,4 @@
-package lib_test
+package libtest
 
 import (
     "fmt"
@@ -564,11 +564,19 @@ func TestLogPeriodic(t *testing.T) {
     t.Run("success", func(t *testing.T) {
         //lomcommon.RegisterForSysShutdown("plugin_manager")
         notifyChan := make(chan bool)
+        initShutdown := false
 
         go func() {
             <-notifyChan
             lomcommon.DoSysShutdown(0)
             // lomcommon.DeregisterForSysShutdown("plugin_manager")
+            initShutdown = true
+        }()
+
+        defer func() {
+            if initShutdown {
+                lomcommon.InitSysShutdown()
+            }
         }()
 
         logperiodic := lomcommon.GetlogPeriodic()

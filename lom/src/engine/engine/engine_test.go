@@ -234,16 +234,21 @@ func resetResultAll() {
 /* Mock publish fn given to engine for any publish calls */
 var publishCh = make(chan string, 10)
 
-func testPublish(s string) string {
+func testPublish(m any) (err error) {
 
-    /* Write to channel if there is space */
-    if len(publishCh) < cap(publishCh) {
-        publishCh <- s
+    if b, err := json.Marshal(m); err != nil {
+        err = LogError("Failed to marshal map (%v)", m)
     } else {
-        LogError("ERROR: publishCh too full. Publish skipped ")
+        s := string(b)
+        /* Write to channel if there is space */
+        if len(publishCh) < cap(publishCh) {
+            publishCh <- s
+            LogDebug("testPublish: (%s)", s)
+        } else {
+            err = LogError("ERROR: publishCh too full. Publish skipped (%s)", s)
+        }
     }
-    LogDebug("testPublish: (%s)", s)
-    return s
+    return
 }
 
 const CFGPATH = "/tmp"
@@ -1201,7 +1206,8 @@ func TestRun(t *testing.T) {
     /* Init local list for test data */
     initActive()
 
-    SetPublishAPI(testPublish)
+    /* Set testPublish  as pub fn to be able to read & verify published data */
+    publishEventFn = testPublish
 
     for _, collId := range testRunList {
         /* Create new transports for a collection */

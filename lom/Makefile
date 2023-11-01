@@ -44,6 +44,7 @@ CMN_C_LIB=$(BUILD_DIR)/lib/cmn_c_lib.so
 # Binaries used in LoM system
 ENGINE_BIN := $(BIN_DIR)/LoMEngine
 PLUGIN_MANAGER_BIN := $(BIN_DIR)/LoMPluginMgr
+CLI_BIN := $(BIN_DIR)/LoMCli
 
 # Test binaries/flags
 LIB_TEST = $(TEST_DIR)/LibTested
@@ -132,7 +133,7 @@ clean-aggregate-file_coverage:
 
 .PHONY: all clean format_code clean-extract_file_coverage add-extract_file_coverage clean-aggregate-file_coverage add-aggregate_file_coverage COMMON_DEPS
 
-COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(LIB_TEST) $(ENGINE_TEST) \
+COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(CLI_BIN) $(LIB_TEST) $(ENGINE_TEST) \
 	$(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(SONIC_LINK_CRC_MOCKER_TEST) $(PLUGINS_COMMON_TEST) \
 	$(PY_TEST) $(INTEGRATION_TEST)
 
@@ -153,6 +154,11 @@ $(ENGINE_BIN): $(SRC_FILES)
 	$(call build_golang,$@,lom/src/engine,)
 	@echo -e "Successfully Build lom-engine\n\n"
 
+$(CLI_BIN): $(SRC_FILES)
+	mkdir -p $(BIN_DIR)
+	$(call build_golang,$@,lom/src/tools,)
+	@echo -e "Successfully Build lom-cli\n\n"
+
 $(PLUGIN_MANAGER_BIN): $(SRC_FILES)
 	mkdir -p $(BIN_DIR)
 	$(call build_golang,$@,lom/src/pluginmgr,)
@@ -161,8 +167,8 @@ $(PLUGIN_MANAGER_BIN): $(SRC_FILES)
 $(LIB_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/LibCoverprofile.out \
-		-coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon \
-		-covermode=atomic $(LIB_TEST_FLAGS) ./src/lib/lib_test ./src/lib/lib_test/config || (echo "LibTest failed $$?"; exit 1)
+		-coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon,lom/src/lib/lomscripted,lom/src/lib/lomtelemetry \
+		-covermode=atomic $(LIB_TEST_FLAGS) ./src/lib/libtest ./src/lib/libtest/config || (echo "LibTest failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/LibCoverprofile.out -o $(TEST_DIR)/LibCoverprofile.html
 	@if [ -f "$(TEST_DIR)/LibCoverprofile.html" ]; then \
 		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/LibCoverprofile.html; \

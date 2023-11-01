@@ -124,7 +124,7 @@ func (p *ActiveClientInfo_t) ProcessSendRequests() {
 
         case serReq := <-p.pendingWriteRequests:
             serverRequests = append(serverRequests, serReq)
-            LogDebug("received: serReq (%v)", serReq)
+            LogDebug("received: serReq (%+v)", serReq)
 
         case <-time.After(time.Duration(toutSecs) * time.Second):
             /* bail out */
@@ -349,7 +349,7 @@ func (p *ClientRegistrations_t) PublishHeartbeats() {
                 /* Reset collected. */
                 lst = make(map[string]struct{})
             }
-            PublishEvent(hb)
+            publishEngineEvent(hb)
         }
     }
 }
