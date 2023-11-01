@@ -177,7 +177,7 @@ function forceClean()
     bClean=$(( $1 & 2 ))
     iClean=$(( $1 & 1 ))
 
-    rm -rf /usr/share/device_health/
+    sudo rm -rf /usr/share/device_health/
     pushd / 
     for i in ${HOST_FILES}; do 
         if [[ ${bClean} != 0 ]]; then
@@ -297,7 +297,7 @@ function installCode()
     done
     popd
 
-    mkdir -p /usr/share/device_health/
+    sudo mkdir -p /usr/share/device_health/
     [[ $? != 0 ]] && { fail "Failed to create /usr/share/lom/ dir" ${ERR_INSTALL_CODE}; }
 
     fl="$(dirname $0)/../install/${IMAGE_FILE}"
