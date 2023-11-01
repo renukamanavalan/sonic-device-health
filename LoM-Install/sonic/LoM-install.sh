@@ -53,6 +53,11 @@ function getTag()
     #
     fStart getTag
 
+    image_latest=0
+    image_tag=""
+    image_backup=0
+    image_backup_tag=""
+
     lst="$(docker images ${IMAGE_NAME} --format "{{.Tag}}")"
     read -r -a lstTags <<< "$(echo ${lst})"
     image_cnt="${#lstTags[@]}"
@@ -128,9 +133,11 @@ function testInstall()
     # Take first component from install/VERSION string
     # Take second component from /etc/sonic/sonic_version.yml's build_version's value
     #
-    OS_Version=$(cat /etc/sonic/sonic_version.yml | grep -e "^build_version" | cut -f2 -d\'| cut -f1 -d .)
-    LoM_Version="$(cat $(dirname $0)/VERSION |  tr -d '\n' | cut -f1 -d .)"
-    [[ ${OS_Version} != ${LoM_Version} ]] && fail "Version mismatch. OS=${OS_Version} LoM=${LoM_Version}" ${ERR_TEST}
+    # TODO: This breaks for private builds. Need to mature before bringing this constraint.
+    #
+    # OS_Version=$(cat /etc/sonic/sonic_version.yml | grep -e "^build_version" | cut -f2 -d\'| cut -f1 -d .)
+    # LoM_Version="$(cat $(dirname $0)/VERSION |  tr -d '\n' | cut -f1 -d .)"
+    # [[ ${OS_Version} != ${LoM_Version} ]] && fail "Version mismatch. OS=${OS_Version} LoM=${LoM_Version}" ${ERR_TEST}
 
     # Get image info & validate too.
     getTag
@@ -304,16 +311,16 @@ function installCode()
 
 function rollBackCode()
 {
+    # Remove current install
+    forceClean 1
+
     # Rollback to last back up version
     # Remove current install, if any
     # Rename back up files as current and backup image as latest
     #
-    [[ ${image_backup} == 0 ]] && { fail "Backup don't exist. Nothing to rollback;" ${ERR_ROLLBACK}; }
+    [[ ${image_backup} == 0 ]] && { echo "Backup don't exist. Nothing to rollback"; return; }
 
     fStart rollBackCode
-
-    # Remove current install
-    forceClean 1
 
     pushd /
     for i in ${HOST_FILES}; do
@@ -432,10 +439,12 @@ function main()
 
     if [[ ${OP_ROLLBACK} == 1 ]]; then
         rollBackCode
-        serviceRestart
     elif [[ ${OP_INSTALL} == 1 ]]; then
         backUp
         installCode
+    fi
+    testInstall
+    if [[ ${image_latest} == 1 ]]; then
         serviceRestart
     fi
     echo "\"$0 $@\" - Ran successfully"
