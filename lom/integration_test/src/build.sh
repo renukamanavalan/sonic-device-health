@@ -5,23 +5,35 @@ set -e
 
 GO=/usr/local/go1.20.3/go/bin/go
 
+function rmFileOrDir() {
+    rm -rf $1
+    if [[ $? -ne 0 ]]; then
+        echo "Error removing $1"
+        exit -1
+    fi
+    echo "Removed $1"
+}
+
+
+function clean() {
+    for i in ${TEST_BIN} "integration_test.tar.gz" "integration_test/bin" 
+    do
+        rmFileOrDir ${i}
+    done
+
+}
+
+
 if [ "$1" == "build" ]; then
-    # Remove existing tar file if it exists
-    if [ -f "integration_test.tar.gz" ]; then
-        rm integration_test.tar.gz
+    if [[ $# -ne 2 ]]; then
+        echo "Need target location"
+        exit 1
     fi
+    TEST_BIN="$2"
+    clean
 
-    # Remove existing binaries in 'integration_test/bin' if they exist
-    if [ -d "integration_test/bin" ]; then
-        rm -rf integration_test/bin/*
-    else
-        mkdir -p integration_test/bin
-    fi
-
-    # Remove the self extracting installer if it exists
-    if [ -f "integration_test_installer.sh" ]; then
-        rm integration_test_installer.sh
-    fi
+    mkdir -p $(dirname ${TEST_BIN})
+    mkdir -p integration_test/bin
 
     # Copy new files from 'build/bin' to 'integration_test/bin'
     cp -R build/bin/* integration_test/bin/
@@ -65,32 +77,14 @@ if [ "$1" == "build" ]; then
     echo "Created tar archive 'integration_test.tar.gz'."
 
     # create a self extracting installer
-    cat integration_test/src/self_extracting_installer.sh integration_test.tar.gz > integration_test_installer.sh
+    mkdir -p $(dirname ${TEST_BIN})
+    cat integration_test/src/self_extracting_installer.sh integration_test.tar.gz > ${TEST_BIN}
     echo "Created self extracting installer 'integration_test_installer.sh'."
-    chmod +x integration_test_installer.sh
+    chmod +x ${TEST_BIN}
 
 elif [ "$1" == "clean" ]; then
-    # Remove existing tar file if it exists
-    if [ -f "integration_test.tar.gz" ]; then
-        rm integration_test.tar.gz
-        echo "Deleted 'integration_test.tar.gz'."
-    fi
-
-    # Remove existing binaries in 'integration_test/bin' if they exist
-    if [ -d "integration_test/bin" ]; then
-        rm -rf integration_test/bin/*
-        echo "Deleted contents of 'integration_test/bin'."
-    else
-        echo "Directory 'integration_test/bin' is already clean."
-    fi
-
-    # Remove the self extracting installer if it exists
-    if [ -f "integration_test_installer.sh" ]; then
-        rm integration_test_installer.sh
-        echo "Deleted 'integration_test_installer.sh'."
-    fi
-
+    clean
 else
-    echo "Usage: $0 [build|clean]"
+    echo "Usage: $0 [build|clean] <bin file>"
     exit 1
 fi

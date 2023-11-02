@@ -45,6 +45,7 @@ CMN_C_LIB=$(BUILD_DIR)/lib/cmn_c_lib.so
 ENGINE_BIN := $(BIN_DIR)/LoMEngine
 PLUGIN_MANAGER_BIN := $(BIN_DIR)/LoMPluginMgr
 CLI_BIN := $(BIN_DIR)/LoMCli
+INTEGRATION_TEST_BIN := $(INTEGRATION_TEST_DIR)/integration_test_installer.sh
 
 # Test binaries/flags
 LIB_TEST = $(TEST_DIR)/LibTested
@@ -55,7 +56,6 @@ PY_TEST = $(TEST_DIR)/pytested
 SONIC_LINK_CRC_TEST = $(TEST_DIR)/SonicLinkCrcTested
 PLUGINS_COMMON_TEST = $(TEST_DIR)/PluginsCommonTested
 SONIC_LINK_CRC_MOCKER_TEST = $(TEST_DIR)/linkcrc_mocker
-INTEGRATION_TEST = $(TEST_DIR)/integration_test
 
 .NOTPARALLEL:
 
@@ -135,7 +135,7 @@ clean-aggregate-file_coverage:
 
 COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(CLI_BIN) $(LIB_TEST) $(ENGINE_TEST) \
 	$(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(SONIC_LINK_CRC_MOCKER_TEST) $(PLUGINS_COMMON_TEST) \
-	$(PY_TEST) $(INTEGRATION_TEST)
+	$(PY_TEST) $(INTEGRATION_TEST_BIN)
 
 all: $(COMMON_DEPS)
 	$(BUILD_DIR)/aggregate_file_coverage.sh
@@ -248,8 +248,8 @@ $(SONIC_LINK_CRC_MOCKER_TEST): $(SRC_FILES)
 	$(call build_golang,$@,lom/src/plugins/plugins_files/sonic/plugin_integration_tests/linkcrc_mocker,)
 	@echo -e "Successfully completed Sonic linkcrc Integration test Mocker\n\n"
 
-$(INTEGRATION_TEST): 
-	$(INTEGRATION_TEST_DIR)/src/build.sh build
+$(INTEGRATION_TEST_BIN): 
+	$(INTEGRATION_TEST_DIR)/src/build.sh build $(INTEGRATION_TEST_BIN)
 	@echo -e "Successfully completed packaging Integration tests\n\n"
 
 clean: clean-extract_file_coverage clean-aggregate-file_coverage
