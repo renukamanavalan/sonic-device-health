@@ -177,7 +177,7 @@ function forceClean()
     bClean=$(( $1 & 2 ))
     iClean=$(( $1 & 1 ))
 
-    sudo rm -rf /usr/share/device_health/
+    sudo rm -rf /usr/share/device_health/*
     pushd / 
     for i in ${HOST_FILES}; do 
         if [[ ${bClean} != 0 ]]; then
@@ -267,20 +267,19 @@ function DBUpdate()
     fStart DBUpdate
 
     if [[ $1 == 0 ]]; then
-        state="disabled"
+        redis-cli -n 4 del "FEATURE|device-health"
     elif [[ $1 == 1 ]]; then
-        state="enabled"
+        # Create FEATURE table entry
+        RET="$(redis-cli -n 4 hmset "FEATURE|device-health" "auto_restart" "enabled" \
+            "delayed" "True" "has_global_scope" "True" "has_per_asic_scope" "False" \
+            "high_mem_alert" "disabled" "set_owner" "kube" "state" "enabled" \
+            "support_syslog_rate_limit" "true")"
+
+        [[ "${RET}" == "OK" ]] || { fail "failed to create FEATURE table entry" ${ERR_DB}; }
     else
         fail "Internal error in usage. Expect arg as 1 or 0" ${ERR_DB}
     fi
 
-    # Create FEATURE table entry
-    RET="$(redis-cli -n 4 hmset "FEATURE|device-health" "auto_restart" "enabled" \
-        "delayed" "True" "has_global_scope" "True" "has_per_asic_scope" "False" \
-        "high_mem_alert" "disabled" "set_owner" "kube" "state" "${state}" \
-        "support_syslog_rate_limit" "true")"
-
-    [[ "${RET}" == "OK" ]] || { fail "failed to create/update FEATURE table entry for state=${state}" ${ERR_DB}; }
 
     fEnd DBUpdate
 }
