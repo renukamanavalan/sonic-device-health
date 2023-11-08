@@ -53,6 +53,11 @@ function getTag()
     #
     fStart getTag
 
+    image_latest=0
+    image_tag=""
+    image_backup=0
+    image_backup_tag=""
+
     lst="$(docker images ${IMAGE_NAME} --format "{{.Tag}}")"
     read -r -a lstTags <<< "$(echo ${lst})"
     image_cnt="${#lstTags[@]}"
@@ -128,9 +133,11 @@ function testInstall()
     # Take first component from install/VERSION string
     # Take second component from /etc/sonic/sonic_version.yml's build_version's value
     #
-    OS_Version=$(cat /etc/sonic/sonic_version.yml | grep -e "^build_version" | cut -f2 -d\'| cut -f1 -d .)
-    LoM_Version="$(cat $(dirname $0)/VERSION |  tr -d '\n' | cut -f1 -d .)"
-    [[ ${OS_Version} != ${LoM_Version} ]] && fail "Version mismatch. OS=${OS_Version} LoM=${LoM_Version}" ${ERR_TEST}
+    # TODO: This breaks for private builds. Need to mature before bringing this constraint.
+    #
+    # OS_Version=$(cat /etc/sonic/sonic_version.yml | grep -e "^build_version" | cut -f2 -d\'| cut -f1 -d .)
+    # LoM_Version="$(cat $(dirname $0)/VERSION |  tr -d '\n' | cut -f1 -d .)"
+    # [[ ${OS_Version} != ${LoM_Version} ]] && fail "Version mismatch. OS=${OS_Version} LoM=${LoM_Version}" ${ERR_TEST}
 
     # Get image info & validate too.
     getTag
@@ -169,6 +176,8 @@ function forceClean()
 
     bClean=$(( $1 & 2 ))
     iClean=$(( $1 & 1 ))
+
+    sudo rm -rf /usr/share/device_health/*
     pushd / 
     for i in ${HOST_FILES}; do 
         if [[ ${bClean} != 0 ]]; then
@@ -258,20 +267,19 @@ function DBUpdate()
     fStart DBUpdate
 
     if [[ $1 == 0 ]]; then
-        state="disabled"
+        redis-cli -n 4 del "FEATURE|device-health"
     elif [[ $1 == 1 ]]; then
-        state="enabled"
+        # Create FEATURE table entry
+        RET="$(redis-cli -n 4 hmset "FEATURE|device-health" "auto_restart" "enabled" \
+            "delayed" "True" "has_global_scope" "True" "has_per_asic_scope" "False" \
+            "high_mem_alert" "disabled" "set_owner" "kube" "state" "enabled" \
+            "support_syslog_rate_limit" "true")"
+
+        [[ "${RET}" == "OK" ]] || { fail "failed to create FEATURE table entry" ${ERR_DB}; }
     else
         fail "Internal error in usage. Expect arg as 1 or 0" ${ERR_DB}
     fi
 
-    # Create FEATURE table entry
-    RET="$(redis-cli -n 4 hmset "FEATURE|device-health" "auto_restart" "enabled" \
-        "delayed" "True" "has_global_scope" "True" "has_per_asic_scope" "False" \
-        "high_mem_alert" "disabled" "set_owner" "kube" "state" "${state}" \
-        "support_syslog_rate_limit" "true")"
-
-    [[ "${RET}" == "OK" ]] || { fail "failed to create/update FEATURE table entry for state=${state}" ${ERR_DB}; }
 
     fEnd DBUpdate
 }
@@ -288,6 +296,9 @@ function installCode()
     done
     popd
 
+    sudo mkdir -p /usr/share/device_health/
+    [[ $? != 0 ]] && { fail "Failed to create /usr/share/lom/ dir" ${ERR_INSTALL_CODE}; }
+
     fl="$(dirname $0)/../install/${IMAGE_FILE}"
     docker load -i ${fl}
     [[ $? != 0 ]] && { fail "Failed to load docker image ${fl}" ${ERR_INSTALL_CODE}; }
@@ -301,16 +312,16 @@ function installCode()
 
 function rollBackCode()
 {
+    # Remove current install
+    forceClean 1
+
     # Rollback to last back up version
     # Remove current install, if any
     # Rename back up files as current and backup image as latest
     #
-    [[ ${image_backup} == 0 ]] && { fail "Backup don't exist. Nothing to rollback;" ${ERR_ROLLBACK}; }
+    [[ ${image_backup} == 0 ]] && { echo "Backup don't exist. Nothing to rollback"; return; }
 
     fStart rollBackCode
-
-    # Remove current install
-    forceClean 1
 
     pushd /
     for i in ${HOST_FILES}; do
@@ -429,10 +440,12 @@ function main()
 
     if [[ ${OP_ROLLBACK} == 1 ]]; then
         rollBackCode
-        serviceRestart
     elif [[ ${OP_INSTALL} == 1 ]]; then
         backUp
         installCode
+    fi
+    testInstall
+    if [[ ${image_latest} == 1 ]]; then
         serviceRestart
     fi
     echo "\"$0 $@\" - Ran successfully"

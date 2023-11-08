@@ -16,6 +16,7 @@ ERR_DB=-13
 
 HOST_SUBDIR="host"
 INSTALL_SUBDIR="install"
+TEST_SUBDIR="test"
 
 HOST_FILES="\
     lib/systemd/system/device-health.service \
