@@ -1,9 +1,9 @@
-// call_out.proto describes the service and message format for report service provided by SONiC
+// call_out.proto describes the service and message format for report service provided by LoM
 syntax = "proto3";
 
 import "github.com/openconfig/gnmi/proto/gnmi/gnmi.proto";
 
-package gnmi.sonic;
+package gnmi.LoM;
 
 // gNMIDialOut defines a service which is used by a target system (typically a
 // network element) to initiate connections to a client (collector). The server

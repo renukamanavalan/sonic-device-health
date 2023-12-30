@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package gnoi.sonic_jwt;
+package gnoi.lom_jwt;
 
 //option (types.gnoi_version) = "0.1.0";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
@@ -8,7 +8,7 @@ import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
-service SonicJwtService {
+service LoMJwtService {
   rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse) {}
   rpc Refresh(RefreshRequest) returns (RefreshResponse) {}
 }

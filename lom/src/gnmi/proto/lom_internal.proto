@@ -1,11 +1,11 @@
-// sonic_internal.proto describes the message format used internally by SONiC
+// lom_internal.proto describes the message format used internally by LoM.
 syntax = "proto3";
 
 import "github.com/openconfig/gnmi/proto/gnmi/gnmi.proto";
 
-package gnmi.sonic;
+package gnmi.lom;
 
-option go_package = "./;gnmi_sonic";
+option go_package = "./;gnmi_lom";
 
 
 enum State {

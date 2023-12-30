@@ -2,9 +2,9 @@ syntax = "proto3";
 
 import "github.com/openconfig/gnmi/proto/gnmi/gnmi.proto";
 
-package gnoi.sonic;
+package gnoi.lom;
 
-option go_package = "./;gnoi_sonic";
+option go_package = "./;gnoi_lom";
 
 
 // Debug service defines RPCs to get debug information from telemetry server
