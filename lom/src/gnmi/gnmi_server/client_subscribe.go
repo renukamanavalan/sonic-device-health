@@ -6,39 +6,35 @@ import (
 	"net"
 	"sync"
 
+    cmn  "lom/src/lib/lomcommon"
 	"github.com/Workiva/go-datastructures/queue"
-	log "github.com/golang/glog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	sdc "github.com/sonic-net/sonic-gnmi/sonic_data_client"
+	ldc "lom/src/gnmi/lom_data_clients"
 	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
 )
 
 // Client contains information about a subscribe client that has connected to the server.
 type Client struct {
-	addr      net.Addr
-	sendMsg   int64
-	recvMsg   int64
-	errors    int64
-	polled    chan struct{}
-	stop      chan struct{}
-	once      chan struct{}
-	mu        sync.RWMutex
-	q         *queue.PriorityQueue
-	subscribe *gnmipb.SubscriptionList
+	addr        net.Addr
+	sendMsg     int64
+	recvMsg     int64
+	errors      int64
+	polled      chan struct{}
+	stop        chan struct{}
+	once        chan struct{}
+	mu          sync.RWMutex
+	q           *queue.PriorityQueue
+	subscribe   *gnmipb.SubscriptionList
 	// Wait for all sub go routine to finish
-	w     sync.WaitGroup
-	fatal bool
-	logLevel   int
+	w           sync.WaitGroup
 }
 
 // Syslog level for error
 const logLevelError int = 3
 const logLevelDebug int = 7
 const logLevelMax int = logLevelDebug
-
-var connectionManager *ConnectionManager
 
 // NewClient returns a new initialized client.
 func NewClient(addr net.Addr) *Client {
@@ -54,24 +50,14 @@ func (c *Client) setLogLevel(lvl int) {
 	c.logLevel = lvl
 }
 
-func (c *Client) setConnectionManager(threshold int) {
-	if connectionManager != nil && threshold == connectionManager.GetThreshold() {
-		return
-	}
-	connectionManager = &ConnectionManager {
-		connections: make(map[string]struct{}),
-		threshold:   threshold,
-	}
-	connectionManager.PrepareRedis()
-}
-
 // String returns the target the client is querying.
 func (c *Client) String() string {
 	return c.addr.String()
 }
 
-// Populate SONiC data path from prefix and subscription path.
-func (c *Client) populateDbPathSubscrition(sublist *gnmipb.SubscriptionList) ([]*gnmipb.Path, error) {
+// TODO: See if this is needed
+// Populate data path from prefix and subscription path.
+func (c *Client) populatePathSubscription(sublist *gnmipb.SubscriptionList) ([]*gnmipb.Path, error) {
 	var paths []*gnmipb.Path
 
 	prefix := sublist.GetPrefix()
@@ -87,6 +73,10 @@ func (c *Client) populateDbPathSubscrition(sublist *gnmipb.SubscriptionList) ([]
 		paths = append(paths, path)
 	}
 
+    if len(paths) == 0 {
+        return nil, fmt.Errorf("No paths. Subscriptions(%d)", len(subscriptions))
+    }
+
 	log.V(6).Infof("gnmi Paths : %v", paths)
 	return paths, nil
 }
@@ -95,15 +85,17 @@ func (c *Client) populateDbPathSubscrition(sublist *gnmipb.SubscriptionList) ([]
 // SubscriptionList. Once the client is started, it will run until the stream
 // is closed or the schedule completes. For Poll queries the Run will block
 // internally after sync until a Poll request is made to the server.
+// Refer: doc/gNMI_Info.txt
+//
 func (c *Client) Run(stream gnmipb.GNMI_SubscribeServer) (err error) {
 	defer log.V(1).Infof("Client %s shutdown", c)
-	ctx := stream.Context()
-	var connectionKey string
-	var valid bool
 
 	if stream == nil {
 		return grpc.Errorf(codes.FailedPrecondition, "cannot start client: stream is nil")
 	}
+
+	var connectionKey string
+	var valid bool
 
 	defer func() {
 		if err != nil {
@@ -111,6 +103,7 @@ func (c *Client) Run(stream gnmipb.GNMI_SubscribeServer) (err error) {
 		}
 	}()
 
+    /* Recv returns SubscribeRequest - Refer: doc/gNMI_Info.txt */
 	query, err := stream.Recv()
 	c.recvMsg++
 	if err != nil {
@@ -122,64 +115,45 @@ func (c *Client) Run(stream gnmipb.GNMI_SubscribeServer) (err error) {
 
 	log.V(2).Infof("Client %s recieved initial query %v", c, query)
 
+    /* Return SubscriptionList - Refer: doc/gNMI_Info.txt */
 	c.subscribe = query.GetSubscribe()
-	extensions := query.GetExtension()
 
 	if c.subscribe == nil {
 		return grpc.Errorf(codes.InvalidArgument, "first message must be SubscriptionList: %q", query)
 	}
 
-	prefix := c.subscribe.GetPrefix()
-	origin := prefix.GetOrigin()
+    /*
+     * Prefix used for all paths in the request. Type gNMI.Path - Refer: doc/gNMI_Info.txt
+     * If two paths to be given are /a/b/c & /a/b/d, then one may set prefix as "/a/b" and
+     * individual paths that follow may only say "c" or "d"
+     * 
+     * Refer: doc/gNMI_Info.txt
+     */
+    prefix := c.subscribe.GetPrefix()
+
+    /* Origin points to the schema/protobuf to be used for all paths. Refer: doc/gNMI_Info.txt */
 	target := prefix.GetTarget()
 
-	paths, err := c.populateDbPathSubscrition(c.subscribe)
+	paths, err := c.populatePathSubscription(c.subscribe)
 	if err != nil {
 		return grpc.Errorf(codes.NotFound, "Invalid subscription path: %v %q", err, query)
 	}
 
-	if o, err := ParseOrigin(paths); err != nil {
-		return err // origin conflict within paths
-	} else if len(origin) == 0 {
-		origin = o // Use origin from paths if not given in prefix
-	} else if len(o) != 0 && o != origin {
-		return status.Error(codes.InvalidArgument, "Origin conflict between prefix and paths")
+	if err := ValidateOrigin(paths); err != nil {
+		return err // origin is unexpected.
 	}
 
-	if connectionKey, valid = connectionManager.Add(c.addr, query.String()); !valid {
-		return grpc.Errorf(codes.Unavailable, "Server connections are at capacity.")
-	}
-
-	defer connectionManager.Remove(connectionKey) // remove key from connection list
-
-	var dc sdc.Client
+	var dc ldc.Client
 
 	mode := c.subscribe.GetMode()
 
 	log.V(3).Infof("mode=%v, origin=%q, target=%q", mode, origin, target)
 
-	if origin == "openconfig" {
-		dc, err = sdc.NewTranslClient(prefix, paths, ctx, extensions, sdc.TranslWildcardOption{})
-	} else if len(origin) != 0 {
-		return grpc.Errorf(codes.Unimplemented, "Unsupported origin: %s", origin)
-	} else if target == "" {
-		// This and subsequent conditions handle target based path identification
-		// when origin == "". As per the spec it should have been treated as "openconfig".
-		// But we take a deviation and stick to legacy logic for backward compatibility
-		return grpc.Errorf(codes.Unimplemented, "Empty target data not supported")
-	} else if target == "OTHERS" {
-		dc, err = sdc.NewNonDbClient(paths, prefix)
-	} else if ((target == "EVENTS") && (mode == gnmipb.SubscriptionList_STREAM)) {
-		dc, err = sdc.NewEventClient(paths, prefix, c.logLevel)
-	} else if _, ok, _, _ := sdc.IsTargetDb(target); ok {
-		dc, err = sdc.NewDbClient(paths, prefix)
-	} else {
-		/* For any other target or no target create new Transl Client. */
-		dc, err = sdc.NewTranslClient(prefix, paths, ctx, extensions, sdc.TranslWildcardOption{})
-	}
-
-	if err != nil {
-		return grpc.Errorf(codes.NotFound, "%v", err)
+	if (((target == "COUNTERS") || (target == "EVENTS")) &&
+            (mode == gnmipb.SubscriptionList_STREAM)) {
+		dc, err = ldc.NewLoMDataClient(paths, prefix, target)
+    } else {
+		return grpc.Errorf(codes.NotFound, "target=%v mode=%v", target, mode)
 	}
 
 	switch mode {
@@ -274,9 +248,9 @@ func (c *Client) recv(stream gnmipb.GNMI_SubscribeServer) {
 }
 
 // send runs until process Queue returns an error.
-func (c *Client) send(stream gnmipb.GNMI_SubscribeServer, dc sdc.Client) error {
+func (c *Client) send(stream gnmipb.GNMI_SubscribeServer, dc ldc.Client) error {
 	for {
-		var val *sdc.Value
+		var val *ldc.Value
 		items, err := c.q.Get(1)
 
 		if items == nil {
@@ -292,8 +266,8 @@ func (c *Client) send(stream gnmipb.GNMI_SubscribeServer, dc sdc.Client) error {
 		var resp *gnmipb.SubscribeResponse
 
 		switch v := items[0].(type) {
-		case sdc.Value:
-			if resp, err = sdc.ValToResp(v); err != nil {
+		case ldc.Value:
+			if resp, err = ldc.ValToResp(v); err != nil {
 				c.errors++
 				return err
 			}

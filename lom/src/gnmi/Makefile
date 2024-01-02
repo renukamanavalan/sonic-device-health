@@ -15,9 +15,6 @@ export PATH := $(PATH):$(GOBIN):$(shell dirname $(GO))
 export CGO_LDFLAGS := -lswsscommon -lhiredis
 export CGO_CXXFLAGS := -I/usr/include/swss -w -Wall -fpermissive
 
-ifeq ($(ENABLE_TRANSLIB_WRITE),y)
-BLD_TAGS := gnmi_translib_write
-endif
 ifeq ($(ENABLE_NATIVE_WRITE),y)
 BLD_TAGS := $(BLD_TAGS) gnmi_native_write
 endif

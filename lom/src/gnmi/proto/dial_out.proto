@@ -3,7 +3,7 @@ syntax = "proto3";
 
 import "github.com/openconfig/gnmi/proto/gnmi/gnmi.proto";
 
-package gnmi.LoM;
+package gnmi.lom;
 
 // gNMIDialOut defines a service which is used by a target system (typically a
 // network element) to initiate connections to a client (collector). The server

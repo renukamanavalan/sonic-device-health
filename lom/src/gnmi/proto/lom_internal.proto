@@ -8,12 +8,6 @@ package gnmi.lom;
 option go_package = "./;gnmi_lom";
 
 
-enum State {
-  STOPPED = 0;
-  INIT = 1;
-  RUNNING = 2;
-}
-
 // Value is the message that reprents a stream of updates for a given path, used internally.
 message Value {
   // prefix used with path

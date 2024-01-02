@@ -1,0 +1,129 @@
+Plan: Adapt telemetry code for LoM gNMI server
+
+1. LoM gNMI server is vendor agnostic
+2. No one to use this server to access host info (e.g. SONiC redis databases).
+    FOr any host info reach via host supported gNMI server (e.g. telemetry container in SONiC)
+3. This is built along with other Go components
+   The entire LoM build creates one Debian package with gNMI as one of binaries built
+    Engine
+    PluginMgr
+    gNMIServer
+    ...
+4. This is part of same git repo as LoM
+
+
+
+Code changes:
+1. Strip off .git
+2. Drop all swsscommon & redis info
+3. Dropoff stuff added for SONiC Management Framework (https://github.com/project-arlo/SONiC/blob/update_gnmi_HLD/doc/mgmt/Management%20Framework.md)
+
+
+Contact:
+Braodcom folks have contributed a lot -- Translib -- YANG based
+
+sachinholla
+anand-kumar-subramanian
+Eric Seifert / seiferteric
+
+
+Sample SET operation - https://github.com/sonic-net/sonic-telemetry/pull/23/files -- look at "Set" func in gnmi_server/server.go. Simple Update code below.
+
+Drop:
+ proto/gnoi/jwt -- Added by serifereric as part of SONiC Management Framework.
+
+
+***************************************************************
+sonic-mgmt-framework -- Adding YANG based GET & SET  -- START
+
+All changes from PR #61 of sonic-telemetry repo can be dropped.
+
+client_subscribe.go:
+    Add transl client - sdc.NewTranslClient
+    Implemented gnmipb.SubscriptionList_ONCE
+
+
+gnmi_server/server.go
+    1. Included new TranslClient
+    2. Implemented Set method -- just via transl client only
+
+
+sonic_data_client/transl_data_client.go
+    Added file for the new Transl client
+
+    1. NewTranslClient
+    2. Get & Set
+    3. StreamRun, PollRun, RunOnce, Capabilities, Close
+
+
+pr #61 - https://github.com/sonic-net/sonic-telemetry/pull/61/files
+
+1. Add new common_utils/context.go
+2. Add new gnmi_server/basicAuth.go & gnmi_server/clientCertAuth.go
+3. Add new gnmi_server/gnoi.go
+4. Add new gnmi_server/jwtAuth.go & gnmi_server/pamAuth.go
+5. AUthTypes introduced in server.go is dropped
+6. transl_utils is related to all YANG files
+
+PR #96 in sonic-gnmi repo. Implementation of Master Arbitration. #96
+1. By DELL
+2. https://github.com/sonic-net/SONiC/pull/1285 -- doc
+3. Elect master when multiple gNMI clients are accessing.
+4. N/A to us. GWS is the only client officially and only one with proper cert. So no one else can reach.
+   Again this becomes an issue, when it comes to set.
+   The only SET we have is Red button via GWS/LSS.
+   So DROP
+Drop
+
+
+sonic-mgmt-framework -- Adding YANG based GET & SET  -- END
+***************************************************************
+
+*******************
+Simple Update Code:  START
+*******************
+
+gnmi_server/server.go:o
+func (srv *Server) Set(ctx context.Context,req *gnmipb.SetRequest) (*gnmipb.SetResponse, error) {
+...
+        /* UPDATE */
+        for _, path := range req.GetUpdate(){
+            log.V(2).Infof("Update path: %v ", path)
+
+            err = dc.Set(path.GetPath(), path.GetVal(), sdc.UPDATE)
+
+            if err != nil {
+                return nil, err
+            }
+
+            res := gnmipb.UpdateResult{
+                            Path: path.GetPath(),
+                                Op:   gnmipb.UpdateResult_UPDATE,
+                                  }
+            /* Add to Set response results. */
+                results = append(results, &res)
+        }
+
+
+In client code (transl_data_client.go):
+func (c *TranslClient) Set(path *gnmipb.Path, val *gnmipb.TypedValue, flagop int) error {
+    var uri string
+    var err error
+
+    /* Convert the GNMI Path to URI. */
+    transutil.ConvertToURI(c.prefix, path, &uri)
+
+    if flagop == DELETE {
+        err = transutil.TranslProcessDelete(uri)
+    } else if flagop == REPLACE {
+        err = transutil.TranslProcessReplace(uri, val)
+    } else if flagop == UPDATE {
+        err = transutil.TranslProcessUpdate(uri, val)
+    }
+
+    return err
+}
+
+*******************
+Simple Update Code:  END
+*******************

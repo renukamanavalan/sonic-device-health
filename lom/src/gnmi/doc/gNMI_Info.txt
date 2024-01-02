@@ -1,0 +1,176 @@
+Collected data while trying to learn/reverse-learn / understand.
+
+
+GNMI_SubscribeServer - https://pkg.go.dev/github.com/openconfig/gnmi/proto/gnmi#GNMI_SubscribeServer
+type GNMI_SubscribeServer interface {
+    Send(*SubscribeResponse) error
+    Recv() (*SubscribeRequest, error)
+    grpc.ServerStream
+}
+
+
+-----------------------------------------------------------------------------------------------
+
+type SubscribeRequest - https://pkg.go.dev/github.com/openconfig/gnmi/proto/gnmi#SubscribeRequest
+
+type SubscribeRequest struct {
+
+    // Types that are assignable to Request:
+    //
+    //  *SubscribeRequest_Subscribe
+    //  *SubscribeRequest_Poll
+    Request isSubscribeRequest_Request `protobuf_oneof:"request"`
+    // Extension messages associated with the SubscribeRequest. See the
+    // gNMI extension specification for further definition.
+    Extension []*gnmi_ext.Extension `protobuf:"bytes,5,rep,name=extension,proto3" json:"extension,omitempty"`
+    // contains filtered or unexported fields
+}
+    Methods:
+        GetExtension()
+        GetPoll()
+        GetRequest()
+        func (x *SubscribeRequest) GetSubscribe() *SubscriptionList
+        ...
+
+-----------------------------------------------------------------------------------------------
+
+func (x *SubscribeRequest) GetSubscribe() *SubscriptionList
+
+Doc: https://github.com/openconfig/reference/blob/5b6570a80863547491d3f96b4e87307a5d437f32/rpc/gnmi/gnmi-specification.md?plain=1#L1476
+
+Ref: https://pkg.go.dev/github.com/openconfig/gnmi/proto/gnmi#SubscriptionList
+
+type SubscriptionList ¶
+type SubscriptionList struct {
+    Prefix       *Path                 `protobuf:"bytes,1,opt,name=prefix,proto3" json:"prefix,omitempty"`             // Prefix used for paths.
+    Subscription []*Subscription       `protobuf:"bytes,2,rep,name=subscription,proto3" json:"subscription,omitempty"` // Set of subscriptions to create.
+    Qos          *QOSMarking           `protobuf:"bytes,4,opt,name=qos,proto3" json:"qos,omitempty"`                   // DSCP marking to be used.
+    Mode         SubscriptionList_Mode `protobuf:"varint,5,opt,name=mode,proto3,enum=gnmi.SubscriptionList_Mode" json:"mode,omitempty"`
+    // Whether elements of the schema that are marked as eligible for aggregation
+    // should be aggregated or not.
+    AllowAggregation bool `protobuf:"varint,6,opt,name=allow_aggregation,json=allowAggregation,proto3" json:"allow_aggregation,omitempty"`
+    // The set of schemas that define the elements of the data tree that should
+    // be sent by the target.
+    UseModels []*ModelData `protobuf:"bytes,7,rep,name=use_models,json=useModels,proto3" json:"use_models,omitempty"`
+    // The encoding that the target should use within the Notifications generated
+    // corresponding to the SubscriptionList.
+    Encoding Encoding `protobuf:"varint,8,opt,name=encoding,proto3,enum=gnmi.Encoding" json:"encoding,omitempty"`
+    // An optional field to specify that only updates to current state should be
+    // sent to a client. If set, the initial state is not sent to the client but
+    // rather only the sync message followed by any subsequent updates to the
+    // current state. For ONCE and POLL modes, this causes the server to send only
+    // the sync message (Sec. 3.5.2.3).
+    UpdatesOnly bool `protobuf:"varint,9,opt,name=updates_only,json=updatesOnly,proto3" json:"updates_only,omitempty"`
+    // contains filtered or unexported fields
+}
+
+-----------------------------------------------------------------------------------------------
+
+type SubscriptionList_Mode https://pkg.go.dev/github.com/openconfig/gnmi/proto/gnmi#SubscriptionList_Mode
+type SubscriptionList_Mode int32
+Mode of the subscription.
+
+const (
+    SubscriptionList_STREAM SubscriptionList_Mode = 0 // Values streamed by the target (Sec. 3.5.1.5.2).
+    SubscriptionList_ONCE   SubscriptionList_Mode = 1 // Values sent once-off by the target (Sec. 3.5.1.5.1).
+    SubscriptionList_POLL   SubscriptionList_Mode = 2 // Values sent in response to a poll request (Sec. 3.5.1.5.3).
+)
+
+-----------------------------------------------------------------------------------------------
+2.4.1 Path Prefixes -- https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#241-path-prefixes
+
+In a number of messages, a prefix can be specified to reduce the lengths of path fields within the message. In this case, a prefix field is specified within a message - comprising of a valid path encoded according to Section 2.2.2. In the case that a prefix is specified, the absolute path is comprised of the concatenation of the list of path elements representing the prefix and the list of path elements in the path field.
+
+For example, again considering the data tree shown in Section 2.3.1 if a Notification message updating values, a prefix could be used to refer to the /a/b[name=b1]/c/d and /a/b[name=b1]/c/e data nodes:
+
+Here /a/b[name=b1]/c can be prefix. Subsequent path representation may only say "d" or "e" as only path element.
+
+-----------------------------------------------------------------------------------------------
+
+Doc: https://github.com/openconfig/reference/blob/5b6570a80863547491d3f96b4e87307a5d437f32/rpc/gnmi/gnmi-path-conventions.md
+gNMI::Path - https://pkg.go.dev/github.com/openconfig/gnmi/proto/gnmi#Path
+
+type Path ¶
+type Path struct {
+
+    // Elements of the path are no longer encoded as a string, but rather within
+    // the elem field as a PathElem message.
+    //
+    // Deprecated: Do not use.
+    (deprecated): Element []string    `protobuf:"bytes,1,rep,name=element,proto3" json:"element,omitempty"`
+    Origin  string      `protobuf:"bytes,2,opt,name=origin,proto3" json:"origin,omitempty"` // Label to disambiguate path.
+    Elem    []*PathElem `protobuf:"bytes,3,rep,name=elem,proto3" json:"elem,omitempty"`     // Elements of the path.
+    Target  string      `protobuf:"bytes,4,opt,name=target,proto3" json:"target,omitempty"` // The name of the target
+    // contains filtered or unexported fields
+}
+
+Methods:
+func (x *Path) GetElem() []*PathElem
+
+func (x *Path) GetOrigin() string
+
+func (x *Path) GetTarget() string
+
+func (*Path) ProtoMessage()
+-----------------------------------------------------------------------------------------------
+
+type PathElem - https://pkg.go.dev/github.com/openconfig/gnmi/proto/gnmi#PathElem
+type PathElem struct {
+    Name string            `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"` // The name of the element in the path.
+    Key  map[string]string ``                                                              // Map of key (attribute) name to value.
+    /* 147-byte string literal not displayed */
+    // contains filtered or unexported fields
+}
+PathElem encodes an element of a gNMI path, along with any attributes (keys) that may be associated with it. Reference: gNMI Specification Section 2.2.2.
+
+Methods:
+    func (x *PathElem) GetKey() map[string]string
+
+    func (x *PathElem) GetName() string
+
+    func (*PathElem) ProtoMessage()
+
+-----------------------------------------------------------------------------------------------
+
+gNMI Origin in gNMI Path - https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#27-gnmi-origin--in-path
+
+The origin field in the Path message identifies a schema that the path belongs to. origin is encoded as a string. The path specified within the message is uniquely identified by the tuple of <origin, path>.
+
+The origin field is valid in any context of a Path message. Typically it is used:
+
+In a SetRequest to indicate a particular schema is being used to modify the target configuration.
+In a GetRequest to retrieve the contents of a particular schema, or in a GetResponse to indicate that the payload contains data from a particular <origin, path> schema.
+In a SubscribeRequest to subscribe to paths within a particular schema, or SubscribeResponse to indicate an update corresponds to a particular <origin, path> tuple.
+If more than one origin is to be used within any message, a path in the prefix MUST NOT be specified, since a prefix applies to all paths within the message. In the case that a prefix is specified, it MUST specify any required origin. A single request MUST NOT specify origin in both prefix and path fields in any RPC payload messages.
+
+
+-----------------------------------------------------------------------------------------------
+
+
+Subscribing to updates - https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#35-subscribing-to-telemetry-updates
+
+1. A subscription consists of one or more paths, with a specified subscription mode.
+2. All requests for new subscriptions are encapsulated within a SubscribeRequest message - which itself has a mode which describes the longevity of the subscription
+
+Implies: 
+    A subscription has multiple paths and one mode.
+    A subscribe request has multiple requests and has its own mode that affects its longevity
+
+3. Subscribe request mode can be ONCE, POLL or STREAM
+4. STREAM: streams data according to the triggers specified within the individual subscription's mode 
+5. The target generates messages according to the type of subscription
+
+6. STREAM; a client creating a subscription receives an initial set of updates, terminated by a message indicating that initial synchronisation has completed, and then receives subsequent updates indicating changes to the initial state of those elements.
+
+7. When aggregation is not permitted by the client or the schema each update message MUST contain a (key, value) pair - where the key MUST be a path to a single leaf element within the data tree (encoded according to Section 2.2.2). The value MUST encode only the value of the leaf specified. In most cases, this will be a scalar value (i.e., a JSON value if a JSON encoding is utilised), but in some cases, where an individual leaf element within the schema represents an object, it MAY represent a set of values (i.e., a JSON object or Protobuf message).
+
+-----------------------------------------------------------------------------------------------
+
+2.2.2.1 Path Target - https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#2221-path-target
+The target field within a path is name for the target. This field MUST only ever be present on prefix paths in the corresponding request and response messages. This field is optional for clients. When set in the prefix in a request, GetRequest, SetRequest or SubscribeRequest, the field MUST be reflected in the prefix of the corresponding GetResponse, SetResponse or SubscribeResponse by a server. This field is used to allow a name to be associated with all the data for a given stream if requested by a client. If a client does not set this field in the prefix of a request, it MUST NOT be set in the prefix of the corresponding response messages. The value for target is tied to the context of a client RPC and not persisted or shared among multiple clients.
+
+-----------------------------------------------------------------------------------------------
+
+    
+
+
