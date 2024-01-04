@@ -7,7 +7,6 @@ import (
     "github.com/golang/protobuf/proto"
     gnmipb "github.com/openconfig/gnmi/proto/gnmi"
     gnmi_extpb "github.com/openconfig/gnmi/proto/gnmi_ext"
-    gnoi_system_pb "github.com/openconfig/gnoi/system"
     "golang.org/x/net/context"
     "google.golang.org/grpc"
     "google.golang.org/grpc/codes"
