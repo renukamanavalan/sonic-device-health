@@ -171,6 +171,14 @@ The target field within a path is name for the target. This field MUST only ever
 
 -----------------------------------------------------------------------------------------------
 
-    
 
+func NewServer
+    1. Gets grpc.NewServer
+    2. put this server in local wrapper Server object with additional info, like config, clients
+    3. get TCP listener call net.listen with configured port; Save it in Server object
+    4. Register with openconfig/gnmi, the gRPC server & wrapper server object
+        THis is from https://github.com/openconfig/gnmi/blob/master/proto/gnmi/gnmi.proto
+        RegisterGNMIServer is the generated code for the service "gNMI"
+        https://github.com/openconfig/gnmi/blob/4423cef8388c00a029a2f26d3b407ad40321a892/proto/gnmi/gnmi.proto#L48        
 
+------------------------------

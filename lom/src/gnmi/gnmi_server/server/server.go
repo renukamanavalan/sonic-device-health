@@ -13,7 +13,7 @@ import (
     "google.golang.org/grpc/peer"
     "google.golang.org/grpc/reflection"
     "google.golang.org/grpc/status"
-    ldc "lom/src/gnmi/lom_data_client"
+    ldc "lom/src/gnmi/lom_data_clients"
     lpb "lom/src/gnmi/proto"
     "net"
     "strings"
