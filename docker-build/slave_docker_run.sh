@@ -4,6 +4,12 @@
 #
 set -x
 
+pushd $(dirname $0)
+# Builds if needed, else no-op
+echo "check for image: pwd=${PWD}"
+./slave_docker_build.sh
+popd
+
 docker run --rm=true --privileged --init \
     -v "${PWD}:/lom-root" \
     -v "/tmp/docklock:/tmp/docklock"\
