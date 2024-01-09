@@ -46,8 +46,6 @@ ENGINE_BIN := $(BIN_DIR)/LoMEngine
 PLUGIN_MANAGER_BIN := $(BIN_DIR)/LoMPluginMgr
 CLI_BIN := $(BIN_DIR)/LoMCli
 INTEGRATION_TEST_BIN := $(INTEGRATION_TEST_DIR)/integration_test_installer.sh
-GNMI_SERVER_BIN := $(BIN_DIR)/gnmi_server
-GNMI_DUMP_BIN := $(BIN_DIR)/gnmi_dump
 
 # Test binaries/flags
 LIB_TEST = $(TEST_DIR)/LibTested
@@ -165,11 +163,6 @@ $(PLUGIN_MANAGER_BIN): $(SRC_FILES)
 	mkdir -p $(BIN_DIR)
 	$(call build_golang,$@,lom/src/pluginmgr,)
 	@echo -e "Successfully build plugin manager\n\n"
-
-$(GNMI_SERVER_BIN): $(SRC_FILES)
-	mkdir -p $(BIN_DIR)
-	$(call build_golang,$@,lom/src/gnmi/gnmi_server,)
-	@echo -e "Successfully Build gnmi-server\n\n"
 
 $(LIB_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
