@@ -167,7 +167,14 @@ Implies:
 -----------------------------------------------------------------------------------------------
 
 2.2.2.1 Path Target - https://github.com/openconfig/reference/blob/master/rpc/gnmi/gnmi-specification.md#2221-path-target
-The target field within a path is name for the target. This field MUST only ever be present on prefix paths in the corresponding request and response messages. This field is optional for clients. When set in the prefix in a request, GetRequest, SetRequest or SubscribeRequest, the field MUST be reflected in the prefix of the corresponding GetResponse, SetResponse or SubscribeResponse by a server. This field is used to allow a name to be associated with all the data for a given stream if requested by a client. If a client does not set this field in the prefix of a request, it MUST NOT be set in the prefix of the corresponding response messages. The value for target is tied to the context of a client RPC and not persisted or shared among multiple clients.
+The target field within a path is name for the target. This field MUST only ever be present on prefix paths in the corresponding request and response messages. This field is optional for clients. When set in the prefix in a request, GetRequest, SetRequest or SubscribeRequest, the field MUST be reflected in the prefix of the corresponding GetResponse, SetResponse or SubscribeResponse by a server.
+
+This field is used to allow a name to be associated with all the data for a given stream if requested by a client.
+
+If a client does not set this field in the prefix of a request, it MUST NOT be set in the prefix of the corresponding response messages. The value for target is tied to the context of a client RPC and not persisted or shared among multiple clients.
+
+refer: https://gnmic.openconfig.net/cmd/subscribe/
+How to provide target in client cli for subscribe request
 
 -----------------------------------------------------------------------------------------------
 

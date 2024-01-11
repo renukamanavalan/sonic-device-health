@@ -2,11 +2,14 @@
 package client
 
 import (
+    "strconv"
     "sync"
 
     "github.com/Workiva/go-datastructures/queue"
     gnmipb "github.com/openconfig/gnmi/proto/gnmi"
-    lpb "lom/usr/gnmi/proto"
+    
+    lpb "lom/src/gnmi/proto"
+    cmn "lom/src/lib/lomcommon"
 )
 
 const (
@@ -51,16 +54,35 @@ type Stream interface {
 }
 
 type Value struct {
-    *spb.Value
+    *lpb.Value
 }
 
 /* Helpers */
-func validatedVal(sval string, max, min, def int, name string) (ret int, err error) {
-    val, err := strconv.Atoi(v)
+func validatedVal(sval string, max, min, def int, name string) int {
+    val, err := strconv.Atoi(sval)
 
     if (err != nil) || (val > max) || (val < min) {
         cmn.LogWarning("%s failed validation. err(%v) sval(%s) ret(%d)", name, err, sval, def)
         return def
     }
     return val
+}
+
+// Convert from LoM Value (as defined in Proto) to its corresponding gNMI proto stream
+// response type.
+func ValToResp(val Value) (*gnmipb.SubscribeResponse, error) {
+    return &gnmipb.SubscribeResponse{
+        Response: &gnmipb.SubscribeResponse_Update{
+            Update: &gnmipb.Notification{
+                Timestamp: val.GetTimestamp(),
+                Prefix:    val.GetPrefix(),
+                Update: []*gnmipb.Update{
+                    {
+                        Path: val.GetPath(),
+                        Val:  val.GetVal(),
+                    },
+                },
+            },
+        },
+    }, nil
 }

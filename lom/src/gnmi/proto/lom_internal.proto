@@ -19,18 +19,14 @@ message Value {
   // be the current system time.
   int64 timestamp = 3;
 
+  // The value to be sent to client
   TypedValue val = 4;
 
-  // Indicate target has sent all values associated with the subscription
-  // at least once.
-  bool sync_response = 5;
+  // Each message sent is sequentially indexed.
+  // This is used to track dropped messages within the gNMI server code.
+  // The ones sent successfully by server and not received by client is
+  // unknown in subscribe mode as communication is one way. But as underlying
+  // protocol is TCP, the probability of loss is very small.
+  int64 sendIndex = 5;
 
-  // fatal error happened.
-  string fatal = 6;
-
-  // Notification to be used in place of 1-4 if present
-  gnmi.Notification notification = 7;
-
-  // Delete to be used to indicate that node was deleted
-  repeated gnmi.Path delete = 8;
 }

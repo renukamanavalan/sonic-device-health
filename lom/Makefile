@@ -6,17 +6,23 @@ USER = $(shell id -un)
 UID = $(shell id -u)
 GUID = $(shell id -g)
 
-
-GO := /usr/local/go1.20.3/go/bin/go
-
+GOBIN_PATH := /usr/local/go1.20.3/go/bin
+GO := $(GOBIN_PATH)/go
 GOFMT := $(GO)fmt
 INSTALL := /usr/bin/install
+
+ifeq ($(GOPATH),)
+export GOPATH=/tmp/go
+endif
 
 BUILD_DIR := build
 LIB_DIR := $(BUILD_DIR)/lib
 BIN_DIR := $(BUILD_DIR)/bin
 TEST_DIR := $(BUILD_DIR)/test
 INTEGRATION_TEST_DIR := integration_test
+GNMI_DIR := src/gnmi
+
+export PATH := $(PATH):$(GOPATH)/bin:$(GOBIN_PATH):$(BIN_DIR)
 
 # Set to -v for verbose o/p. May set it in Env before calling Make
 # export TEST_FLAG=-v in shell before calling make or
@@ -46,6 +52,9 @@ ENGINE_BIN := $(BIN_DIR)/LoMEngine
 PLUGIN_MANAGER_BIN := $(BIN_DIR)/LoMPluginMgr
 CLI_BIN := $(BIN_DIR)/LoMCli
 INTEGRATION_TEST_BIN := $(INTEGRATION_TEST_DIR)/integration_test_installer.sh
+GNMI_SERVER_BIN := $(BIN_DIR)/LoMgNMIServer
+
+$(info "gnmi server": '$(GNMI_SERVER_BIN)")
 
 # Test binaries/flags
 LIB_TEST = $(TEST_DIR)/LibTested
@@ -76,6 +85,7 @@ define build_golang
     @ # If we cannot extract a Go build-id, we punt and fallback to using a random 32-byte hex string.
     @ # This fallback is unique but non-deterministic, making it sufficient to avoid generating the
     @ # GNU build-id from the empty string and causing guaranteed collisions.
+    @echo "build_golang $(PWD) ok"
     $(GO) build $3 -o $1 $2
     GO_BUILD_ID=$$( $(GO) tool buildid $1 || openssl rand -hex 32 ) && \
     GNU_BUILD_ID=$$( echo $$GO_BUILD_ID | sha1sum | cut -d' ' -f1 ) && \
@@ -133,7 +143,8 @@ clean-aggregate-file_coverage:
 
 .PHONY: all clean format_code clean-extract_file_coverage add-extract_file_coverage clean-aggregate-file_coverage add-aggregate_file_coverage COMMON_DEPS
 
-COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(CLI_BIN) $(LIB_TEST) $(ENGINE_TEST) \
+COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage $(CMN_C_LIB) $(ENGINE_BIN) \
+	$(PLUGIN_MANAGER_BIN) $(CLI_BIN) $(LIB_TEST) $(ENGINE_TEST) \
 	$(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(SONIC_LINK_CRC_MOCKER_TEST) $(PLUGINS_COMMON_TEST) \
 	$(PY_TEST) $(INTEGRATION_TEST_BIN)
 
@@ -255,4 +266,12 @@ $(INTEGRATION_TEST_BIN):
 clean: clean-extract_file_coverage clean-aggregate-file_coverage
 	rm -rf $(BUILD_DIR)
 	$(INTEGRATION_TEST_DIR)/src/build.sh clean
+
+
+$(GNMI_SERVER_BIN): $(SRC_FILES)
+	mkdir -p $(BIN_DIR)
+	$(call build_golang,$@,lom/src/gnmi/gnmi_server/,)
+	@echo -e "Successfully Build gnmi-server\n\n"
+
+
 

@@ -145,6 +145,12 @@ func ResetLastError() {
 }
 
 /* Log this message at error level */
+func LogCritical(s string, a ...interface{}) error {
+    lastError = errors.New(LogMessage(syslog.LOG_CRIT, s, a...))
+    return lastError
+}
+
+/* Log this message at error level */
 func LogError(s string, a ...interface{}) error {
     lastError = errors.New(LogMessage(syslog.LOG_ERR, s, a...))
     return lastError

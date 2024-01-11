@@ -14,8 +14,8 @@ import (
     "google.golang.org/grpc/credentials"
     "google.golang.org/grpc/keepalive"
 
+    sgnmi "lom/src/gnmi/gnmi_server/server"
     testcert "lom/src/gnmi/testdata/tls"
-    gnmi "lom/src/gnmi/gnmi_server/server"
     cmn "lom/src/lib/lomcommon"
 )
 
@@ -25,12 +25,9 @@ var (
     caCert             = flag.String("ca_crt", "", "CA certificate for client certificate validation. Optional.")
     serverCert         = flag.String("server_crt", "", "TLS server certificate")
     serverKey          = flag.String("server_key", "", "TLS server private key")
-    zmqAddress         = flag.String("zmq_address", "", "Orchagent ZMQ address, when not set or empty string telemetry server will switch to Redis based communication channel.")
     insecure           = flag.Bool("insecure", false, "Skip providing TLS cert and key, for testing only!")
     noTLS              = flag.Bool("noTLS", false, "disable TLS, for testing only!")
     allowNoClientCert  = flag.Bool("allow_no_client_auth", false, "When set, telemetry server will request but not require a client certificate.")
-    gnmi_native_write  = flag.Bool("gnmi_native_write", gnmi.ENABLE_NATIVE_WRITE, "Enable gNMI native write")
-    threshold          = flag.Int("threshold", 100, "max number of client connections")
     idle_conn_duration = flag.Int("idle_conn_duration", 5, "Seconds before server closes idle connections")
 )
 
@@ -44,22 +41,13 @@ func main() {
     }
 
     switch {
-    case *threshold < 0:
-        log.Errorf("threshold must be >= 0.")
-        return
-    }
-
-    switch {
     case *idle_conn_duration < 0:
         log.Errorf("idle_conn_duration must be >= 0, 0 meaning inf")
         return
     }
 
-    cfg := &gnmi.Config{}
+    cfg := &sgnmi.Config{}
     cfg.Port = int64(*port)
-    cfg.EnableNativeWrite = bool(*gnmi_native_write)
-    cfg.ZmqAddress = *zmqAddress
-    cfg.Threshold = int(*threshold)
     cfg.IdleConnDuration = int(*idle_conn_duration)
     var opts []grpc.ServerOption
 
@@ -136,11 +124,9 @@ func main() {
         if cfg.IdleConnDuration > 0 { // non inf case
             opts = append(opts, grpc.KeepaliveParams(keep_alive_params))
         }
-
-        gnmi.GenerateJwtSecretKey()
     }
 
-    s, err := gnmi.NewServer(cfg, opts)
+    s, err := sgnmi.NewServer(cfg, opts)
     if err != nil {
         log.Errorf("Failed to create gNMI server: %v", err)
         return

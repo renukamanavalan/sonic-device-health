@@ -24,6 +24,14 @@ var (
     supportedEncodings = []gnmipb.Encoding{gnmipb.Encoding_JSON, gnmipb.Encoding_JSON_IETF, gnmipb.Encoding_PROTO}
 )
 
+// Config is a collection of values for Server
+type Config struct {
+    // Port for the Server to listen on. If 0 or unset the Server will pick a port
+    // for this Server.
+    Port                int64
+    IdleConnDuration    int
+}
+
 // Server manages a single gNMI Server implementation. Each client that connects
 // via Subscribe or Get will receive a stream of updates based on the requested
 // path. Set request is processed by server too.
@@ -33,15 +41,6 @@ type Server struct {
     config  *Config
     cMu     sync.Mutex
     clients map[string]*Client
-}
-
-// Config is a collection of values for Server
-type Config struct {
-    // Port for the Server to listen on. If 0 or unset the Server will pick a port
-    // for this Server.
-    Port             int64
-    Threshold        int
-    IdleConnDuration int
 }
 
 var maMu sync.Mutex
@@ -108,8 +107,6 @@ func (s *Server) Subscribe(stream gnmipb.GNMI_SubscribeServer) error {
 
     c := NewClient(pr.Addr)
 
-    c.setConnectionManager(s.config.Threshold)
-
     s.cMu.Lock()
     if oc, ok := s.clients[c.String()]; ok {
         log.V(2).Infof("Delete duplicate client %s", oc)
@@ -166,28 +163,28 @@ func (s *Server) Get(ctx context.Context, req *gnmipb.GetRequest) (*gnmipb.GetRe
     return nil, status.Errorf(codes.Unimplemented, "target(%s) != COUNTERS - the only supported", target)
 
     /*
-        TODO: When we do GET
-        var dc ldc.Client
-        defer dc.Close()
-        notifications := make([]*gnmipb.Notification, len(paths))
-        spbValues, err := dc.Get(nil)
-        if err != nil {
-            return nil, status.Error(codes.NotFound, err.Error())
-        }
+       TODO: When we do GET
+       var dc ldc.Client
+       defer dc.Close()
+       notifications := make([]*gnmipb.Notification, len(paths))
+       spbValues, err := dc.Get(nil)
+       if err != nil {
+           return nil, status.Error(codes.NotFound, err.Error())
+       }
 
-        for index, spbValue := range spbValues {
-            update := &gnmipb.Update{
-                Path: spbValue.GetPath(),
-                Val:  spbValue.GetVal(),
-            }
+       for index, spbValue := range spbValues {
+           update := &gnmipb.Update{
+               Path: spbValue.GetPath(),
+               Val:  spbValue.GetVal(),
+           }
 
-            notifications[index] = &gnmipb.Notification{
-                Timestamp: spbValue.GetTimestamp(),
-                Prefix:    prefix,
-                Update:    []*gnmipb.Update{update},
-            }
-        }
-        return &gnmipb.GetResponse{Notification: notifications}, nil
+           notifications[index] = &gnmipb.Notification{
+               Timestamp: spbValue.GetTimestamp(),
+               Prefix:    prefix,
+               Update:    []*gnmipb.Update{update},
+           }
+       }
+       return &gnmipb.GetResponse{Notification: notifications}, nil
     */
 }
 
