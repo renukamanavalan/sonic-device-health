@@ -42,6 +42,7 @@ export LOM_LIB_PATH=$(PWD)/build/lib
 SRC_FILES=$(shell find . -name '*.go' | grep -v '_test.go' | grep -v '/tests/')
 PY_FILES=$(shell find . -name '*.py' | grep -v '_test.py' | grep -v '/tests/')
 TEST_FILES=$(shell find . -name '*test.go')
+PROTO_FILES=$(shell find . -name '*.proto')
 
 CMN_C_LIB_FILES=src/lib/clib/lom_clib.go
 CMN_C_LIB_FLAG=-buildmode=c-shared
@@ -268,7 +269,13 @@ clean: clean-extract_file_coverage clean-aggregate-file_coverage
 	$(INTEGRATION_TEST_DIR)/src/build.sh clean
 
 
-$(GNMI_SERVER_BIN): $(SRC_FILES)
+GNMI_PROTO := src/gnmi/proto/.done
+
+$(GNMI_PROTO) : $(PROTO_FILES)
+	cd src/gnmi/proto/ && $(MAKE) -f Makefile all
+	touch $(PWD)/$@
+
+$(GNMI_SERVER_BIN): $(SRC_FILES) $(GNMI_PROTO)
 	mkdir -p $(BIN_DIR)
 	$(call build_golang,$@,lom/src/gnmi/gnmi_server/,)
 	@echo -e "Successfully Build gnmi-server\n\n"
