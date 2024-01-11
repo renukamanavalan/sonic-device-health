@@ -12,12 +12,6 @@ import (
     cmn "lom/src/lib/lomcommon"
 )
 
-const (
-    // indentString represents the default indentation string used for
-    // JSON. Two spaces are used here.
-    indentString string = "  "
-)
-
 // Client defines a set of methods which every client must implement.
 // This package provides one implmentation for now: the DbClient
 type Client interface {
@@ -55,6 +49,21 @@ type Stream interface {
 
 type Value struct {
     *lpb.Value
+}
+
+// Implement Compare method for priority queue
+func (val Value) Compare(other queue.Item) int {
+    oval := other.(Value)
+    if val.GetTimestamp() > oval.GetTimestamp() {
+        return 1
+    } else if val.GetTimestamp() == oval.GetTimestamp() {
+        return 0
+    }
+    return -1
+}
+
+func (val Value) GetTimestamp() int64 {
+    return val.Value.GetTimestamp()
 }
 
 /* Helpers */

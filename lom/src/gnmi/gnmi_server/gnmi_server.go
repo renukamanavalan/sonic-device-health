@@ -6,6 +6,7 @@ import (
     "crypto/x509"
     "flag"
     "io/ioutil"
+    "log/syslog"
     "strconv"
     "time"
 
@@ -52,7 +53,7 @@ func main() {
     var opts []grpc.ServerOption
 
     if val, err := strconv.Atoi(getflag("v")); err == nil {
-        cmn.SetLogLevel(val)
+        cmn.SetLogLevel(syslog.Priority(val))
     }
     if !*noTLS {
         var certificate tls.Certificate

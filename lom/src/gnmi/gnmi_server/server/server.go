@@ -1,23 +1,19 @@
 package gnmi
 
 import (
-    "bytes"
     "errors"
     "fmt"
-    "github.com/golang/protobuf/proto"
     gnmipb "github.com/openconfig/gnmi/proto/gnmi"
-    gnmi_extpb "github.com/openconfig/gnmi/proto/gnmi_ext"
     "golang.org/x/net/context"
     "google.golang.org/grpc"
     "google.golang.org/grpc/codes"
     "google.golang.org/grpc/peer"
     "google.golang.org/grpc/reflection"
-    "google.golang.org/grpc/status"
-    ldc "lom/src/gnmi/lom_data_clients"
-    lpb "lom/src/gnmi/proto"
     "net"
     "strings"
     "sync"
+
+    cmn "lom/src/lib/lomcommon"
 )
 
 var (
@@ -68,7 +64,7 @@ func NewServer(config *Config, opts []grpc.ServerOption) (*Server, error) {
         return nil, fmt.Errorf("failed to open listener port %d: %v", srv.config.Port, err)
     }
     gnmipb.RegisterGNMIServer(srv.s, srv)
-    log.V(1).Infof("Created Server on %s, read-only: %t", srv.Address(), !srv.config.EnableNativeWrite)
+    cmn.LogInfo("Created Server on %s, read-only: %t", srv.Address(), ENABLE_NATIVE_WRITE)
     return srv, nil
 }
 
@@ -109,19 +105,18 @@ func (s *Server) Subscribe(stream gnmipb.GNMI_SubscribeServer) error {
 
     s.cMu.Lock()
     if oc, ok := s.clients[c.String()]; ok {
-        log.V(2).Infof("Delete duplicate client %s", oc)
+        cmn.LogInfo("Delete duplicate client %s", oc)
         oc.Close()
         delete(s.clients, c.String())
     }
     s.clients[c.String()] = c
     s.cMu.Unlock()
 
-    err = c.Run(stream)
+    err := c.Run(stream)
     s.cMu.Lock()
     delete(s.clients, c.String())
     s.cMu.Unlock()
 
-    log.Flush()
     return err
 }
 
@@ -143,53 +138,11 @@ func (s *Server) checkEncodingAndModel(encoding gnmipb.Encoding, models []*gnmip
 
 // Get implements the Get RPC in gNMI spec.
 func (s *Server) Get(ctx context.Context, req *gnmipb.GetRequest) (*gnmipb.GetResponse, error) {
-    if req.GetType() != gnmipb.GetRequest_ALL {
-        return nil, status.Errorf(codes.Unimplemented, "unsupported request type: %s", gnmipb.GetRequest_DataType_name[int32(req.GetType())])
-    }
-
-    if err = s.checkEncodingAndModel(req.GetEncoding(), req.GetUseModels()); err != nil {
-        return nil, status.Error(codes.Unimplemented, err.Error())
-    }
-
-    target := ""
-    prefix := req.GetPrefix()
-    if prefix != nil {
-        target = prefix.GetTarget()
-    }
-
-    paths := req.GetPath()
-    log.V(2).Infof("GetRequest paths: %v", paths)
-
-    return nil, status.Errorf(codes.Unimplemented, "target(%s) != COUNTERS - the only supported", target)
-
-    /*
-       TODO: When we do GET
-       var dc ldc.Client
-       defer dc.Close()
-       notifications := make([]*gnmipb.Notification, len(paths))
-       spbValues, err := dc.Get(nil)
-       if err != nil {
-           return nil, status.Error(codes.NotFound, err.Error())
-       }
-
-       for index, spbValue := range spbValues {
-           update := &gnmipb.Update{
-               Path: spbValue.GetPath(),
-               Val:  spbValue.GetVal(),
-           }
-
-           notifications[index] = &gnmipb.Notification{
-               Timestamp: spbValue.GetTimestamp(),
-               Prefix:    prefix,
-               Update:    []*gnmipb.Update{update},
-           }
-       }
-       return &gnmipb.GetResponse{Notification: notifications}, nil
-    */
+    return nil, grpc.Errorf(codes.Unimplemented, "Set() is not implemented")
 }
 
 func (s *Server) Set(ctx context.Context, req *gnmipb.SetRequest) (*gnmipb.SetResponse, error) {
-    return nil, grpc.Errorf(codes.Unimplemented, "Capabilities() is not implemented")
+    return nil, grpc.Errorf(codes.Unimplemented, "Set() is not implemented")
     // TODO: Redbutton Set to be implemented.
 }
 

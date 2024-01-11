@@ -1,16 +1,14 @@
-// Client to return counters
+// Client to return counters & events
 //
 package client
 
 import (
     "encoding/json"
     "fmt"
-    "io/ioutil"
+    "strconv"
     "strings"
     "sync"
     "time"
-
-    "gopkg.in/yaml.v2"
 
     lpb "lom/src/gnmi/proto"
     "github.com/Workiva/go-datastructures/queue"
@@ -80,10 +78,10 @@ type LoMDataClient struct {
     q           *queue.PriorityQueue
 
     /* telemetry - count of messages sent */
-    sentCnt                 int
+    sentCnt                 int64
 
     /* Server call back on each successful send */
-    lastReportedSentIndex   int
+    lastReportedSentIndex   int64
 
     /*
      * Internal data from subscribing for counters published.
@@ -97,7 +95,7 @@ type LoMDataClient struct {
 }
 
 
-func NewLoMDataClient(paths []*gnmipb.Path, prefix *gnmipb.Path) (Client, error) {
+func NewLoMDataClient(path *gnmipb.Path, prefix *gnmipb.Path) (Client, error) {
     var c LoMDataClient
     var err error
     
@@ -113,7 +111,7 @@ func NewLoMDataClient(paths []*gnmipb.Path, prefix *gnmipb.Path) (Client, error)
 
     c.prefix = prefix
     // Only one path is expected. Take the last if many
-    c.path = paths[len(paths)-1]
+    c.path = path
 
 
     for _, e := range c.path.GetElem() {
@@ -126,7 +124,7 @@ func NewLoMDataClient(paths []*gnmipb.Path, prefix *gnmipb.Path) (Client, error)
                 c.pq_max = validatedVal(v, PARAM_QSIZE_MAX, PARAM_QSIZE_MIN,
                             PARAM_QSIZE_DEFAULT, k)
             } else if (k == PARAM_ON_CHANGE) {
-                c.onChg = !strings.ToLower(v) == "false"
+                c.onChg, _ = strconv.ParseBool(v)
             }
         }
     }
@@ -135,12 +133,12 @@ func NewLoMDataClient(paths []*gnmipb.Path, prefix *gnmipb.Path) (Client, error)
             c.chTypeStr, c.updFreq, c.pq_max, c.onChg)
 
     /* Init subscriber with cache use and defined time out */
-    if c.chData, c.chClose, err = tele.GetSubChannel(chType,
+    if c.chData, c.chClose, err = tele.GetSubChannel(c.chType,
                 tele.CHANNEL_PRODUCER_EMPTY, ""); err != nil {
         cmn.LogError("Failed to create LoMDataClient for (%s) due to (%v)", c.chTypeStr, err)
         return nil, err
     }
-    cmn.LogDebug("NewLoMDataClient constructed. logLevel=%d", logLevel)
+    cmn.LogDebug("NewLoMDataClient constructed.")
 
     return &c, nil
 }
@@ -166,32 +164,35 @@ func sendData(c *LoMDataClient, sndData tele.JsonString_t) {
         return
     }
     var fvp map[string]interface{}
-    json.Unmarshal([]byte(sndData), &fvp)
+    if err := json.Unmarshal([]byte(sndData), &fvp); err != nil {
+        cmn.LogCritical("Invalid event message (%v)", sndData)
+        return
+    }
+
+    if c.chType == tele.CHANNEL_TYPE_COUNTERS {
+        fvp["DROPPED"] = droppedData.data
+    }
 
     if jv, err := json.Marshal(fvp); err != nil {
         cmn.LogCritical("Invalid event string: %v", sndData)
         return
-    } 
+    } else { 
+        tv := &gnmipb.TypedValue {
+            Value: &gnmipb.TypedValue_JsonIetfVal {
+                JsonIetfVal: jv,
+            }}
+        lpbv := &lpb.Value{
+            Prefix:    c.prefix,
+            Path:      c.path,
+            Timestamp: time.Now().UnixMilli(),
+            Val:  tv,
+            SendIndex: c.sentCnt + 1,
+        }
 
-    if c.chType == CHANNEL_TYPE_COUNTERS {
-        fvp["DROPPED"] = droppedData.data
-    }
-
-    tv := &gnmipb.TypedValue {
-        Value: &gnmipb.TypedValue_JsonIetfVal {
-            JsonIetfVal: jv,
-        }}
-    lpbv := &lpb.Value{
-        Prefix:    c.prefix,
-        Path:      c.path,
-        Timestamp: time.Now().UnixMilli(),
-        Val:  tv,
-        sentIndex: c.sentCnt + 1
-    }
-
-    if err = c.q.Put(Value{lpbv}); err != nil {
-        cmn.LogError("Queue error:  %v", err)
-        return
+        if err = c.q.Put(Value{lpbv}); err != nil {
+            cmn.LogError("Queue error:  %v", err)
+            return
+        }
     }
     c.sentCnt++
     sent = true
@@ -207,11 +208,11 @@ func (c *LoMDataClient) StreamRun(q *queue.PriorityQueue, stop chan struct{}, wg
     for {
         select {
         case ev := <-c.chData:
-            if !strings.HasPrefix(ev, TEST_DATA) {
+            if !strings.HasPrefix(string(ev), TEST_DATA) {
                 sendData(c, ev)
             }
 
-        case <- chStop:
+        case <- stop:
             close(c.chClose)
             return
         }
@@ -245,12 +246,16 @@ func (c *LoMDataClient) FailedSend() {
 
 func (c *LoMDataClient) SentOne(v *Value) {
 
-    diff := v.sendIndex - c.lastReportedSentIndex - 1
+    diff := v.SendIndex - c.lastReportedSentIndex - 1
     if diff < 0 {
         cmn.LogError("Internal indices issue sentIndex(%v) lastSentIndex(%v) sentCnt(%v)",
-                v.sendIndex, c.lastReportedSentIndex, c.sentCnt)
+                v.SendIndex, c.lastReportedSentIndex, c.sentCnt)
     } else if diff > 0 {
-        droppedData.add(c.chTypeStr, diff)
+        droppedData.add(c.chTypeStr, int(diff))
     }
+}
+
+func (c *LoMDataClient) Close() error {
+    return nil
 }
 
