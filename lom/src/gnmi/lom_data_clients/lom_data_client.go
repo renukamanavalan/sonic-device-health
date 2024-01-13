@@ -1,5 +1,4 @@
 // Client to return counters & events
-//
 package client
 
 import (
@@ -10,25 +9,24 @@ import (
     "sync"
     "time"
 
-    lpb "lom/src/gnmi/proto"
     "github.com/Workiva/go-datastructures/queue"
     gnmipb "github.com/openconfig/gnmi/proto/gnmi"
+    lpb "lom/src/gnmi/proto"
 
     cmn "lom/src/lib/lomcommon"
     tele "lom/src/lib/lomtelemetry"
 )
 
-
 /* Path parameters - Refer "doc/gNMI_Info.txt" */
 /* Send counter updates every UPD_FREQ seconds */
 const PARAM_UPD_FREQ = "updfreq"
 const PARAM_UPD_FREQ_DEFAULT = 10 /* Default 10 secs.*/
-const PARAM_UPD_FREQ_MAX     = 60 /* max = 1 min */
-const PARAM_UPD_FREQ_MIN     = 5  /* max = 5 secs */
+const PARAM_UPD_FREQ_MAX = 60     /* max = 1 min */
+const PARAM_UPD_FREQ_MIN = 5      /* max = 5 secs */
 
 /* On change only - Implies send updates every PARAM_UPD_FREQ seconds, only if there is change */
 const PARAM_ON_CHANGE = "onchange"
-const PARAM_ON_CHANGE_DEFAULT = true    /* Default: Only upon change */
+const PARAM_ON_CHANGE_DEFAULT = true /* Default: Only upon change */
 
 const PARAM_QSIZE = "qsize"
 const PARAM_QSIZE_DEFAULT = 10240 // Def size for pending events in PQ.
@@ -41,16 +39,16 @@ const TEST_DATA = "{\"lom:test-"
  * Anytime, we fail to send data, the dropped counter is incremented
  * This cumulative info is logged
  * Added to publshed counters
- * This data is collected over the gNMI server instance run time and 
+ * This data is collected over the gNMI server instance run time and
  * not impacted by client connections' lifetime.
  */
 type DroppedDataType struct {
-    mu      sync.Mutex
-    data    map[string]int
+    mu   sync.Mutex
+    data map[string]int
 }
 
 func (d *DroppedDataType) add(dType string, cnt int) {
-    if (cnt > 0) {
+    if cnt > 0 {
         d.mu.Lock()
         defer d.mu.Unlock()
 
@@ -64,41 +62,39 @@ func (d *DroppedDataType) inc(dType string) {
 
 var droppedData = DroppedDataType{data: make(map[string]int)}
 
-
 type LoMDataClient struct {
-    prefix      *gnmipb.Path
-    path        *gnmipb.Path
+    prefix *gnmipb.Path
+    path   *gnmipb.Path
 
     /* Params */
-    pq_max      int
-    updFreq     int
-    onChg       bool
+    pq_max  int
+    updFreq int
+    onChg   bool
 
     /* Queue to send response. */
-    q           *queue.PriorityQueue
+    q *queue.PriorityQueue
 
     /* telemetry - count of messages sent */
-    sentCnt                 int64
+    sentCnt int64
 
     /* Server call back on each successful send */
-    lastReportedSentIndex   int64
+    lastReportedSentIndex int64
 
     /*
      * Internal data from subscribing for counters published.
      * chData - Chan to read published data from other LoM components.
      * chClose - Way to close the internal subscription chan
      */
-    chData      <-chan tele.JsonString_t
-    chClose     chan<- int
-    chType      tele.ChannelType_t
-    chTypeStr   string
+    chData    <-chan tele.JsonString_t
+    chClose   chan<- int
+    chType    tele.ChannelType_t
+    chTypeStr string
 }
-
 
 func NewLoMDataClient(path *gnmipb.Path, prefix *gnmipb.Path) (Client, error) {
     var c LoMDataClient
     var err error
-    
+
     switch prefix.GetTarget() {
     case "EVENTS":
         c.chType = tele.CHANNEL_TYPE_EVENTS
@@ -113,28 +109,27 @@ func NewLoMDataClient(path *gnmipb.Path, prefix *gnmipb.Path) (Client, error) {
     // Only one path is expected. Take the last if many
     c.path = path
 
-
     for _, e := range c.path.GetElem() {
         keys := e.GetKey()
         for k, v := range keys {
-            if (k == PARAM_UPD_FREQ) {
+            if k == PARAM_UPD_FREQ {
                 c.updFreq = validatedVal(v, PARAM_UPD_FREQ_MAX, PARAM_UPD_FREQ_MIN,
-                            PARAM_UPD_FREQ_DEFAULT, k)
-            } else if (k == PARAM_QSIZE) {
+                    PARAM_UPD_FREQ_DEFAULT, k)
+            } else if k == PARAM_QSIZE {
                 c.pq_max = validatedVal(v, PARAM_QSIZE_MAX, PARAM_QSIZE_MIN,
-                            PARAM_QSIZE_DEFAULT, k)
-            } else if (k == PARAM_ON_CHANGE) {
+                    PARAM_QSIZE_DEFAULT, k)
+            } else if k == PARAM_ON_CHANGE {
                 c.onChg, _ = strconv.ParseBool(v)
             }
         }
     }
 
     cmn.LogDebug("%s Subscribe params (UpdFreq=%d PQ-Max=%d OnChange=%v)",
-            c.chTypeStr, c.updFreq, c.pq_max, c.onChg)
+        c.chTypeStr, c.updFreq, c.pq_max, c.onChg)
 
     /* Init subscriber with cache use and defined time out */
     if c.chData, c.chClose, err = tele.GetSubChannel(c.chType,
-                tele.CHANNEL_PRODUCER_EMPTY, ""); err != nil {
+        tele.CHANNEL_PRODUCER_EMPTY, ""); err != nil {
         cmn.LogError("Failed to create LoMDataClient for (%s) due to (%v)", c.chTypeStr, err)
         return nil, err
     }
@@ -142,7 +137,6 @@ func NewLoMDataClient(path *gnmipb.Path, prefix *gnmipb.Path) (Client, error) {
 
     return &c, nil
 }
-
 
 // String returns the target the client is querying.
 func (c *LoMDataClient) String() string {
@@ -159,7 +153,7 @@ func sendData(c *LoMDataClient, sndData tele.JsonString_t) {
         }
     }()
 
-    if (c.q.Len() >= c.pq_max) {
+    if c.q.Len() >= c.pq_max {
         cmn.LogError("Dropped %s Total dropped: %v", c.chTypeStr, droppedData)
         return
     }
@@ -176,16 +170,16 @@ func sendData(c *LoMDataClient, sndData tele.JsonString_t) {
     if jv, err := json.Marshal(fvp); err != nil {
         cmn.LogCritical("Invalid event string: %v", sndData)
         return
-    } else { 
-        tv := &gnmipb.TypedValue {
-            Value: &gnmipb.TypedValue_JsonIetfVal {
+    } else {
+        tv := &gnmipb.TypedValue{
+            Value: &gnmipb.TypedValue_JsonIetfVal{
                 JsonIetfVal: jv,
             }}
         lpbv := &lpb.Value{
             Prefix:    c.prefix,
             Path:      c.path,
             Timestamp: time.Now().UnixMilli(),
-            Val:  tv,
+            Val:       tv,
             SendIndex: c.sentCnt + 1,
         }
 
@@ -197,7 +191,6 @@ func sendData(c *LoMDataClient, sndData tele.JsonString_t) {
     c.sentCnt++
     sent = true
 }
-
 
 func (c *LoMDataClient) StreamRun(q *queue.PriorityQueue, stop chan struct{}, wg *sync.WaitGroup, subscribe *gnmipb.SubscriptionList) {
     /* caller has already added to wg; so just done is enough. */
@@ -212,13 +205,12 @@ func (c *LoMDataClient) StreamRun(q *queue.PriorityQueue, stop chan struct{}, wg
                 sendData(c, ev)
             }
 
-        case <- stop:
+        case <-stop:
             close(c.chClose)
             return
         }
     }
 }
-
 
 func (c *LoMDataClient) OnceRun(q *queue.PriorityQueue, once chan struct{}, wg *sync.WaitGroup, subscribe *gnmipb.SubscriptionList) {
     return
@@ -249,7 +241,7 @@ func (c *LoMDataClient) SentOne(v *Value) {
     diff := v.SendIndex - c.lastReportedSentIndex - 1
     if diff < 0 {
         cmn.LogError("Internal indices issue sentIndex(%v) lastSentIndex(%v) sentCnt(%v)",
-                v.SendIndex, c.lastReportedSentIndex, c.sentCnt)
+            v.SendIndex, c.lastReportedSentIndex, c.sentCnt)
     } else if diff > 0 {
         droppedData.add(c.chTypeStr, int(diff))
     }
@@ -258,4 +250,3 @@ func (c *LoMDataClient) SentOne(v *Value) {
 func (c *LoMDataClient) Close() error {
     return nil
 }
-

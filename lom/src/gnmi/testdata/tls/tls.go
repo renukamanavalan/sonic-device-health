@@ -19,55 +19,55 @@ limitations under the License.
 package tls
 
 import (
-	"bytes"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
-	"math/big"
-	"time"
+    "bytes"
+    "crypto/rand"
+    "crypto/rsa"
+    "crypto/tls"
+    "crypto/x509"
+    "crypto/x509/pkix"
+    "encoding/pem"
+    "math/big"
+    "time"
 )
 
 // NewCert will create a new tls.Certificate for use in testing.
 // This cert is self signed and must not be used in production code.
 func NewCert() (tls.Certificate, error) {
-	notBefore := time.Now()
-	notAfter := notBefore.Add(time.Hour)
+    notBefore := time.Now()
+    notAfter := notBefore.Add(time.Hour)
 
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-	template := x509.Certificate{
-		SerialNumber: serialNumber,
-		Subject: pkix.Name{
-			Organization: []string{"Example Co"},
-		},
-		DNSNames:  []string{"example.com"},
-		NotBefore: notBefore,
-		NotAfter:  notAfter,
+    serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+    serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+    if err != nil {
+        return tls.Certificate{}, err
+    }
+    template := x509.Certificate{
+        SerialNumber: serialNumber,
+        Subject: pkix.Name{
+            Organization: []string{"Example Co"},
+        },
+        DNSNames:  []string{"example.com"},
+        NotBefore: notBefore,
+        NotAfter:  notAfter,
 
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-	}
+        KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+        ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+        BasicConstraintsValid: true,
+    }
 
-	priv, err := rsa.GenerateKey(rand.Reader, 4096)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
+    priv, err := rsa.GenerateKey(rand.Reader, 4096)
+    if err != nil {
+        return tls.Certificate{}, err
+    }
+    derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+    if err != nil {
+        return tls.Certificate{}, err
+    }
 
-	certBuf := &bytes.Buffer{}
-	pem.Encode(certBuf, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-	keyBuf := &bytes.Buffer{}
-	pem.Encode(keyBuf, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
+    certBuf := &bytes.Buffer{}
+    pem.Encode(certBuf, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
+    keyBuf := &bytes.Buffer{}
+    pem.Encode(keyBuf, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
 
-	return tls.X509KeyPair(certBuf.Bytes(), keyBuf.Bytes())
+    return tls.X509KeyPair(certBuf.Bytes(), keyBuf.Bytes())
 }

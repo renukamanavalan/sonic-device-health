@@ -17,44 +17,44 @@ limitations under the License.
 package tls
 
 import (
-	"crypto/tls"
-	"fmt"
-	"io"
-	"io/ioutil"
-	"testing"
+    "crypto/tls"
+    "fmt"
+    "io"
+    "io/ioutil"
+    "testing"
 )
 
 func TestGenCert(t *testing.T) {
-	// Check that generation works at all.
-	cert, err := NewCert()
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Check that cert is valid by making a dummy connection.
-	l, err := tls.Listen("tcp", fmt.Sprint(":0"), &tls.Config{
-		Certificates: []tls.Certificate{cert},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer l.Close()
-	go func() {
-		// Just accept the connection to unblock Dial below.
-		con, err := l.Accept()
-		if err != nil {
-			t.Error(err)
-		}
-		io.Copy(ioutil.Discard, con)
-	}()
+    // Check that generation works at all.
+    cert, err := NewCert()
+    if err != nil {
+        t.Fatal(err)
+    }
+    // Check that cert is valid by making a dummy connection.
+    l, err := tls.Listen("tcp", fmt.Sprint(":0"), &tls.Config{
+        Certificates: []tls.Certificate{cert},
+    })
+    if err != nil {
+        t.Fatal(err)
+    }
+    defer l.Close()
+    go func() {
+        // Just accept the connection to unblock Dial below.
+        con, err := l.Accept()
+        if err != nil {
+            t.Error(err)
+        }
+        io.Copy(ioutil.Discard, con)
+    }()
 
-	con, err := tls.Dial("tcp", l.Addr().String(), &tls.Config{
-		InsecureSkipVerify: true,
-	})
-	if err != nil {
-		t.Error(err)
-	}
+    con, err := tls.Dial("tcp", l.Addr().String(), &tls.Config{
+        InsecureSkipVerify: true,
+    })
+    if err != nil {
+        t.Error(err)
+    }
 
-	if err := con.Handshake(); err != nil {
-		t.Error(err)
-	}
+    if err := con.Handshake(); err != nil {
+        t.Error(err)
+    }
 }

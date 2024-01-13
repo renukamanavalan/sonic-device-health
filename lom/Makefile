@@ -15,6 +15,7 @@ ifeq ($(GOPATH),)
 export GOPATH=/tmp/go
 endif
 
+VENDOR_DIR := vendor
 BUILD_DIR := build
 LIB_DIR := $(BUILD_DIR)/lib
 BIN_DIR := $(BUILD_DIR)/bin
@@ -149,14 +150,39 @@ COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage
 	$(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(SONIC_LINK_CRC_MOCKER_TEST) $(PLUGINS_COMMON_TEST) \
 	$(PY_TEST) $(INTEGRATION_TEST_BIN)
 
-all: $(COMMON_DEPS)
+GO_DEPS := $(VENDOR_DIR)/.done
+
+# We may not need patches
+# PATCHES := $(wildcard patches/*.patch)
+
+go.mod:
+	$(GO) mod init lom
+
+$(GO_DEPS): go.mod
+	$(GO) mod vendor
+	$(GO) mod download golang.org/x/crypto@v0.0.0-20191206172530-e9b2fee46413
+	$(GO) mod download github.com/jipanyang/gnxi@v0.0.0-20181221084354-f0a90cca6fd0
+	mkdir -p vendor/golang.org/x/crypto/
+	mkdir -p vendor/github.com/jipanyang/gnxi/
+	cp -r $(GOPATH)/pkg/mod/golang.org/x/crypto@v0.0.0-20191206172530-e9b2fee46413/* vendor/golang.org/x/crypto/
+	cp -r $(GOPATH)/pkg/mod/github.com/jipanyang/gnxi@v0.0.0-20181221084354-f0a90cca6fd0/* vendor/github.com/jipanyang/gnxi/
+	# chmod -R u+w vendor
+	# patch -d vendor -p0 < src/gnmi/patches/gnmi_cli.all.patch
+	# patch -d vendor -p0 < src/gnmi/patches/gnmi_set.patch
+	# patch -d vendor -p0 < src/gnmi/patches/gnmi_get.patch
+	# patch -d vendor -p0 < src/gnmi/patches/gnmi_path.patch
+	# patch -d vendor -p0 < src/gnmi/patches/gnmi_xpath.patch
+	# git apply src/gnmi/patches/0001-Updated-to-filter-and-write-to-file.patch
+	touch $@
+
+all: $(COMMON_DEPS) gnmi-tools $(GNMI_SERVER_BIN)
 	$(BUILD_DIR)/aggregate_file_coverage.sh
 
 all-silent: LIB_TEST_FLAGS :=
 all-silent: $(COMMON_DEPS)
 	$(BUILD_DIR)/aggregate_file_coverage.sh
 
-$(CMN_C_LIB): $(SRC_FILES)
+$(CMN_C_LIB): $(SRC_FILES) $(GO_DEPS)
 	mkdir -p $(LIB_DIR)
 	$(call build_golang,$@,$(CMN_C_LIB_FILES),$(CMN_C_LIB_FLAG))
 	@echo -e "Successfully Build c lib\n\n"
@@ -266,6 +292,7 @@ $(INTEGRATION_TEST_BIN):
 
 clean: clean-extract_file_coverage clean-aggregate-file_coverage
 	rm -rf $(BUILD_DIR)
+	rm -rf vendor
 	$(INTEGRATION_TEST_DIR)/src/build.sh clean
 
 
@@ -274,6 +301,17 @@ GNMI_PROTO := src/gnmi/proto/.done
 $(GNMI_PROTO) : $(PROTO_FILES)
 	cd src/gnmi/proto/ && $(MAKE) -f Makefile all
 	touch $(PWD)/$@
+
+
+# Build only CLI for now.
+# 
+gnmi-tools: $(GO_DEPS)
+	# $(GO) build -o ${BIN_DIR}/gnmi_get -mod=vendor github.com/jipanyang/gnxi/gnmi_get
+	# $(GO) build -o ${BIN_DIR}/gnmi_set -mod=vendor github.com/jipanyang/gnxi/gnmi_set
+	$(GO) build -o ${BIN_DIR}/gnmi_cli -mod=vendor github.com/openconfig/gnmi/cmd/gnmi_cli
+	# $(GO) build -o ${BIN_DIR}/gnoi_client -mod=vendor github.com/sonic-net/sonic-gnmi/gnoi_client
+	# $(GO) build -o ${BIN_DIR}/gnmi_dump -mod=vendor github.com/sonic-net/sonic-gnmi/gnmi_dump
+
 
 $(GNMI_SERVER_BIN): $(SRC_FILES) $(GNMI_PROTO)
 	mkdir -p $(BIN_DIR)

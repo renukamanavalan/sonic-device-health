@@ -24,8 +24,8 @@ var (
 type Config struct {
     // Port for the Server to listen on. If 0 or unset the Server will pick a port
     // for this Server.
-    Port                int64
-    IdleConnDuration    int
+    Port             int64
+    IdleConnDuration int
 }
 
 // Server manages a single gNMI Server implementation. Each client that connects

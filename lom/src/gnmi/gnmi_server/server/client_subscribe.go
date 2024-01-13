@@ -188,10 +188,10 @@ func (c *Client) recv(stream gnmipb.GNMI_SubscribeServer) {
                 cmn.LogInfo("Waiting for client '%s'", c)
                 select {
                 case <-stream.Context().Done():
-                        /* This context is done when the client connection is terminated. */
-                        cmn.LogInfo("Client is done '%s'", c)
+                    /* This context is done when the client connection is terminated. */
+                    cmn.LogInfo("Client is done '%s'", c)
                 case <-c.stop:
-                        /* Client closed */
+                    /* Client closed */
                 }
                 return
             }
