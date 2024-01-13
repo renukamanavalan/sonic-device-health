@@ -1,0 +1,47 @@
+ 2020  git fetch upstream
+ 2021  git branch -a | grep 202205
+ 2022  git merge upstream/202205
+ 2023  git  push 
+ 2024  ls
+ 2025  cd src
+ 2026  git submodule update --init sonic-device-health
+ 2027  cd sonic-device-health/
+ 2028  git remote -v
+ 2029  git fetch  origin
+ 2030  git reset --hard origin/gnmi
+ 2031  cd ..
+ 2032  git add sonic-device-health
+ 2033  git commit -m "submod update with origin/gnmi branch"
+ 2034  git push
+
+
+1. We build the installable package from inside sonic-build image, using their dockerfile and other scripts needed (systemd files, init_cfg.json update, ...)
+
+2. Steps:
+    a. Ensure sonic-buildimage is in sync with master.
+        Example for a 202205 branch from master
+             2020  git fetch upstream
+             2021  git branch -a | grep 202205
+             2022  git merge upstream/202205
+             2023  git  push
+
+    b. Create (if not exist), src/sonic-device-health submod as  below
+        remanava@remanava-dev-vm:~/sonic/fork/2022051/src/sonic-device-health$ git remote -v
+        origin  https://github.com/renukamanavalan/sonic-device-health.git (fetch)
+        origin  https://github.com/renukamanavalan/sonic-device-health.git (push)
+
+    c. Do submod update (if exist)
+        2025  cd src
+        2026  git submodule update --init sonic-device-health
+        2027  cd sonic-device-health/
+        2028  git remote -v
+        2029  git fetch  origin
+        2030  git reset --hard origin/gnmi
+        2031  cd ..
+        2032  git add sonic-device-health
+        2033  git commit -m "submod update with origin/gnmi branch"
+        2034  git push
+
+    d. Build sonic
+
+    e. Run src/sonic-device-health/src/sonic-device-health/LoM-Install/sonic/make-install-archive.sh

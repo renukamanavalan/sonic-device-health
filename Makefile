@@ -11,6 +11,8 @@ CMN_C_LIB := $(GO_BUILD_DIR)/lib/cmn_c_lib.so
 CONFIG_DIR := config
 LOM_CONFIG := $(CONFIG_DIR)/*.json
 VERSION_CONFIG := $(CONFIG_DIR)/LoM-Version.json
+gNMI_SERVER_TARGET := $(GO_BUILD_DIR)/bin/LoMgNMIServer
+gNMI_CLI_TARGET := $(GO_BUILD_DIR)/bin/gnmi_cli
 
 MKDIR := mkdir
 CP := cp
@@ -51,6 +53,8 @@ install:
 	$(CP) $(CLI_TARGET) $(DESTDIR)/usr/bin
 	$(CP) $(CMN_C_LIB) $(DESTDIR)/usr/lib
 	$(CP) $(LOM_CONFIG) $(DESTDIR)/usr/share/lom/
+	$(CP) $(gNMI_SERVER_TARGET) $(DESTDIR)/usr/bin
+	$(CP) $(gNMI_CLI_TARGET) $(DESTDIR)/usr/bin
 
 
 deinstall:
