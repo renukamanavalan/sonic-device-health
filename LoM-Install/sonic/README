@@ -1,3 +1,5 @@
+# https://github.com/sonic-net/sonic-buildimage/pull/16966 - for 202205 merge
+#
  2020  git fetch upstream
  2021  git branch -a | grep 202205
  2022  git merge upstream/202205
