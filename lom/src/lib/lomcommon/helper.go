@@ -34,6 +34,10 @@ func RunPanic(m string) {
 var DoPanic = RunPanic
 
 func init() {
+    InitSyslogWriter()
+}
+
+func InitSyslogWriter() {
     isTest := false
     if GetLoMRunMode() == LoMRunMode_Test {
         logSuffix = "\n"
@@ -1016,7 +1020,7 @@ func xyz() {
 
 var envMap = map[string]string{}
 
-/* variable name , system env variable name, default value. If default value is empty, then value is mandatory */
+/* variable name , system env variable name, default value*/
 const EnvMapDefinitionsStr = `{
     "ENV_lom_conf_location": {
         "env": "LOM_CONF_LOCATION",
@@ -1038,9 +1042,6 @@ func LoadEnvironmentVariables() {
     for key, value := range envMapDefinitions {
         envVal, exists := os.LookupEnv(value["env"])
         if !exists {
-            if value["default"] == "" {
-                LogPanic("Environment variable %s is not set", value["env"])
-            }
             envVal = value["default"]
         }
         envMap[key] = envVal

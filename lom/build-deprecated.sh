@@ -61,8 +61,8 @@ dbClientTest() {
 }
 
 test_plugin_mgr() {
-    #CGO_ENABLED=1 GORACE="log_path=/tmp/race/gou_report"  go test -race -v -p 1 -cover $1 -coverprofile=coverprofile_plmgr.out -coverpkg lom/src/pluginmgr/pluginmgr_common,lom/src/plugins/plugins_common,lom/src/plugins/plugins_files -covermode=atomic ./src/pluginmgr/pluginmgr_common 
-    go test -v -p 1 -cover $1 -coverprofile=coverprofile_plmgr.out -coverpkg lom/src/pluginmgr/pluginmgr_common,lom/src/plugins/plugins_common,lom/src/plugins/plugins_files -covermode=atomic ./src/pluginmgr/pluginmgr_common ./src/plugins/plugins_common
+    #CGO_ENABLED=1 GORACE="log_path=/tmp/race/gou_report"  go test -race -v -p 1 -cover $1 -coverprofile=coverprofile_plmgr.out -coverpkg lom/src/pluginmgr/pluginmgr_common,lom/src/plugins/plugins_common,lom/src/plugins/vendors -covermode=atomic ./src/pluginmgr/pluginmgr_common 
+    go test -v -p 1 -cover $1 -coverprofile=coverprofile_plmgr.out -coverpkg lom/src/pluginmgr/pluginmgr_common,lom/src/plugins/plugins_common,lom/src/plugins/vendors -covermode=atomic ./src/pluginmgr/pluginmgr_common ./src/plugins/plugins_common
     
     if [ $? -ne 0 ]; then
         echo "Failed to run plugin manager test"
@@ -75,8 +75,8 @@ test_plugin_mgr() {
 }
 
 test_plugins_common() {
-    #CGO_ENABLED=1 GORACE="log_path=/tmp/race/gou_report"  go test -race -v -p 1 -cover $1 -coverprofile=coverprofile_plmgr.out -coverpkg lom/src/pluginmgr/pluginmgr_common,lom/src/plugins/plugins_common,lom/src/plugins/plugins_files -covermode=atomic ./src/plugins/plugins_common
-    go test -v -p 1 -cover $1 -coverprofile=coverprofile_plmgr.out -coverpkg lom/src/pluginmgr/pluginmgr_common,lom/src/plugins/plugins_common,lom/src/plugins/plugins_files -covermode=atomic ./src/plugins/plugins_common
+    #CGO_ENABLED=1 GORACE="log_path=/tmp/race/gou_report"  go test -race -v -p 1 -cover $1 -coverprofile=coverprofile_plmgr.out -coverpkg lom/src/pluginmgr/pluginmgr_common,lom/src/plugins/plugins_common,lom/src/plugins/vendors -covermode=atomic ./src/plugins/plugins_common
+    go test -v -p 1 -cover $1 -coverprofile=coverprofile_plmgr.out -coverpkg lom/src/pluginmgr/pluginmgr_common,lom/src/plugins/plugins_common,lom/src/plugins/vendors -covermode=atomic ./src/plugins/plugins_common
     
     if [ $? -ne 0 ]; then
         echo "Failed to run plugins common test"

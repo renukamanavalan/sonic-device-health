@@ -93,6 +93,10 @@ func GetLoMRunMode() LoMRunMode_t {
     return lomRunMode
 }
 
+func SetLoMRunMode(mode LoMRunMode_t) {
+    lomRunMode = mode
+}
+
 /*
  * NOTE: This will be deprecated soon.
  * Guideline: conf should have a value for every entry
@@ -211,7 +215,7 @@ type ProcPluginConfig_t struct {
 
 /* Action config as read from actions.conf.json */
 type ActionCfg_t struct {
-    Name         string          /* Action name e.g. link_crc*/
+    Name         string          /* Action name e.g. link_crc_detection*/
     Type         string          /* Action type. can be Detection, Mitigation or Safety */
     Timeout      int             /* Timeout recommended for this action */
     HeartbeatInt int             /* Heartbeat interval */
@@ -628,7 +632,7 @@ func InitConfigPath(path string) error {
         exists := false
         path, exists = GetEnvVarString("ENV_lom_conf_location")
         if !exists || len(path) == 0 {
-            return LogError("LOM_CONF_LOCATION environment variable not set")
+            return LogError("LOM_CONF_LOCATION environment variable not set and not provided as argument")
         }
     }
     cfgFiles := &ConfigFiles_t{
@@ -660,4 +664,49 @@ func GetFloatConfigFromMapping(mapping map[string]interface{}, configurationKey 
         return defaultValue
     }
     return configurationValFloat64
+}
+
+/* Gets settings of int type from mapping. Else returns defaultValue */
+func GetIntConfigFromMapping(mapping map[string]interface{}, configurationKey string, defaultValue int) int {
+    if len(mapping) == 0 {
+        return defaultValue
+    }
+
+    configurationVal, ok := mapping[configurationKey]
+    if !ok {
+        LogError("key %s not present in mapping", configurationKey)
+        return defaultValue
+    }
+
+    // Use type assertion to check if the value is of type float64 first
+    // because JSON numbers are decoded as float64 by default
+    configurationValFloat64, ok := configurationVal.(float64)
+    if !ok {
+        LogError("key %s not of type float64 in mapping", configurationKey)
+        return defaultValue
+    }
+
+    // Convert the float64 to int
+    configurationValInt := int(configurationValFloat64)
+    return configurationValInt
+}
+
+/* Gets settings of string type from mapping. Else returns defaultValue */
+func GetStringConfigFromMapping(mapping map[string]interface{}, configurationKey string, defaultValue string) string {
+    if len(mapping) == 0 {
+        return defaultValue
+    }
+
+    configurationVal, ok := mapping[configurationKey]
+    if !ok {
+        LogError("key %s not present in mapping", configurationKey)
+        return defaultValue
+    }
+
+    configurationValString, ok := configurationVal.(string)
+    if !ok {
+        LogError("key %s not of type string in mapping", configurationKey)
+        return defaultValue
+    }
+    return configurationValString
 }

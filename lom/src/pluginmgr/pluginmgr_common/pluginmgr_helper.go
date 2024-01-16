@@ -26,8 +26,9 @@ import (
 
 // Plugin Manager global variables
 var (
-    ProcID    string         = ""
-    pluginMgr *PluginManager = nil
+    ProcID     string         = ""
+    pluginMgr  *PluginManager = nil
+    ConfigPath                = ""
 )
 
 // TODO: Goutham : Add this to global_conf.json
@@ -848,21 +849,33 @@ func ParseArguments() string {
     // Declare the command line flags
     var ProcIDFlag string
     var syslogLevelFlag int
+    var pathFlag string
+    var modeFlag string
 
     // Define the command line flags
     fs.StringVar(&ProcIDFlag, "proc_id", "", "Proc ID string")
     fs.IntVar(&syslogLevelFlag, "syslog_level", 7, "Syslog level")
+    fs.StringVar(&pathFlag, "path", "", "Config path")
+    fs.StringVar(&modeFlag, "mode", "", "Mode of operation")
 
     // Parse the command line arguments
     fs.Parse(os.Args[1:])
+
+    // assign to variables which can be accessed from process
+    ProcID = ProcIDFlag
+    ConfigPath = pathFlag
+
+    if modeFlag == "PROD" {
+        lomcommon.SetLoMRunMode(lomcommon.LoMRunMode_Prod)
+        lomcommon.InitSyslogWriter()
+        lomcommon.LogInfo("plugin_mgr : Starting Plugin Manager in PROD mode")
+    }
 
     if ProcIDFlag == "" {
         LogPanic("Exiting : Proc ID is not provided")
         return ""
     }
 
-    // assign to variables which can be accessed from process
-    ProcID = ProcIDFlag
     lomcommon.SetLogLevel(syslog.Priority(syslogLevelFlag))
 
     msg := fmt.Sprintf("Program Arguments : proc ID : %s, Syslog Level : %d\n", ProcIDFlag, syslogLevelFlag)
@@ -940,8 +953,7 @@ func SetupPluginManager() error {
     LogInfo("SetupPluginManager : Successfully setup signals")
 
     // Initialize the config manager. This will read ENV config path location and  will read config files for attributes from there
-    val, _ := lomcommon.GetEnvVarString("ENV_lom_conf_location")
-    err := lomcommon.InitConfigPath(val)
+    err := lomcommon.InitConfigPath(ConfigPath)
     if err != nil {
         LogError("SetupPluginManager : Error initializing config manager: %s", err)
     }

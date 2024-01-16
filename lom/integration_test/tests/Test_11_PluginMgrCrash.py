@@ -18,7 +18,7 @@ def getTestName() :
 def getTestDescription() :
     return " When Plugin manager crashes, engine should still function \
              SInce heartbeats from plugin manager are missed, engine must report external heartbeats\
-             which must not include any plugins(link_crc)\
+             which must not include any plugins(link_crc_detection)\
             "
 
 def isEnabled() :
@@ -27,7 +27,7 @@ def isEnabled() :
 def run_test():
     
     # Specify the patterns to be matched/not matched for engine logs
-    engine_pat1 = r'\{"LoM_Heartbeat":\{"Actions":\["link_crc"\],"Timestamp":(\d+)\}\}'
+    engine_pat1 = r'\{"LoM_Heartbeat":\{"Actions":\["link_crc_detection"\],"Timestamp":(\d+)\}\}'
     engine_pat2 = r'\{"LoM_Heartbeat":\{"Actions":\[\],"Timestamp":(\d+)\}\}'
     
     engine_patterns = [
@@ -36,11 +36,11 @@ def run_test():
     ]
     
     # Specify the patterns to be matched/not matched for plmgr syslogs 
-    plugin_pat_1 = r"link_crc: ExecuteCrcDetection Starting"
+    plugin_pat_1 = r"link_crc_detection: ExecuteCrcDetection Starting"
     plugin_pat_2 = r"In run\(\) RecvServerRequest : Received action request : Action: (\w+) InstanceId: ([\w-]+) AnomalyInstanceId: ([\w-]+) AnomalyKey:  Timeout: (\d+)"
-    plugin_pat_3 = r"In handleRequest\(\): Processing action request for plugin:link_crc, timeout:(\d+) InstanceId:([\w-]+) AnomalyInstanceId:([\w-]+) AnomalyKey:"
+    plugin_pat_3 = r"In handleRequest\(\): Processing action request for plugin:link_crc_detection, timeout:(\d+) InstanceId:([\w-]+) AnomalyInstanceId:([\w-]+) AnomalyKey:"
     plugin_pat_4 = r"STarted Request\(\) for \((\w+)\)"
-    plugin_pat_5 = r"Notified heartbeat from action \((proc_\d+/link_crc)\)"
+    plugin_pat_5 = r"Notified heartbeat from action \((proc_\d+/link_crc_detection)\)"
     
 
     plmgr_patterns = [
@@ -57,8 +57,8 @@ def run_test():
 
     # Overwrite config files with test specific data in Docker container
     json_data = {
-        "link_crc": {
-            "Name": "link_crc",
+        "link_crc_detection": {
+            "Name": "link_crc_detection",
             "Type": "Detection",
             "Timeout": 0,
             "HeartbeatInt": 30,
@@ -90,7 +90,7 @@ def run_test():
                 "Priority": 0,
                 "Timeout": 2,
                 "Actions": [{
-                    "name": "link_crc"
+                    "name": "link_crc_detection"
                 }]
             }
         ]
@@ -124,8 +124,8 @@ def run_test():
     json_data = {
         "procs": {
             "proc_0": {
-                "link_crc": {
-                    "name": "link_crc",
+                "link_crc_detection": {
+                    "name": "link_crc_detection",
                     "version": "1.0.0.0",
                     "path": ""
                 }

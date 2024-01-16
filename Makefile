@@ -8,7 +8,7 @@ ENGINE_TARGET := $(GO_BUILD_DIR)/bin/LoMEngine
 PLMGR_TARGET := $(GO_BUILD_DIR)/bin/LoMPluginMgr
 CLI_TARGET := $(GO_BUILD_DIR)/bin/LoMCli
 CMN_C_LIB := $(GO_BUILD_DIR)/lib/cmn_c_lib.so
-CONFIG_DIR := config
+CONFIG_DIR := lom/config
 LOM_CONFIG := $(CONFIG_DIR)/*.json
 VERSION_CONFIG := $(CONFIG_DIR)/LoM-Version.json
 

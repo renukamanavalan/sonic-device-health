@@ -3,14 +3,8 @@ package main
 import (
     "lom/src/lib/lomcommon"
     "lom/src/pluginmgr/pluginmgr_common"
-
-    "lom/src/plugins/plugins_files"
-    "lom/src/plugins/plugins_files/sonic/plugin/linkcrc"
+    //_ "lom/src/plugins/vendors/<<BUILD_TAGS>>/plugin/<<plugin_name>>"
 )
-
-// TODO : Goutham : Temporary untill pernmant fix to include plugin files are found
-var t1 = plugins_files.NewGenericPluginDetection
-var t2 = linkcrc.NewLinkCRCDetectionPlugin
 
 /*
 * Main function for plugin manager
