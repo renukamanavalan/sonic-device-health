@@ -292,7 +292,10 @@ $(INTEGRATION_TEST_BIN):
 
 clean: clean-extract_file_coverage clean-aggregate-file_coverage
 	rm -rf $(BUILD_DIR)
+	mkdir -p vendor/
+	chmod -R u+rw vendor/
 	rm -rf vendor
+	rm -f src/gnmi/proto/go.mod src/gnmi/proto/go.sum src/gnmi/proto/.done
 	$(INTEGRATION_TEST_DIR)/src/build.sh clean
 
 
