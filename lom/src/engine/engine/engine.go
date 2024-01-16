@@ -196,18 +196,27 @@ func EngineStartup(path string) (*engine_t, error) {
 
 func startUp(progname string, args []string) (*engine_t, error) {
 
-    /* Parse args for path */
+    /* Parse args for path and mode*/
     p := ""
+    mode := ""
     flags := flag.NewFlagSet(progname, flag.ContinueOnError)
     var buf bytes.Buffer
     flags.SetOutput(&buf)
 
     flags.StringVar(&p, "path", "", "Config files path")
+    flags.StringVar(&mode, "mode", "", "Mode of operation")
 
     err := flags.Parse(args)
     if err != nil {
         return nil, LogError("Failed to parse (%v); details(%s)", args, buf.String())
     }
+
+    if mode == "PROD" {
+        SetLoMRunMode(LoMRunMode_Prod)
+        InitSyslogWriter()
+        LogInfo("plugin_mgr : Starting Engine in PROD mode")
+    }
+
     return EngineStartup(p)
 }
 
