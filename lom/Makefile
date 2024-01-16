@@ -316,7 +316,7 @@ gnmi-tools: $(GO_DEPS)
 	# $(GO) build -o ${BIN_DIR}/gnmi_dump -mod=vendor github.com/sonic-net/sonic-gnmi/gnmi_dump
 
 
-$(GNMI_SERVER_BIN): $(SRC_FILES) $(GNMI_PROTO)
+$(GNMI_SERVER_BIN): $(SRC_FILES)
 	mkdir -p $(BIN_DIR)
 	$(call build_golang,$@,lom/src/gnmi/gnmi_server/,)
 	@echo -e "Successfully Build gnmi-server\n\n"
