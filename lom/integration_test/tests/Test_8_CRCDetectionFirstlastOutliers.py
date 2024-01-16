@@ -26,8 +26,8 @@ def isEnabled() :
 def run_test():
     
     # Specify the patterns to be matched for engine and plmgr syslogs
-    engine_pat1 = r"{\"LoM_Action\":{\"Action\":\"link_crc\",\"InstanceId\":\"([\w-]+)\",\"AnomalyInstanceId\":\"([\w-]+)\",\"AnomalyKey\":\"(\w+)\",\"Response\":\"Detected Crc\",\"ResultCode\":(\d+),\"ResultStr\":\"Success\"},\"State\":\"init\"}"
-    engine_pat2 = r"{\"LoM_Action\":{\"Action\":\"link_crc\",\"InstanceId\":\"([\w-]+)\",\"AnomalyInstanceId\":\"([\w-]+)\",\"AnomalyKey\":\"(\w+)\",\"Response\":\"Detected Crc\",\"ResultCode\":(\d+),\"ResultStr\":\"No follow up actions \(seq:link_crc_bind-0\)\"},\"State\":\"complete\"}"
+    engine_pat1 = r"{\"LoM_Action\":{\"Action\":\"link_crc_detection\",\"InstanceId\":\"([\w-]+)\",\"AnomalyInstanceId\":\"([\w-]+)\",\"AnomalyKey\":\"(\w+)\",\"Response\":\"Detected Crc\",\"ResultCode\":(\d+),\"ResultStr\":\"Success\"},\"State\":\"init\"}"
+    engine_pat2 = r"{\"LoM_Action\":{\"Action\":\"link_crc_detection\",\"InstanceId\":\"([\w-]+)\",\"AnomalyInstanceId\":\"([\w-]+)\",\"AnomalyKey\":\"(\w+)\",\"Response\":\"Detected Crc\",\"ResultCode\":(\d+),\"ResultStr\":\"No follow up actions \(seq:link_crc_bind-0\)\"},\"State\":\"complete\"}"
 
     engine_patterns = [
         (api.PATTERN_MATCH, engine_pat1),
@@ -35,12 +35,12 @@ def run_test():
     ]
     
     # Specify the patterns to be matched for plmgr syslogs
-    plugin_pat_1 = "link_crc: executeCrcDetection Anomaly Detected"
-    plugin_pat_2 = r"In handleRequest\(\): Received response from plugin link_crc, data : Action: link_crc InstanceId: ([\w-]+) AnomalyInstanceId: ([\w-]+) AnomalyKey: (\w+) Response: Detected Crc ResultCode: (\d+) ResultStr: Success"
-    plugin_pat_3 = r"In handleRequest\(\): Completed processing action request for plugin:link_crc"
-    plugin_pat_4 = r"In run\(\) : Sending response to engine : Action: link_crc InstanceId: ([\w-]+) AnomalyInstanceId: ([\w-]+) AnomalyKey: (\w+) Response: Detected Crc ResultCode: (\d+) ResultStr: Success"
+    plugin_pat_1 = "link_crc_detection: executeCrcDetection Anomaly Detected"
+    plugin_pat_2 = r"In handleRequest\(\): Received response from plugin link_crc_detection, data : Action: link_crc_detection InstanceId: ([\w-]+) AnomalyInstanceId: ([\w-]+) AnomalyKey: (\w+) Response: Detected Crc ResultCode: (\d+) ResultStr: Success"
+    plugin_pat_3 = r"In handleRequest\(\): Completed processing action request for plugin:link_crc_detection"
+    plugin_pat_4 = r"In run\(\) : Sending response to engine : Action: link_crc_detection InstanceId: ([\w-]+) AnomalyInstanceId: ([\w-]+) AnomalyKey: (\w+) Response: Detected Crc ResultCode: (\d+) ResultStr: Success"
     plugin_pat_5 = r"SendServerResponse: succeeded \(proc_0/RecvServerRequestAction\)"
-    plugin_pat_6 = r"link_crc: ExecuteCrcDetection Starting"
+    plugin_pat_6 = r"link_crc_detection: ExecuteCrcDetection Starting"
 
     plmgr_patterns = [
         (api.PATTERN_MATCH, plugin_pat_1),
@@ -57,8 +57,8 @@ def run_test():
 
     # Overwrite config files with test specific data in Docker container
     json_data = {
-        "link_crc": {
-            "Name": "link_crc",
+        "link_crc_detection": {
+            "Name": "link_crc_detection",
             "Type": "Detection",
             "Timeout": 0,
             "HeartbeatInt": 30,
@@ -90,7 +90,7 @@ def run_test():
                 "Priority": 0,
                 "Timeout": 2,
                 "Actions": [{
-                    "name": "link_crc"
+                    "name": "link_crc_detection"
                 }]
             }
         ]
@@ -124,8 +124,8 @@ def run_test():
     json_data = {
         "procs": {
             "proc_0": {
-                "link_crc": {
-                    "name": "link_crc",
+                "link_crc_detection": {
+                    "name": "link_crc_detection",
                     "version": "1.0.0.0",
                     "path": ""
                 }

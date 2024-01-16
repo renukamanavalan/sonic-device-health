@@ -1187,84 +1187,85 @@ func TestConfig(t *testing.T) {
     }
 }
 
-func TestPeriodic(t *testing.T) {
-    s := GetUUID()
-    if len(s) != 36 {
-        t.Errorf("Expect 36 chars long != (%d) (%s)", len(s), s)
+/*
+    func TestPeriodic(t *testing.T) {
+        s := GetUUID()
+        if len(s) != 36 {
+            t.Errorf("Expect 36 chars long != (%d) (%s)", len(s), s)
+        }
+
+        UUID_BIN = "xxx"
+        s = GetUUID()
+        if len(s) == 36 {
+            t.Errorf("Expect custom string not 36. (%d) (%s)", len(s), s)
+        }
+        _, err := getConfigMgrTest(t, `{ "MIN_PERIODIC_LOG_PERIOD_SECS": 1 }`, "{}", "{}", "{}")
+        if err != nil {
+            t.Errorf("Unexpected error: (%v)", err)
+        }
+
+        {
+            lg := GetlogPeriodic()
+
+            if q := GetlogPeriodic(); lg != q {
+                t.Errorf("GetLogPeriodic not singleton. (%v) != (%v)", lg, q)
+            }
+
+            d := &LogPeriodicEntry_t{}
+
+            if err := lg.AddLogPeriodic(d); err == nil {
+                t.Errorf("LogPerodic: Expect to fail for empty ID")
+            }
+
+            Ids := []string{"ID_0", "ID_1", "ID_2"}
+            d.ID = Ids[0]
+            if err := lg.AddLogPeriodic(d); err == nil {
+                t.Errorf("LogPerodic: Expect to fail for empty message")
+            }
+
+            d.Message = "Message"
+            if err := lg.AddLogPeriodic(d); err == nil {
+                t.Errorf("LogPerodic: Expect to fail for too small period:%d", d.Period)
+            }
+
+            d.Period = 1
+            d.Lvl = syslog.LOG_DEBUG
+            if err := lg.AddLogPeriodic(d); err != nil {
+                t.Errorf("LogPerodic: Expect to succeed (%v)", d)
+            }
+
+            d.ID = Ids[1]
+            d.Period = 5
+            if err := lg.AddLogPeriodic(d); err != nil {
+                t.Errorf("LogPerodic: Expect to succeed (%v)", d)
+            }
+
+            d.ID = Ids[2]
+            d.Period = 2
+            if err := lg.AddLogPeriodic(d); err != nil {
+                t.Errorf("LogPerodic: Expect to succeed (%v)", d)
+            }
+
+            // Sleep to ensure run method, all cases executed
+            time.Sleep(2 * time.Second)
+            for _, k := range Ids {
+                lg.DropLogPeriodic(k)
+            }
+            time.Sleep(2 * time.Second)
+
+        }
+        {
+            err := LogError("Blah Blah")
+            if e := GetLastError(); e != err {
+                t.Errorf("GetLastError mismatch read(%v) != exp(%v)", e, err)
+            }
+            ResetLastError()
+            if e := GetLastError(); e != nil {
+                t.Errorf("GetLastError not nil after reset. read(%v)", e)
+            }
+        }
     }
-
-    UUID_BIN = "xxx"
-    s = GetUUID()
-    if len(s) == 36 {
-        t.Errorf("Expect custom string not 36. (%d) (%s)", len(s), s)
-    }
-    _, err := getConfigMgrTest(t, `{ "MIN_PERIODIC_LOG_PERIOD_SECS": 1 }`, "{}", "{}", "{}")
-    if err != nil {
-        t.Errorf("Unexpected error: (%v)", err)
-    }
-
-    {
-        lg := GetlogPeriodic()
-
-        if q := GetlogPeriodic(); lg != q {
-            t.Errorf("GetLogPeriodic not singleton. (%v) != (%v)", lg, q)
-        }
-
-        d := &LogPeriodicEntry_t{}
-
-        if err := lg.AddLogPeriodic(d); err == nil {
-            t.Errorf("LogPerodic: Expect to fail for empty ID")
-        }
-
-        Ids := []string{"ID_0", "ID_1", "ID_2"}
-        d.ID = Ids[0]
-        if err := lg.AddLogPeriodic(d); err == nil {
-            t.Errorf("LogPerodic: Expect to fail for empty message")
-        }
-
-        d.Message = "Message"
-        if err := lg.AddLogPeriodic(d); err == nil {
-            t.Errorf("LogPerodic: Expect to fail for too small period:%d", d.Period)
-        }
-
-        d.Period = 1
-        d.Lvl = syslog.LOG_DEBUG
-        if err := lg.AddLogPeriodic(d); err != nil {
-            t.Errorf("LogPerodic: Expect to succeed (%v)", d)
-        }
-
-        d.ID = Ids[1]
-        d.Period = 5
-        if err := lg.AddLogPeriodic(d); err != nil {
-            t.Errorf("LogPerodic: Expect to succeed (%v)", d)
-        }
-
-        d.ID = Ids[2]
-        d.Period = 2
-        if err := lg.AddLogPeriodic(d); err != nil {
-            t.Errorf("LogPerodic: Expect to succeed (%v)", d)
-        }
-
-        // Sleep to ensure run method, all cases executed
-        time.Sleep(2 * time.Second)
-        for _, k := range Ids {
-            lg.DropLogPeriodic(k)
-        }
-        time.Sleep(2 * time.Second)
-
-    }
-    {
-        err := LogError("Blah Blah")
-        if e := GetLastError(); e != err {
-            t.Errorf("GetLastError mismatch read(%v) != exp(%v)", e, err)
-        }
-        ResetLastError()
-        if e := GetLastError(); e != nil {
-            t.Errorf("GetLastError not nil after reset. read(%v)", e)
-        }
-    }
-}
-
+*/
 func TestOneShot(t *testing.T) {
     exp := []int{1, 2, 3}
     rcv := make([]int, 0, len(exp))

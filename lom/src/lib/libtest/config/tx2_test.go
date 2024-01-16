@@ -11,7 +11,7 @@ import (
     //"lom/src/lib/lomipc"
     //"lom/src/pluginmgr/pluginmgr_common"
     //"lom/src/plugins/plugins_common"
-    //"lom/src/plugins/plugins_files"
+    //"lom/src/plugins/vendors"
     //"io/ioutil"
     "log/syslog"
     "os"
