@@ -22,14 +22,7 @@ ifeq ($(SONIC_IMAGE_VERSION),)
 	override SONIC_IMAGE_VERSION := "0.0.0"
 endif
 
-all: go-proto go-all $(VERSION_CONFIG)
-
-go-proto:
-	@echo "+++ --- Compiling GO proto --- +++"
-	pushd lom/src/gnmi/proto
-	$(MAKE) -f Makefile all
-	popd
-	@echo "+++ --- Compiling GO proto DONE --- +++"
+all: go-all $(VERSION_CONFIG)
 
 go-all:
 	@echo "+++ --- Making Go --- +++"

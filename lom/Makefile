@@ -301,6 +301,10 @@ clean: clean-extract_file_coverage clean-aggregate-file_coverage
 
 GNMI_PROTO := src/gnmi/proto/.done
 
+# Run this make manually each time a .proto is updated to generate corresponding .pb.go.
+# Commit the generated files.
+# Calling proto's Makefile from this Makefile breaks when compiling as submodule in SONiC.
+#
 $(GNMI_PROTO) : $(PROTO_FILES)
 	cd src/gnmi/proto/ && $(MAKE) -f Makefile all
 	touch $(PWD)/$@
