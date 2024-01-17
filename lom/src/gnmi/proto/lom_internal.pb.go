@@ -114,6 +114,108 @@ func (x *Value) GetSendIndex() int64 {
 	return 0
 }
 
+type SupportedBundleVersions struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	BundleVersion string `protobuf:"bytes,1,opt,name=bundle_version,json=bundleVersion,proto3" json:"bundle_version,omitempty"`
+	BaseVersion   string `protobuf:"bytes,2,opt,name=base_version,json=baseVersion,proto3" json:"base_version,omitempty"`
+}
+
+func (x *SupportedBundleVersions) Reset() {
+	*x = SupportedBundleVersions{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_lom_internal_proto_msgTypes[1]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SupportedBundleVersions) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SupportedBundleVersions) ProtoMessage() {}
+
+func (x *SupportedBundleVersions) ProtoReflect() protoreflect.Message {
+	mi := &file_lom_internal_proto_msgTypes[1]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SupportedBundleVersions.ProtoReflect.Descriptor instead.
+func (*SupportedBundleVersions) Descriptor() ([]byte, []int) {
+	return file_lom_internal_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SupportedBundleVersions) GetBundleVersion() string {
+	if x != nil {
+		return x.BundleVersion
+	}
+	return ""
+}
+
+func (x *SupportedBundleVersions) GetBaseVersion() string {
+	if x != nil {
+		return x.BaseVersion
+	}
+	return ""
+}
+
+type BundleVersion struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Version string `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+}
+
+func (x *BundleVersion) Reset() {
+	*x = BundleVersion{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_lom_internal_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *BundleVersion) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BundleVersion) ProtoMessage() {}
+
+func (x *BundleVersion) ProtoReflect() protoreflect.Message {
+	mi := &file_lom_internal_proto_msgTypes[2]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BundleVersion.ProtoReflect.Descriptor instead.
+func (*BundleVersion) Descriptor() ([]byte, []int) {
+	return file_lom_internal_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *BundleVersion) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
 var File_lom_internal_proto protoreflect.FileDescriptor
 
 var file_lom_internal_proto_rawDesc = []byte{
@@ -132,7 +234,16 @@ var file_lom_internal_proto_rawDesc = []byte{
 	0x56, 0x61, 0x6c, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x67, 0x6e, 0x6d, 0x69,
 	0x2e, 0x54, 0x79, 0x70, 0x65, 0x64, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x03, 0x56, 0x61, 0x6c,
 	0x12, 0x1c, 0x0a, 0x09, 0x53, 0x65, 0x6e, 0x64, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x18, 0x05, 0x20,
-	0x01, 0x28, 0x03, 0x52, 0x09, 0x53, 0x65, 0x6e, 0x64, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x42, 0x0d,
+	0x01, 0x28, 0x03, 0x52, 0x09, 0x53, 0x65, 0x6e, 0x64, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x22, 0x63,
+	0x0a, 0x17, 0x53, 0x75, 0x70, 0x70, 0x6f, 0x72, 0x74, 0x65, 0x64, 0x42, 0x75, 0x6e, 0x64, 0x6c,
+	0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x73, 0x12, 0x25, 0x0a, 0x0e, 0x62, 0x75, 0x6e,
+	0x64, 0x6c, 0x65, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x0d, 0x62, 0x75, 0x6e, 0x64, 0x6c, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e,
+	0x12, 0x21, 0x0a, 0x0c, 0x62, 0x61, 0x73, 0x65, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e,
+	0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x62, 0x61, 0x73, 0x65, 0x56, 0x65, 0x72, 0x73,
+	0x69, 0x6f, 0x6e, 0x22, 0x29, 0x0a, 0x0d, 0x42, 0x75, 0x6e, 0x64, 0x6c, 0x65, 0x56, 0x65, 0x72,
+	0x73, 0x69, 0x6f, 0x6e, 0x12, 0x18, 0x0a, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x42, 0x0d,
 	0x5a, 0x0b, 0x2e, 0x2f, 0x3b, 0x67, 0x6e, 0x6d, 0x69, 0x5f, 0x6c, 0x6f, 0x6d, 0x62, 0x06, 0x70,
 	0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
@@ -149,16 +260,18 @@ func file_lom_internal_proto_rawDescGZIP() []byte {
 	return file_lom_internal_proto_rawDescData
 }
 
-var file_lom_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_lom_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_lom_internal_proto_goTypes = []interface{}{
-	(*Value)(nil),           // 0: gnmi.lom.Value
-	(*gnmi.Path)(nil),       // 1: gnmi.Path
-	(*gnmi.TypedValue)(nil), // 2: gnmi.TypedValue
+	(*Value)(nil),                   // 0: gnmi.lom.Value
+	(*SupportedBundleVersions)(nil), // 1: gnmi.lom.SupportedBundleVersions
+	(*BundleVersion)(nil),           // 2: gnmi.lom.BundleVersion
+	(*gnmi.Path)(nil),               // 3: gnmi.Path
+	(*gnmi.TypedValue)(nil),         // 4: gnmi.TypedValue
 }
 var file_lom_internal_proto_depIdxs = []int32{
-	1, // 0: gnmi.lom.Value.Prefix:type_name -> gnmi.Path
-	1, // 1: gnmi.lom.Value.Path:type_name -> gnmi.Path
-	2, // 2: gnmi.lom.Value.Val:type_name -> gnmi.TypedValue
+	3, // 0: gnmi.lom.Value.Prefix:type_name -> gnmi.Path
+	3, // 1: gnmi.lom.Value.Path:type_name -> gnmi.Path
+	4, // 2: gnmi.lom.Value.Val:type_name -> gnmi.TypedValue
 	3, // [3:3] is the sub-list for method output_type
 	3, // [3:3] is the sub-list for method input_type
 	3, // [3:3] is the sub-list for extension type_name
@@ -184,6 +297,30 @@ func file_lom_internal_proto_init() {
 				return nil
 			}
 		}
+		file_lom_internal_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SupportedBundleVersions); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_lom_internal_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*BundleVersion); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -191,7 +328,7 @@ func file_lom_internal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_lom_internal_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

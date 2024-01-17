@@ -33,22 +33,19 @@ $(PROTOC_GEN_GO):
 	@echo Done protoc-gen-go
 
 	    
-# TODO: Improve it to auto handle multiple proto files.
-# PROTO_GO_BINDINGS = proto/sonic_internal.pb.go
-# $(PROTO_GO_BINDINGS): $$(patsubst %.pb.go,%.proto,$$@) $(PROTOC_GEN_GO)
-	# protoc -I$(@D) $(PROTOC_OPTS) --go_out=plugins=grpc:$(@D) $<
-
 PROTOC_OPTS := -I$(CURDIR)/vendor -I/usr/local/include -I/usr/include
 
-lom_internal_pb.go: lom_internal.proto go.mod $(PROTOC_GEN_GO)
-	protoc -I$(@D) $(PROTOC_OPTS) --go_out=plugins=grpc:$(@D) lom_internal.proto
+PROTO_GO_BINDINGS = lom_internal.pb.go lom_gnoi_jwt.pb.go
+
+$(PROTO_GO_BINDINGS): %.pb.go : %.proto
+	protoc -I$(@D) $(PROTOC_OPTS) --go_out=plugins=grpc:$(@D) $<
 
 doClean:
 	rm -f go.mod go.sum
 	rm -rf vendor
 
-all: lom_internal_pb.go doClean
+all: go.mod $(PROTOC_GEN_GO) $(PROTO_GO_BINDINGS) doClean
 
 
-
+clean: doClean
 

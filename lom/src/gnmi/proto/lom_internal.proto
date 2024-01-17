@@ -30,3 +30,12 @@ message Value {
   int64 SendIndex = 5;
 
 }
+
+message SupportedBundleVersions {
+  string bundle_version = 1;
+  string base_version = 2;
+}
+
+message BundleVersion {
+  string version = 1;
+}

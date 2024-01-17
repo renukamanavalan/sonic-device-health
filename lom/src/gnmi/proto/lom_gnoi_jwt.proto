@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package gnmi.lom;
+
+option go_package = "./;gnmi_lom";
+
+message JwtToken {
+    string access_token = 1;
+    string type = 2;
+    int64 expires_in = 3; 
+}
+message AuthenticateRequest {
+    string username = 1;
+    string password = 2;
+}
+
+message AuthenticateResponse {
+    JwtToken Token = 1;
+}
+
+message RefreshRequest {
+}
+
+message RefreshResponse {
+    JwtToken Token = 1;
+}
