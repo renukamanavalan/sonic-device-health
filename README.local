@@ -1,7 +1,8 @@
 README
 ===========
 To build:
-1. Build slave docker ("./docker-build/slave_docker_build.sh")
+1. Build slave docker ("cd ./docker-build; ./slave_docker_build.sh")
+   Failing to get into dir may fail with "ERROR: failed to solve: failed to read dockerfile: open /data/var/dockers/tmp/buildkitmount775280372/Dockerfile"
 2. Run slave docker ("./docker-build/slave_docker_run.sh")
 3. Mounts current dir as /lom-root
 4. make clean
