@@ -12,6 +12,7 @@ import (
     "reflect"
     "runtime"
     "sort"
+    "strconv"
     "strings"
     "sync"
     "time"
@@ -1059,4 +1060,15 @@ func GetEnvVarString(envname string) (string, bool) {
     }
     value, exists := envMap[envname]
     return value, exists
+}
+
+func ValidatedVal(sval string, max, min, def int, name string) int {
+    val, err := strconv.Atoi(sval)
+
+    if (err != nil) || (val > max) || (val < min) {
+        LogWarning("%s failed validation. err(%v) sval(%s) ret(%d) min(%d) max(%d)",
+            name, err, sval, def, min, max)
+        return def
+    }
+    return val
 }

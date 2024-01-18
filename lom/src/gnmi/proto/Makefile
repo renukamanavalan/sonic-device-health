@@ -1,7 +1,7 @@
 # Run this manually upon any .proto file(s) change(s).
 # The generated .pb.go is checked into repo.
 # Else calling this Makefile from lom's Makefile breaks compilation.
-# Even in case of sonic-gnmi, generationhappens manually.
+# Even in case of sonic-gnmi, generation happens manually.
 #
 ifeq ($(GOPATH),)
 export GOPATH=/tmp/go

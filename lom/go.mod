@@ -3,40 +3,43 @@ module lom
 go 1.20
 
 require (
-	github.com/Workiva/go-datastructures v1.1.1
+	github.com/Workiva/go-datastructures v1.0.50
 	github.com/alicebob/miniredis v2.5.0+incompatible
-	github.com/go-redis/redis v6.15.9+incompatible
-	github.com/golang/glog v1.2.0
-	github.com/jipanyang/gnxi v0.0.0-20181221084354-f0a90cca6fd0
-	github.com/openconfig/gnmi v0.0.0-20220503232738-6eb133c65a13
+	github.com/dgrijalva/jwt-go v3.2.1-0.20210802184156-9742bd7fca1c+incompatible
+	github.com/go-redis/redis v6.15.6+incompatible
+	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
+	github.com/msteinert/pam v0.0.0-20201130170657-e61372126161
+	github.com/openconfig/gnmi v0.0.0-20200617225440-d2b4e6a45802
 	github.com/pebbe/zmq4 v1.2.10
-	github.com/stretchr/testify v1.8.4
-	golang.org/x/net v0.19.0
-	google.golang.org/grpc v1.60.1
-	google.golang.org/protobuf v1.32.0
+	github.com/stretchr/testify v1.7.0
+	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
+	google.golang.org/grpc v1.33.2
+	google.golang.org/protobuf v1.25.0
 )
 
 require (
 	github.com/alicebob/gopher-json v0.0.0-20230218143504-906a9b012302 // indirect
-	github.com/cenkalti/backoff/v4 v4.1.1 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/bgentry/speakeasy v0.1.0 // indirect
+	github.com/cenkalti/backoff/v4 v4.0.0 // indirect
+	github.com/davecgh/go-spew v1.1.0 // indirect
+	github.com/golang/protobuf v1.4.3 // indirect
 	github.com/gomodule/redigo v1.8.9 // indirect
-	github.com/google/gnxi v0.0.0-20231031154548-557d8e211020 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
+	github.com/google/go-cmp v0.5.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
-	github.com/onsi/ginkgo v1.16.5 // indirect
-	github.com/onsi/gomega v1.30.0 // indirect
-	github.com/openconfig/goyang v1.0.0 // indirect
-	github.com/openconfig/grpctunnel v0.0.0-20220819142823-6f5422b8ca70 // indirect
-	github.com/openconfig/ygot v0.20.0 // indirect
+	github.com/onsi/ginkgo v1.10.3 // indirect
+	github.com/onsi/gomega v1.7.1 // indirect
+	github.com/openconfig/goyang v0.0.0-20200309174518-a00bece872fc // indirect
+	github.com/openconfig/ygot v0.7.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/stretchr/objx v0.5.0 // indirect
-	github.com/yuin/gopher-lua v1.1.0 // indirect
-	golang.org/x/crypto v0.16.0 // indirect
-	golang.org/x/sys v0.15.0 // indirect
-	golang.org/x/term v0.15.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20231002182017-d307bd883b97 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	github.com/stretchr/objx v0.1.0 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
+	golang.org/x/sys v0.0.0-20200930185726-fdedc70b468f // indirect
+	golang.org/x/text v0.3.3 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
+	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013 // indirect
+	gopkg.in/yaml.v2 v2.2.8 // indirect
+	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
 )
+
+replace github.com/openconfig/gnoi => github.com/openconfig/gnoi v0.0.0-20201210212451-209899112bb7

@@ -2,14 +2,12 @@
 package client
 
 import (
-    "strconv"
     "sync"
 
     "github.com/Workiva/go-datastructures/queue"
     gnmipb "github.com/openconfig/gnmi/proto/gnmi"
 
     lpb "lom/src/gnmi/proto"
-    cmn "lom/src/lib/lomcommon"
 )
 
 // Client defines a set of methods which every client must implement.
@@ -64,17 +62,6 @@ func (val Value) Compare(other queue.Item) int {
 
 func (val Value) GetTimestamp() int64 {
     return val.Value.GetTimestamp()
-}
-
-/* Helpers */
-func validatedVal(sval string, max, min, def int, name string) int {
-    val, err := strconv.Atoi(sval)
-
-    if (err != nil) || (val > max) || (val < min) {
-        cmn.LogWarning("%s failed validation. err(%v) sval(%s) ret(%d)", name, err, sval, def)
-        return def
-    }
-    return val
 }
 
 // Convert from LoM Value (as defined in Proto) to its corresponding gNMI proto stream

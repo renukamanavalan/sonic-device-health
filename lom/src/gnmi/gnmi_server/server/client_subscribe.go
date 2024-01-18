@@ -43,19 +43,23 @@ func (c *Client) String() string {
 }
 
 /* Populate data path from prefix and subscription path. */
-func (c *Client) populatePathSubscription(sublist *gnmipb.SubscriptionList) (*gnmipb.Path, error) {
+func (c *Client) populatePathSubscription(sublist *gnmipb.SubscriptionList) ([]*gnmipb.Path, error) {
+    var paths []*gnmipb.Path
 
     cmn.LogInfo("prefix : %#v SubscribRequest : %#v", sublist.GetPrefix(), sublist)
 
     subscriptions := sublist.GetSubscription()
-    if len(subscriptions) != 1 {
-        return nil, fmt.Errorf("Expect only one subscription per request")
+    if (subscriptions == nil) || (len(subscriptions) == 0) {
+        return nil, fmt.Errorf("No Subscription")
     }
 
-    path := subscriptions[0].GetPath()
+    for _, subscription := range subscriptions {
+        path := subscription.GetPath()
+        paths = append(paths, path)
+    }
 
-    cmn.LogInfo("gnmi Path : %v", path)
-    return path, nil
+    cmn.LogInfo("gnmi Paths: %v", paths)
+    return paths, nil
 }
 
 /*
@@ -109,7 +113,7 @@ func (c *Client) Run(stream gnmipb.GNMI_SubscribeServer) (err error) {
     /* target specified the source of data and expected in prefix only. Refer: doc/gNMI_Info.txt */
     target := prefix.GetTarget()
 
-    path, err := c.populatePathSubscription(c.subscribe)
+    paths, err := c.populatePathSubscription(c.subscribe)
     if err != nil {
         return grpc.Errorf(codes.NotFound, "Invalid subscription path: %v %q", err, query)
     }
@@ -122,7 +126,7 @@ func (c *Client) Run(stream gnmipb.GNMI_SubscribeServer) (err error) {
 
     if ((target == "COUNTERS") || (target == "EVENTS")) &&
         (mode == gnmipb.SubscriptionList_STREAM) {
-        dc, err = ldc.NewLoMDataClient(path, prefix)
+        dc, err = ldc.NewLoMDataClient(paths[0], prefix)
     } else {
         return grpc.Errorf(codes.NotFound, "target=%v mode=%v", target, mode)
     }

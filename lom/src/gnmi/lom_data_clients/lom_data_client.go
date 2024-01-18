@@ -113,10 +113,10 @@ func NewLoMDataClient(path *gnmipb.Path, prefix *gnmipb.Path) (Client, error) {
         keys := e.GetKey()
         for k, v := range keys {
             if k == PARAM_UPD_FREQ {
-                c.updFreq = validatedVal(v, PARAM_UPD_FREQ_MAX, PARAM_UPD_FREQ_MIN,
+                c.updFreq = cmn.ValidatedVal(v, PARAM_UPD_FREQ_MAX, PARAM_UPD_FREQ_MIN,
                     PARAM_UPD_FREQ_DEFAULT, k)
             } else if k == PARAM_QSIZE {
-                c.pq_max = validatedVal(v, PARAM_QSIZE_MAX, PARAM_QSIZE_MIN,
+                c.pq_max = cmn.ValidatedVal(v, PARAM_QSIZE_MAX, PARAM_QSIZE_MIN,
                     PARAM_QSIZE_DEFAULT, k)
             } else if k == PARAM_ON_CHANGE {
                 c.onChg, _ = strconv.ParseBool(v)

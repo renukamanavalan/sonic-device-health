@@ -1,3 +1,8 @@
+What is gNOI?
+The gRPC Network Operations Interface (gNOI) defines services for performing operational commands on network devices. OpenConfig defines the operations (RPCs) and data structures (messages) for each service in proto definition files.
+Ref: https://www.juniper.net/documentation/us/en/software/junos/grpc-network-services/topics/topic-map/gnoi-services-overview.html#:~:text=The%20gRPC%20Network%20Operations%20Interface,service%20in%20proto%20definition%20files.
+
+
 Plan: Adapt telemetry code for LoM gNMI server
 
 1. LoM gNMI server is vendor agnostic
