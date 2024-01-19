@@ -44,6 +44,7 @@ SRC_FILES=$(shell find . -name '*.go' | grep -v '_test.go' | grep -v '/tests/')
 PY_FILES=$(shell find . -name '*.py' | grep -v '_test.py' | grep -v '/tests/')
 TEST_FILES=$(shell find . -name '*test.go')
 PROTO_FILES=$(shell find . -name '*.proto')
+PATCH_FILES=$(shell find . -name '*.patch')
 
 CMN_C_LIB_FILES=src/lib/clib/lom_clib.go
 CMN_C_LIB_FLAG=-buildmode=c-shared
@@ -154,13 +155,10 @@ COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage
 
 GO_DEPS := $(VENDOR_DIR)/.done
 
-# We may not need patches
-# PATCHES := $(wildcard patches/*.patch)
-
 go.mod:
 	$(GO) mod init lom
 
-$(GO_DEPS): go.mod
+$(GO_DEPS): go.mod $(PATCH_FILES)
 	$(GO) mod vendor
 	$(GO) mod download golang.org/x/crypto@v0.0.0-20191206172530-e9b2fee46413
 	$(GO) mod download github.com/jipanyang/gnxi@v0.0.0-20181221084354-f0a90cca6fd0
@@ -168,12 +166,12 @@ $(GO_DEPS): go.mod
 	mkdir -p vendor/github.com/jipanyang/gnxi/
 	cp -r $(GOPATH)/pkg/mod/golang.org/x/crypto@v0.0.0-20191206172530-e9b2fee46413/* vendor/golang.org/x/crypto/
 	cp -r $(GOPATH)/pkg/mod/github.com/jipanyang/gnxi@v0.0.0-20181221084354-f0a90cca6fd0/* vendor/github.com/jipanyang/gnxi/
-	# chmod -R u+w vendor
-	# patch -d vendor -p0 < src/gnmi/patches/gnmi_cli.all.patch
-	# patch -d vendor -p0 < src/gnmi/patches/gnmi_set.patch
-	# patch -d vendor -p0 < src/gnmi/patches/gnmi_get.patch
-	# patch -d vendor -p0 < src/gnmi/patches/gnmi_path.patch
-	# patch -d vendor -p0 < src/gnmi/patches/gnmi_xpath.patch
+	chmod -R u+w vendor
+	patch -d vendor -p0 < src/gnmi/patches/gnmi_cli.all.patch
+	patch -d vendor -p0 < src/gnmi/patches/gnmi_set.patch
+	patch -d vendor -p0 < src/gnmi/patches/gnmi_get.patch
+	patch -d vendor -p0 < src/gnmi/patches/gnmi_path.patch
+	patch -d vendor -p0 < src/gnmi/patches/gnmi_xpath.patch
 	# git apply src/gnmi/patches/0001-Updated-to-filter-and-write-to-file.patch
 	touch $@
 
