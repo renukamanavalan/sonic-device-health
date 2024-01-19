@@ -179,7 +179,7 @@ func main() {
         return
     }
 
-    cmn.LogInfo("Auth Modes: ", userAuth)
+    cmn.LogInfo("Auth Modes: (%v)", userAuth)
     cmn.LogInfo("Starting RPC server on address: %s", s.Address())
     s.Serve() // blocks until close
 }

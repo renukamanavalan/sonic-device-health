@@ -108,6 +108,7 @@ func NewLoMDataClient(path *gnmipb.Path, prefix *gnmipb.Path) (Client, error) {
     c.prefix = prefix
     // Only one path is expected. Take the last if many
     c.path = path
+    c.pq_max = PARAM_QSIZE_DEFAULT
 
     for _, e := range c.path.GetElem() {
         keys := e.GetKey()
@@ -149,12 +150,13 @@ func sendData(c *LoMDataClient, sndData tele.JsonString_t) {
     defer func() {
         if !sent {
             droppedData.inc(c.chTypeStr)
-            cmn.LogError("Dropped %s Total dropped: %v", c.chTypeStr, droppedData)
+            cmn.LogError("Dropped %s Total droppedx: %v", c.chTypeStr, droppedData)
         }
     }()
 
     if c.q.Len() >= c.pq_max {
-        cmn.LogError("Dropped %s Total dropped: %v", c.chTypeStr, droppedData)
+        cmn.LogError("q:(%d/%d): Dropped %s Total dropped: %v",
+                c.q.Len(), c.pq_max, c.chTypeStr, droppedData)
         return
     }
     var fvp map[string]interface{}
