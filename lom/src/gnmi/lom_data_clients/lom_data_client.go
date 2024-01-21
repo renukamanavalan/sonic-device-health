@@ -156,7 +156,7 @@ func sendData(c *LoMDataClient, sndData tele.JsonString_t) {
 
     if c.q.Len() >= c.pq_max {
         cmn.LogError("q:(%d/%d): Dropped %s Total dropped: %v",
-                c.q.Len(), c.pq_max, c.chTypeStr, droppedData)
+            c.q.Len(), c.pq_max, c.chTypeStr, droppedData)
         return
     }
     var fvp map[string]interface{}
@@ -214,28 +214,9 @@ func (c *LoMDataClient) StreamRun(q *queue.PriorityQueue, stop chan struct{}, wg
     }
 }
 
-func (c *LoMDataClient) OnceRun(q *queue.PriorityQueue, once chan struct{}, wg *sync.WaitGroup, subscribe *gnmipb.SubscriptionList) {
-    return
-}
-
-func (c *LoMDataClient) PollRun(q *queue.PriorityQueue, poll chan struct{}, wg *sync.WaitGroup, subscribe *gnmipb.SubscriptionList) {
-    return
-}
-
-func (c *LoMDataClient) Get(w *sync.WaitGroup) ([]*lpb.Value, error) {
-    return nil, cmn.LogError("NotImpl")
-}
-
-func (c *LoMDataClient) Set(delete []*gnmipb.Path, replace []*gnmipb.Update, update []*gnmipb.Update) error {
-    return cmn.LogError("NotImpl")
-}
-
-func (c *LoMDataClient) Capabilities() []gnmipb.ModelData {
-    return nil
-}
-
 func (c *LoMDataClient) FailedSend() {
-    return
+    droppedData.inc(c.chTypeStr)
+    cmn.LogError("Dropped %s Total droppedx: %v", c.chTypeStr, droppedData)
 }
 
 func (c *LoMDataClient) SentOne(v *Value) {

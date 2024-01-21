@@ -1072,3 +1072,19 @@ func ValidatedVal(sval string, max, min, def int, name string) int {
     }
     return val
 }
+
+/* Good helper
+ *
+ *func JsonEqual(a, b []byte) (bool, error) {
+ *    var j1, j2 interface{}
+ *    var err error
+ *    if err = json.Unmarshal(a, &j1); err != nil {
+ *        return false, err
+ *    }
+ *    if err = json.Unmarshal(b, &j2); err != nil {
+ *        return false, err
+ *    }
+ *    return reflect.DeepEqual(j1, j2), nil
+ *}
+ *
+ */

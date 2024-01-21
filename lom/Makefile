@@ -68,6 +68,7 @@ PY_TEST = $(TEST_DIR)/pytested
 SONIC_LINK_CRC_TEST = $(TEST_DIR)/SonicLinkCrcTested
 PLUGINS_COMMON_TEST = $(TEST_DIR)/PluginsCommonTested
 SONIC_LINK_CRC_MOCKER_TEST = $(TEST_DIR)/linkcrc_mocker
+GNMI_SERVER_TEST = $(TEST_DIR)/gNMIServerTested
 
 .NOTPARALLEL:
 
@@ -146,7 +147,7 @@ clean-aggregate-file_coverage:
 
 .PHONY: all clean format_code clean-extract_file_coverage add-extract_file_coverage clean-aggregate-file_coverage add-aggregate_file_coverage COMMON_DEPS
 
-#COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage $(CMN_C_LIB)
+#COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage
 
 COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage $(CMN_C_LIB) $(ENGINE_BIN) \
 	$(PLUGIN_MANAGER_BIN) $(CLI_BIN) $(LIB_TEST) $(ENGINE_TEST) \
@@ -175,7 +176,7 @@ $(GO_DEPS): go.mod $(PATCH_FILES)
 	# git apply src/gnmi/patches/0001-Updated-to-filter-and-write-to-file.patch
 	touch $@
 
-all: $(COMMON_DEPS) gnmi-tools $(GNMI_SERVER_BIN)
+all: $(COMMON_DEPS) gnmi-tools $(GNMI_SERVER_BIN) $(GNMI_SERVER_TEST)
 	$(BUILD_DIR)/aggregate_file_coverage.sh
 
 all-silent: LIB_TEST_FLAGS :=
@@ -324,6 +325,18 @@ $(GNMI_SERVER_BIN): $(SRC_FILES)
 	mkdir -p $(BIN_DIR)
 	$(call build_golang,$@,lom/src/gnmi/gnmi_server/,)
 	@echo -e "Successfully Build gnmi-server\n\n"
+
+$(GNMI_SERVER_TEST): $(SRC_FILES) $(TEST_FILES)
+	mkdir -p $(TEST_DIR)
+	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/gNMIServerCoverprofile.out \
+		-coverpkg lom/src/gnmi/gnmi_server/server \
+		-covermode=atomic $(LIB_TEST_FLAGS) lom/src/gnmi/gnmi_server/server || (echo "gNMIServerTest failed $$?"; exit 1)
+	${GO} tool cover -html=$(TEST_DIR)/gNMIServerCoverprofile.out -o $(TEST_DIR)/gNMIServerCoverprofile.html
+	@if [ -f "$(TEST_DIR)/gNMIServerCoverprofile.html" ]; then \
+		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/gNMIServerCoverprofile.html; \
+	fi
+	touch $@
+	@echo -e "Successfully completed gNMIServer Test\n\n"
 
 
 
