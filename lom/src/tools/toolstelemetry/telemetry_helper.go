@@ -71,7 +71,7 @@ func putJsonStringsIntoWriter(name string, val any) (ret any, err error) {
 }
 
 func GetPubSuite(chType tele.ChannelType_t, chProd tele.ChannelProducer_t, suffix string,
-    reader *bufio.Reader) (ret *script.ScriptSuite_t, err error) {
+    caller string, reader *bufio.Reader) (ret *script.ScriptSuite_t, err error) {
 
     if reader == nil {
         err = cmn.LogError("Expect non nil *bufio.Reader")
@@ -87,6 +87,7 @@ func GetPubSuite(chType tele.ChannelType_t, chProd tele.ChannelProducer_t, suffi
                     script.Param_t{script.ANONYMOUS, chType, nil},
                     script.Param_t{script.ANONYMOUS, chProd, nil},
                     script.Param_t{script.ANONYMOUS, suffix, nil},
+                    script.Param_t{script.ANONYMOUS, caller, nil},
                 },
                 []script.Result_t{
                     script.Result_t{"chPub-0", nil, script.ValidateNonNil}, /* Save in cache */
@@ -118,7 +119,7 @@ func GetPubSuite(chType tele.ChannelType_t, chProd tele.ChannelProducer_t, suffi
 }
 
 func GetSubSuite(chType tele.ChannelType_t, chProd tele.ChannelProducer_t, suffix string,
-    writer *bufio.Writer) (ret *script.ScriptSuite_t, err error) {
+    caller string, writer *bufio.Writer) (ret *script.ScriptSuite_t, err error) {
 
     if writer == nil {
         err = cmn.LogError("Expect non nil *bufio.Writer")
@@ -134,6 +135,7 @@ func GetSubSuite(chType tele.ChannelType_t, chProd tele.ChannelProducer_t, suffi
                     script.Param_t{script.ANONYMOUS, chType, nil},
                     script.Param_t{script.ANONYMOUS, chProd, nil},
                     script.Param_t{script.ANONYMOUS, suffix, nil},
+                    script.Param_t{script.ANONYMOUS, caller, nil},
                 },
                 []script.Result_t{
                     script.Result_t{"chSub-0", nil, script.ValidateNonNil},   /* Save in cache */

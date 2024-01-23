@@ -68,7 +68,9 @@ type chModeData_t struct {
     mode      int  /* SOCK_MODE_* */
 }
 
-/* Mapping mode to acceptable types for validation */
+/* Mapping mode to acceptable types for validation
+ * Provide port to use. StartPort + chType gives the actual port to use.
+ */
 var chModeInfo = map[channelMode_t]chModeData_t{
     CHANNEL_MODE_PUBLISHER: chModeData_t{
         pubsub_types, ZMQ_XSUB_START_PORT, zmq.PUB, true, SOCK_MODE_SEND},
@@ -108,6 +110,9 @@ var chSocksClose = make(chan int)
 
 /*
  * Track all open sockets.
+ * Track sock against info as string({mode, chType, requester}) more for debugging
+ * to see, who is holding back from clean system shutdown.
+ *
  * Terminate context blocks until this goes 0
  */
 var socketsList = sync.Map{}
@@ -151,6 +156,9 @@ func isZMQIdle() (ret bool) {
     return
 }
 
+/* Find matching chModeData_t based on channelMode_t (publisher/subscriber/requester/...)
+ * Validate the chType and get port as startport + chType
+ */
 func getAddress(mode channelMode_t, chType ChannelType_t) (sockInfo *sockInfo_t, err error) {
 
     /* Cross validation between mode & ChannelType_t */
@@ -193,6 +201,7 @@ func getContext() (*zmq.Context, error) {
     return zctx, err
 }
 
+/* Cleanup for System shutdown */
 func terminateContext() {
     shutdownId := "terminate ZMQ context"
     chShutdown := cmn.RegisterForSysShutdown(shutdownId)
@@ -299,6 +308,7 @@ func getSocket(mode channelMode_t, chType ChannelType_t, requester string) (sock
             err = sock.SetRcvtimeo(SOCK_RCV_TIMEOUT)
         }
     }
+    /* TODO: Protect against map key overwrite */
     if err == nil {
         socketsList.Store(sock, fmt.Sprintf("mode(%d)_chType(%d)_(%s)", mode, chType, requester))
         cmn.LogDebug("getSocket: sock(%v) requester(%s)", sock, requester)
@@ -353,13 +363,12 @@ func closeSocket(s *zmq.Socket) {
  * Return:
  *  Nothig as it is invoked as go routine.
  */
-func managePublish(chType ChannelType_t, topic string, chReq <-chan JsonString_t,
+func managePublish(id string, chType ChannelType_t, topic string, chReq <-chan JsonString_t,
     chRet chan<- error, cleanupFn func()) {
 
     defer cleanupFn()
 
-    requester := fmt.Sprintf("publisher_topic(%s)_type(%d)", topic, chType)
-    sock, err := getSocket(CHANNEL_MODE_PUBLISHER, chType, requester)
+    sock, err := getSocket(CHANNEL_MODE_PUBLISHER, chType, id)
 
     /* Inform the caller that function has initialized successfully or not */
     chRet <- err
@@ -405,7 +414,7 @@ Loop:
         case data, ok := <-chReq:
             if !ok {
                 cmn.LogInfo("(%s) i/p channel closed. No more publish possible",
-                    requester)
+                    id)
                 break Loop
             }
             if _, err = sock.SendMessage(topic, data); err != nil {
@@ -415,8 +424,8 @@ Loop:
                  * it is timeout which comes as zmq.Errno(syscall.EAGAIN)
                  */
                 /* Don't return; Just log error */
-                cmn.LogError("Failed to publish err(%v) requester(%s) data(%s)",
-                    err, requester, data)
+                cmn.LogError("Failed to publish err(%v) id(%s) data(%s)",
+                    err, id, data)
             }
         }
     }
@@ -444,6 +453,7 @@ Loop:
  *  chType - Type of channel
  *  topic - Topic to filter incoming publish data by. An empty string receives all.
  *  chRes - O/p channel for sending received data
+ *  chCtrl - i/p channel. A way for caller to request for stopping subscribe.
  *  chRet - Send any error or nil, before diving into forever loop.
  *          The caller wait until it gets error value
  *
@@ -454,7 +464,7 @@ Loop:
  *  Nothig as it is invoked as go routine.
  */
 
-func manageSubscribe(chType ChannelType_t, topic string, chRes chan<- JsonString_t,
+func manageSubscribe(id string, chType ChannelType_t, topic string, chRes chan<- JsonString_t,
     chCtrl <-chan int, chRet chan<- error, cleanupFn func()) {
 
     defer func() {
@@ -462,8 +472,7 @@ func manageSubscribe(chType ChannelType_t, topic string, chRes chan<- JsonString
         close(chRes)
     }()
 
-    requester := fmt.Sprintf("subscriber_topic(%s)_type(%d)", topic, chType)
-    sock, err := getSocket(CHANNEL_MODE_SUBSCRIBER, chType, requester)
+    sock, err := getSocket(CHANNEL_MODE_SUBSCRIBER, chType, id)
 
     defer closeSocket(sock)
 
@@ -499,10 +508,10 @@ Loop:
         /* Check for shutdown at start of loop */
         select {
         case <-chShutdown:
-            cmn.LogInfo("Subscriber shutting down requester:(%s)", requester)
+            cmn.LogInfo("Subscriber shutting down id:(%s)", id)
             break Loop
         case <-chCtrl:
-            cmn.LogInfo("Subscriber control channel closed: (%s)", requester)
+            cmn.LogInfo("Subscriber control channel closed: (%s)", id)
             break Loop
         default:
         }
@@ -510,9 +519,9 @@ Loop:
         if data, e := sock.RecvMessage(0); e == zmq.Errno(syscall.EAGAIN) {
             /* Continue the loop. RCVTIMEO  is set for SOCK_RCV_TIMEOUT */
         } else if e != nil {
-            cmn.LogError("Failed to receive msg err(%v) for (%s)", e, requester)
+            cmn.LogError("Failed to receive msg err(%v) for (%s)", e, id)
         } else if len(data) != 2 {
-            cmn.LogError("Expect 2 parts. requester(%s) data(%v)", requester, data)
+            cmn.LogError("Expect 2 parts. id(%s) data(%v)", id, data)
         } else {
             /* Handle possibility of no one to read message */
             select {
@@ -521,7 +530,7 @@ Loop:
             case <-time.After(SUB_CHANNEL_TIMEOUT):
                 /* No reader. Drop the messsage */
                 cmn.LogInfo("%s: Dropped message for no reader after (%d) seconds",
-                    requester, SUB_CHANNEL_TIMEOUT.Seconds())
+                    id, SUB_CHANNEL_TIMEOUT.Seconds())
             }
         }
     }
@@ -542,17 +551,19 @@ Loop:
  *  topic - Topic for publishing, which subscriber could use to filter upon.
  *
  *  chData -It is used as i/p channel for publish data. Caller writes the data to publish.
+ *  caller - Name of the caller. A caller is restricted to one pub call per type.
  *
  * Output:  None
  *
  * Return: Error as nil or non nil
  */
 
-func openPubChannel(chType ChannelType_t, topic string, chData <-chan JsonString_t) (err error) {
+func openPubChannel(chType ChannelType_t, topic string, chData <-chan JsonString_t,
+    caller string) (err error) {
 
     /* Sockets are opened per chType */
     /* A publisher expected to use one topic only. So restricted per channel type */
-    id := fmt.Sprintf("PubChanne:%d", chType)
+    id := fmt.Sprintf("PubChanne:%d topic:%s caller:%s", chType, topic, caller)
     if _, ok := pubChannels.Load(id); ok {
         err = cmn.LogError("Duplicate req for pub channel chType=%d topic=%s pre-exists", chType, topic)
         return
@@ -564,7 +575,7 @@ func openPubChannel(chType ChannelType_t, topic string, chData <-chan JsonString
     chRet := make(chan error)
     pubChannels.Store(id, true)
 
-    go managePublish(chType, topic, chData, chRet, func() { pubChannels.Delete(id) })
+    go managePublish(id, chType, topic, chData, chRet, func() { pubChannels.Delete(id) })
 
     /* Wait till routines get their init done */
     err = <-chRet
@@ -585,6 +596,7 @@ func openPubChannel(chType ChannelType_t, topic string, chData <-chan JsonString
  *  chData - This is writable channel where all received messages are written into.
  *  chCtrl - Closing this closes underlying network connection and hence cancel the
  *              subscription. Caller keeps the write end to close.
+ *  caller - Name of the caller. A caller is restricted to one pub call per type.
  *
  * Output:  None
  *
@@ -592,11 +604,11 @@ func openPubChannel(chType ChannelType_t, topic string, chData <-chan JsonString
  */
 
 func openSubChannel(chType ChannelType_t, topic string, chData chan<- JsonString_t,
-    chCtrl <-chan int) (err error) {
+    chCtrl <-chan int, caller string) (err error) {
 
     /* Sockets are opened per chType */
     /* Callers are interested in all or a topic per channel type */
-    id := fmt.Sprintf("SubChannel:%d", chType)
+    id := fmt.Sprintf("SubChanne:%d topic:%s caller:%s", chType, topic, caller)
     if _, ok := subChannels.Load(id); ok {
         err = cmn.LogError("Duplicate req for sub channel chType=%d topic=%s pre-exists", chType, topic)
         return
@@ -608,7 +620,7 @@ func openSubChannel(chType ChannelType_t, topic string, chData chan<- JsonString
     chRet := make(chan error)
     subChannels.Store(id, true)
 
-    go manageSubscribe(chType, topic, chData, chCtrl, chRet, func() { subChannels.Delete(id) })
+    go manageSubscribe(id, chType, topic, chData, chCtrl, chRet, func() { subChannels.Delete(id) })
 
     /* Wait till routines get their init done */
     err = <-chRet

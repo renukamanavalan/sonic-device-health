@@ -270,5 +270,10 @@ func (s *Server) Set(ctx context.Context, req *gnmipb.SetRequest) (*gnmipb.SetRe
 }
 
 func (s *Server) Capabilities(ctx context.Context, req *gnmipb.CapabilityRequest) (*gnmipb.CapabilityResponse, error) {
-    return nil, grpc.Errorf(codes.Unimplemented, "Capabilities() is not implemented")
+    if _, err := authenticate(s.config.UserAuth, ctx); err != nil {
+        return nil, err
+    }
+    return &gnmipb.CapabilityResponse{
+        SupportedEncodings: supportedEncodings,
+        GNMIVersion:        "0.7.0"}, nil
 }

@@ -63,6 +63,8 @@ func (d *DroppedDataType) inc(dType string) {
 var droppedData = DroppedDataType{data: make(map[string]int)}
 
 type LoMDataClient struct {
+    id string
+
     prefix *gnmipb.Path
     path   *gnmipb.Path
 
@@ -103,6 +105,7 @@ func NewLoMDataClient(path *gnmipb.Path, prefix *gnmipb.Path) (Client, error) {
     default:
         return nil, cmn.LogError("Unexpected target=(%s)", prefix.GetTarget())
     }
+    c.id = time.Now().Format("2006-01-02T15:04:05.000")
     c.chTypeStr = tele.CHANNEL_TYPE_STR[c.chType]
 
     c.prefix = prefix
@@ -130,7 +133,7 @@ func NewLoMDataClient(path *gnmipb.Path, prefix *gnmipb.Path) (Client, error) {
 
     /* Init subscriber with cache use and defined time out */
     if c.chData, c.chClose, err = tele.GetSubChannel(c.chType,
-        tele.CHANNEL_PRODUCER_EMPTY, ""); err != nil {
+        tele.CHANNEL_PRODUCER_EMPTY, "", c.id); err != nil {
         cmn.LogError("Failed to create LoMDataClient for (%s) due to (%v)", c.chTypeStr, err)
         return nil, err
     }
@@ -159,9 +162,11 @@ func sendData(c *LoMDataClient, sndData tele.JsonString_t) {
             c.q.Len(), c.pq_max, c.chTypeStr, droppedData)
         return
     }
-    var fvp map[string]interface{}
-    if err := json.Unmarshal([]byte(sndData), &fvp); err != nil {
-        cmn.LogCritical("Invalid event message (%v)", sndData)
+    fvp := map[string]any{}
+    s := string(sndData)
+    if err := json.Unmarshal([]byte(s), &fvp); err != nil {
+        cmn.LogCritical("Invalid event message (%T) (%v)", s, s)
+        cmn.LogCritical("Invalid event message err: (%v)", err)
         return
     }
 

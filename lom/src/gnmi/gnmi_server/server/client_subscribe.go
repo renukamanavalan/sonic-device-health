@@ -128,6 +128,8 @@ func (c *Client) Run(stream gnmipb.GNMI_SubscribeServer) (err error) {
         (mode == gnmipb.SubscriptionList_STREAM) {
         dc, err = ldc.NewLoMDataClient(paths[0], prefix)
     } else {
+        cmn.LogInfo("Failed to create client for invalid target=(%s) mode=(%v)",
+            target, mode)
         return grpc.Errorf(codes.NotFound, "target=%v mode=%v", target, mode)
     }
 

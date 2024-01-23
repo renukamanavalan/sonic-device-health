@@ -63,7 +63,7 @@ func validateArgs() (err error) {
 
 func telePublish() error {
     if suite, err := teletools.GetPubSuite(tele.ChannelType_t(*chTypeP),
-        tele.ChannelProducer_t(*chProducerP), *chProducerSuffixP, inReader); err != nil {
+        tele.ChannelProducer_t(*chProducerP), *chProducerSuffixP, "cli", inReader); err != nil {
         return err
     } else {
         prStr, _ := tele.GetProdStr(tele.ChannelProducer_t(*chProducerP), *chProducerSuffixP)
@@ -75,7 +75,7 @@ func telePublish() error {
 
 func teleSubscribe() error {
     if suite, err := teletools.GetSubSuite(tele.ChannelType_t(*chTypeP),
-        tele.ChannelProducer_t(*chProducerP), *chProducerSuffixP, outWriter); err != nil {
+        tele.ChannelProducer_t(*chProducerP), *chProducerSuffixP, "cli", outWriter); err != nil {
         return err
     } else {
         prStr, _ := tele.GetProdStr(tele.ChannelProducer_t(*chProducerP), *chProducerSuffixP)
