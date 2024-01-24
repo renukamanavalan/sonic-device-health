@@ -158,7 +158,6 @@ func writeJsonStringsData(ch chan<- tele.JsonString_t, d []tele.JsonString_t, to
     for i, val := range d {
         select {
         case ch <- val:
-            cmn.LogDebug("DROP DROP: writeJsonStringsData (%d):(%s)", i, val)
 
         case <-time.After(time.Duration(tout) * time.Second):
             err = cmn.LogError("Write chan timeout on index(%d/%d) after (%d) seconds",
@@ -214,7 +213,6 @@ Loop:
                 err = cmn.LogError("CLOSED")
                 break Loop
             } else {
-                cmn.LogDebug("DROP DROP: readJsonStrings (%d): (%s)", i, val)
                 vals = append(vals, val)
             }
 

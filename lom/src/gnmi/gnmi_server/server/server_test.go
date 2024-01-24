@@ -27,6 +27,7 @@ import (
     gclient "github.com/jipanyang/gnmi/client/gnmi"
     testcert "lom/src/gnmi/testdata/tls"
     tele "lom/src/lib/lomtelemetry"
+    cmn  "lom/src/lib/lomcommon"
 )
 
 var clientTypes = []string{gclient.Type}
@@ -265,22 +266,33 @@ func xTestAuthCapabilities(t *testing.T) {
     }
 }
 
+func compare_maps(s map[string]any, d map[string]any) (bool, string) {
+    if len(s) != len(d) {
+        return false, fmt.Sprintf("len mismatch (%d) != (%d)", len(s), len(d))
+    }
+    for k, v := range s {
+        if v != d[k] {
+            return false, fmt.Sprintf("key:%s (%T)(%v) != (%T)(%v)", k, v, v, d[k], d[k])
+        }
+    }
+    return true, ""
+}
+
 func TestEventsClient(t *testing.T) {
     HEARTBEAT_SET := 5
 
-    evt0 := []string{
-        `{ "index": 0, "foo0": "bar" }`,
-        `{ "index": 1, "foo1": "bar" }`,
-        `{ "index": 2, "foo2": "bar" }`,
-        `{ "index": 3, "foo3": "bar" }`,
+    evts := [10]map[string]any{}
+
+    for i := 0; i < len(evts); i++ {
+        evts[i] = map[string]any { "index": float64(i), "foo": fmt.Sprintf("bar_%d", i) }
     }
 
     tests := []struct {
         desc    string
         target  string
-        pubData []string
+        pubCnt  int
+        rcvCnt  int
         expErr  string
-        rcvData []string
     }{
         /*
            {
@@ -291,8 +303,8 @@ func TestEventsClient(t *testing.T) {
         {
             desc:    "New Data client succeed",
             target:  "EVENTS",
-            pubData: evt0,
-            rcvData: evt0,
+            pubCnt:  4,
+            rcvCnt:  4,
         },
     }
 
@@ -326,16 +338,24 @@ func TestEventsClient(t *testing.T) {
             t.Logf("test(%d): START    ------------------", testNum)
 
             c := client.New()
-            defer c.Close()
 
-            /* Create buffered channel for max expected */
-            rcvdEventsCh := make(chan string, len(tt.pubData))
-            defer close(rcvdEventsCh)
+            /* Create buffered channel for max expected to help not block.*/
+            rcvdEventsCh := make(chan map[string]any, tt.rcvCnt)
+
+            defer func() {
+                /* Close client before closing channel used by notification handler */
+                c.Close()
+                close(rcvdEventsCh)
+            }()
 
             /* Receive notifications (which is events) from server */
             q.NotificationHandler = func(n client.Notification) error {
                 if nn, ok := n.(client.Update); ok {
-                    rcvdEventsCh <- fmt.Sprintf("%v", nn.Val)
+                    if v, ok := nn.Val.(map[string]any); ok {
+                        rcvdEventsCh <- v
+                    } else {
+                        return cmn.LogError("Notification (%T) != map[string]any", nn.Val)
+                    }
                 }
                 return nil
             }
@@ -346,7 +366,6 @@ func TestEventsClient(t *testing.T) {
              */
             go func() {
                 /* https://github.com/openconfig/gnmi/blob/master/subscribe/subscribe.go */
-                t.Logf("DROP: Call Subscribe ")
                 errFail = c.Subscribe(context.Background(), q)
                 t.Logf("c.Subscribe: err=(%v)", errFail)
             }()
@@ -358,26 +377,30 @@ func TestEventsClient(t *testing.T) {
              */
             time.Sleep(500 * time.Millisecond)
 
-            if len(tt.pubData) != 0 {
+            if tt.pubCnt != 0 {
                 /* Publish data via LoM Telemetry Pub channel, which will be received by
                  * LoMDataClient via LoM telemetry subchannel and send the same to gnmi
                  * client via notification handler.
                  */
-                for _, ev := range tt.pubData {
+                 for _, ev := range evts[:tt.pubCnt] {
                     if err := tele.PublishEvent(ev); err != nil {
-                        t.Fatalf("Failed to call PublishEvent. err(%v)", err)
+                        t.Fatalf("Failed to call PublishEvent. err(%v) ev(%v)", err, ev)
                     }
                 }
 
                 /* Verify received notifications by gnmi client */
-                for i := 0; i < len(tt.rcvData); i++ {
+                for i := 0; i < tt.rcvCnt; i++ {
                     select {
                     case val := <-rcvdEventsCh:
-                        if val != tt.rcvData[i] {
-                            t.Fatalf("test(%d): index(%d): Rcvd (%s) != sent (%s)", testNum, i, val, tt.rcvData[i])
+                        if res, msg := compare_maps(val, evts[i]); !res {
+                            e := cmn.LogError("test[%d]: index(%d): msg(%s)",
+                                    testNum, i, msg) 
+                            if errFail == nil {
+                                errFail = e
+                            }
                         }
                     case <-time.After(time.Second):
-                        t.Fatalf("test(%d): Timeout: rcvd (%d) expect(%d)", testNum, i, len(tt.rcvData))
+                        t.Fatalf("test(%d): Timeout: rcvd (%d) expect(%d)", testNum, i, tt.rcvCnt)
                     }
                 }
             }

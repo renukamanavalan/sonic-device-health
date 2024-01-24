@@ -162,6 +162,7 @@ func sendData(c *LoMDataClient, sndData tele.JsonString_t) {
             c.q.Len(), c.pq_max, c.chTypeStr, droppedData)
         return
     }
+
     fvp := map[string]any{}
     s := string(sndData)
     if err := json.Unmarshal([]byte(s), &fvp); err != nil {
@@ -195,6 +196,7 @@ func sendData(c *LoMDataClient, sndData tele.JsonString_t) {
             return
         }
     }
+    cmn.LogInfo("sendData: (%s)", sndData)
     c.sentCnt++
     sent = true
 }

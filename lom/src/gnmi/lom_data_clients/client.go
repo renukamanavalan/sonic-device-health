@@ -8,6 +8,7 @@ import (
     gnmipb "github.com/openconfig/gnmi/proto/gnmi"
 
     lpb "lom/src/gnmi/proto"
+    cmn "lom/src/lib/lomcommon"
 )
 
 // Client defines a set of methods which every client must implement.
@@ -37,15 +38,30 @@ type Value struct {
     *lpb.Value
 }
 
-// Implement Compare method for priority queue
-func (val Value) Compare(other queue.Item) int {
+/* Implement Compare method for priority queue
+ *
+ * https://pkg.go.dev/github.com/golang-collections/go-datastructures/queue
+ * type Item interface {
+ *     Compare returns a bool that can be used to determine
+ *     ordering in the priority queue.  Assuming the queue
+ *     is in ascending order, this should return > logic.
+ *     Return 1 to indicate this object is greater than the
+ *     the other logic, 0 to indicate equality, and -1 to indicate
+ *     less than other.
+ *
+ *     Compare(other Item) int
+ * }
+ */
+func (val Value) Compare(other queue.Item) (ret int) {
     oval := other.(Value)
-    if val.GetTimestamp() > oval.GetTimestamp() {
-        return 1
-    } else if val.GetTimestamp() == oval.GetTimestamp() {
-        return 0
+    if val.GetSendIndex() > oval.GetSendIndex() {
+        ret = 1
+    } else if val.GetSendIndex() == oval.GetSendIndex() {
+        ret = 0
+    } else {
+        ret = -1
     }
-    return -1
+    return
 }
 
 func (val Value) GetTimestamp() int64 {

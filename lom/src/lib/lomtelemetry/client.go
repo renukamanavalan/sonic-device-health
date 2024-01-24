@@ -332,14 +332,16 @@ func PublishTerminate() {
  *
  */
 func PublishAny(chType ChannelType_t, data any) (err error) {
-    msg := ""
-    if b, e := json.Marshal(data); e != nil {
-        err = cmn.LogError("Failed to marshal map (%v) err(%v)", data, e)
-        return
-    } else {
-        msg = string(b)
-        cmn.LogInfo(CHANNEL_TYPE_STR[chType] + ": " + msg) /* Record in syslog */
+    msg, ok := data.(string)
+    if !ok {
+        if b, e := json.Marshal(data); e != nil {
+            err = cmn.LogError("Failed to marshal map (%v) err(%v)", data, e)
+            return
+        } else {
+            msg = string(b)
+        }
     }
+    cmn.LogInfo(CHANNEL_TYPE_STR[chType] + ": " + msg) /* Record in syslog */
 
     ch, ok := openedPubChannels[chType]
     if !ok {
