@@ -8,7 +8,6 @@ import (
     gnmipb "github.com/openconfig/gnmi/proto/gnmi"
 
     lpb "lom/src/gnmi/proto"
-    cmn "lom/src/lib/lomcommon"
 )
 
 // Client defines a set of methods which every client must implement.

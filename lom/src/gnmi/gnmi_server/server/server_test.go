@@ -26,8 +26,8 @@ import (
     // Register supported client types.
     gclient "github.com/jipanyang/gnmi/client/gnmi"
     testcert "lom/src/gnmi/testdata/tls"
+    cmn "lom/src/lib/lomcommon"
     tele "lom/src/lib/lomtelemetry"
-    cmn  "lom/src/lib/lomcommon"
 )
 
 var clientTypes = []string{gclient.Type}
@@ -284,15 +284,15 @@ func TestEventsClient(t *testing.T) {
     evts := [10]map[string]any{}
 
     for i := 0; i < len(evts); i++ {
-        evts[i] = map[string]any { "index": float64(i), "foo": fmt.Sprintf("bar_%d", i) }
+        evts[i] = map[string]any{"index": float64(i), "foo": fmt.Sprintf("bar_%d", i)}
     }
 
     tests := []struct {
-        desc    string
-        target  string
-        pubCnt  int
-        rcvCnt  int
-        expErr  string
+        desc   string
+        target string
+        pubCnt int
+        rcvCnt int
+        expErr string
     }{
         /*
            {
@@ -301,10 +301,10 @@ func TestEventsClient(t *testing.T) {
                expErr: "Unexpected target=(xyz)",
            },*/
         {
-            desc:    "New Data client succeed",
-            target:  "EVENTS",
-            pubCnt:  4,
-            rcvCnt:  4,
+            desc:   "New Data client succeed",
+            target: "EVENTS",
+            pubCnt: 4,
+            rcvCnt: 4,
         },
     }
 
@@ -335,7 +335,7 @@ func TestEventsClient(t *testing.T) {
         t.Run(tt.desc, func(t *testing.T) {
             /* Create new gnmi client */
             var errFail error
-            t.Logf("test(%d): START    ------------------", testNum)
+            cmn.LogInfo("test(%d): START    ------------------", testNum)
 
             c := client.New()
 
@@ -346,6 +346,7 @@ func TestEventsClient(t *testing.T) {
                 /* Close client before closing channel used by notification handler */
                 c.Close()
                 close(rcvdEventsCh)
+                cmn.LogInfo("client closed")
             }()
 
             /* Receive notifications (which is events) from server */
@@ -354,7 +355,7 @@ func TestEventsClient(t *testing.T) {
                     if v, ok := nn.Val.(map[string]any); ok {
                         rcvdEventsCh <- v
                     } else {
-                        return cmn.LogError("Notification (%T) != map[string]any", nn.Val)
+                        cmn.LogError("Notification (%T) != map[string]any", nn.Val)
                     }
                 }
                 return nil
@@ -367,7 +368,7 @@ func TestEventsClient(t *testing.T) {
             go func() {
                 /* https://github.com/openconfig/gnmi/blob/master/subscribe/subscribe.go */
                 errFail = c.Subscribe(context.Background(), q)
-                t.Logf("c.Subscribe: err=(%v)", errFail)
+                cmn.LogInfo("c.Subscribe: err=(%v)", errFail)
             }()
 
             /* Subscribe request creates a new LoMDataClient which in turn subscribes
@@ -382,7 +383,7 @@ func TestEventsClient(t *testing.T) {
                  * LoMDataClient via LoM telemetry subchannel and send the same to gnmi
                  * client via notification handler.
                  */
-                 for _, ev := range evts[:tt.pubCnt] {
+                for _, ev := range evts[:tt.pubCnt] {
                     if err := tele.PublishEvent(ev); err != nil {
                         t.Fatalf("Failed to call PublishEvent. err(%v) ev(%v)", err, ev)
                     }
@@ -394,7 +395,7 @@ func TestEventsClient(t *testing.T) {
                     case val := <-rcvdEventsCh:
                         if res, msg := compare_maps(val, evts[i]); !res {
                             e := cmn.LogError("test[%d]: index(%d): msg(%s)",
-                                    testNum, i, msg) 
+                                testNum, i, msg)
                             if errFail == nil {
                                 errFail = e
                             }
@@ -414,7 +415,7 @@ func TestEventsClient(t *testing.T) {
             } else if errFail != nil {
                 t.Fatalf("test(%d): Unexpected failure (%v)", testNum, errFail)
             }
-            t.Logf("test(%d): COMPLETE ------------------", testNum)
+            cmn.LogInfo("test(%d): COMPLETE ------------------", testNum)
         })
     }
 }
