@@ -35,6 +35,10 @@ ifeq "${TEST_FLAG}" "-v"
 PYTEST_VERBOSE= --addopts "-s"
 endif
 
+# gomonkey mocks don't work with inlining. Hence explicitly disable it.
+# https://github.com/agiledragon/gomonkey/issues/34
+#
+LIB_TEST_FLAGS_NOINLINE = -gcflags=all=-l -p 1
 LIB_TEST_FLAGS = -v
 
 export GO111MODULE=on
@@ -205,9 +209,10 @@ $(PLUGIN_MANAGER_BIN): $(SRC_FILES)
 
 $(LIB_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
-	${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/LibCoverprofile.out \
+	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/LibCoverprofile.out \
 		-coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon,lom/src/lib/lomscripted,lom/src/lib/lomtelemetry \
-		-covermode=atomic $(LIB_TEST_FLAGS) ./src/lib/libtest ./src/lib/libtest/config || (echo "LibTest failed $$?"; exit 1)
+		-covermode=atomic $(LIB_TEST_FLAGS) $(LIB_TEST_FLAGS_NOINLINE) \
+		./src/lib/libtest ./src/lib/libtest/config || (echo "LibTest failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/LibCoverprofile.out -o $(TEST_DIR)/LibCoverprofile.html
 	@if [ -f "$(TEST_DIR)/LibCoverprofile.html" ]; then \
 		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/LibCoverprofile.html; \
@@ -219,7 +224,8 @@ $(ENGINE_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/EngineCoverprofile.out \
 		-coverpkg lom/src/engine/engine \
-		-covermode=atomic $(LIB_TEST_FLAGS) lom/src/engine/engine || (echo "EngineTest failed $$?"; exit 1)
+		-covermode=atomic $(LIB_TEST_FLAGS) $(LIB_TEST_FLAGS_NOINLINE) \
+		lom/src/engine/engine || (echo "EngineTest failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/EngineCoverprofile.out -o $(TEST_DIR)/EngineCoverprofile.html
 	@if [ -f "$(TEST_DIR)/EngineCoverprofile.html" ]; then \
 		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/EngineCoverprofile.html; \
@@ -229,9 +235,10 @@ $(ENGINE_TEST): $(SRC_FILES) $(TEST_FILES)
 
 $(PLUGIN_MANAGER_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
-	${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginManagerCoverprofile.out \
+	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginManagerCoverprofile.out \
 		-coverpkg lom/src/pluginmgr/pluginmgr_common \
-		-covermode=atomic $(LIB_TEST_FLAGS) ./src/pluginmgr/pluginmgr_common  || (echo "Plugin manager test failed $$?"; exit 1)
+		-covermode=atomic $(LIB_TEST_FLAGS) $(LIB_TEST_FLAGS_NOINLINE) \
+		./src/pluginmgr/pluginmgr_common  || (echo "Plugin manager test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/PluginManagerCoverprofile.out -o $(TEST_DIR)/PluginManagerCoverprofile.html
 	@if [ -f "$(TEST_DIR)/PluginManagerCoverprofile.html" ]; then \
 		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/PluginManagerCoverprofile.html; \
@@ -243,7 +250,8 @@ $(SONIC_DBCLIENT_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/SonicDbClientCoverprofile.out \
 		-coverpkg lom/src/plugins/plugins_files/sonic/client/dbclient \
-		-covermode=atomic $(LIB_TEST_FLAGS) lom/src/plugins/plugins_files/sonic/client/dbclient || (echo "SonicDbClient Test failed $$?"; exit 1)
+		-covermode=atomic $(LIB_TEST_FLAGS) $(LIB_TEST_FLAGS_NOINLINE) \
+		lom/src/plugins/plugins_files/sonic/client/dbclient || (echo "SonicDbClient Test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/SonicDbClientCoverprofile.out -o $(TEST_DIR)/SonicDbClientCoverprofile.html
 	@if [ -f "$(TEST_DIR)/SonicDbClientCoverprofile.html" ]; then \
 		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/SonicDbClientCoverprofile.html; \
@@ -261,8 +269,9 @@ $(PY_TEST): $(SRC_FILES) $(PY_FILES)
 $(SONIC_LINK_CRC_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/SonicLinkCrcCoverprofile.out \
-				-coverpkg lom/src/plugins/plugins_files/sonic/plugin/linkcrc \
-				-covermode=atomic $(LIB_TEST_FLAGS) lom/src/plugins/plugins_files/sonic/plugin/linkcrc || (echo "SonicLinkCrc plugin Test failed $$?"; exit 1)
+		-coverpkg lom/src/plugins/plugins_files/sonic/plugin/linkcrc \
+		-covermode=atomic $(LIB_TEST_FLAGS) $(LIB_TEST_FLAGS_NOINLINE) \
+		lom/src/plugins/plugins_files/sonic/plugin/linkcrc || (echo "SonicLinkCrc plugin Test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/SonicLinkCrcCoverprofile.out -o $(TEST_DIR)/SonicLinkCrcCoverprofile.html
 	@if [ -f "$(TEST_DIR)/SonicLinkCrcCoverprofile.html" ]; then \
 		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/SonicLinkCrcCoverprofile.html; \
@@ -274,7 +283,8 @@ $(PLUGINS_COMMON_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginsCommonCoverprofile.out \
 		-coverpkg lom/src/plugins/plugins_common \
-				-covermode=atomic $(LIB_TEST_FLAGS) lom/src/plugins/plugins_common || (echo "PluginsCommon Tests failed $$?"; exit 1)
+		-covermode=atomic $(LIB_TEST_FLAGS) $(LIB_TEST_FLAGS_NOINLINE) \
+		lom/src/plugins/plugins_common || (echo "PluginsCommon Tests failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/PluginsCommonCoverprofile.out -o $(TEST_DIR)/PluginsCommonCoverprofile.html
 	@if [ -f "$(TEST_DIR)/PluginsCommonCoverprofile.html" ]; then \
 		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/PluginsCommonCoverprofile.html; \
@@ -329,14 +339,14 @@ $(GNMI_SERVER_BIN): $(SRC_FILES)
 $(GNMI_SERVER_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/gNMIServerCoverprofile.out \
-		-coverpkg lom/src/gnmi/gnmi_server/server \
-		-covermode=atomic $(LIB_TEST_FLAGS) lom/src/gnmi/gnmi_server/server || (echo "gNMIServerTest failed $$?"; exit 1)
+		-coverpkg lom/src/gnmi/gnmi_server/server,lom/src/gnmi/lom_data_clients \
+		-covermode=atomic $(LIB_TEST_FLAGS) $(LIB_TEST_FLAGS_NOINLINE) \
+		-gcflags=all=-l ./src/gnmi/gnmi_server/server ./src/gnmi/lom_data_clients || (echo "gNMIServerTest failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/gNMIServerCoverprofile.out -o $(TEST_DIR)/gNMIServerCoverprofile.html
 	@if [ -f "$(TEST_DIR)/gNMIServerCoverprofile.html" ]; then \
 		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/gNMIServerCoverprofile.html; \
 	fi
 	touch $@
 	@echo -e "Successfully completed gNMIServer Test\n\n"
-
 
 

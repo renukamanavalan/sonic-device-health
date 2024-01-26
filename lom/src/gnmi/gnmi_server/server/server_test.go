@@ -20,12 +20,14 @@ import (
     "golang.org/x/net/context"
     "google.golang.org/grpc"
     "google.golang.org/grpc/credentials"
+    "google.golang.org/grpc/metadata"
 
     "github.com/agiledragon/gomonkey/v2"
 
     // Register supported client types.
     gclient "github.com/jipanyang/gnmi/client/gnmi"
     testcert "lom/src/gnmi/testdata/tls"
+    lom_utils "lom/src/gnmi/utils"
     cmn "lom/src/lib/lomcommon"
     tele "lom/src/lib/lomtelemetry"
 )
@@ -160,10 +162,10 @@ func createQueryOrFail(t *testing.T, subListMode pb.SubscriptionList_Mode, targe
 }
 
 // create query for subscribing to events.
-func createEventsQuery(t *testing.T, paths ...string) client.Query {
+func createEventsQuery(t *testing.T, target string, paths ...string) client.Query {
     return createQueryOrFail(t,
         pb.SubscriptionList_STREAM,
-        "EVENTS",
+        target,
         []subscriptionQuery{
             {
                 Query:   paths,
@@ -183,7 +185,7 @@ type tablePathValue struct {
     op        string
 }
 
-func xTestCapabilities(t *testing.T) {
+func TestCapabilities(t *testing.T) {
     //t.Log("Start server")
     s := createServer(t, 8085)
     go runServer(t, s)
@@ -230,7 +232,7 @@ func (c *loginCreds) RequireTransportSecurity() bool {
     return true
 }
 
-func xTestAuthCapabilities(t *testing.T) {
+func TestAuthCapabilities(t *testing.T) {
     mock1 := gomonkey.ApplyFunc(UserPwAuth, func(username string, passwd string) (bool, error) {
         return true, nil
     })
@@ -294,12 +296,11 @@ func TestEventsClient(t *testing.T) {
         rcvCnt int
         expErr string
     }{
-        /*
-           {
-               desc:   "New Data client fail for invalid target",
-               target: "xyz",
-               expErr: "Unexpected target=(xyz)",
-           },*/
+        {
+            desc:   "New Data client fail for invalid target",
+            target: "xyz",
+            expErr: "rpc error: code = NotFound desc = target=xyz mode=STREAM",
+        },
         {
             desc:   "New Data client succeed",
             target: "EVENTS",
@@ -312,11 +313,6 @@ func TestEventsClient(t *testing.T) {
     defer s.s.Stop()
 
     go runServer(t, s)
-
-    /* Build query */
-    qstr := fmt.Sprintf("all[heartbeat=%d]", HEARTBEAT_SET)
-    q := createEventsQuery(t, qstr)
-    q.Addrs = []string{"127.0.0.1:8081"}
 
     /* To get client data, simulate events publish. To do so, we need to
      * init service & publish.
@@ -348,6 +344,11 @@ func TestEventsClient(t *testing.T) {
                 close(rcvdEventsCh)
                 cmn.LogInfo("client closed")
             }()
+
+            /* Build query */
+            qstr := fmt.Sprintf("all[heartbeat=%d]", HEARTBEAT_SET)
+            q := createEventsQuery(t, tt.target, qstr)
+            q.Addrs = []string{"127.0.0.1:8081"}
 
             /* Receive notifications (which is events) from server */
             q.NotificationHandler = func(n client.Notification) error {
@@ -409,7 +410,7 @@ func TestEventsClient(t *testing.T) {
                 if errFail == nil {
                     t.Fatalf("test(%d): Expect failure (%s)", testNum, tt.expErr)
                 } else if tt.expErr != fmt.Sprint(errFail) {
-                    t.Logf("test(%d): Expect failure (%s) != failure (%v)",
+                    t.Fatalf("CHECK: *************test(%d): Expect failure (%s) != failure (%v)",
                         testNum, tt.expErr, errFail)
                 }
             } else if errFail != nil {
@@ -420,7 +421,7 @@ func TestEventsClient(t *testing.T) {
     }
 }
 
-func xTestServerPort(t *testing.T) {
+func TestServerPort(t *testing.T) {
     s := createServer(t, -8080)
     port := s.Port()
     if port != 0 {
@@ -429,10 +430,61 @@ func xTestServerPort(t *testing.T) {
     s.s.Stop()
 }
 
-func xTestInvalidServer(t *testing.T) {
+func TestInvalidServer(t *testing.T) {
     s := createInvalidServer(t, 9000)
     if s != nil {
         t.Errorf("Should not create invalid server")
+    }
+}
+
+func TestBasicAuthenAndAuthor(t *testing.T) {
+    reqCtx := lom_utils.RequestContext{}
+    failures := []string{
+        "Invalid context",
+    }
+
+    /*
+       "No Username Provided",
+       "Unauthenticated",
+       "Invalid Password",
+    */
+
+    for _, msg := range failures {
+        mocks := []*gomonkey.Patches{}
+        switch {
+        case msg == "Invalid context":
+            mocks = append(mocks, gomonkey.ApplyFunc(lom_utils.GetContext,
+                func(ctx context.Context) (*lom_utils.RequestContext, context.Context) {
+                    return &reqCtx, ctx
+                }))
+            mocks = append(mocks, gomonkey.ApplyFunc(metadata.FromIncomingContext,
+                func(ctx context.Context) (metadata.MD, bool) {
+                    return metadata.MD{}, false
+                }))
+        default:
+            t.Fatalf("Unhandled failure (%s)", msg)
+        }
+
+        defer func() {
+            for _, m := range mocks {
+                m.Reset()
+            }
+        }()
+
+        var ctx context.Context
+        c, err := BasicAuthenAndAuthor(ctx)
+        if c != ctx {
+            t.Fatalf("Failed to get context back")
+        }
+        if msg != "" {
+            if err == nil {
+                t.Fatalf("Failed to fail. Expect err(%s)", msg)
+            } else if !strings.Contains(fmt.Sprint(err), msg) {
+                t.Fatalf("err mismatch exp(%s) NOT in err(%v)", msg, err)
+            }
+        } else if err != nil {
+            t.Fatalf("Failed NOT to fail. Res (%v)", err)
+        }
     }
 }
 

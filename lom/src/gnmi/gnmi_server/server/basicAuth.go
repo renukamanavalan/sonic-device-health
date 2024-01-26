@@ -6,7 +6,7 @@ import (
     "google.golang.org/grpc/codes"
     "google.golang.org/grpc/metadata"
     "google.golang.org/grpc/status"
-    "lom/src/gnmi/utils"
+    lom_utils "lom/src/gnmi/utils"
 )
 
 func BasicAuthenAndAuthor(ctx context.Context) (context.Context, error) {
