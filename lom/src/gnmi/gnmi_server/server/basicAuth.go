@@ -31,7 +31,7 @@ func BasicAuthenAndAuthor(ctx context.Context) (context.Context, error) {
     }
     if err := PopulateAuthStruct(username, &rc.Auth, nil); err != nil {
         glog.Infof("[%s] Failed to retrieve authentication information; %v", rc.ID, err)
-        return ctx, status.Errorf(codes.Unauthenticated, "")
+        return ctx, status.Errorf(codes.Unauthenticated, "Unknown User")
     }
     auth_success, _ := UserPwAuth(username, passwd)
     if auth_success == false {

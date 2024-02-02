@@ -34,7 +34,7 @@ func ClientCertAuthenAndAuthor(ctx context.Context) (context.Context, error) {
 
     if err := PopulateAuthStruct(username, &rc.Auth, nil); err != nil {
         glog.Infof("[%s] Failed to retrieve authentication information; %v", rc.ID, err)
-        return ctx, status.Errorf(codes.Unauthenticated, "")
+        return ctx, status.Errorf(codes.Unauthenticated, "Failed to retrieve authentication information")
     }
 
     return ctx, nil

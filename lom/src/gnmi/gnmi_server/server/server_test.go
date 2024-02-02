@@ -21,6 +21,7 @@ import (
     "google.golang.org/grpc"
     "google.golang.org/grpc/credentials"
     "google.golang.org/grpc/metadata"
+    //"google.golang.org/grpc/peer"
 
     "github.com/agiledragon/gomonkey/v2"
 
@@ -439,39 +440,47 @@ func TestInvalidServer(t *testing.T) {
 
 func TestBasicAuthenAndAuthor(t *testing.T) {
     reqCtx := lom_utils.RequestContext{}
+    md := metadata.MD{}
+    mdRet := false
+    var ctx context.Context
+
     failures := []string{
         "Invalid context",
+        "No Username Provided",
+        "No Password Provided",
+        "Unknown User",
+        "Invalid Password",
     }
 
-    /*
-       "No Username Provided",
-       "Unauthenticated",
-       "Invalid Password",
-    */
+    mockCtx := gomonkey.ApplyFunc(lom_utils.GetContext,
+        func(ctx context.Context) (*lom_utils.RequestContext, context.Context) {
+            return &reqCtx, ctx
+        })
+    defer mockCtx.Reset()
+
+    mockMd := gomonkey.ApplyFunc(metadata.FromIncomingContext,
+        func(ctx context.Context) (metadata.MD, bool) {
+            cmn.LogInfo("mdRet = (%v) md=(%T)(%v)", mdRet, md, md)
+            return md, mdRet
+        })
+    defer mockMd.Reset()
 
     for _, msg := range failures {
-        mocks := []*gomonkey.Patches{}
         switch {
         case msg == "Invalid context":
-            mocks = append(mocks, gomonkey.ApplyFunc(lom_utils.GetContext,
-                func(ctx context.Context) (*lom_utils.RequestContext, context.Context) {
-                    return &reqCtx, ctx
-                }))
-            mocks = append(mocks, gomonkey.ApplyFunc(metadata.FromIncomingContext,
-                func(ctx context.Context) (metadata.MD, bool) {
-                    return metadata.MD{}, false
-                }))
+            /* Init values are good */
+        case msg == "No Username Provided":
+            mdRet = true
+        case msg == "No Password Provided":
+            md["username"] = []string {"foo"}
+        case msg == "Unknown User":
+            md["password"] = []string{"bar"}
+        case msg == "Invalid Password":
+            md["username"] = []string {"root"}
         default:
             t.Fatalf("Unhandled failure (%s)", msg)
         }
 
-        defer func() {
-            for _, m := range mocks {
-                m.Reset()
-            }
-        }()
-
-        var ctx context.Context
         c, err := BasicAuthenAndAuthor(ctx)
         if c != ctx {
             t.Fatalf("Failed to get context back")
@@ -482,11 +491,50 @@ func TestBasicAuthenAndAuthor(t *testing.T) {
             } else if !strings.Contains(fmt.Sprint(err), msg) {
                 t.Fatalf("err mismatch exp(%s) NOT in err(%v)", msg, err)
             }
-        } else if err != nil {
-            t.Fatalf("Failed NOT to fail. Res (%v)", err)
         }
     }
+    
+    mockPw := gomonkey.ApplyFunc(UserPwAuth, func(u, p string) (bool, error) {
+        return true, nil
+    })
+    defer mockPw.Reset()
+
+    _, err := BasicAuthenAndAuthor(ctx)
+    if err != nil {
+        t.Fatalf("Expect to success. err(%v)", err)
+    }
 }
+
+/*
+func xTestClientCertAuthenAndAuthor(t *testing.T) {
+    var ctx context.Context
+    peerInfo := struct {
+        AuthInfo credentials.TLSInfo
+    }
+    peerRet := false
+
+    failures := []string {
+        "no peer found",
+        *
+        "unexpected peer transport credentials",
+        "could not verify peer certificate",
+        "invalid username in certificate common name.",
+        "Failed to retrieve authentication information",
+        *
+    }
+
+    mockCtx := gomonkey.ApplyFunc(lom_utils.GetContext,
+        func(ctx context.Context) (*lom_utils.RequestContext, context.Context) {
+            return &reqCtx, ctx
+        })
+    defer mockCtx.Reset()
+
+    mockPeer := gomonkey.ApplyFunc(peer.FromContext, func(context.Context) {
+        return 
+    })
+}
+*/
+
 
 func init() {
     // Enable logs at UT setup
