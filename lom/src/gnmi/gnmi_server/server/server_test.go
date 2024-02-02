@@ -4,6 +4,7 @@ package gnmi
 // Prerequisite: redis-server should be running.
 import (
     "crypto/tls"
+    "crypto/x509"
     "flag"
     "fmt"
     "strings"
@@ -21,7 +22,7 @@ import (
     "google.golang.org/grpc"
     "google.golang.org/grpc/credentials"
     "google.golang.org/grpc/metadata"
-    //"google.golang.org/grpc/peer"
+    "google.golang.org/grpc/peer"
 
     "github.com/agiledragon/gomonkey/v2"
 
@@ -505,22 +506,24 @@ func TestBasicAuthenAndAuthor(t *testing.T) {
     }
 }
 
-/*
-func xTestClientCertAuthenAndAuthor(t *testing.T) {
+func TestClientCertAuthenAndAuthor(t *testing.T) {
     var ctx context.Context
-    peerInfo := struct {
-        AuthInfo credentials.TLSInfo
-    }
+    reqCtx := lom_utils.RequestContext{}
+    peerInfo := peer.Peer {}
     peerRet := false
+    cert := x509.Certificate{}
+    tlsInfo := credentials.TLSInfo{}
+    tlsInfo.State.VerifiedChains = make([][]*x509.Certificate, 1)
+    tlsInfo.State.VerifiedChains[0] = make([]*x509.Certificate, 1)
+    tlsInfo.State.VerifiedChains[0][0] = &cert
 
     failures := []string {
         "no peer found",
-        *
         "unexpected peer transport credentials",
         "could not verify peer certificate",
         "invalid username in certificate common name.",
         "Failed to retrieve authentication information",
-        *
+        "",
     }
 
     mockCtx := gomonkey.ApplyFunc(lom_utils.GetContext,
@@ -529,11 +532,45 @@ func xTestClientCertAuthenAndAuthor(t *testing.T) {
         })
     defer mockCtx.Reset()
 
-    mockPeer := gomonkey.ApplyFunc(peer.FromContext, func(context.Context) {
-        return 
+    mockPeer := gomonkey.ApplyFunc(peer.FromContext,
+        func(ctx context.Context) (*peer.Peer, bool) {
+        return &peerInfo, peerRet
     })
+    defer mockPeer.Reset()
+
+    for _, msg := range failures {
+        switch {
+        case msg == "no peer found":
+            /* Init values are good to simulate */
+        case msg == "unexpected peer transport credentials":
+            peerRet = true
+        case msg == "could not verify peer certificate":
+            peerInfo.AuthInfo = credentials.TLSInfo{}
+        case msg == "invalid username in certificate common name.":
+            peerInfo.AuthInfo = tlsInfo
+        case msg == "Failed to retrieve authentication information":
+            cert.Subject.CommonName = "foo"
+        case msg == "":
+            cert.Subject.CommonName = "root"
+        default:
+            t.Fatalf("Unhandled failure (%s)", msg)
+        }
+        c, err := ClientCertAuthenAndAuthor(ctx)
+        if c != ctx {
+            t.Fatalf("Failed to get context back")
+        }
+        if msg != "" {
+            if err == nil {
+                t.Fatalf("Failed to fail. Expect err(%s)", msg)
+            } else if !strings.Contains(fmt.Sprint(err), msg) {
+                t.Fatalf("err mismatch exp(%s) NOT in err(%v)", msg, err)
+            }
+        } else if err != nil {
+            t.Fatalf("Expect nil err (%v)", err)
+        }
+    }
+
 }
-*/
 
 
 func init() {
