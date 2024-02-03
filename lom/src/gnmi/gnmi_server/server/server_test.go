@@ -15,6 +15,7 @@ import (
     "time"
 
     "github.com/openconfig/gnmi/client"
+    "github.com/msteinert/pam"
     "github.com/openconfig/ygot/ygot"
 
     pb "github.com/openconfig/gnmi/proto/gnmi"
@@ -661,6 +662,100 @@ func TestJwtAuthenAndAuthor(t *testing.T) {
         t.Fatalf("Expect non nil token")
     }
 
+}
+
+func TestPamAuth(t *testing.T) {
+    errStr := "Simulated"
+
+    /* Random functions test */
+    {
+        /* Test PAMConvHandler */
+        type convRet struct {
+            pwd string
+            err string
+        }
+        pwd := "bar"
+        d := map[pam.Style]convRet {
+            pam.PromptEchoOff: { pwd, "" },
+            pam.PromptEchoOn: { pwd, "" },
+            pam.ErrorMsg: { "", "" },
+            pam.TextInfo: { "", "" },
+            pam.Style(100): {"", "unrecognized conversation message style"},
+        }
+
+        u := UserCredential{"foo", pwd}
+
+        for k, v := range d {
+            p, e := u.PAMConvHandler(k, "")
+            if (p != v.pwd) && ((v.err == "" && e != nil) || (v.err != "" && e == nil)) {
+                t.Fatalf("PAMConvHandler for(%v) ret (%v, %v) != (%v, %v)", k, p, e, v.pwd, v.err)
+            }
+        }
+    }
+    {
+        /* Test PAMAuthenticate */
+        if err := PAMAuthUser("foo", "bar"); err == nil {
+            t.Fatalf("PAMAuthUser expect err")
+        }
+        u := UserCredential{ "foo", "bar" }
+        if err := u.PAMAuthenticate(); err == nil {
+            t.Fatalf("PAMAuthenticate expect err")
+        }
+        tx := pam.Transaction {}
+
+        mockStart := gomonkey.ApplyFunc(pam.StartFunc,
+            func(service, user string, handler func(pam.Style, string) (string, error)) (*pam.Transaction, error) {
+                return &tx, nil
+            })
+        defer mockStart.Reset()
+
+        if err := PAMAuthUser("foo", "bar"); err == nil {
+            t.Fatalf("PAMAuthUser expect non  nil err")
+        }
+    }
+    {
+        /* Test GetUserRoles */
+        u := user.User{}
+        if _, err := GetUserRoles(&u); err == nil {
+            t.Fatalf("PAMAuthenticate expect err")
+        }
+
+        up, _ := user.Current()
+        if _, err := GetUserRoles(up); err != nil {
+            t.Fatalf("PAMAuthenticate expect nil err (%v)", err)
+        }
+
+        mockF := gomonkey.ApplyFunc(user.LookupGroupId,
+            func(gid string) (*user.Group, error) {
+                cmn.LogError("user.LookupGroupId mock called --------------------")
+                return nil, errors.New(errStr)
+            })
+        defer mockF.Reset()
+
+        roles, err := GetUserRoles(up)
+        if (roles != nil) || (err == nil) || (fmt.Sprint(err) != errStr) {
+            t.Fatalf("GetUserRoles ret (%v, %v) != (nil, %s)", roles, err, errStr)
+        }
+    }
+    {
+        info := lom_utils.AuthInfo{}
+        roles := []string{"bar", "ok"}
+        PopulateAuthStruct("foo", &info, roles)
+        if len(info.Roles) != len(roles) {
+            t.Fatalf("PopulateAuthStruct expect info.Roles(%v) == roles(%v)", info.Roles, roles)
+        }
+
+        mockGetRoles := gomonkey.ApplyFunc(GetUserRoles,
+            func(usr *user.User) ([]string, error) {
+                return []string{}, errors.New(errStr)
+            })
+        defer mockGetRoles.Reset()
+
+        err := PopulateAuthStruct("root", &info, []string{})
+        if (err == nil) || (fmt.Sprint(err) != errStr) {
+            t.Fatalf("Expect (%s) != (%s)", errStr, fmt.Sprint(err))
+        }
+    }
 }
 
 
