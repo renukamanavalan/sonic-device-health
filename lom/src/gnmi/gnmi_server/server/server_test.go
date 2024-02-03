@@ -697,21 +697,26 @@ func TestPamAuth(t *testing.T) {
         if err := PAMAuthUser("foo", "bar"); err == nil {
             t.Fatalf("PAMAuthUser expect err")
         }
+
+        errMsg := "Authentication failure"
         u := UserCredential{ "foo", "bar" }
-        if err := u.PAMAuthenticate(); err == nil {
+
+        if err := u.PAMAuthenticate(); (err == nil) || !strings.Contains(fmt.Sprint(err), errMsg) {
             t.Fatalf("PAMAuthenticate expect err")
         }
-        tx := pam.Transaction {}
 
+        errMsg = "StartFunc failed"
+        tx := pam.Transaction {}
         mockStart := gomonkey.ApplyFunc(pam.StartFunc,
             func(service, user string, handler func(pam.Style, string) (string, error)) (*pam.Transaction, error) {
-                return &tx, nil
+                return &tx, errors.New(errMsg)
             })
         defer mockStart.Reset()
 
-        if err := PAMAuthUser("foo", "bar"); err == nil {
-            t.Fatalf("PAMAuthUser expect non  nil err")
+        if err := u.PAMAuthenticate(); (err == nil) || !strings.Contains(fmt.Sprint(err), errMsg) {
+            t.Fatalf("PAMAuthenticate expect err")
         }
+
     }
     {
         /* Test GetUserRoles */
