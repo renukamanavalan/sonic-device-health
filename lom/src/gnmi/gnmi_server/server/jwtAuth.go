@@ -77,14 +77,14 @@ func JwtAuthenAndAuthor(ctx context.Context) (*gpb.JwtToken, context.Context, er
         return hmacSampleSecret, nil
     })
     if err != nil {
-        return &token, ctx, status.Errorf(codes.Unauthenticated, err.Error())
+        return &token, ctx, status.Errorf(codes.Unauthenticated, "Parse for token failed: " + err.Error())
     }
     if !tkn.Valid {
         return &token, ctx, status.Errorf(codes.Unauthenticated, "Invalid JWT Token")
     }
     if err := PopulateAuthStruct(claims.Username, &rc.Auth, claims.Roles); err != nil {
         glog.Infof("[%s] Failed to retrieve authentication information; %v", rc.ID, err)
-        return &token, ctx, status.Errorf(codes.Unauthenticated, "")
+        return &token, ctx, status.Errorf(codes.Unauthenticated, "Failed to retrieve authentication information")
     }
 
     return &token, ctx, nil

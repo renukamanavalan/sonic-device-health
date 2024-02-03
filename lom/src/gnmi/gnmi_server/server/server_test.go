@@ -5,6 +5,7 @@ package gnmi
 import (
     "crypto/tls"
     "crypto/x509"
+    "errors"
     "flag"
     "fmt"
     "strings"
@@ -25,6 +26,8 @@ import (
     "google.golang.org/grpc/peer"
 
     "github.com/agiledragon/gomonkey/v2"
+
+    jwt "github.com/dgrijalva/jwt-go"
 
     // Register supported client types.
     gclient "github.com/jipanyang/gnmi/client/gnmi"
@@ -568,6 +571,94 @@ func TestClientCertAuthenAndAuthor(t *testing.T) {
         } else if err != nil {
             t.Fatalf("Expect nil err (%v)", err)
         }
+    }
+
+}
+
+func TestJwtAuthenAndAuthor(t *testing.T) {
+    reqCtx := lom_utils.RequestContext{}
+    md := metadata.MD{}
+    mdRet := false
+    var ctx context.Context
+    var tknErr = errors.New("simulate")
+    var tkn = jwt.Token{}
+    var username = "foo"
+
+    failures := []string{
+        "Invalid context",
+        "No JWT Token Provided",
+        "Parse for token failed",
+        "Invalid JWT Token",
+        "Failed to retrieve authentication information",
+        "",
+    }
+
+    mockCtx := gomonkey.ApplyFunc(lom_utils.GetContext,
+        func(ctx context.Context) (*lom_utils.RequestContext, context.Context) {
+            return &reqCtx, ctx
+        })
+    defer mockCtx.Reset()
+
+    mockMd := gomonkey.ApplyFunc(metadata.FromIncomingContext,
+        func(ctx context.Context) (metadata.MD, bool) {
+            cmn.LogInfo("mdRet = (%v) md=(%T)(%v)", mdRet, md, md)
+            return md, mdRet
+        })
+    defer mockMd.Reset()
+
+    type Keyfunc func(*jwt.Token) (interface{}, error)
+    mockParse := gomonkey.ApplyFunc(jwt.ParseWithClaims,
+        func(tokenString string, claims jwt.Claims, keyFunc jwt.Keyfunc) (*jwt.Token, error) {
+            if _, e := keyFunc(nil); e != nil {
+                t.Fatalf("Unexpected error from internal keyFunc (%v)", e)
+            }
+            gClaims, _ := claims.(*Claims)
+            gClaims.Username = username
+            return &tkn, tknErr
+        })
+    defer mockParse.Reset()
+
+    for _, msg := range failures {
+        switch {
+        case msg == "Invalid context":
+            /* Init values are good */
+        case msg == "No JWT Token Provided":
+            mdRet = true
+        case msg == "Parse for token failed":
+            md["access_token"] = []string {"foo"}
+        case msg == "Invalid JWT Token":
+            tknErr = nil
+        case msg == "Failed to retrieve authentication information":
+            tkn.Valid = true
+        case msg == "":
+            username = "root"
+        default:
+            t.Fatalf("Unhandled failure (%s)", msg)
+        }
+
+        _, c, err := JwtAuthenAndAuthor(ctx)
+        if c != ctx {
+            t.Fatalf("Failed to get context back")
+        }
+        if msg != "" {
+            if err == nil {
+                t.Fatalf("Failed to fail. Expect err(%s)", msg)
+            } else if !strings.Contains(fmt.Sprint(err), msg) {
+                t.Fatalf("err mismatch exp(%s) NOT in err(%v)", msg, err)
+            }
+        }
+    }
+    
+    /* APIs */
+    if s := generateJWT("foo", []string{}, time.Now()); s == "" {
+        t.Fatalf("Expect non empty string")
+    }
+
+    /* No return value to check. Good as long as it does not throw */
+    GenerateJwtSecretKey()
+
+    if tok := tokenResp("root", []string{}); tok == nil {
+        t.Fatalf("Expect non nil token")
     }
 
 }
