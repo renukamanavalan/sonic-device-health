@@ -12,11 +12,15 @@ import (
     "time"
 
     "github.com/agiledragon/gomonkey/v2"
+    "github.com/Workiva/go-datastructures/queue"
 
     gnmipb "github.com/openconfig/gnmi/proto/gnmi"
     "golang.org/x/net/context"
     "google.golang.org/grpc/metadata"
+
     cmn "lom/src/lib/lomcommon"
+    ldc "lom/src/gnmi/lom_data_clients"
+    lpb "lom/src/gnmi/proto"
 )
 
 type gnmiSubsServer struct {}
@@ -140,54 +144,135 @@ func TestPopulatePathSubscription(t *testing.T) {
     {
         /* Test error path of func (c *Client) recv */
 
-        c := Client{}
-        srv := gnmiSubsServer{}
-        var srvG gnmipb.GNMI_SubscribeServer = &srv
-        ctx := ctxContext{}
-        var cctx context.Context = &ctx
-        
-        mockTmp := gomonkey.ApplyMethod(reflect.TypeOf(&gnmiSubsServer{}), "Recv",
-                func() (*gnmipb.SubscribeRequest, error) {
-                    return nil, io.EOF
+        testLst := map[string][]error {
+            "Client is done": []error { io.EOF },
+            "received invalid event": []error { nil, errors.New("foo") },
+        }
+
+        for msg, recvErr := range testLst {
+            errIndex := 0
+            c := Client{}
+            srv := gnmiSubsServer{}
+            var srvG gnmipb.GNMI_SubscribeServer = &srv
+            ctx := ctxContext{}
+            var cctx context.Context = &ctx
+            
+            mockTmp := gomonkey.ApplyMethod(reflect.TypeOf(&gnmiSubsServer{}), "Recv",
+                    func() (*gnmipb.SubscribeRequest, error) {
+                        e := recvErr[errIndex]
+                        errIndex++
+                        if errIndex >= len(recvErr) {
+                            errIndex = 0
+                        }
+                        cmn.LogInfo("mock Recv err (%v)", e)
+                        return nil, e
+                    })
+            defer mockTmp.Reset()
+
+            c.subscribe = &gnmipb.SubscriptionList { Mode: gnmipb.SubscriptionList_STREAM, }
+
+            mockCtx := gomonkey.ApplyMethod(reflect.TypeOf(&gnmiSubsServer{}), "Context",
+                    func() context.Context {
+                        return cctx
+                })
+            defer mockCtx.Reset()
+
+            ch := make(chan struct{}, 1)
+            mockDone := gomonkey.ApplyMethod(reflect.TypeOf(&ctxContext{}), "Done",
+                    func() <-chan struct{} {
+                        ch <- struct{}{}
+                        return ch
+                })
+            defer mockDone.Reset()
+
+            logMsgs := []string {}
+            mockLog := gomonkey.ApplyFunc(cmn.LogInfo, func(s string, a ...interface{}) {
+                logMsgs = append(logMsgs, s)
+                t.Logf("Mocked log: (%s)", s)
             })
-        defer mockTmp.Reset()
+            defer mockLog.Reset()
 
-        c.subscribe = &gnmipb.SubscriptionList { Mode: gnmipb.SubscriptionList_STREAM, }
-
-        mockCtx := gomonkey.ApplyMethod(reflect.TypeOf(&gnmiSubsServer{}), "Context",
-                func() context.Context {
-                    return cctx
-            })
-        defer mockCtx.Reset()
-
-        ch := make(chan struct{}, 1)
-        mockDone := gomonkey.ApplyMethod(reflect.TypeOf(&ctxContext{}), "Done",
-                func() <-chan struct{} {
-                    ch <- struct{}{}
-                    return ch
-            })
-        defer mockDone.Reset()
-
-        logMsgs := []string {}
-        mockLog := gomonkey.ApplyFunc(cmn.LogInfo, func(s string, a ...interface{}) {
-            logMsgs = append(logMsgs, s)
-            t.Logf("Mocked log: (%s)", s)
-        })
-        defer mockLog.Reset()
-
-        c.recv(srvG)
-        
-        msg := "Client is done"
-        found := false
-        for _, logMsg  := range logMsgs {
-            if strings.Contains(logMsg, msg) {
-                found = true
+            c.recv(srvG)
+            
+            found := false
+            for _, logMsg  := range logMsgs {
+                if strings.Contains(logMsg, msg) {
+                    found = true
+                }
+            }
+            if !found {
+                t.Fatalf("Failed to see log (%s)", msg)
             }
         }
-        if !found {
-            t.Fatalf("Failed to see log (%s)", msg)
+    }
+}
+
+type mockVal struct {}
+
+func (val mockVal) Compare(other queue.Item) int {
+    return 0
+}
+
+func TestClientSend(t *testing.T) {
+    {
+        /* Test error path of func (c *Client) Send */
+
+        lstTest := map[string] struct {
+            items   []queue.Item
+            getErr  error
+            sndErr  error
+            valErr  error
+            valRes  *gnmipb.SubscribeResponse
+        } {
+            "Q.get failed with": { getErr: errors.New("mock") },
+            "Get received nil items": {},
+            "Failed to convert to gnmipb.SubscribeResponse": {
+                items: []queue.Item {ldc.Value{&lpb.Value{}}},
+                valErr: errors.New("mock"),
+             },
+             "Unknown data type": { items: []queue.Item {&mockVal{}} },
+             "Client failing to send error": {
+                 items: []queue.Item {ldc.Value{&lpb.Value{}}},
+                 sndErr: errors.New("mock"),
+                 valRes: &gnmipb.SubscribeResponse{},
+             },
+        }
+
+
+        for msg, tdata := range lstTest {
+            c := Client{}
+            srv := gnmiSubsServer{}
+            var srvG gnmipb.GNMI_SubscribeServer = &srv
+            lomDc := ldc.LoMDataClient{}
+            var dc ldc.Client = &lomDc
+            
+            mockSnd := gomonkey.ApplyMethod(reflect.TypeOf(&gnmiSubsServer{}), "Send",
+                    func(*gnmiSubsServer, *gnmipb.SubscribeResponse) error {
+                        return tdata.sndErr
+                })
+            defer mockSnd.Reset()
+
+            mockQ := gomonkey.ApplyMethod(reflect.TypeOf(&queue.PriorityQueue{}), "Get",
+                    func(pq *queue.PriorityQueue, i int) ([]queue.Item, error) {
+                        return tdata.items, tdata.getErr
+                })
+            defer mockQ.Reset()
+
+            mockResp := gomonkey.ApplyFunc(ldc.ValToResp,
+                    func(ldc.Value) (*gnmipb.SubscribeResponse, error) {
+                        return tdata.valRes, tdata.valErr
+                })
+            defer mockResp.Reset()
+
+            err := c.send(srvG, dc)
+
+            if (err == nil) || !strings.Contains(fmt.Sprint(err), msg) {
+                t.Fatalf("Failing to fail as expected (%s) != err(%v)", msg, err)
+            }
+
         }
     }
+
     
 
 

@@ -203,6 +203,7 @@ func (c *Client) recv(stream gnmipb.GNMI_SubscribeServer) {
             }
         case nil:
         }
+        /* Unexpected to receive any in stream mode */
         cmn.LogInfo("Client %s received invalid event: %s", c, event)
     }
 }
@@ -213,37 +214,34 @@ func (c *Client) send(stream gnmipb.GNMI_SubscribeServer, dc ldc.Client) error {
         var val *ldc.Value
         items, err := c.q.Get(1)
 
-        if items == nil {
-            cmn.LogInfo("%v", err)
-            return err
-        }
         if err != nil {
             c.errors++
-            cmn.LogError("%v", err)
-            return fmt.Errorf("unexpected queue Gext(1): %v", err)
+            return cmn.LogError("Q.get failed with (%v)", err)
         }
 
+        if items == nil {
+            return cmn.LogError("Get received nil items")
+        }
         var resp *gnmipb.SubscribeResponse
 
         switch v := items[0].(type) {
         case ldc.Value:
             if resp, err = ldc.ValToResp(v); err != nil {
                 c.errors++
-                return err
+                return cmn.LogError("Failed to convert to gnmipb.SubscribeResponse (%v)", err)
             }
             val = &v
         default:
-            cmn.LogError("Unknown data type %v for %s in queue", items[0], c)
             c.errors++
+            return cmn.LogError("Unknown data type %v in queue", items[0])
         }
 
         c.sendMsg++
         err = stream.Send(resp)
         if err != nil {
-            cmn.LogError("Client %s sending error:%v", c, err)
             c.errors++
             dc.FailedSend()
-            return err
+            return cmn.LogError("Client failing to send error:%v", err)
         }
 
         dc.SentOne(val)
