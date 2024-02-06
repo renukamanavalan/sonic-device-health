@@ -122,25 +122,25 @@ func (c *Client) Run(stream gnmipb.GNMI_SubscribeServer) (err error) {
 
     mode := c.subscribe.GetMode()
 
+    switch mode {
+    case gnmipb.SubscriptionList_STREAM:
+    default:
+        return grpc.Errorf(codes.InvalidArgument, "Unkown subscription mode: %q", query)
+    }
+
     cmn.LogInfo("mode=%v, prefix=%q, target=%q", mode, prefix, target)
 
-    if ((target == "COUNTERS") || (target == "EVENTS")) &&
-        (mode == gnmipb.SubscriptionList_STREAM) {
+    if (target == "COUNTERS") || (target == "EVENTS") {
         dc, err = ldc.NewLoMDataClient(paths[0], prefix)
     } else {
         cmn.LogInfo("Failed to create client for invalid target=(%s) mode=(%v)",
             target, mode)
-        return grpc.Errorf(codes.NotFound, "target=%v mode=%v", target, mode)
+        return grpc.Errorf(codes.NotFound, "Unknown target=%v", target)
     }
 
-    switch mode {
-    case gnmipb.SubscriptionList_STREAM:
-        c.stop = make(chan struct{}, 1)
-        c.w.Add(1)
-        go dc.StreamRun(c.q, c.stop, &c.w, c.subscribe)
-    default:
-        return grpc.Errorf(codes.InvalidArgument, "Unkown subscription mode: %q", query)
-    }
+    c.stop = make(chan struct{}, 1)
+    c.w.Add(1)
+    go dc.StreamRun(c.q, c.stop, &c.w, c.subscribe)
 
     cmn.LogInfo("Client %s running", c)
     go c.recv(stream)
