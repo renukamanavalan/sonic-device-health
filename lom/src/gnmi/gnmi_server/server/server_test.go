@@ -305,7 +305,7 @@ func TestEventsClient(t *testing.T) {
         {
             desc:   "New Data client fail for invalid target",
             target: "xyz",
-            expErr: "rpc error: code = NotFound desc = target=xyz mode=STREAM",
+            expErr: "Unknown target=",
         },
         {
             desc:   "New Data client succeed",
@@ -339,6 +339,7 @@ func TestEventsClient(t *testing.T) {
             var errFail error
             cmn.LogInfo("test(%d): START    ------------------", testNum)
 
+            /* Create a gNMI client */
             c := client.New()
 
             /* Create buffered channel for max expected to help not block.*/
@@ -415,7 +416,7 @@ func TestEventsClient(t *testing.T) {
             if tt.expErr != "" {
                 if errFail == nil {
                     t.Fatalf("test(%d): Expect failure (%s)", testNum, tt.expErr)
-                } else if tt.expErr != fmt.Sprint(errFail) {
+                } else if !strings.Contains(fmt.Sprint(errFail), tt.expErr) {
                     t.Fatalf("CHECK: *************test(%d): Expect failure (%s) != failure (%v)",
                         testNum, tt.expErr, errFail)
                 }

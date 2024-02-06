@@ -128,7 +128,7 @@ func TestPopulatePathSubscription(t *testing.T) {
                     func() *gnmipb.SubscriptionList {
                         return e.sl
                 })
-                defer mockSr.Reset()
+            defer mockSr.Reset()
 
             if ret := c.Run(j); ((ret == nil) ||
                     !strings.Contains(fmt.Sprint(ret), s)) {
