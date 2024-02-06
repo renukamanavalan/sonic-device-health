@@ -184,7 +184,7 @@ func (c *Client) recv(stream gnmipb.GNMI_SubscribeServer) {
             cmn.LogError("Client %s received error: %v", c, err)
             return
         case io.EOF:
-            cmn.LogError("Client %s received io.EOF", c)
+            cmn.LogError("Client received io.EOF mode(%v)", c.subscribe.Mode)
             if c.subscribe.Mode == gnmipb.SubscriptionList_STREAM {
                 /*
                  * The client->server could be closed after the sending the subscription list.

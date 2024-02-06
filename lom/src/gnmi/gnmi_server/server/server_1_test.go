@@ -9,13 +9,14 @@ import (
     "reflect"
     "strings"
     "testing"
+    "time"
 
     "github.com/agiledragon/gomonkey/v2"
 
     gnmipb "github.com/openconfig/gnmi/proto/gnmi"
     "golang.org/x/net/context"
     "google.golang.org/grpc/metadata"
-    //cmn "lom/src/lib/lomcommon"
+    cmn "lom/src/lib/lomcommon"
 )
 
 type gnmiSubsServer struct {}
@@ -51,20 +52,43 @@ func (*gnmiSubsServer) RecvMsg(m any) error {
     return nil
 }
 
+type ctxContext struct {}
+
+func (*ctxContext) Deadline() (deadline time.Time, ok bool) {
+    return time.Now(), true
+}
+
+func (*ctxContext) Done() <-chan struct{} {
+    return nil
+}
+
+func (*ctxContext) Err() error {
+    return nil
+}
+
+func (*ctxContext) Value(key any) any {
+    return nil
+}
+
 func TestPopulatePathSubscription(t *testing.T) {
     slist := gnmipb.SubscriptionList{}
 
-    c := Client{}
-    
-    if ret, err := c.populatePathSubscription(&slist); (ret != nil) || (err == nil) {
-        t.Fatalf("Failed to fail Client.populatePathSubscription ret(%v) err(%v)", ret, err)
-    }
+    {
+        c := Client{}
+        
+        if ret, err := c.populatePathSubscription(&slist); (ret != nil) || (err == nil) {
+            t.Fatalf("Failed to fail Client.populatePathSubscription ret(%v) err(%v)", ret, err)
+        }
 
-    if err := c.Run(nil); err == nil {
-        t.Fatalf("Failed to fail Client.Run err(%v)", err)
+        if err := c.Run(nil); err == nil {
+            t.Fatalf("Failed to fail Client.Run err(%v)", err)
+        }
     }
 
     {
+        /* Test error paths of func (c *Client) Run */
+
+        c := Client{}
         var i = gnmiSubsServer{}
         var j gnmipb.GNMI_SubscribeServer = &i
         path := gnmipb.Path {}
@@ -95,7 +119,7 @@ func TestPopulatePathSubscription(t *testing.T) {
 
         for s, e := range lst {
             mockTmp := gomonkey.ApplyMethod(reflect.TypeOf(&gnmiSubsServer{}), "Recv",
-                    func(stream gnmipb.GNMI_SubscribeServer) (*gnmipb.SubscribeRequest, error) {
+                    func() (*gnmipb.SubscribeRequest, error) {
                         return &sr, e.err
                 })
             defer mockTmp.Reset()
@@ -112,6 +136,60 @@ func TestPopulatePathSubscription(t *testing.T) {
             }
         }
     }
+
+    {
+        /* Test error path of func (c *Client) recv */
+
+        c := Client{}
+        srv := gnmiSubsServer{}
+        var srvG gnmipb.GNMI_SubscribeServer = &srv
+        ctx := ctxContext{}
+        var cctx context.Context = &ctx
+        
+        mockTmp := gomonkey.ApplyMethod(reflect.TypeOf(&gnmiSubsServer{}), "Recv",
+                func() (*gnmipb.SubscribeRequest, error) {
+                    return nil, io.EOF
+            })
+        defer mockTmp.Reset()
+
+        c.subscribe = &gnmipb.SubscriptionList { Mode: gnmipb.SubscriptionList_STREAM, }
+
+        mockCtx := gomonkey.ApplyMethod(reflect.TypeOf(&gnmiSubsServer{}), "Context",
+                func() context.Context {
+                    return cctx
+            })
+        defer mockCtx.Reset()
+
+        ch := make(chan struct{}, 1)
+        mockDone := gomonkey.ApplyMethod(reflect.TypeOf(&ctxContext{}), "Done",
+                func() <-chan struct{} {
+                    ch <- struct{}{}
+                    return ch
+            })
+        defer mockDone.Reset()
+
+        logMsgs := []string {}
+        mockLog := gomonkey.ApplyFunc(cmn.LogInfo, func(s string, a ...interface{}) {
+            logMsgs = append(logMsgs, s)
+            t.Logf("Mocked log: (%s)", s)
+        })
+        defer mockLog.Reset()
+
+        c.recv(srvG)
+        
+        msg := "Client is done"
+        found := false
+        for _, logMsg  := range logMsgs {
+            if strings.Contains(logMsg, msg) {
+                found = true
+            }
+        }
+        if !found {
+            t.Fatalf("Failed to see log (%s)", msg)
+        }
+    }
+    
+
 
 
 }
