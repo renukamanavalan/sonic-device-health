@@ -52,12 +52,11 @@ type Value struct {
  * }
  */
 func (val Value) Compare(other queue.Item) (ret int) {
+    ret = 1
     oval := other.(Value)
-    if val.GetSendIndex() > oval.GetSendIndex() {
-        ret = 1
-    } else if val.GetSendIndex() == oval.GetSendIndex() {
+    if val.GetSendIndex() == oval.GetSendIndex() {
         ret = 0
-    } else {
+    } else if val.GetSendIndex() < oval.GetSendIndex() {
         ret = -1
     }
     return
