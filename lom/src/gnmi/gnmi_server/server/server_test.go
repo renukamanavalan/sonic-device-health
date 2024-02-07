@@ -14,8 +14,8 @@ import (
     "testing"
     "time"
 
-    "github.com/openconfig/gnmi/client"
     "github.com/msteinert/pam"
+    "github.com/openconfig/gnmi/client"
     "github.com/openconfig/ygot/ygot"
 
     pb "github.com/openconfig/gnmi/proto/gnmi"
@@ -478,11 +478,11 @@ func TestBasicAuthenAndAuthor(t *testing.T) {
         case msg == "No Username Provided":
             mdRet = true
         case msg == "No Password Provided":
-            md["username"] = []string {"foo"}
+            md["username"] = []string{"foo"}
         case msg == "Unknown User":
             md["password"] = []string{"bar"}
         case msg == "Invalid Password":
-            md["username"] = []string {"root"}
+            md["username"] = []string{"root"}
         default:
             t.Fatalf("Unhandled failure (%s)", msg)
         }
@@ -499,7 +499,7 @@ func TestBasicAuthenAndAuthor(t *testing.T) {
             }
         }
     }
-    
+
     mockPw := gomonkey.ApplyFunc(UserPwAuth, func(u, p string) (bool, error) {
         return true, nil
     })
@@ -514,7 +514,7 @@ func TestBasicAuthenAndAuthor(t *testing.T) {
 func TestClientCertAuthenAndAuthor(t *testing.T) {
     var ctx context.Context
     reqCtx := lom_utils.RequestContext{}
-    peerInfo := peer.Peer {}
+    peerInfo := peer.Peer{}
     peerRet := false
     cert := x509.Certificate{}
     tlsInfo := credentials.TLSInfo{}
@@ -522,7 +522,7 @@ func TestClientCertAuthenAndAuthor(t *testing.T) {
     tlsInfo.State.VerifiedChains[0] = make([]*x509.Certificate, 1)
     tlsInfo.State.VerifiedChains[0][0] = &cert
 
-    failures := []string {
+    failures := []string{
         "no peer found",
         "unexpected peer transport credentials",
         "could not verify peer certificate",
@@ -539,8 +539,8 @@ func TestClientCertAuthenAndAuthor(t *testing.T) {
 
     mockPeer := gomonkey.ApplyFunc(peer.FromContext,
         func(ctx context.Context) (*peer.Peer, bool) {
-        return &peerInfo, peerRet
-    })
+            return &peerInfo, peerRet
+        })
     defer mockPeer.Reset()
 
     for _, msg := range failures {
@@ -627,7 +627,7 @@ func TestJwtAuthenAndAuthor(t *testing.T) {
         case msg == "No JWT Token Provided":
             mdRet = true
         case msg == "Parse for token failed":
-            md["access_token"] = []string {"foo"}
+            md["access_token"] = []string{"foo"}
         case msg == "Invalid JWT Token":
             tknErr = nil
         case msg == "Failed to retrieve authentication information":
@@ -650,7 +650,7 @@ func TestJwtAuthenAndAuthor(t *testing.T) {
             }
         }
     }
-    
+
     /* APIs */
     if s := generateJWT("foo", []string{}, time.Now()); s == "" {
         t.Fatalf("Expect non empty string")
@@ -676,12 +676,12 @@ func TestPamAuth(t *testing.T) {
             err string
         }
         pwd := "bar"
-        d := map[pam.Style]convRet {
-            pam.PromptEchoOff: { pwd, "" },
-            pam.PromptEchoOn: { pwd, "" },
-            pam.ErrorMsg: { "", "" },
-            pam.TextInfo: { "", "" },
-            pam.Style(100): {"", "unrecognized conversation message style"},
+        d := map[pam.Style]convRet{
+            pam.PromptEchoOff: {pwd, ""},
+            pam.PromptEchoOn:  {pwd, ""},
+            pam.ErrorMsg:      {"", ""},
+            pam.TextInfo:      {"", ""},
+            pam.Style(100):    {"", "unrecognized conversation message style"},
         }
 
         u := UserCredential{"foo", pwd}
@@ -700,14 +700,14 @@ func TestPamAuth(t *testing.T) {
         }
 
         errMsg := "Authentication failure"
-        u := UserCredential{ "foo", "bar" }
+        u := UserCredential{"foo", "bar"}
 
         if err := u.PAMAuthenticate(); (err == nil) || !strings.Contains(fmt.Sprint(err), errMsg) {
             t.Fatalf("PAMAuthenticate expect err")
         }
 
         errMsg = "StartFunc failed"
-        tx := pam.Transaction {}
+        tx := pam.Transaction{}
         mockStart := gomonkey.ApplyFunc(pam.StartFunc,
             func(service, user string, handler func(pam.Style, string) (string, error)) (*pam.Transaction, error) {
                 return &tx, errors.New(errMsg)
@@ -763,7 +763,6 @@ func TestPamAuth(t *testing.T) {
         }
     }
 }
-
 
 func init() {
     // Enable logs at UT setup

@@ -152,12 +152,12 @@ func sendData(c *LoMDataClient, sndData tele.JsonString_t) {
     defer func() {
         if !sent {
             droppedData.inc(c.chTypeStr)
-            cmn.LogError("Dropped %s Total droppedx: %v", c.chTypeStr, droppedData)
+            cmn.LogError("Sent failed: Dropped %s Total droppedx: %v", c.chTypeStr, droppedData)
         }
     }()
 
     if c.q.Len() >= c.pq_max {
-        cmn.LogError("q:(%d/%d): Dropped %s Total dropped: %v",
+        cmn.LogError("Queue overflow: q:(%d/%d): Dropped %s Total dropped: %v",
             c.q.Len(), c.pq_max, c.chTypeStr, droppedData)
         return
     }
