@@ -134,8 +134,7 @@ func NewLoMDataClient(path *gnmipb.Path, prefix *gnmipb.Path) (Client, error) {
     /* Init subscriber with cache use and defined time out */
     if c.chData, c.chClose, err = tele.GetSubChannel(c.chType,
         tele.CHANNEL_PRODUCER_EMPTY, "", c.id); err != nil {
-        cmn.LogError("Failed to create LoMDataClient for (%s) due to (%v)", c.chTypeStr, err)
-        return nil, err
+        return nil, cmn.LogError("Failed to create LoMDataClient for (%s) due to (%v)", c.chTypeStr, err)
     }
     cmn.LogDebug("NewLoMDataClient constructed.")
 
