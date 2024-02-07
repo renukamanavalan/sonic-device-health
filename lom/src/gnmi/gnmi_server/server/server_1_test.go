@@ -273,3 +273,45 @@ func TestClientSend(t *testing.T) {
         }
     }
 }
+
+func TestAuthTypes(t *testing.T) {
+    //af := AuthTypes {"foo": false, "bar": false}
+
+    tests := map[string]struct {
+        auth        *AuthTypes
+        setStr      string
+        expErr      bool
+        retStr      string
+        retAny      bool
+        retEnabled  bool
+    } {
+        "init":         { &AuthTypes{}, "nil", false, "", false, false },
+        "empty":        { &AuthTypes{}, "", false, "", false, false },
+        "none":         { &AuthTypes{}, "none", false, "", false, false },
+        "foo":          { &AuthTypes {"foo": false, "bar": false}, "foo", false, "foo", true, true },
+        "barfoo":       { &AuthTypes {"foo": false, "bar": false}, "bar, foo", false, "foo bar", true, true },
+        "fooxxxbar":    { &AuthTypes {"foo": false, "bar": false}, "foo, xxx, bar", true, "foo", true, true },
+    }
+
+    for tk, td := range tests {
+        ap := td.auth
+
+        if td.setStr != "nil" {
+            if err := ap.Set(td.setStr); td.expErr != (err != nil) {
+                t.Fatalf("(%s): Failed expErr(%v) err(%v)", tk, td.expErr, err)
+            }
+        }
+
+        if strings.TrimSpace(ap.String()) != td.retStr {
+            t.Fatalf("(%s): Expect (%s) != (%s)", tk, td.retStr, ap.String())
+        }
+
+        if ap.Any() != td.retAny {
+            t.Fatalf("(%s): Expect (%v)", tk, td.retAny)
+        }
+
+        if ap.Enabled("foo") != td.retEnabled {
+            t.Fatalf("(%s): Expect (%v)", tk, td.retEnabled)
+        }
+    }
+}

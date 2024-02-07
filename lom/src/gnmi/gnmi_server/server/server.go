@@ -87,13 +87,13 @@ func (i AuthTypes) Set(mode string) error {
     modes := strings.Split(mode, ",")
     for _, m := range modes {
         m = strings.Trim(m, " ")
-        if m == "none" || m == "" {
+        if strings.ToLower(m) == "none" || m == "" {
             i["none"] = true
             return nil
         }
 
         if _, exist := i[m]; !exist {
-            return fmt.Errorf("Expecting one or more of 'cert', 'password' or 'jwt'")
+            return fmt.Errorf("Expecting one or more of 'cert', 'password' or 'jwt' m(%s)", m)
         }
         i[m] = true
     }
