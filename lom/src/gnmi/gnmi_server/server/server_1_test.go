@@ -6,6 +6,7 @@ import (
     "errors"
     "fmt"
     "io"
+    "net"
     "reflect"
     "strings"
     "testing"
@@ -17,6 +18,7 @@ import (
     gnmipb "github.com/openconfig/gnmi/proto/gnmi"
     "golang.org/x/net/context"
     "google.golang.org/grpc/metadata"
+    "google.golang.org/grpc/peer"
 
     ldc "lom/src/gnmi/lom_data_clients"
     lpb "lom/src/gnmi/proto"
@@ -73,6 +75,20 @@ func (*ctxContext) Err() error {
 func (*ctxContext) Value(key any) any {
     return nil
 }
+
+type netAddr struct {
+    network string
+    addr    string
+}
+
+func (n *netAddr) Network() string {
+    return n.network
+}
+
+func (n *netAddr) String() string {
+    return n.addr
+}
+
 
 func TestPopulatePathSubscription(t *testing.T) {
     slist := gnmipb.SubscriptionList{}
@@ -278,32 +294,73 @@ func TestAuthTypes(t *testing.T) {
     //af := AuthTypes {"foo": false, "bar": false}
 
     tests := map[string]struct {
-        auth        *AuthTypes
+        auth        AuthTypes
         setStr      string
         expErr      bool
+        unsetStr    string
+        unexpErr    bool
         retStr      string
         retAny      bool
         retEnabled  bool
     } {
-        "init":         { &AuthTypes{}, "nil", false, "", false, false },
-        "empty":        { &AuthTypes{}, "", false, "", false, false },
-        "none":         { &AuthTypes{}, "none", false, "", false, false },
-        "foo":          { &AuthTypes {"foo": false, "bar": false}, "foo", false, "foo", true, true },
-        "barfoo":       { &AuthTypes {"foo": false, "bar": false}, "bar, foo", false, "foo bar", true, true },
-        "fooxxxbar":    { &AuthTypes {"foo": false, "bar": false}, "foo, xxx, bar", true, "foo", true, true },
+        "init":         { setStr: "nil" },
+        "empty":        { auth: AuthTypes{} },
+        "none":         { auth: AuthTypes{}, setStr: "none" },
+        "foo":          {
+            auth:       AuthTypes {"foo": false, "bar": false}, 
+            setStr:     "foo",
+            retStr:     "foo",
+            retAny:     true,
+            retEnabled: true,
+        },
+        "barfoo":       {
+            auth:       AuthTypes {"foo": false, "bar": false}, 
+            setStr:     "bar, foo",
+            retStr:     "foo bar",
+            retAny:     true,
+            retEnabled: true,
+        },
+        "fooxxxbar":    {
+            auth:       AuthTypes {"foo": false, "bar": false}, 
+            setStr:     "foo, xxx, bar",
+            expErr:     true,
+            retStr:     "foo",
+            retAny:     true,
+            retEnabled: true,
+        },
+        "unsetfoo":     {
+            auth:       AuthTypes {"foo": false, "bar": false}, 
+            setStr:     "foo",
+            unsetStr:   "foo",
+        },
+        "unsetmissfoo":          {
+            auth:       AuthTypes {"foo": false, "bar": false}, 
+            setStr:     "foo",
+            unsetStr:   "xxx",
+            unexpErr:   true,
+            retStr:     "foo",
+            retAny:     true,
+            retEnabled: true,
+        },
     }
 
     for tk, td := range tests {
-        ap := td.auth
+        ap := &td.auth
 
         if td.setStr != "nil" {
             if err := ap.Set(td.setStr); td.expErr != (err != nil) {
-                t.Fatalf("(%s): Failed expErr(%v) err(%v)", tk, td.expErr, err)
+                t.Fatalf("(%s): Failed set expErr(%v) err(%v)", tk, td.expErr, err)
             }
         }
 
-        if strings.TrimSpace(ap.String()) != td.retStr {
-            t.Fatalf("(%s): Expect (%s) != (%s)", tk, td.retStr, ap.String())
+        if td.unsetStr != "" {
+            if err := ap.Unset(td.unsetStr); td.unexpErr != (err != nil) {
+                t.Fatalf("(%s): Failed unset expErr(%v) err(%v)", tk, td.expErr, err)
+            }
+        }
+
+        if s := strings.TrimSpace(ap.String()); s != td.retStr {
+            t.Fatalf("(%s): Expect (%s) != (%s)", tk, td.retStr, s)
         }
 
         if ap.Any() != td.retAny {
@@ -314,4 +371,124 @@ func TestAuthTypes(t *testing.T) {
             t.Fatalf("(%s): Expect (%v)", tk, td.retEnabled)
         }
     }
+    {
+        /* Test corner case server.serve */
+        s := Server{}
+        if err := s.Serve(); err == nil {
+            t.Fatalf("Expect server.Serve to fail")
+        }
+    }
 }
+
+func TestAuthenticate(t *testing.T) {
+
+    ctxObj := ctxContext{}
+    var cctx context.Context = &ctxObj
+    logMsg := ""
+
+    mockJwt := gomonkey.ApplyFunc(JwtAuthenAndAuthor,
+            func(ctx context.Context) (*lpb.JwtToken, context.Context, error) {
+                logMsg = "jwtAuth"
+                return  nil, ctx, nil
+        })
+    defer mockJwt.Reset()
+
+    mockCert := gomonkey.ApplyFunc(ClientCertAuthenAndAuthor,
+            func(ctx context.Context) (context.Context, error) {
+                logMsg = "certAuth"
+                return ctx, nil
+        })
+    defer mockCert.Reset()
+
+    testAuth := map[string] AuthTypes {
+        "jwtAuth": AuthTypes{ "jwt": true },
+        "certAuth": AuthTypes{"cert": true },
+        "Unauthenticated": AuthTypes{"foo": true},
+    }
+
+    for msg, at := range testAuth {
+        logMsg = ""
+        _, err := authenticate(at, cctx)
+        if err != nil {
+            if !strings.Contains(fmt.Sprint(err), msg) {
+                t.Fatalf("Expected err (%s) not in (%v)", msg, err)
+            }
+        } else if logMsg != msg {
+            t.Fatalf("expect msg(%s) != logMsg(%s)", msg, logMsg)
+        }
+    }
+}
+
+func TestSubscribe(t *testing.T) {
+    naddrObj := netAddr{"tcp", "10.10.10.10"}
+    var nAddr net.Addr = &naddrObj
+
+    /* To simulate duplicate client */
+    cl := NewClient(nAddr)
+    s := Server{
+        config: &Config{ UserAuth: AuthTypes{ "foo": true }},
+        clients: map[string]*Client{ cl.String(): cl },
+    }
+
+    ctxObj := ctxContext{}
+    var cctx context.Context = &ctxObj
+
+    pr := peer.Peer{ Addr: net.Addr(nil)}
+    pr_ok := false
+
+    mockPeer := gomonkey.ApplyFunc(peer.FromContext,
+        func(ctx context.Context) (*peer.Peer, bool) {
+            return &pr, pr_ok
+        })
+    defer mockPeer.Reset()
+
+
+    mockStr := gomonkey.ApplyMethod(reflect.TypeOf(&gnmiSubsServer{}), "Recv",
+        func() (*gnmipb.SubscribeRequest, error) {
+            return nil, errors.New("mock")
+        })
+    defer mockStr.Reset()
+
+    mockCtx := gomonkey.ApplyMethod(reflect.TypeOf(&gnmiSubsServer{}), "Context",
+        func() context.Context {
+            return cctx
+        })
+    defer mockCtx.Reset()
+
+    mockJwt := gomonkey.ApplyFunc(JwtAuthenAndAuthor,
+            func(ctx context.Context) (*lpb.JwtToken, context.Context, error) {
+                return  nil, ctx, nil
+        })
+    defer mockJwt.Reset()
+
+    var subs = gnmiSubsServer{}
+    var gsubs gnmipb.GNMI_SubscribeServer = &subs
+
+    testMsgs := []string {
+        "Unauthenticated",
+        "failed to get peer from ctx",
+        "failed to get peer address",
+        "received error from client",
+    }
+
+    for _, msg := range testMsgs {
+        switch {
+        case msg == "Unauthenticated":
+        case msg == "failed to get peer from ctx":
+            /* Pass authenticate with jwt mock above */
+            s.config.UserAuth = AuthTypes{ "jwt": true }
+        case msg == "failed to get peer address":
+            /* Let peer.FromContext succeed via mock above */
+            pr_ok = true
+        case msg == "received error from client":
+            pr.Addr = nAddr
+        }
+
+        if err := s.Subscribe(gsubs); err == nil {
+            t.Fatalf("%s: Failed to fail", msg)
+        } else if !strings.Contains(fmt.Sprint(err), msg) {
+            t.Fatalf("Expect msg(%s) != err(%v)", msg, err)
+        }
+    }
+}
+
