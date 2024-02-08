@@ -77,7 +77,7 @@ func JwtAuthenAndAuthor(ctx context.Context) (*gpb.JwtToken, context.Context, er
         return hmacSampleSecret, nil
     })
     if err != nil {
-        return &token, ctx, status.Errorf(codes.Unauthenticated, "Parse for token failed: " + err.Error())
+        return &token, ctx, status.Errorf(codes.Unauthenticated, "Parse for token failed: "+err.Error())
     }
     if !tkn.Valid {
         return &token, ctx, status.Errorf(codes.Unauthenticated, "Invalid JWT Token")

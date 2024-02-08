@@ -89,7 +89,6 @@ func (n *netAddr) String() string {
     return n.addr
 }
 
-
 func TestPopulatePathSubscription(t *testing.T) {
     slist := gnmipb.SubscriptionList{}
 
@@ -294,47 +293,47 @@ func TestAuthTypes(t *testing.T) {
     //af := AuthTypes {"foo": false, "bar": false}
 
     tests := map[string]struct {
-        auth        AuthTypes
-        setStr      string
-        expErr      bool
-        unsetStr    string
-        unexpErr    bool
-        retStr      string
-        retAny      bool
-        retEnabled  bool
-    } {
-        "init":         { setStr: "nil" },
-        "empty":        { auth: AuthTypes{} },
-        "none":         { auth: AuthTypes{}, setStr: "none" },
-        "foo":          {
-            auth:       AuthTypes {"foo": false, "bar": false}, 
+        auth       AuthTypes
+        setStr     string
+        expErr     bool
+        unsetStr   string
+        unexpErr   bool
+        retStr     string
+        retAny     bool
+        retEnabled bool
+    }{
+        "init":  {setStr: "nil"},
+        "empty": {auth: AuthTypes{}},
+        "none":  {auth: AuthTypes{}, setStr: "none"},
+        "foo": {
+            auth:       AuthTypes{"foo": false, "bar": false},
             setStr:     "foo",
             retStr:     "foo",
             retAny:     true,
             retEnabled: true,
         },
-        "barfoo":       {
-            auth:       AuthTypes {"foo": false, "bar": false}, 
+        "barfoo": {
+            auth:       AuthTypes{"foo": false, "bar": false},
             setStr:     "bar, foo",
             retStr:     "foo bar",
             retAny:     true,
             retEnabled: true,
         },
-        "fooxxxbar":    {
-            auth:       AuthTypes {"foo": false, "bar": false}, 
+        "fooxxxbar": {
+            auth:       AuthTypes{"foo": false, "bar": false},
             setStr:     "foo, xxx, bar",
             expErr:     true,
             retStr:     "foo",
             retAny:     true,
             retEnabled: true,
         },
-        "unsetfoo":     {
-            auth:       AuthTypes {"foo": false, "bar": false}, 
-            setStr:     "foo",
-            unsetStr:   "foo",
+        "unsetfoo": {
+            auth:     AuthTypes{"foo": false, "bar": false},
+            setStr:   "foo",
+            unsetStr: "foo",
         },
-        "unsetmissfoo":          {
-            auth:       AuthTypes {"foo": false, "bar": false}, 
+        "unsetmissfoo": {
+            auth:       AuthTypes{"foo": false, "bar": false},
             setStr:     "foo",
             unsetStr:   "xxx",
             unexpErr:   true,
@@ -387,22 +386,22 @@ func TestAuthenticate(t *testing.T) {
     logMsg := ""
 
     mockJwt := gomonkey.ApplyFunc(JwtAuthenAndAuthor,
-            func(ctx context.Context) (*lpb.JwtToken, context.Context, error) {
-                logMsg = "jwtAuth"
-                return  nil, ctx, nil
+        func(ctx context.Context) (*lpb.JwtToken, context.Context, error) {
+            logMsg = "jwtAuth"
+            return nil, ctx, nil
         })
     defer mockJwt.Reset()
 
     mockCert := gomonkey.ApplyFunc(ClientCertAuthenAndAuthor,
-            func(ctx context.Context) (context.Context, error) {
-                logMsg = "certAuth"
-                return ctx, nil
+        func(ctx context.Context) (context.Context, error) {
+            logMsg = "certAuth"
+            return ctx, nil
         })
     defer mockCert.Reset()
 
-    testAuth := map[string] AuthTypes {
-        "jwtAuth": AuthTypes{ "jwt": true },
-        "certAuth": AuthTypes{"cert": true },
+    testAuth := map[string]AuthTypes{
+        "jwtAuth":         AuthTypes{"jwt": true},
+        "certAuth":        AuthTypes{"cert": true},
         "Unauthenticated": AuthTypes{"foo": true},
     }
 
@@ -426,14 +425,14 @@ func TestSubscribe(t *testing.T) {
     /* To simulate duplicate client */
     cl := NewClient(nAddr)
     s := Server{
-        config: &Config{ UserAuth: AuthTypes{ "foo": true }},
-        clients: map[string]*Client{ cl.String(): cl },
+        config:  &Config{UserAuth: AuthTypes{"foo": true}},
+        clients: map[string]*Client{cl.String(): cl},
     }
 
     ctxObj := ctxContext{}
     var cctx context.Context = &ctxObj
 
-    pr := peer.Peer{ Addr: net.Addr(nil)}
+    pr := peer.Peer{Addr: net.Addr(nil)}
     pr_ok := false
 
     mockPeer := gomonkey.ApplyFunc(peer.FromContext,
@@ -441,7 +440,6 @@ func TestSubscribe(t *testing.T) {
             return &pr, pr_ok
         })
     defer mockPeer.Reset()
-
 
     mockStr := gomonkey.ApplyMethod(reflect.TypeOf(&gnmiSubsServer{}), "Recv",
         func() (*gnmipb.SubscribeRequest, error) {
@@ -456,15 +454,15 @@ func TestSubscribe(t *testing.T) {
     defer mockCtx.Reset()
 
     mockJwt := gomonkey.ApplyFunc(JwtAuthenAndAuthor,
-            func(ctx context.Context) (*lpb.JwtToken, context.Context, error) {
-                return  nil, ctx, nil
+        func(ctx context.Context) (*lpb.JwtToken, context.Context, error) {
+            return nil, ctx, nil
         })
     defer mockJwt.Reset()
 
     var subs = gnmiSubsServer{}
     var gsubs gnmipb.GNMI_SubscribeServer = &subs
 
-    testMsgs := []string {
+    testMsgs := []string{
         "Unauthenticated",
         "failed to get peer from ctx",
         "failed to get peer address",
@@ -476,7 +474,7 @@ func TestSubscribe(t *testing.T) {
         case msg == "Unauthenticated":
         case msg == "failed to get peer from ctx":
             /* Pass authenticate with jwt mock above */
-            s.config.UserAuth = AuthTypes{ "jwt": true }
+            s.config.UserAuth = AuthTypes{"jwt": true}
         case msg == "failed to get peer address":
             /* Let peer.FromContext succeed via mock above */
             pr_ok = true
@@ -490,7 +488,6 @@ func TestSubscribe(t *testing.T) {
             t.Fatalf("Expect msg(%s) != err(%v)", msg, err)
         }
     }
-
 
 }
 
@@ -516,9 +513,8 @@ func TestServerMisc(t *testing.T) {
         t.Fatalf("Failed to fail for unknown encoding Encoding_BYTES")
     }
 
-    s.config = &Config{ UserAuth: AuthTypes{ "foo": true }}
+    s.config = &Config{UserAuth: AuthTypes{"foo": true}}
     if ret, err := s.Capabilities(cctx, nil); (ret != nil) || (err == nil) {
         t.Fatalf("Failed to fail server.Capabilities ret(%v) err(%v)", ret, err)
     }
 }
-
