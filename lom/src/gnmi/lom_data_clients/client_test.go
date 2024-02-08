@@ -35,7 +35,7 @@ func TestDropped(t *testing.T) {
     }
 }
 
-func testLogs(logMsgs []string, msg string) bool {
+func locTestLogs(logMsgs []string, msg string) bool {
     for _, lmsg := range logMsgs {
         if strings.Contains(lmsg, msg) {
             cmn.LogDebug("Found Msg: (%s) exp(%s)", lmsg, msg)
@@ -192,7 +192,7 @@ func TestLoMDataClient(t *testing.T) {
                 cmn.LogDebug("Mock reset")
             }
 
-            if !testLogs(logMsgs, msg) {
+            if !locTestLogs(logMsgs, msg) {
                 t.Fatalf("Expected msg(%s) not found", msg)
             }
         }
@@ -216,7 +216,7 @@ func TestLoMDataClient(t *testing.T) {
         cl.SentOne(val)
 
         msg := "Internal indices issue sentIndex"
-        if !testLogs(logMsgs, msg) {
+        if !locTestLogs(logMsgs, msg) {
             t.Fatalf("Expected msg(%s) not found", msg)
         }
         if nil != cl.Close() {

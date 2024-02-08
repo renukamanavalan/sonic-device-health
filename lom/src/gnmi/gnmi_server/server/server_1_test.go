@@ -490,5 +490,35 @@ func TestSubscribe(t *testing.T) {
             t.Fatalf("Expect msg(%s) != err(%v)", msg, err)
         }
     }
+
+
+}
+
+func TestServerMisc(t *testing.T) {
+    s := Server{}
+
+    ctxObj := ctxContext{}
+    var cctx context.Context = &ctxObj
+
+    if ret, err := s.Get(cctx, nil); (ret != nil) || (err == nil) {
+        t.Fatalf("Failed to fail server.Get ret(%v) err(%v)", ret, err)
+    }
+
+    if ret, err := s.Set(cctx, nil); (ret != nil) || (err == nil) {
+        t.Fatalf("Failed to fail server.Set ret(%v) err(%v)", ret, err)
+    }
+
+    if err := s.checkEncodingAndModel(gnmipb.Encoding_JSON_IETF, []*gnmipb.ModelData{}); err != nil {
+        t.Fatalf("Expected to succeed. err(%v)", err)
+    }
+
+    if err := s.checkEncodingAndModel(gnmipb.Encoding_BYTES, []*gnmipb.ModelData{}); err == nil {
+        t.Fatalf("Failed to fail for unknown encoding Encoding_BYTES")
+    }
+
+    s.config = &Config{ UserAuth: AuthTypes{ "foo": true }}
+    if ret, err := s.Capabilities(cctx, nil); (ret != nil) || (err == nil) {
+        t.Fatalf("Failed to fail server.Capabilities ret(%v) err(%v)", ret, err)
+    }
 }
 
