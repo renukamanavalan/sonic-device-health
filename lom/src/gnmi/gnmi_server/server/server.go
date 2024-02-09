@@ -12,6 +12,7 @@ import (
     "google.golang.org/grpc/reflection"
     "google.golang.org/grpc/status"
     "net"
+    "sort"
     "strings"
     "sync"
 
@@ -52,11 +53,17 @@ func (i AuthTypes) String() string {
     if i["none"] {
         return ""
     }
-    b := new(bytes.Buffer)
-    for key, value := range i {
-        if value {
-            fmt.Fprintf(b, "%s ", key)
+    keys := []string{}
+    for key, val := range i {
+        if val {
+            keys = append(keys, key)
         }
+    }
+    sort.Strings(keys)
+
+    b := new(bytes.Buffer)
+    for _, key := range keys {
+        fmt.Fprintf(b, "%s ", key)
     }
     return b.String()
 }

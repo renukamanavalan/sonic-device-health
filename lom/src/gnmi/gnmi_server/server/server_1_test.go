@@ -315,7 +315,7 @@ func TestAuthTypes(t *testing.T) {
         "barfoo": {
             auth:       AuthTypes{"foo": false, "bar": false},
             setStr:     "bar, foo",
-            retStr:     "foo bar",
+            retStr:     "bar foo",
             retAny:     true,
             retEnabled: true,
         },
