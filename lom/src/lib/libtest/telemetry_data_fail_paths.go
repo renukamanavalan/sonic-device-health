@@ -17,6 +17,7 @@ var pubSubFailSuite = ScriptSuite_t{
                 Param_t{"chType_C", tele.CHANNEL_TYPE_COUNTERS, nil}, /* pub for counters */
                 Param_t{"prod_PM", tele.CHANNEL_PRODUCER_PLMGR, nil}, /* from Plugin Mgr */
                 Param_t{"PMgr-1", "", nil},                           /* missing suffix */
+                Param_t{"pubSubFailSuite", "", nil},                  /* caller */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/
@@ -30,6 +31,7 @@ var pubSubFailSuite = ScriptSuite_t{
                 Param_t{"chType_C", tele.CHANNEL_TYPE_COUNTERS, nil}, /* pub for counters */
                 Param_t{"prod_PM", tele.CHANNEL_PRODUCER_PLMGR, nil}, /* from Plugin Mgr */
                 Param_t{"PMgr-1", "test", nil},                       /* non-empty suffix */
+                Param_t{"pubSubFailSuite", "", nil},                  /* caller */
             },
             []Result_t{
                 Result_t{"chWrite-0", nil, ValidateNonNil}, /* Save in cache */
@@ -46,9 +48,10 @@ var pubSubFailSuite = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDGetPubChannel, /* Try again for same type */
             []Param_t{
-                Param_t{"chType_C", nil, nil}, /* Get from cache*/
-                Param_t{"prod_PM", nil, nil},  /* from cache */
-                Param_t{"PMgr-1", nil, nil},   /* Same as above */
+                Param_t{"chType_C", nil, nil},       /* Get from cache*/
+                Param_t{"prod_PM", nil, nil},        /* from cache */
+                Param_t{"PMgr-1", nil, nil},         /* Same as above */
+                Param_t{"pubSubFailSuite", "", nil}, /* caller */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/
@@ -62,6 +65,7 @@ var pubSubFailSuite = ScriptSuite_t{
                 Param_t{"chType_E", tele.CHANNEL_TYPE_EVENTS, nil},
                 Param_t{"prod_E", tele.CHANNEL_PRODUCER_ENGINE, nil},
                 EMPTY_STRING,
+                Param_t{"pubSubFailSuite", "", nil}, /* caller */
             },
             []Result_t{
                 Result_t{"chRead-E", nil, ValidateNonNil},     /* Save in cache */
@@ -76,6 +80,7 @@ var pubSubFailSuite = ScriptSuite_t{
                 Param_t{"chType_E", nil, nil},
                 Param_t{"prod_E", nil, nil},
                 EMPTY_STRING,
+                Param_t{"pubSubFailSuite", "", nil}, /* caller */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil on failure */
@@ -270,6 +275,7 @@ var scriptAPIValidate = ScriptSuite_t{
                 Param_t{"prod_PM", tele.CHANNEL_PRODUCER_PLMGR, nil}, /* from Plugin Mgr */
                 Param_t{"PMgr-1", "test", nil},                       /* non-empty suffix */
                 Param_t{"chType_C", tele.CHANNEL_TYPE_COUNTERS, nil}, /* pub for counters */
+                Param_t{"scriptAPIValidate", "", nil},                /* caller */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/
@@ -283,6 +289,7 @@ var scriptAPIValidate = ScriptSuite_t{
                 Param_t{ANONYMOUS, tele.CHANNEL_TYPE_ECHO, nil},      /* incorrect val*/
                 Param_t{"prod_PM", tele.CHANNEL_PRODUCER_PLMGR, nil}, /* from Plugin Mgr */
                 Param_t{"PMgr-1", "test", nil},                       /* non-empty suffix */
+                Param_t{"scriptAPIValidate", "", nil},                /* caller */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/
@@ -296,6 +303,7 @@ var scriptAPIValidate = ScriptSuite_t{
                 Param_t{"chType_C", tele.CHANNEL_TYPE_COUNTERS, nil}, /* pub for counters */
                 Param_t{"prod_PM", true, nil},                        /* from Plugin Mgr */
                 Param_t{"PMgr-1", "test", nil},                       /* non-empty suffix */
+                Param_t{"scriptAPIValidate", "", nil},                /* caller */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/
@@ -309,6 +317,7 @@ var scriptAPIValidate = ScriptSuite_t{
                 Param_t{"chType_C", tele.CHANNEL_TYPE_COUNTERS, nil}, /* pub for counters */
                 Param_t{"prod_PM", tele.CHANNEL_PRODUCER_PLMGR, nil}, /* from Plugin Mgr */
                 Param_t{"PMgr-1", 11, nil},                           /* incorrect type suffix */
+                Param_t{"scriptAPIValidate", "", nil},                /* caller */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/
@@ -335,6 +344,7 @@ var scriptAPIValidate = ScriptSuite_t{
                 Param_t{ANONYMOUS, tele.CHANNEL_TYPE_ECHO, nil},
                 Param_t{"prod_E", tele.CHANNEL_PRODUCER_ENGINE, nil},
                 EMPTY_STRING,
+                Param_t{"scriptAPIValidate", "", nil}, /* caller */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/
@@ -349,6 +359,7 @@ var scriptAPIValidate = ScriptSuite_t{
                 Param_t{"prod_E", tele.CHANNEL_PRODUCER_ENGINE, nil},
                 Param_t{"chType_E", tele.CHANNEL_TYPE_EVENTS, nil},
                 EMPTY_STRING,
+                Param_t{"scriptAPIValidate", "", nil}, /* caller */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/
@@ -363,6 +374,7 @@ var scriptAPIValidate = ScriptSuite_t{
                 Param_t{"chType_E", tele.CHANNEL_TYPE_EVENTS, nil},
                 EMPTY_STRING,
                 Param_t{"prod_E", tele.CHANNEL_PRODUCER_ENGINE, nil},
+                Param_t{"scriptAPIValidate", "", nil}, /* caller */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/
@@ -377,6 +389,7 @@ var scriptAPIValidate = ScriptSuite_t{
                 Param_t{"chType_E", tele.CHANNEL_TYPE_EVENTS, nil},
                 Param_t{"prod_E", tele.CHANNEL_PRODUCER_ENGINE, nil},
                 Param_t{ANONYMOUS, true, nil},
+                Param_t{"scriptAPIValidate", "", nil}, /* caller */
             },
             []Result_t{
                 Result_t{ANONYMOUS, nil, ValidateNil}, /* Nil return*/

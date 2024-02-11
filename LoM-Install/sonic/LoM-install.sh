@@ -413,6 +413,10 @@ function main()
     OP_CLEAN=0          # Clean any backup  
     OP_ROLLBACK=0       # Rollback to last backup
 
+    if [[ $# -eq 0 ]]; then
+        usage
+    fi
+
     while getopts "hifcr" opt; do
         case ${opt} in
             i ) OP_INSTALL=1
@@ -428,21 +432,30 @@ function main()
         esac
     done
 
+    shift $((OPTIND -1))
+    if [[ $# -ne 0 ]]; then
+        # Expect only options
+        usage
+    fi
+
     # Clean stop service first
     serviceStop
     
+    if [[ ${OP_CLEAN} == 0 ]]; then
+        testInstall
+    fi
+
     if [[ ${OP_CLEAN} == 1 ]]; then
         # Clean all ( current install & backup )
         forceClean 3
-    fi
-
-    testInstall
-
-    if [[ ${OP_ROLLBACK} == 1 ]]; then
+    elif [[ ${OP_ROLLBACK} == 1 ]]; then
         rollBackCode
     elif [[ ${OP_INSTALL} == 1 ]]; then
         backUp
         installCode
+    else
+        # Expect at the least one of the above options
+        usage
     fi
     testInstall
     if [[ ${image_latest} == 1 ]]; then

@@ -12,6 +12,7 @@ import (
     "reflect"
     "runtime"
     "sort"
+    "strconv"
     "strings"
     "sync"
     "time"
@@ -142,6 +143,12 @@ func GetLastError() error {
 
 func ResetLastError() {
     lastError = nil
+}
+
+/* Log this message at error level */
+func LogCritical(s string, a ...interface{}) error {
+    lastError = errors.New(LogMessage(syslog.LOG_CRIT, s, a...))
+    return lastError
 }
 
 /* Log this message at error level */
@@ -1054,3 +1061,30 @@ func GetEnvVarString(envname string) (string, bool) {
     value, exists := envMap[envname]
     return value, exists
 }
+
+func ValidatedVal(sval string, max, min, def int, name string) int {
+    val, err := strconv.Atoi(sval)
+
+    if (err != nil) || (val > max) || (val < min) {
+        LogWarning("%s failed validation. err(%v) sval(%s) ret(%d) min(%d) max(%d)",
+            name, err, sval, def, min, max)
+        return def
+    }
+    return val
+}
+
+/* Good helper
+ *
+ *func JsonEqual(a, b []byte) (bool, error) {
+ *    var j1, j2 interface{}
+ *    var err error
+ *    if err = json.Unmarshal(a, &j1); err != nil {
+ *        return false, err
+ *    }
+ *    if err = json.Unmarshal(b, &j2); err != nil {
+ *        return false, err
+ *    }
+ *    return reflect.DeepEqual(j1, j2), nil
+ *}
+ *
+ */

@@ -64,15 +64,19 @@ var CHANNEL_PRODUCER_STR = map[ChannelProducer_t]CHANNEL_PRODUCER_DATA_t{
 
 func GetProdStr(producer ChannelProducer_t, suffix string) (
     ret string, err error) {
-    d := CHANNEL_PRODUCER_STR[producer]
-    if d.suffix_required {
-        if suffix == "" {
-            err = cmn.LogError("Require suffix for producer (%+v)", CHANNEL_PRODUCER_STR[producer])
-        } else {
-            ret = fmt.Sprintf(CHANNEL_PRODUCER_STR[producer].pattern, suffix)
-        }
+    if (producer >= CHANNEL_PRODUCER_CNT) || (producer < CHANNEL_PRODUCER_ENGINE) {
+        err = cmn.LogError("Invalid producer (%d).", producer)
     } else {
-        ret = CHANNEL_PRODUCER_STR[producer].pattern
+        d := CHANNEL_PRODUCER_STR[producer]
+        if d.suffix_required {
+            if suffix == "" {
+                err = cmn.LogError("Require suffix for producer (%+v)", CHANNEL_PRODUCER_STR[producer])
+            } else {
+                ret = fmt.Sprintf(CHANNEL_PRODUCER_STR[producer].pattern, suffix)
+            }
+        } else {
+            ret = CHANNEL_PRODUCER_STR[producer].pattern
+        }
     }
     return
 }
