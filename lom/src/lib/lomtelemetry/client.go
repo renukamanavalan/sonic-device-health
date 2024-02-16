@@ -36,7 +36,7 @@ import (
 const PUB_BUFFER_CNT = 100 /* Allow publishers for short bursts */
 
 func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
-    pluginName string) (chData chan<- JsonString_t, err error) {
+    pluginName string, caller string) (chData chan<- JsonString_t, err error) {
 
     ch := make(chan JsonString_t, PUB_BUFFER_CNT)
 
@@ -50,7 +50,7 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
     prefix := ""
     if prefix, err = GetProdStr(producer, pluginName); err != nil {
         /* err is detailed enough */
-    } else if err = openPubChannel(chtype, prefix, ch); err != nil {
+    } else if err = openPubChannel(chtype, prefix, ch, caller); err != nil {
         err = cmn.LogError("Failed to get pub channel (%v)", err)
     } else {
         chData = ch
@@ -79,7 +79,7 @@ func GetPubChannel(chtype ChannelType_t, producer ChannelProducer_t,
  */
 
 func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
-    pluginName string) (chData <-chan JsonString_t, chClose chan<- int, err error) {
+    pluginName string, caller string) (chData <-chan JsonString_t, chClose chan<- int, err error) {
 
     ch := make(chan JsonString_t)
     chCl := make(chan int)
@@ -92,7 +92,7 @@ func GetSubChannel(chtype ChannelType_t, receiveFrom ChannelProducer_t,
 
     prefix := ""
     if prefix, err = GetProdStr(receiveFrom, pluginName); err == nil {
-        if err = openSubChannel(chtype, prefix, ch, chCl); err != nil {
+        if err = openSubChannel(chtype, prefix, ch, chCl, caller); err != nil {
             err = cmn.LogError("Failed to get sub channel (%v)", err)
         } else {
             chData = ch
@@ -318,6 +318,7 @@ func PublishTerminate() {
 /*
  *  Publish as event
  *  Creates pub channel on first publish
+ *  NOTE: Remember to call PublishInit
  *
  *  Input:
  *      chType      - Channel type as events / counters
@@ -331,18 +332,20 @@ func PublishTerminate() {
  *
  */
 func PublishAny(chType ChannelType_t, data any) (err error) {
-    msg := ""
-    if b, e := json.Marshal(data); e != nil {
-        err = cmn.LogError("Failed to marshal map (%v) err(%v)", data, e)
-        return
-    } else {
-        msg = string(b)
-        cmn.LogInfo(CHANNEL_TYPE_STR[chType] + ": " + msg) /* Record in syslog */
+    msg, ok := data.(string)
+    if !ok {
+        if b, e := json.Marshal(data); e != nil {
+            err = cmn.LogError("Failed to marshal map (%v) err(%v)", data, e)
+            return
+        } else {
+            msg = string(b)
+        }
     }
+    cmn.LogInfo(CHANNEL_TYPE_STR[chType] + ": " + msg) /* Record in syslog */
 
     ch, ok := openedPubChannels[chType]
     if !ok {
-        if ch, err = GetPubChannel(chType, savedProducerType, savedProducerName); err != nil {
+        if ch, err = GetPubChannel(chType, savedProducerType, savedProducerName, "Auto"); err != nil {
             err = cmn.LogError("Failing to get channel (%v) data(%s)", err, msg)
             return
         } else {

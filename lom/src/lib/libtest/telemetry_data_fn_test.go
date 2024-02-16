@@ -57,6 +57,7 @@ var pubSubFnSuite = ScriptSuite_t{
                 Param_t{"chType_1", nil, nil}, /* Fetch chType_1 from cache */
                 Param_t{"prod_0", tele.CHANNEL_PRODUCER_EMPTY, nil},
                 EMPTY_STRING,
+                Param_t{"pubSubFnSuite", "", nil}, /* caller */
             },
             []Result_t{
                 Result_t{"chRead-0", nil, ValidateNonNil},     /* Save in cache */
@@ -71,6 +72,7 @@ var pubSubFnSuite = ScriptSuite_t{
                 Param_t{"chType_1", nil, nil}, /* Fetch chType_1 from cache */
                 Param_t{"prod_1", tele.CHANNEL_PRODUCER_ENGINE, nil},
                 EMPTY_STRING,
+                Param_t{"pubSubFnSuite", "", nil}, /* caller */
             },
             []Result_t{
                 Result_t{"chWrite-0", nil, ValidateNonNil}, /* Save in cache */

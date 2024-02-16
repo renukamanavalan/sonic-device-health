@@ -1,41 +1,82 @@
 #! /bin/bash
 
-VERSION={{ LoMVersion }}
-if  [[ $# == 1 && "$1" == "-v" ]]; then
-    echo ${VERSION}
-    exit 0
-fi
+function usage()
+{
+    echo -e "\
+        -i - Does install or upgrade \n\
+        -r - Force a rollback \n\
+        -c - Clean all the backup \n\
+        -h - Usage"
+    exit -1
+}
 
-echo ""
-echo "==========================="
-echo "Self-extracting LoM archive"
-echo "==========================="
+function testArgs()
+{
+    VERSION={{ LoMVersion }}
+    if  [[ $# == 1 && "$1" == "-v" ]]; then
+        echo ${VERSION}
+        exit 0
+    fi
 
-export TMPDIR=`mktemp -d /tmp/selfextract.XXXXXX`
+    if [[ $# -eq 0 ]]; then
+        usage
+    fi
 
-ARCHIVE=`awk '/^__ARCHIVE_BELOW__/ {print NR + 1; exit 0; }' $0`
+    while getopts "hifcr" opt; do
+        case ${opt} in
+            i ) OP_INSTALL=1
+                ;;
+            r ) OP_ROLLBACK=1
+                ;;
+            c ) OP_CLEAN=1
+                ;;
+            h ) usage
+                ;;
+            \? ) usage
+                ;;
+        esac
+    done
 
-tail -n+$ARCHIVE $0 | tar xzv -C $TMPDIR
+    shift $((OPTIND -1))
+    if [[ $# -ne 0 ]]; then
+        # Expect only options
+        usage
+    fi
+}
 
-CDIR=`pwd`
-cd $TMPDIR
+function main()
+{
+    echo ""
+    echo "==========================="
+    echo "Self-extracting LoM archive"
+    echo "==========================="
 
-if  [[ $# -ne 0 ]]; then
+    export TMPDIR=`mktemp -d /tmp/selfextract.XXXXXX`
+
+    ARCHIVE=`awk '/^__ARCHIVE_BELOW__/ {print NR + 1; exit 0; }' $0`
+
+    tail -n+$ARCHIVE $0 | tar xzv -C $TMPDIR
+
+    CDIR=`pwd`
+    cd $TMPDIR
+
     ./install/LoM-install.sh $@
-fi
+    RET=$?
 
-RET=$?
+    cd $CDIR
 
-cd $CDIR
+    if [[ ${RET} == 0 ]]; then
+        #rm -rf $TMPDIR
+        echo "Install succeeded"
+    else
+        echo "Install failed with ${RET}"
+    fi
+    echo "TMPDIR is $TMPDIR"
 
-if [[ ${RET} == 0 ]]; then
-    #rm -rf $TMPDIR
-    echo "Install succeeded"
-else
-    echo "Install failed with ${RET}"
-fi
-echo "TMPDIR is $TMPDIR"
+    exit ${RET}
+}
 
-exit ${RET}
+testArgs $@
+main $@
 
 __ARCHIVE_BELOW__

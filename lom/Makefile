@@ -6,17 +6,24 @@ USER = $(shell id -un)
 UID = $(shell id -u)
 GUID = $(shell id -g)
 
-
-GO := /usr/local/go1.20.3/go/bin/go
-
+GOBIN_PATH := /usr/local/go1.20.3/go/bin
+GO := $(GOBIN_PATH)/go
 GOFMT := $(GO)fmt
 INSTALL := /usr/bin/install
 
+ifeq ($(GOPATH),)
+export GOPATH=/tmp/go
+endif
+
+VENDOR_DIR := vendor
 BUILD_DIR := build
 LIB_DIR := $(BUILD_DIR)/lib
 BIN_DIR := $(BUILD_DIR)/bin
 TEST_DIR := $(BUILD_DIR)/test
 INTEGRATION_TEST_DIR := integration_test
+GNMI_DIR := src/gnmi
+
+export PATH := $(PATH):$(GOPATH)/bin:$(GOBIN_PATH):$(BIN_DIR)
 
 # Set to -v for verbose o/p. May set it in Env before calling Make
 # export TEST_FLAG=-v in shell before calling make or
@@ -28,6 +35,10 @@ ifeq "${TEST_FLAG}" "-v"
 PYTEST_VERBOSE= --addopts "-s"
 endif
 
+# gomonkey mocks don't work with inlining. Hence explicitly disable it.
+# https://github.com/agiledragon/gomonkey/issues/34
+#
+LIB_TEST_FLAGS_NOINLINE = -gcflags=all=-l -p 1
 LIB_TEST_FLAGS = -v
 
 export GO111MODULE=on
@@ -36,6 +47,8 @@ export LOM_LIB_PATH=$(PWD)/build/lib
 SRC_FILES=$(shell find . -name '*.go' | grep -v '_test.go' | grep -v '/tests/')
 PY_FILES=$(shell find . -name '*.py' | grep -v '_test.py' | grep -v '/tests/')
 TEST_FILES=$(shell find . -name '*test.go')
+PROTO_FILES=$(shell find . -name '*.proto')
+PATCH_FILES=$(shell find . -name '*.patch')
 
 CMN_C_LIB_FILES=src/lib/clib/lom_clib.go
 CMN_C_LIB_FLAG=-buildmode=c-shared
@@ -46,6 +59,9 @@ ENGINE_BIN := $(BIN_DIR)/LoMEngine
 PLUGIN_MANAGER_BIN := $(BIN_DIR)/LoMPluginMgr
 CLI_BIN := $(BIN_DIR)/LoMCli
 INTEGRATION_TEST_BIN := $(INTEGRATION_TEST_DIR)/integration_test_installer.sh
+GNMI_SERVER_BIN := $(BIN_DIR)/LoMgNMIServer
+
+$(info "gnmi server": '$(GNMI_SERVER_BIN)")
 
 # Test binaries/flags
 LIB_TEST = $(TEST_DIR)/LibTested
@@ -56,6 +72,7 @@ PY_TEST = $(TEST_DIR)/pytested
 SONIC_LINK_CRC_TEST = $(TEST_DIR)/SonicLinkCrcTested
 PLUGINS_COMMON_TEST = $(TEST_DIR)/PluginsCommonTested
 SONIC_LINK_CRC_MOCKER_TEST = $(TEST_DIR)/linkcrc_mocker
+GNMI_SERVER_TEST = $(TEST_DIR)/gNMIServerTested
 
 .NOTPARALLEL:
 
@@ -76,6 +93,7 @@ define build_golang
     @ # If we cannot extract a Go build-id, we punt and fallback to using a random 32-byte hex string.
     @ # This fallback is unique but non-deterministic, making it sufficient to avoid generating the
     @ # GNU build-id from the empty string and causing guaranteed collisions.
+    @echo "build_golang $(PWD) ok"
     $(GO) build $3 -o $1 $2
     GO_BUILD_ID=$$( $(GO) tool buildid $1 || openssl rand -hex 32 ) && \
     GNU_BUILD_ID=$$( echo $$GO_BUILD_ID | sha1sum | cut -d' ' -f1 ) && \
@@ -133,18 +151,43 @@ clean-aggregate-file_coverage:
 
 .PHONY: all clean format_code clean-extract_file_coverage add-extract_file_coverage clean-aggregate-file_coverage add-aggregate_file_coverage COMMON_DEPS
 
-COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage $(CMN_C_LIB) $(ENGINE_BIN) $(PLUGIN_MANAGER_BIN) $(CLI_BIN) $(LIB_TEST) $(ENGINE_TEST) \
+#COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage
+
+COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage $(CMN_C_LIB) $(ENGINE_BIN) \
+	$(PLUGIN_MANAGER_BIN) $(CLI_BIN) $(LIB_TEST) $(ENGINE_TEST) \
 	$(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(SONIC_LINK_CRC_MOCKER_TEST) $(PLUGINS_COMMON_TEST) \
 	$(PY_TEST) $(INTEGRATION_TEST_BIN)
 
-all: $(COMMON_DEPS)
+GO_DEPS := $(VENDOR_DIR)/.done
+
+go.mod:
+	$(GO) mod init lom
+
+$(GO_DEPS): go.mod $(PATCH_FILES)
+	$(GO) mod vendor
+	$(GO) mod download golang.org/x/crypto@v0.0.0-20191206172530-e9b2fee46413
+	$(GO) mod download github.com/jipanyang/gnxi@v0.0.0-20181221084354-f0a90cca6fd0
+	mkdir -p vendor/golang.org/x/crypto/
+	mkdir -p vendor/github.com/jipanyang/gnxi/
+	cp -r $(GOPATH)/pkg/mod/golang.org/x/crypto@v0.0.0-20191206172530-e9b2fee46413/* vendor/golang.org/x/crypto/
+	cp -r $(GOPATH)/pkg/mod/github.com/jipanyang/gnxi@v0.0.0-20181221084354-f0a90cca6fd0/* vendor/github.com/jipanyang/gnxi/
+	chmod -R u+w vendor
+	patch -d vendor -p0 < src/gnmi/patches/gnmi_cli.all.patch
+	patch -d vendor -p0 < src/gnmi/patches/gnmi_set.patch
+	patch -d vendor -p0 < src/gnmi/patches/gnmi_get.patch
+	patch -d vendor -p0 < src/gnmi/patches/gnmi_path.patch
+	patch -d vendor -p0 < src/gnmi/patches/gnmi_xpath.patch
+	# git apply src/gnmi/patches/0001-Updated-to-filter-and-write-to-file.patch
+	touch $@
+
+all: $(COMMON_DEPS) gnmi-tools $(GNMI_SERVER_BIN) $(GNMI_SERVER_TEST)
 	$(BUILD_DIR)/aggregate_file_coverage.sh
 
 all-silent: LIB_TEST_FLAGS :=
 all-silent: $(COMMON_DEPS)
 	$(BUILD_DIR)/aggregate_file_coverage.sh
 
-$(CMN_C_LIB): $(SRC_FILES)
+$(CMN_C_LIB): $(SRC_FILES) $(GO_DEPS)
 	mkdir -p $(LIB_DIR)
 	$(call build_golang,$@,$(CMN_C_LIB_FILES),$(CMN_C_LIB_FLAG))
 	@echo -e "Successfully Build c lib\n\n"
@@ -166,9 +209,10 @@ $(PLUGIN_MANAGER_BIN): $(SRC_FILES)
 
 $(LIB_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
-	${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/LibCoverprofile.out \
+	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/LibCoverprofile.out \
 		-coverpkg lom/src/lib/lomipc,lom/src/lib/lomcommon,lom/src/lib/lomscripted,lom/src/lib/lomtelemetry \
-		-covermode=atomic $(LIB_TEST_FLAGS) ./src/lib/libtest ./src/lib/libtest/config || (echo "LibTest failed $$?"; exit 1)
+		-covermode=atomic $(LIB_TEST_FLAGS) $(LIB_TEST_FLAGS_NOINLINE) \
+		./src/lib/libtest ./src/lib/libtest/config || (echo "LibTest failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/LibCoverprofile.out -o $(TEST_DIR)/LibCoverprofile.html
 	@if [ -f "$(TEST_DIR)/LibCoverprofile.html" ]; then \
 		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/LibCoverprofile.html; \
@@ -180,7 +224,8 @@ $(ENGINE_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/EngineCoverprofile.out \
 		-coverpkg lom/src/engine/engine \
-		-covermode=atomic $(LIB_TEST_FLAGS) lom/src/engine/engine || (echo "EngineTest failed $$?"; exit 1)
+		-covermode=atomic $(LIB_TEST_FLAGS) $(LIB_TEST_FLAGS_NOINLINE) \
+		lom/src/engine/engine || (echo "EngineTest failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/EngineCoverprofile.out -o $(TEST_DIR)/EngineCoverprofile.html
 	@if [ -f "$(TEST_DIR)/EngineCoverprofile.html" ]; then \
 		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/EngineCoverprofile.html; \
@@ -190,9 +235,10 @@ $(ENGINE_TEST): $(SRC_FILES) $(TEST_FILES)
 
 $(PLUGIN_MANAGER_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
-	${GO} test -p 1 $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginManagerCoverprofile.out \
+	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginManagerCoverprofile.out \
 		-coverpkg lom/src/pluginmgr/pluginmgr_common \
-		-covermode=atomic $(LIB_TEST_FLAGS) ./src/pluginmgr/pluginmgr_common  || (echo "Plugin manager test failed $$?"; exit 1)
+		-covermode=atomic $(LIB_TEST_FLAGS) $(LIB_TEST_FLAGS_NOINLINE) \
+		./src/pluginmgr/pluginmgr_common  || (echo "Plugin manager test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/PluginManagerCoverprofile.out -o $(TEST_DIR)/PluginManagerCoverprofile.html
 	@if [ -f "$(TEST_DIR)/PluginManagerCoverprofile.html" ]; then \
 		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/PluginManagerCoverprofile.html; \
@@ -204,7 +250,8 @@ $(SONIC_DBCLIENT_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/SonicDbClientCoverprofile.out \
 		-coverpkg lom/src/plugins/plugins_files/sonic/client/dbclient \
-		-covermode=atomic $(LIB_TEST_FLAGS) lom/src/plugins/plugins_files/sonic/client/dbclient || (echo "SonicDbClient Test failed $$?"; exit 1)
+		-covermode=atomic $(LIB_TEST_FLAGS) $(LIB_TEST_FLAGS_NOINLINE) \
+		lom/src/plugins/plugins_files/sonic/client/dbclient || (echo "SonicDbClient Test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/SonicDbClientCoverprofile.out -o $(TEST_DIR)/SonicDbClientCoverprofile.html
 	@if [ -f "$(TEST_DIR)/SonicDbClientCoverprofile.html" ]; then \
 		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/SonicDbClientCoverprofile.html; \
@@ -222,8 +269,9 @@ $(PY_TEST): $(SRC_FILES) $(PY_FILES)
 $(SONIC_LINK_CRC_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/SonicLinkCrcCoverprofile.out \
-				-coverpkg lom/src/plugins/plugins_files/sonic/plugin/linkcrc \
-				-covermode=atomic $(LIB_TEST_FLAGS) lom/src/plugins/plugins_files/sonic/plugin/linkcrc || (echo "SonicLinkCrc plugin Test failed $$?"; exit 1)
+		-coverpkg lom/src/plugins/plugins_files/sonic/plugin/linkcrc \
+		-covermode=atomic $(LIB_TEST_FLAGS) $(LIB_TEST_FLAGS_NOINLINE) \
+		lom/src/plugins/plugins_files/sonic/plugin/linkcrc || (echo "SonicLinkCrc plugin Test failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/SonicLinkCrcCoverprofile.out -o $(TEST_DIR)/SonicLinkCrcCoverprofile.html
 	@if [ -f "$(TEST_DIR)/SonicLinkCrcCoverprofile.html" ]; then \
 		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/SonicLinkCrcCoverprofile.html; \
@@ -235,7 +283,8 @@ $(PLUGINS_COMMON_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)
 	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/PluginsCommonCoverprofile.out \
 		-coverpkg lom/src/plugins/plugins_common \
-				-covermode=atomic $(LIB_TEST_FLAGS) lom/src/plugins/plugins_common || (echo "PluginsCommon Tests failed $$?"; exit 1)
+		-covermode=atomic $(LIB_TEST_FLAGS) $(LIB_TEST_FLAGS_NOINLINE) \
+		lom/src/plugins/plugins_common || (echo "PluginsCommon Tests failed $$?"; exit 1)
 	${GO} tool cover -html=$(TEST_DIR)/PluginsCommonCoverprofile.out -o $(TEST_DIR)/PluginsCommonCoverprofile.html
 	@if [ -f "$(TEST_DIR)/PluginsCommonCoverprofile.html" ]; then \
 		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/PluginsCommonCoverprofile.html; \
@@ -254,5 +303,50 @@ $(INTEGRATION_TEST_BIN):
 
 clean: clean-extract_file_coverage clean-aggregate-file_coverage
 	rm -rf $(BUILD_DIR)
+	mkdir -p vendor/
+	chmod -R u+rw vendor/
+	rm -rf vendor
+	rm -f src/gnmi/proto/go.mod src/gnmi/proto/go.sum src/gnmi/proto/.done
 	$(INTEGRATION_TEST_DIR)/src/build.sh clean
+
+
+GNMI_PROTO := src/gnmi/proto/.done
+
+# Run this make manually each time a .proto is updated to generate corresponding .pb.go.
+# Commit the generated files.
+# Calling proto's Makefile from this Makefile breaks when compiling as submodule in SONiC.
+#
+$(GNMI_PROTO) : $(PROTO_FILES)
+	cd src/gnmi/proto/ && $(MAKE) -f Makefile all
+	touch $(PWD)/$@
+
+
+# Build only CLI for now.
+# 
+gnmi-tools: $(GO_DEPS)
+	# $(GO) build -o ${BIN_DIR}/gnmi_get -mod=vendor github.com/jipanyang/gnxi/gnmi_get
+	# $(GO) build -o ${BIN_DIR}/gnmi_set -mod=vendor github.com/jipanyang/gnxi/gnmi_set
+	$(GO) build -o ${BIN_DIR}/gnmi_cli -mod=vendor github.com/openconfig/gnmi/cmd/gnmi_cli
+	# $(GO) build -o ${BIN_DIR}/gnoi_client -mod=vendor github.com/sonic-net/sonic-gnmi/gnoi_client
+	# $(GO) build -o ${BIN_DIR}/gnmi_dump -mod=vendor github.com/sonic-net/sonic-gnmi/gnmi_dump
+
+
+$(GNMI_SERVER_BIN): $(SRC_FILES)
+	mkdir -p $(BIN_DIR)
+	$(call build_golang,$@,lom/src/gnmi/gnmi_server/,)
+	@echo -e "Successfully Build gnmi-server\n\n"
+
+$(GNMI_SERVER_TEST): $(SRC_FILES) $(TEST_FILES)
+	mkdir -p $(TEST_DIR)
+	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/gNMIServerCoverprofile.out \
+		-coverpkg lom/src/gnmi/gnmi_server/server,lom/src/gnmi/lom_data_clients \
+		-covermode=atomic $(LIB_TEST_FLAGS) $(LIB_TEST_FLAGS_NOINLINE) \
+		-gcflags=all=-l ./src/gnmi/gnmi_server/server ./src/gnmi/lom_data_clients || (echo "gNMIServerTest failed $$?"; exit 1)
+	${GO} tool cover -html=$(TEST_DIR)/gNMIServerCoverprofile.out -o $(TEST_DIR)/gNMIServerCoverprofile.html
+	@if [ -f "$(TEST_DIR)/gNMIServerCoverprofile.html" ]; then \
+		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/gNMIServerCoverprofile.html; \
+	fi
+	touch $@
+	@echo -e "Successfully completed gNMIServer Test\n\n"
+
 

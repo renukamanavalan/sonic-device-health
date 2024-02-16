@@ -50,6 +50,7 @@ var pubSubSuite = ScriptSuite_t{
                 Param_t{"chType_1", tele.CHANNEL_TYPE_EVENTS, nil},
                 Param_t{"prod_0", tele.CHANNEL_PRODUCER_EMPTY, nil},
                 EMPTY_STRING,
+                Param_t{"pubSubSuite", "", nil}, /* caller */
             },
             []Result_t{
                 Result_t{"chRead-0", nil, ValidateNonNil},     /* Save in cache */
@@ -142,6 +143,7 @@ var pubSubMultiSuite = ScriptSuite_t{
                 Param_t{"chType_E", nil, nil}, /* Fetch chType_1 from cache */
                 Param_t{"prod_E", tele.CHANNEL_PRODUCER_ENGINE, nil},
                 EMPTY_STRING,
+                Param_t{"pubSubMultiSuite", "", nil}, /* caller */
             },
             []Result_t{
                 Result_t{"chRead-E", nil, ValidateNonNil},     /* Save in cache */
@@ -156,6 +158,7 @@ var pubSubMultiSuite = ScriptSuite_t{
                 Param_t{"chType_C", nil, nil}, /* Fetch from cache */
                 Param_t{"prod_PM", tele.CHANNEL_PRODUCER_PLMGR, nil},
                 Param_t{"PMgr-1", "inst-1", nil},
+                Param_t{"pubSubMultiSuite", "", nil}, /* caller */
             },
             []Result_t{
                 Result_t{"chRead-C", nil, ValidateNonNil},     /* Save in cache */
@@ -167,9 +170,10 @@ var pubSubMultiSuite = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDGetPubChannel, /* Simulate publish from plugin-mgr instance */
             []Param_t{
-                Param_t{"chType_C", nil, nil}, /* pub for counters */
-                Param_t{"prod_PM", nil, nil},  /* from Plugin Mgr */
-                Param_t{"PMgr-1", nil, nil},   /* instance-1 */
+                Param_t{"chType_C", nil, nil},        /* pub for counters */
+                Param_t{"prod_PM", nil, nil},         /* from Plugin Mgr */
+                Param_t{"PMgr-1", nil, nil},          /* instance-1 */
+                Param_t{"pubSubMultiSuite", "", nil}, /* caller */
             },
             []Result_t{
                 Result_t{"chWrite-C", nil, ValidateNonNil}, /* Save in cache */
@@ -183,6 +187,7 @@ var pubSubMultiSuite = ScriptSuite_t{
                 Param_t{"chType_E", nil, nil}, /* pub for events */
                 Param_t{"prod_E", nil, nil},   /* from engine */
                 EMPTY_STRING,
+                Param_t{"pubSubMultiSuite", "", nil}, /* caller */
             },
             []Result_t{
                 Result_t{"chWrite-E", nil, ValidateNonNil}, /* Save in cache */

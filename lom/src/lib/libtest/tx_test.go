@@ -288,7 +288,7 @@ func testClient(chRes chan interface{}, chComplete chan interface{}) {
     chComplete <- struct{}{}
 }
 
-func TestMain(t *testing.T) {
+func TestMainTest(t *testing.T) {
     tx, err := ServerInit()
     if err != nil {
         t.Errorf("Failed to init server")

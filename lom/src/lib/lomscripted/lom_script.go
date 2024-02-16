@@ -10,7 +10,7 @@ import (
 func callGetPubChannel(args []any, cache SuiteCache_t) []any {
     var err error
     var ch any
-    if len(args) != 3 {
+    if len(args) != 4 {
         err = cmn.LogError("GetPubChannel expects 3 args. Given=%d", len(args))
     } else if chType, ok := args[0].(tele.ChannelType_t); !ok {
         err = cmn.LogError("Expect tele.ChannelType_t != type(%T)", args[0])
@@ -18,8 +18,10 @@ func callGetPubChannel(args []any, cache SuiteCache_t) []any {
         err = cmn.LogError("Expect tele.ChannelProducer_t != type(%T)", args[1])
     } else if pluginName, ok := args[2].(string); !ok {
         err = cmn.LogError("Expect string != type(%T)", args[2])
+    } else if caller, ok := args[3].(string); !ok {
+        err = cmn.LogError("Expect string != type(%T)", args[3])
     } else {
-        ch, err = tele.GetPubChannel(chType, producer, pluginName)
+        ch, err = tele.GetPubChannel(chType, producer, pluginName, caller)
     }
     return []any{ch, err}
 }
@@ -27,7 +29,7 @@ func callGetPubChannel(args []any, cache SuiteCache_t) []any {
 func callGetSubChannel(args []any, cache SuiteCache_t) []any {
     var err error
     var ch, chClose any
-    if len(args) != 3 {
+    if len(args) != 4 {
         err = cmn.LogError("GetSubChannel expects 3 args. Given=%d", len(args))
     } else if chType, ok := args[0].(tele.ChannelType_t); !ok {
         err = cmn.LogError("Expect tele.ChannelType_t != type(%T)", args[0])
@@ -35,8 +37,10 @@ func callGetSubChannel(args []any, cache SuiteCache_t) []any {
         err = cmn.LogError("Expect tele.ChannelProducer_t != type(%T)", args[1])
     } else if pluginName, ok := args[2].(string); !ok {
         err = cmn.LogError("Expect string != type(%T)", args[2])
+    } else if caller, ok := args[3].(string); !ok {
+        err = cmn.LogError("Expect string != type(%T)", args[3])
     } else {
-        ch, chClose, err = tele.GetSubChannel(chType, producer, pluginName)
+        ch, chClose, err = tele.GetSubChannel(chType, producer, pluginName, caller)
     }
     return []any{ch, chClose, err}
 }
@@ -154,7 +158,6 @@ func writeJsonStringsData(ch chan<- tele.JsonString_t, d []tele.JsonString_t, to
     for i, val := range d {
         select {
         case ch <- val:
-            cmn.LogDebug("DROP DROP: writeJsonStringsData (%d):(%s)", i, val)
 
         case <-time.After(time.Duration(tout) * time.Second):
             err = cmn.LogError("Write chan timeout on index(%d/%d) after (%d) seconds",
@@ -210,7 +213,6 @@ Loop:
                 err = cmn.LogError("CLOSED")
                 break Loop
             } else {
-                cmn.LogDebug("DROP DROP: readJsonStrings (%d): (%s)", i, val)
                 vals = append(vals, val)
             }
 

@@ -34,6 +34,7 @@ var pubSubShutdownSuite = ScriptSuite_t{
                 Param_t{"chType_E", nil, nil}, /* Fetch from cache */
                 Param_t{"prod_E", tele.CHANNEL_PRODUCER_ENGINE, nil},
                 EMPTY_STRING,
+                Param_t{"pubSubShutdownSuite", "", nil}, /* caller */
             },
             []Result_t{
                 Result_t{"chRead-E", nil, ValidateNonNil},     /* Save in cache */
@@ -48,6 +49,7 @@ var pubSubShutdownSuite = ScriptSuite_t{
                 Param_t{"chType_E", nil, nil}, /* pub for events */
                 Param_t{"prod_E", nil, nil},   /* from engine */
                 EMPTY_STRING,
+                Param_t{"pubSubShutdownSuite", "", nil}, /* caller */
             },
             []Result_t{
                 Result_t{"chWrite-E", nil, ValidateNonNil}, /* Save in cache */
@@ -372,6 +374,7 @@ var pubSubShutdownSuite = ScriptSuite_t{
                 Param_t{"chType_E", nil, nil}, /* pub for events */
                 Param_t{"prod_E", nil, nil},   /* from engine */
                 EMPTY_STRING,
+                Param_t{"pubSubShutdownSuite", "", nil}, /* caller */
             },
             []Result_t{NIL_ANY, NON_NIL_ERROR},
             "Fail to get after sys shutdown",
@@ -382,6 +385,7 @@ var pubSubShutdownSuite = ScriptSuite_t{
                 Param_t{"chType_E", nil, nil},
                 Param_t{"prod_E", nil, nil},
                 EMPTY_STRING,
+                Param_t{"pubSubShutdownSuite", "", nil}, /* caller */
             },
             []Result_t{NIL_ANY, NIL_ANY, NON_NIL_ERROR},
             "Fail to get after sys shutdown",
