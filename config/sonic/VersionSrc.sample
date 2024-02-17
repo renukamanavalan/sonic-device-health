@@ -1,0 +1,5 @@
+# Create this file in submod with appropriate info
+# This is used in LoM-Version file.
+LOM_BRANCH=xxx
+LOM_COMMIT=yyy
+HOST_VENDOR="sonic"

@@ -19,7 +19,15 @@ CP := cp
 RM := rm
 
 ifeq ($(SONIC_IMAGE_VERSION),)
-	override SONIC_IMAGE_VERSION := "0.0.0"
+VENDOR = sonic
+endif
+
+ifeq ($(VENDOR),)
+$(error Specify vendor as sonic/arista/cisco!)
+endif
+
+ifeq ("$(wildcard $(CONFIG_DIR)/$(VENDOR)/VersionInfo)","")
+$(error Expect $(CONFIG_DIR)/$(VENDOR)/VersionInfo to exist!)
 endif
 
 all: go-all $(VERSION_CONFIG)
@@ -34,7 +42,7 @@ go-all:
 # Generate conf files
 $(VERSION_CONFIG): $(CONFIG_DIR)/LoM-Version.json.j2
 	@echo "+++ --- Creating Version JSON $(HOST_OS_VERSION)--- +++"
-	$(shell HOST_OS_VERSION=$(SONIC_IMAGE_VERSION) HOST_VENDOR=SONiC j2 -o $(VERSION_CONFIG) $(CONFIG_DIR)/LoM-Version.json.j2)
+	$(shell . $(CONFIG_DIR)/$(VENDOR)/VersionInfo && j2 -o $(VERSION_CONFIG) $(CONFIG_DIR)/LoM-Version.json.j2)
 	@echo "+++ --- Creating Version JSON DONE --- +++"
 
 

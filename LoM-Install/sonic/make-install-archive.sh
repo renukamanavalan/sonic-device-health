@@ -33,13 +33,6 @@ do
     [[ ! -f $i ]] && { echo "Missing file $i"; exit ${ERR_USAGE}; }
 done
 
-
-SONIC_VER_FILE="fsroot-broadcom/etc/sonic/sonic_version.yml"
-[[ ! -f ${SONIC_VER_FILE} ]] && { echo "Missing file ${SONIC_VER_FILE}"; exit ${ERR_USAGE}; }
-
-BUILD_VER=$(cat ${SONIC_VER_FILE} | grep -e "^build_version" | cut -f2 -d\'| cut -f1 -d .)
-[[ "${BUILD_VER}" == "" ]] && { echo "Failed to get build version"; exit ${ERR_USAGE}; }
-
 while getopts "t" opt; do
   case ${opt} in
     t )
@@ -74,8 +67,6 @@ if [[ "${INCLUDE_TEST_ARCHIVE}" != "" ]]; then
 else
     echo "Skip to copy integration-test code: ${INTEGRATION_TEST_BIN}"
 fi
-
-BUILDVER=${BUILD_VER} TIMESTAMP="$(date +%s)" j2 -o ${INSTALL_DIR}/VERSION -f env src/sonic-device-health/LoM_Version.j2
 
 pushd ${PAYLOAD_DIR}
 tar -cvzf ${WORK_DIR}/${INSTALLER_ARCHIVE} .

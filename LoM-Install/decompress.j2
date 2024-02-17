@@ -14,7 +14,9 @@ function testArgs()
 {
     VERSION={{ LoMVersion }}
     if  [[ $# == 1 && "$1" == "-v" ]]; then
-        echo ${VERSION}
+        echo "LoMVersion = ${{ LoMVersion }}"
+        echo "LoMBranch = ${{ LoMBranch }}"
+        echo "LoMCommit = ${{ LoMCommit }}"
         exit 0
     fi
 
