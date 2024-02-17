@@ -1,5 +1,11 @@
 # Create this file in submod with appropriate info
 # This is used in LoM-Version file.
+# Note: source branch info will not be available in submod.
+#       We just do "git reset --hard origin/<some branch>.
+#       This info is not retrievable.
+#       Hence manual update is needed.
+#       Which is why we don't checkin VersionSrc file and force dev to create one.
+#
 LOM_BRANCH=xxx
-LOM_COMMIT=yyy
+LOM_COMMIT=$(git log --pretty=format:'%h' -n 1)
 HOST_VENDOR="sonic"
