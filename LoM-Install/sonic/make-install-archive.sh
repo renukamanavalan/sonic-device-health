@@ -19,7 +19,9 @@ INTEGRATION_TEST_DST="${PAYLOAD_DIR}/${TEST_SUBDIR}/${INTEGRATION_TEST_BIN}"
 
 INSTALL_FILES="target/${IMAGE_FILE} \
     ${INSTALL_SRC_DIR}/${INSTALL_SCRIPT} \
-    ${INSTALL_SRC_DIR}/${COMMON_SCRIPT}"
+    ${INSTALL_SRC_DIR}/${COMMON_SCRIPT} \
+    ${LOM_SRC_DIR}/config/${LOM_VERSION_FILE} \
+    ./fsroot-broadcom/etc/sonic/${HOST_VERSION_FILE}"
 
 # Validate ...
 [[ ! -d "./target" ]] && { echo "Run from buildimage root"; exit ${ERR_USAGE}; }
@@ -73,7 +75,9 @@ tar -cvzf ${WORK_DIR}/${INSTALLER_ARCHIVE} .
 [[ $? != 0 ]] && { echo "Failed to archive"; exit ${ERR_TAR}; }
 popd
 
-j2 -o ${WORK_DIR}/decompress -f json ${INSTALL_SRC_DIR}/../decompress.j2 ${LOM_SRC_DIR}/config/LoM-Version.json
+LOM_VERSION_JSON=$(cat ${LOM_SRC_DIR}/config/${LOM_VERSION_FILE}) \
+    HOST_OS_VERSION=$(grep build_version ${HOST_DIR}/sonic_version.yml | cut -f2 -d\') \
+    j2 -o ${WORK_DIR}/decompress${INSTALL_SRC_DIR}/../decompress.j2
 
 pushd ${WORK_DIR}
 cat decompress ${INSTALLER_ARCHIVE} > ${INSTALLER_SELF_EXTRACT}

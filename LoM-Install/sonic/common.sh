@@ -26,6 +26,8 @@ IMAGE_NAME="docker-device-health"
 IMAGE_FILE="${IMAGE_NAME}.gz"
 INSTALL_SCRIPT="LoM-install.sh"
 COMMON_SCRIPT="common.sh"
+LOM_VERSION_FILE="LoM-Version.json"
+HOST_VERSION_FILE="sonic_version.yml"
 
 BACK_EXT="bak"
 

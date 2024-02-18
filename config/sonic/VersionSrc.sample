@@ -1,3 +1,7 @@
+#! /bin/bash
+
+set -x 
+
 # Create this file in submod with appropriate info
 # This is used in LoM-Version file.
 # Note: source branch info will not be available in submod.
@@ -5,7 +9,17 @@
 #       This info is not retrievable.
 #       Hence manual update is needed.
 #       Which is why we don't checkin VersionSrc file and force dev to create one.
+# TODO - Get it from SONIC image version
 #
-LOM_BRANCH=xxx
-LOM_COMMIT=$(git log --pretty=format:'%h' -n 1)
-HOST_VENDOR="sonic"
+if [ $# -ne 2 ]; then
+    echo "Expect $0 <template> <o/p file>"
+    exit -1
+fi
+
+LOM_BRANCH=verUpd \
+LOM_COMMIT=$(git log --pretty=format:'%h' -n 1) \
+LOM_REPO=$(git remote -v | head -n 1 | sed 's/\t/ /g' | tr -s ' ' | cut -f2 -d' ') \
+HOST_VENDOR=sonic \
+j2 -o $2 $1
+
+exit $?
