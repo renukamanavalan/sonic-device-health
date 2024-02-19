@@ -129,16 +129,10 @@ function testInstall()
     #
     fStart testInstall
 
-    # Match the build from LoM's version with switch's version
-    # Take first component from install/VERSION string
-    # Take second component from /etc/sonic/sonic_version.yml's build_version's value
+    # TODO - Validate current Host OS Version with build_version from install/sonic_version.yml
+    # May have to revise the plan of matching
+    # May have to add target versions vetted in nightly tests.
     #
-    # TODO: This breaks for private builds. Need to mature before bringing this constraint.
-    #
-    # OS_Version=$(cat /etc/sonic/sonic_version.yml | grep -e "^build_version" | cut -f2 -d\'| cut -f1 -d .)
-    # LoM_Version="$(cat $(dirname $0)/VERSION |  tr -d '\n' | cut -f1 -d .)"
-    # [[ ${OS_Version} != ${LoM_Version} ]] && fail "Version mismatch. OS=${OS_Version} LoM=${LoM_Version}" ${ERR_TEST}
-
     # Get image info & validate too.
     getTag
 
@@ -302,7 +296,7 @@ function installCode()
     fl="$(dirname $0)/../install/${IMAGE_FILE}"
     docker load -i ${fl}
     [[ $? != 0 ]] && { fail "Failed to load docker image ${fl}" ${ERR_INSTALL_CODE}; }
-    tag="$(cat $(dirname $0)/VERSION |  tr -d '\n')"
+    tag="$(cat $(dirname $0)/sonic_version.yml | grep -e "^build_version" |  cut -f2 -d\')"
     docker tag ${IMAGE_NAME}:latest ${IMAGE_NAME}:${tag}
     [[ $? != 0 ]] && { fail "Failed to tag ${IMAGE_NAME}:latest to ${tag}" ${ERR_INSTALL_CODE}; }
 
@@ -404,6 +398,10 @@ function testSudo()
     fi
 }
 
+function cpSONiCVer()
+{
+    docker cp $(dirname $0)/sonic_version.yml device-health:/usr/share/lom/
+}
 
 function main()
 {
@@ -460,6 +458,9 @@ function main()
     testInstall
     if [[ ${image_latest} == 1 ]]; then
         serviceRestart
+    fi
+    if [[ ${OP_INSTALL} == 1 ]]; then
+        cpSONiCVer
     fi
     echo "\"$0 $@\" - Ran successfully"
     exit 0
