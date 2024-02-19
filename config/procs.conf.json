@@ -5,6 +5,11 @@
 				"name": "link_crc",
 				"version": "1.0.0.0",
 				"path": ""
+			},
+			"ScriptBasedPlugin": {
+				"name": "ScriptBasedPlugin",
+				"version": "1.0.0.0",
+				"path": ""
 			}
 		}
 	}
