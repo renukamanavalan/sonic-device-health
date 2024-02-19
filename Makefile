@@ -18,8 +18,20 @@ MKDIR := mkdir
 CP := cp
 RM := rm
 
-ifeq ($(SONIC_IMAGE_VERSION),)
-	override SONIC_IMAGE_VERSION := "0.0.0"
+ifdef SONIC_OS_VERSION
+VENDOR = sonic
+endif
+
+ifeq ($(VENDOR),)
+$(error Specify vendor as sonic/arista/cisco!)
+endif
+
+VERSION_SRC_FILE = $(CONFIG_DIR)/$(VENDOR)/VersionSrc
+VERSION_TEMPLATE_FILE = $(CONFIG_DIR)/LoM-Version.json.j2
+
+
+ifeq ("$(wildcard $(VERSION_SRC_FILE))","")
+$(error Expect $(VERSION_SRC_FILE) to exist. Refer VersionSrc.sample for details!)
 endif
 
 all: go-all $(VERSION_CONFIG)
@@ -32,9 +44,9 @@ go-all:
 	@echo "+++ --- Making Go DONE --- +++"
 
 # Generate conf files
-$(VERSION_CONFIG): $(CONFIG_DIR)/LoM-Version.json.j2
+$(VERSION_CONFIG): $(CONFIG_DIR)/LoM-Version.json.j2 
 	@echo "+++ --- Creating Version JSON $(HOST_OS_VERSION)--- +++"
-	$(shell HOST_OS_VERSION=$(SONIC_IMAGE_VERSION) HOST_VENDOR=SONiC j2 -o $(VERSION_CONFIG) $(CONFIG_DIR)/LoM-Version.json.j2)
+	$(VERSION_SRC_FILE) $(VERSION_TEMPLATE_FILE) $(VERSION_CONFIG)
 	@echo "+++ --- Creating Version JSON DONE --- +++"
 
 
@@ -53,8 +65,11 @@ install:
 	$(CP) $(CLI_TARGET) $(DESTDIR)/usr/bin
 	$(CP) $(CMN_C_LIB) $(DESTDIR)/usr/lib
 	$(CP) $(LOM_CONFIG) $(DESTDIR)/usr/share/lom/
+	$(CP) $(VERSION_CONFIG) $(DESTDIR)/usr/share/lom/
 	$(CP) $(gNMI_SERVER_TARGET) $(DESTDIR)/usr/bin
 	$(CP) $(gNMI_CLI_TARGET) $(DESTDIR)/usr/bin
+	$(CP) LoM-Install/${VENDOR}/LoM-install.sh $(DESTDIR)/usr/share/lom
+	$(CP) LoM-Install/${VENDOR}/common.sh $(DESTDIR)/usr/share/lom
 
 
 deinstall:

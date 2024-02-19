@@ -19,7 +19,9 @@ INTEGRATION_TEST_DST="${PAYLOAD_DIR}/${TEST_SUBDIR}/${INTEGRATION_TEST_BIN}"
 
 INSTALL_FILES="target/${IMAGE_FILE} \
     ${INSTALL_SRC_DIR}/${INSTALL_SCRIPT} \
-    ${INSTALL_SRC_DIR}/${COMMON_SCRIPT}"
+    ${INSTALL_SRC_DIR}/${COMMON_SCRIPT} \
+    ${LOM_SRC_DIR}/config/${LOM_VERSION_FILE} \
+    ./fsroot-broadcom/etc/sonic/${HOST_VERSION_FILE}"
 
 # Validate ...
 [[ ! -d "./target" ]] && { echo "Run from buildimage root"; exit ${ERR_USAGE}; }
@@ -32,13 +34,6 @@ for i in ${INSTALL_FILES}
 do
     [[ ! -f $i ]] && { echo "Missing file $i"; exit ${ERR_USAGE}; }
 done
-
-
-SONIC_VER_FILE="fsroot-broadcom/etc/sonic/sonic_version.yml"
-[[ ! -f ${SONIC_VER_FILE} ]] && { echo "Missing file ${SONIC_VER_FILE}"; exit ${ERR_USAGE}; }
-
-BUILD_VER=$(cat ${SONIC_VER_FILE} | grep -e "^build_version" | cut -f2 -d\'| cut -f1 -d .)
-[[ "${BUILD_VER}" == "" ]] && { echo "Failed to get build version"; exit ${ERR_USAGE}; }
 
 while getopts "t" opt; do
   case ${opt} in
@@ -75,14 +70,14 @@ else
     echo "Skip to copy integration-test code: ${INTEGRATION_TEST_BIN}"
 fi
 
-BUILDVER=${BUILD_VER} TIMESTAMP="$(date +%s)" j2 -o ${INSTALL_DIR}/VERSION -f env src/sonic-device-health/LoM_Version.j2
-
 pushd ${PAYLOAD_DIR}
 tar -cvzf ${WORK_DIR}/${INSTALLER_ARCHIVE} .
 [[ $? != 0 ]] && { echo "Failed to archive"; exit ${ERR_TAR}; }
 popd
 
-j2 -o ${WORK_DIR}/decompress -f json ${INSTALL_SRC_DIR}/../decompress.j2 ${LOM_SRC_DIR}/config/LoM-Version.json
+LOM_VERSION_JSON=$(cat ${LOM_SRC_DIR}/config/${LOM_VERSION_FILE} | jq -c | jq -R) \
+    HOST_OS_VERSION=$(grep build_version ${INSTALL_DIR}/sonic_version.yml | cut -f2 -d\') \
+    j2 -o ${WORK_DIR}/decompress ${INSTALL_SRC_DIR}/../decompress.j2
 
 pushd ${WORK_DIR}
 cat decompress ${INSTALLER_ARCHIVE} > ${INSTALLER_SELF_EXTRACT}

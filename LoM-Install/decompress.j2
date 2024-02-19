@@ -1,21 +1,28 @@
 #! /bin/bash
 
+# The variables below are populated at build time via J2 variable.
+# This helps see version info of the blob w/o installing/extracting.
+#
+LOM_VERSION_JSON={{ LOM_VERSION_JSON }}
+HOST_OS_VERSION={{ HOST_OS_VERSION }}
+
 function usage()
 {
     echo -e "\
+        -c - Clean all the backup \n\
         -i - Does install or upgrade \n\
         -f - Force a clean up of backup for upgrade if needed \n\
         -r - Force a rollback \n\
-        -c - Clean all the backup \n\
+        -v - Dump LoM vresion info\n\
         -h - Usage"
     exit -1
 }
 
 function testArgs()
 {
-    VERSION={{ LoMVersion }}
     if  [[ $# == 1 && "$1" == "-v" ]]; then
-        echo ${VERSION}
+        echo ${LOM_VERSION_JSON} | jq -r | jq
+        echo "HostVersion = ${HOST_OS_VERSION}"
         exit 0
     fi
 
