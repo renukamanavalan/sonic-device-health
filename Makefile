@@ -18,7 +18,7 @@ MKDIR := mkdir
 CP := cp
 RM := rm
 
-ifdef SONIC_IMAGE_VERSION
+ifdef SONIC_OS_VERSION
 VENDOR = sonic
 endif
 
@@ -31,7 +31,7 @@ VERSION_TEMPLATE_FILE = $(CONFIG_DIR)/LoM-Version.json.j2
 
 
 ifeq ("$(wildcard $(VERSION_SRC_FILE))","")
-$(error Expect $(VERSION_SRC_FILE) to exist. Refer VersionSrc.sample for deails!)
+$(error Expect $(VERSION_SRC_FILE) to exist. Refer VersionSrc.sample for details!)
 endif
 
 all: go-all $(VERSION_CONFIG)
@@ -47,9 +47,6 @@ go-all:
 $(VERSION_CONFIG): $(CONFIG_DIR)/LoM-Version.json.j2 
 	@echo "+++ --- Creating Version JSON $(HOST_OS_VERSION)--- +++"
 	$(VERSION_SRC_FILE) $(VERSION_TEMPLATE_FILE) $(VERSION_CONFIG)
-	ifeq ("$(wildcard $(VERSION_CONFIG))","")
-		$(error Expect $(VERSION_CONFIG) to exist. Refer VersionSrc.sample for deails!)
-	endif
 	@echo "+++ --- Creating Version JSON DONE --- +++"
 
 

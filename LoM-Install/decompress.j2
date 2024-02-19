@@ -19,7 +19,7 @@ function usage()
 function testArgs()
 {
     if  [[ $# == 1 && "$1" == "-v" ]]; then
-        echo ${LOM_VERSION_JSON} | jq
+        echo ${LOM_VERSION_JSON} | jq -r | jq
         echo "HostVersion = ${HOST_OS_VERSION}"
         exit 0
     fi
