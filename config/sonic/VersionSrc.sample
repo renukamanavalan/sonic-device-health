@@ -23,7 +23,7 @@ popd
 LOM_BRANCH=verUpd \
 LOM_COMMIT=$(git log --pretty=format:'%h' -n 1) \
 LOM_REPO=$(git remote -v | head -n 1 | sed 's/\t/ /g' | tr -s ' ' | cut -f2 -d' ') \
-HOST_VENDOR=sonic HOST_REPO=${HRepo" HOST_COMMIT=${HCmt} \
+HOST_VENDOR=sonic HOST_REPO=${HRepo} HOST_COMMIT=${HCmt} \
 j2 -o $2 $1
 
 exit $?
