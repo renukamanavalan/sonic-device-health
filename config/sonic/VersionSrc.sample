@@ -21,7 +21,7 @@ HCmt=$(git log --pretty=format:'%h' -n 1)
 popd
 
 # Add this LOM_BRANCH for this command to succeed.
-# LOM_BRANCH=Unknown \      
+# LOM_BRANCH=Unknown \
 LOM_COMMIT=$(git log --pretty=format:'%h' -n 1) \
 LOM_REPO=$(git remote -v | head -n 1 | sed 's/\t/ /g' | tr -s ' ' | cut -f2 -d' ') \
 HOST_VENDOR=sonic HOST_REPO=${HRepo} HOST_COMMIT=${HCmt} \
