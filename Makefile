@@ -13,6 +13,7 @@ LOM_CONFIG := $(CONFIG_DIR)/*.json
 VERSION_CONFIG := $(CONFIG_DIR)/LoM-Version.json
 gNMI_SERVER_TARGET := $(GO_BUILD_DIR)/bin/LoMgNMIServer
 gNMI_CLI_TARGET := $(GO_BUILD_DIR)/bin/gnmi_cli
+LOM_PLUGIN_SCRIPTS := lom/src/plugins/plugins_files/ScriptBasedPlugin_scripts/*
 
 MKDIR := mkdir
 CP := cp
@@ -59,12 +60,13 @@ install:
 	$(MKDIR) -p $(DESTDIR)/usr/bin
 	$(MKDIR) -p $(DESTDIR)/test-bin
 	$(MKDIR) -p $(DESTDIR)/usr/lib
-	$(MKDIR) -p $(DESTDIR)/usr/share/lom
+	$(MKDIR) -p $(DESTDIR)/usr/share/lom/scripts
 	$(CP) $(ENGINE_TARGET) $(DESTDIR)/usr/bin
 	$(CP) $(PLMGR_TARGET) $(DESTDIR)/usr/bin
 	$(CP) $(CLI_TARGET) $(DESTDIR)/usr/bin
 	$(CP) $(CMN_C_LIB) $(DESTDIR)/usr/lib
 	$(CP) $(LOM_CONFIG) $(DESTDIR)/usr/share/lom/
+	$(CP) $(LOM_PLUGIN_SCRIPTS) $(DESTDIR)/usr/share/lom/scripts
 	$(CP) $(VERSION_CONFIG) $(DESTDIR)/usr/share/lom/
 	$(CP) $(gNMI_SERVER_TARGET) $(DESTDIR)/usr/bin
 	$(CP) $(gNMI_CLI_TARGET) $(DESTDIR)/usr/bin
