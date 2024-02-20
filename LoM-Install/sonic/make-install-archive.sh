@@ -1,5 +1,11 @@
 #! /bin/bash
 
+# TODO: 
+#   Update usr/bin/device-health.sh to mount dirs as desired by plugins
+#   Dirs of interest are to be registered in one file by each plugin
+#   At build time, it ensures usr/bin/device-health.sh is created such that
+#   all these dirs are mounted. May be as RO only.
+#
 source $(dirname $0)/common.sh
 
 INSTALL_SRC_DIR="$(dirname $0)"
