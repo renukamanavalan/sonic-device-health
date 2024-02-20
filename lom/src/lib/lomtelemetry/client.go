@@ -279,14 +279,17 @@ var savedProducerType = CHANNEL_PRODUCER_CNT
 var savedProducerName = ""
 
 func PublishInit(chProducer ChannelProducer_t, producerName string) error {
-    savedProducerType = chProducer
-    savedProducerName = producerName
-    if s, err := GetProdStr(chProducer, producerName); err != nil {
-        return err
-    } else {
-        cmn.LogInfo("PublishInit succeeded for (%s)", s)
-        return nil
+    if savedProducerType == CHANNEL_PRODUCER_CNT {
+        if s, err := GetProdStr(chProducer, producerName); err != nil {
+            return err
+        } else {
+            savedProducerType = chProducer
+            savedProducerName = producerName
+            cmn.LogInfo("PublishInit succeeded for (%s)", s)
+            return nil
+        }
     }
+    return nil
 }
 
 /*
