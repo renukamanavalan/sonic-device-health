@@ -1095,20 +1095,22 @@ func ValidatedVal(sval string, max, min, def int, name string) int {
 func ListFiles(dir string, patterns []string) (files []string, err error) {
     files = []string{}
 
-    err = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-        if d.IsDir() {
-            return nil
-        }
-
-        for _, s := range patterns {
-            if ok, e := regexp.MatchString(s, path); e != nil {
-                return e
-            } else if ok {
-                files = append(files, path)
+    if _, e := os.Stat(dir); e == nil {
+        err = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+            if d.IsDir() {
                 return nil
             }
-        }
-        return nil
-    })
+
+            for _, s := range patterns {
+                if ok, e := regexp.MatchString(s, path); e != nil {
+                    return e
+                } else if ok {
+                    files = append(files, path)
+                    return nil
+                }
+            }
+            return nil
+        })
+    }
     return
 }

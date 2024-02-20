@@ -193,6 +193,6 @@ func (spl *ScriptBasedPlugin) Shutdown() error {
 func (spl *ScriptBasedPlugin) GetPluginID() pcmn.PluginId {
     return pcmn.PluginId{
         Name:    "ScriptBasedPlugin",
-        Version: "1.0",
+        Version: "1.0.0.0",
     }
 }
