@@ -1,5 +1,17 @@
 /*
- * A skeleton to plugin to run all binaries from spefic folder periodically forever.
+ * A skeleton to plugin to run all binaries from specific folder periodically forever.
+ *
+ * It looks for all files in configured path (default: "/usr/share/lom/scripts") for files
+ * that match pattern "_pl_script\\.".
+ *
+ * Each script is invoked periodically with a pause time (default: SCR_PAUSE_TIMEOUT - 5m)
+ * between two invocations. Each invocation as a max timeout set (default: SCR_RUN_TIMEOUT)
+ *
+ * The script may do anything and by the end write a valid JSON string into its stdout.
+ * This is sent to EVENT-HUB & Kusto-Syslog table.
+ *
+ * This plugin's Request method never returns. Kicks off a go routine per script and this
+ * routine handles periodic invocation of the script.
  */
 
 package plugins_files
