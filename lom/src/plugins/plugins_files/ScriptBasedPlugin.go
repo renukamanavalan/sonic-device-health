@@ -13,9 +13,10 @@ import (
     "sync"
     "time"
 
-    cmn "lom/src/lib/lomcommon"
-    ipc "lom/src/lib/lomipc"
-    pcmn "lom/src/plugins/plugins_common"
+    cmn     "lom/src/lib/lomcommon"
+    ipc     "lom/src/lib/lomipc"
+    pcmn    "lom/src/plugins/plugins_common"
+    tele    "lom/src/lib/lomtelemetry"
 )
 
 type ScriptBasedPlugin struct {
@@ -42,6 +43,8 @@ var scriptPatterns = []string{
     "_pl_script\\.",
 }
 
+const plugin_name = "ScriptBasedPlugin"
+
 func NewScriptBasedPlugin(...interface{}) pcmn.Plugin {
     /* ... create and return a new instance of this Plugin */
     return &ScriptBasedPlugin{}
@@ -49,7 +52,7 @@ func NewScriptBasedPlugin(...interface{}) pcmn.Plugin {
 
 func init() {
     /* ... register the plugin with plugin manager */
-    pcmn.RegisterPlugin("ScriptBasedPlugin", NewScriptBasedPlugin)
+    pcmn.RegisterPlugin(plugin_name, NewScriptBasedPlugin)
 }
 
 func runAScript(path string, timeout int) ([]byte, error) {
@@ -59,12 +62,12 @@ func runAScript(path string, timeout int) ([]byte, error) {
     return exec.CommandContext(ctx, path).Output()
 }
 
-func validateOutput(path string, op []byte) (action string, updOp any, err error) {
+func validateOutput(path, op string) (action, updOp string, err error) {
     cmn.LogInfo("path(%s) o/p (%s)", path, string(op))
 
     d := map[string]any{}
 
-    err = json.Unmarshal(op, &d)
+    err = json.Unmarshal([]byte(op), &d)
     if err != nil {
         err = cmn.LogError("path(%s) o/p not JSON err(%v)", path, err)
     } else {
@@ -82,7 +85,10 @@ func validateOutput(path string, op []byte) (action string, updOp any, err error
         if action == "" {
             action = filepath.Base(path)
             d["Action"] = action
-            updOp = d
+            data := []byte{}
+            if data, err = json.Marshal(d); err == nil {
+                updOp = string(data)
+            }
         }
     }
     return
@@ -95,17 +101,16 @@ func (spl *ScriptBasedPlugin) runPlugin(path string, hbchan chan pcmn.PluginHear
     defer spl.wg.Done()
 
     for {
-        /* Run the script with
-           if out, err := runAScript(path, spl.scrTimeout); err != nil {
-               cmn.LogError("%s: Failed: err(%v)", path, err)
-           } else if plName, op, err := validateOutput(path, out); err != nil {
-               cmn.LogError("%s: Failed: Invalid err(%v)", path, err)
-           } else {
-               hbchan <- PluginHeartBeat { plName, time.Now().Unix() }
-               tele.PublishEvent(op)
-           }
+        if out, err := runAScript(path, spl.scrTimeout); err != nil {
+            cmn.LogError("%s: Failed: err(%v)", path, err)
+        } else if _, op, err := validateOutput(path, string(out)); err != nil {
+            cmn.LogError("%s: Failed: Invalid err(%v)", path, err)
+        } else {
+            hbchan <- pcmn.PluginHeartBeat { plugin_name, time.Now().Unix() }
+            tele.PublishEvent(op)
+        }
 
-           /* Sleep for pause time or until chClose is closed, whichever earlier */
+        /* Sleep for pause time or until chClose is closed, whichever earlier */
         select {
         case <-time.After(time.Duration(spl.pausePeriod) * time.Second):
             cmn.LogDebug("%s: Pause (%d) seconds done", path, spl.pausePeriod)
@@ -159,6 +164,7 @@ func (spl *ScriptBasedPlugin) Init(actionCfg *cmn.ActionCfg_t) (err error) {
     } else {
         spl.files = lst
         spl.cfg = actionCfg
+        tele.PublishInit(tele.CHANNEL_PRODUCER_PLUGIN, plugin_name)
     }
     return
 }
@@ -192,7 +198,7 @@ func (spl *ScriptBasedPlugin) Shutdown() error {
 
 func (spl *ScriptBasedPlugin) GetPluginID() pcmn.PluginId {
     return pcmn.PluginId{
-        Name:    "ScriptBasedPlugin",
+        Name:    plugin_name,
         Version: "1.0.0.0",
     }
 }
