@@ -31,6 +31,8 @@ import (
     "os"
     "path/filepath"
     "strconv"
+    "sort"
+    "strings"
     "testing"
     "time"
 )
@@ -207,7 +209,7 @@ var testDataForJson = []TestDataForJson{
  *
  * As requests are synchronous, they walk in sync via channel sync.
  */
-func testClient(chRes chan interface{}, chComplete chan interface{}) {
+func helpTestClient(chRes chan interface{}, chComplete chan interface{}) {
     txClient := GetClientTx(ClTimeout)
 
     for i := 0; i < len(testData); i++ {
@@ -302,7 +304,7 @@ func TestMainTest(t *testing.T) {
      * chRes. This helps the following for loop that simulates server
      * to keep in sync.
      */
-    go testClient(chResult, chComplete)
+    go helpTestClient(chResult, chComplete)
 
     /*
      * In a loop, read a client request and send response as in
@@ -342,16 +344,16 @@ func TestMainTest(t *testing.T) {
     LogDebug("SUCCEEDED")
 }
 
-func testJSONClient(t *testing.T, tx *LoMTransport, chRes, chComplete chan interface{}) {
+func helpTestJSONClient(t *testing.T, tx *LoMTransport, chRes, chComplete chan interface{}) {
     for ti := 0; ti < len(testDataForJson); ti++ {
         tdata := &testDataForJson[ti]
         req := tdata.JsonReq
         res := ""
         if err := tx.LoMRPCRequest(&req, &res); err != nil {
-            t.Errorf("ERR: testJSONClient: %d: failed (%v)", ti, err)
+            t.Errorf("ERR: helpTestJSONClient: %d: failed (%v)", ti, err)
         }
         if res != tdata.JsonRes {
-            t.Errorf("ERR: testJSONClient: %d: res(%s) != exp(%s)", ti, res, tdata.JsonRes)
+            t.Errorf("ERR: helpTestJSONClient: %d: res(%s) != exp(%s)", ti, res, tdata.JsonRes)
         }
         if ti == 4 {
             LogDebug("res:(%v)", res)
@@ -363,16 +365,16 @@ func testJSONClient(t *testing.T, tx *LoMTransport, chRes, chComplete chan inter
         req := `{"ReqType":1999,"Client":"Foo","TimeoutSecs":2,"ReqData":{}}`
         res := ""
         if err := tx.LoMRPCRequest(nil, &res); err == nil {
-            t.Errorf("ERR: testJSONClient: not failing for nil req")
+            t.Errorf("ERR: helpTestJSONClient: not failing for nil req")
         }
         if err := tx.LoMRPCRequest(&req, nil); err == nil {
-            t.Errorf("ERR: testJSONClient: not failing for nil res")
+            t.Errorf("ERR: helpTestJSONClient: not failing for nil res")
         }
         if err := tx.LoMRPCRequest(&req, &res); err == nil {
-            t.Errorf("ERR: testJSONClient: not failing for invalid req type")
+            t.Errorf("ERR: helpTestJSONClient: not failing for invalid req type")
         }
     }
-    LogDebug("testJSONClient: complete")
+    LogDebug("helpTestJSONClient: complete")
     chComplete <- struct{}{}
 }
 
@@ -382,7 +384,7 @@ func TestJSONServer(t *testing.T) {
     chResult := make(chan interface{})
     chComplete := make(chan interface{})
 
-    go testJSONClient(t, tx, chResult, chComplete)
+    go helpTestJSONClient(t, tx, chResult, chComplete)
 
     for ti := 0; ti < len(testDataForJson); ti++ {
         if len(chComplete) != 0 {
@@ -1058,6 +1060,19 @@ func TestConfig(t *testing.T) {
         t.Fatalf("Expect runmod as Test (%d) != (%d)", LoMRunMode_Test, GetLoMRunMode())
     }
     {
+        ResetLoMRunMode()
+        os.Setenv("LOM_RUN_MODE", "PROD")
+        if GetLoMRunMode() != LoMRunMode_Prod {
+            t.Fatalf("Expect runmode as Prod (%d) != (%d)", LoMRunMode_Prod, GetLoMRunMode())
+        }
+
+        ResetLoMRunMode()
+        os.Setenv("LOM_RUN_MODE", "")
+        if GetLoMRunMode() != LoMRunMode_Test {
+            t.Fatalf("Expect runmod as Test (%d) != (%d)", LoMRunMode_Test, GetLoMRunMode())
+        }
+    }
+    {
         os.Setenv("LOM_CONF_LOCATION", "")
         if e := InitConfigPath(""); e == nil {
             t.Errorf("Failed to fail for nil config path")
@@ -1389,5 +1404,176 @@ func TestMisc(t *testing.T) {
     if s := LogMessage(syslog.LOG_INFO, "test"); s[0:len(prf)] == prf {
         t.Errorf("Expect no prefix(%s) in log message (%s)", prf, s)
     }
+    if err := LogCritical("test critical"); err == nil {
+        t.Errorf("LogCritical - expect non nil err")
+    }
+    if err := AddPeriodicLogEntry("", "Fail with empty ID", syslog.LOG_DEBUG, 30); err == nil {
+        t.Errorf("AddPeriodicLogEntry: empty ID - expect non nil err")
+    }
+    if err := AddPeriodicLogEntry("EmptyMsg", "", syslog.LOG_DEBUG, 30); err == nil {
+        t.Errorf("AddPeriodicLogEntry: empty Msg - expect non nil err")
+    }
+    /* Call with no tracker initialized. No crash == good */
+    PrintGoroutineInfo("test")
 
+    lstCases := []struct {
+        sval    string
+        max     int
+        min     int
+        def     int
+        name    string
+        ret     int
+    } {
+        { "foo", 10, 2, 4, "Invalid sval",  4 },
+        { "11", 10, 2, 4,  "more than max", 4 },
+        { "1", 10, 2, 4,   "less than min", 4 },
+        { "3", 10, 2, 4,   "Valid value",   3 },
+    }
+
+    for i, tc := range lstCases {
+        if ret := ValidatedVal(tc.sval, tc.max, tc.min, tc.def, tc.name); ret != tc.ret {
+            t.Errorf("ValidatedVal: case(%d): (%s) failed exp(%d) != ret(%d)",
+                    i, tc.name, tc.ret, ret)
+        }
+    }
+}
+
+
+func touchFile(t *testing.T, s string) error {
+    f, err := os.Create(s)
+    defer f.Close()
+
+    if err != nil {
+        t.Errorf("Failed to create file (%s) err(%v)\n", s, err)
+    }
+    return err
+}
+
+func sortStrSlice(s []string) []string {
+    sort.Slice(s, func(i, j int) bool {
+        return strings.Compare(s[i], s[j]) < 0
+    })
+    return s
+}
+
+func TestListFiles(t *testing.T) {
+    dirs := []string {"test", "foo"}
+    patterns := []string { "_pl_script\\.", "_pl_run" }
+
+    skip_files := []string {
+        "foo.py",
+        "bar.py",
+        "aaa_plscript.sh",
+        "aaa_pl_script_xx.sh",
+        "foo/aaa_pl.script_xx.sh",
+        "test/aaa_pl_script_xx.sh",
+        "aaa_pl.script_xx.sh",
+        "bb_pl.run_xzz",
+    }
+    good_files := sortStrSlice([]string {
+            "aaa_pl_script.sh",
+            "aaa_pl_script.bat.sh",
+            "bb_pl_run_xzz",
+            "cc_pl_run.sh",
+            "_pl_run_hhh.py",
+            "_pl_run",
+            "test/xxx_pl_script.sh",
+            "foo/yyy_pl_script.py",
+            "test/aaa_pl_run_aaa.py",
+            "test/_pl_run_hhh.py",
+            "foo/cc_pl_run.sh",
+        })
+
+    testDir, err := os.MkdirTemp("", "LoMTest")
+    if err != nil {
+        t.Fatalf("Failed to crete temp dir err(%v)", err)
+    }
+    /* Don't add defer os.RemoveAll(testDir) as we need it for debugging on failure */
+
+
+    for _, name := range dirs {
+        if err = os.Mkdir(filepath.Join(testDir, name), 0777); err != nil {
+            t.Fatalf("Failed to create subdir temp(%s) sub(%s)", testDir, name)
+        }
+    }
+
+    for _, name := range skip_files {
+        touchFile(t, filepath.Join(testDir, name))
+    }
+
+    for _, name := range good_files {
+        touchFile(t, filepath.Join(testDir, name))
+    }
+
+    lstFiles := []string{}
+    if lstFiles, err = ListFiles(testDir, patterns); err != nil {
+        t.Fatalf("Failed to list files err(%v)", err)
+    }
+
+    if len(good_files) != len(lstFiles) {
+        t.Logf("good_files: (%v)", good_files)
+        t.Logf("lstFiles: (%v)", lstFiles)
+        t.Fatalf("len mismatch (%d) != (%d)", len(good_files), len(lstFiles))
+    }
+
+    for i, fl := range good_files {
+        if lstFiles[i] != filepath.Join(testDir, fl) {
+            t.Errorf("Unexpected file (%d): exp(%s) ret(%s)", i, fl, lstFiles[i])
+        }
+    }
+    os.RemoveAll(testDir)
+}
+
+
+func TestEnvFailPaths(t *testing.T) {
+
+    ctValDoPanic := DoPanic
+    ctValOsExit := OSExit
+
+    defer func() {
+        DoPanic = ctValDoPanic
+        OSExit = ctValOsExit
+    }()
+
+    /* Invalid JSON strig. No crash == tested good */
+    t.Logf("Testing LoadEnvironmentVariables for invalid JSON string")
+    LoadEnvironmentVariables("foo")
+    t.Logf("Test complete: LoadEnvironmentVariables for invalid JSON string")
+
+    msg := ""
+    exitRet := 0
+
+    DoPanic = func(m string) { msg = m }
+    OSExit = func(i int) { exitRet = i}
+
+    /* test Non existing value. Expect panic but no crash. */
+    LoadEnvironmentVariables(`{"Foo": { "env": "foo", "default": ""}}`)
+    if msg == "" {
+        t.Logf("Panic is expected but empty")
+    } else if exitRet == 0 {
+        t.Errorf("Expected non zero exit code (%d)", exitRet)
+    }
+} 
+
+
+func helpTestPanic(t *testing.T) (ret bool) {
+    ret = false
+    defer func() {
+        if r := recover(); r == nil {
+            t.Logf("The code did not panic")
+            ret = false
+        }
+        t.Logf("The code did panic")
+        ret = true
+    }()
+
+    RunPanic("test panic")
+    return
+}
+
+func TestPanic(t *testing.T) {
+    ret := helpTestPanic(t)
+    if !ret {
+        t.Fatalf("Failed ret=%v", ret)
+    }
 }

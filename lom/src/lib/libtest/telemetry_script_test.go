@@ -27,11 +27,11 @@ func toInt(lst []string) (ret []int, err error) {
     return
 }
 
-func testAnyFn(name string, val any) (ret any, err error) {
+func helpTestAnyFn(name string, val any) (ret any, err error) {
     if name == ANONYMOUS {
         err = cmn.LogError("Need non-Anonymous name")
     } else if s, ok := val.(string); !ok {
-        err = cmn.LogError("Unknown val type(%T) (%v) for testAnyFn", val, val)
+        err = cmn.LogError("Unknown val type(%T) (%v) for helpTestAnyFn", val, val)
     } else if lst := strings.Split(s, ","); len(lst) < 1 {
         err = cmn.LogError("len(%d) < 1 (%v)", len(lst), lst)
     } else if lst[0] == "SET" {
@@ -72,7 +72,7 @@ func testAnyFn(name string, val any) (ret any, err error) {
             return []any{}
         }
     } else {
-        err = cmn.LogError("Unknown val type(%T) (%v) for testAnyFn", val, val)
+        err = cmn.LogError("Unknown val type(%T) (%v) for helpTestAnyFn", val, val)
     }
     return
 }
@@ -245,7 +245,7 @@ var FailRunOneScriptSuites = []ScriptSuite_t{
         Entries: []ScriptEntry_t{
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{"Foo", "SET,", testAnyFn}},
+                []Param_t{Param_t{"Foo", "SET,", helpTestAnyFn}},
                 []Result_t{NIL_ERROR},
                 "Call Any test",
             },
@@ -263,7 +263,7 @@ var FailRunOneScriptSuites = []ScriptSuite_t{
         Entries: []ScriptEntry_t{
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{"Foo", "SET,", testAnyFn}},
+                []Param_t{Param_t{"Foo", "SET,", helpTestAnyFn}},
                 []Result_t{NIL_ERROR},
                 "Call Any test",
             },
@@ -281,13 +281,13 @@ var FailRunOneScriptSuites = []ScriptSuite_t{
         Entries: []ScriptEntry_t{
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{"Foo", "SET,", testAnyFn}},
+                []Param_t{Param_t{"Foo", "SET,", helpTestAnyFn}},
                 []Result_t{NIL_ERROR},
                 "Call Any test",
             },
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{"LoopC", "LOOPCORRUPT,0,3,0", testAnyFn}},
+                []Param_t{Param_t{"LoopC", "LOOPCORRUPT,0,3,0", helpTestAnyFn}},
                 []Result_t{NIL_ERROR},
                 "Index is set for incorrect data type",
             },
@@ -345,19 +345,19 @@ var GoodRunOneScriptSuites = []ScriptSuite_t{
         Entries: []ScriptEntry_t{
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{"Foo", "SET,", testAnyFn}},
+                []Param_t{Param_t{"Foo", "SET,", helpTestAnyFn}},
                 []Result_t{NIL_ERROR},
                 "Call Any test",
             },
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{"LoopI", "LOOP,0,3,0", testAnyFn}},
+                []Param_t{Param_t{"LoopI", "LOOP,0,3,0", helpTestAnyFn}},
                 []Result_t{NIL_ERROR},
                 "Call Any loop",
             },
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{"Foo", "GET,", testAnyFn}},
+                []Param_t{Param_t{"Foo", "GET,", helpTestAnyFn}},
                 []Result_t{Result_t{ANONYMOUS, 4, nil}, NIL_ERROR},
                 "Check SET called twice",
             },
@@ -369,19 +369,19 @@ var GoodRunOneScriptSuites = []ScriptSuite_t{
         Entries: []ScriptEntry_t{
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{"Foo", "SET,", testAnyFn}},
+                []Param_t{Param_t{"Foo", "SET,", helpTestAnyFn}},
                 []Result_t{NIL_ERROR},
                 "Call Any test",
             },
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{"LoopI", "LOOP,0,2,-1", testAnyFn}},
+                []Param_t{Param_t{"LoopI", "LOOP,0,2,-1", helpTestAnyFn}},
                 []Result_t{NIL_ERROR},
                 "Call Any loop",
             },
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{"Foo", "GET,", testAnyFn}},
+                []Param_t{Param_t{"Foo", "GET,", helpTestAnyFn}},
                 []Result_t{Result_t{ANONYMOUS, 3, nil}, NIL_ERROR},
                 "Check SET called twice",
             },
@@ -393,7 +393,7 @@ var GoodRunOneScriptSuites = []ScriptSuite_t{
         Entries: []ScriptEntry_t{
             ScriptEntry_t{
                 ApiIDAny,
-                []Param_t{Param_t{"Foo", "SET,", testAnyFn}},
+                []Param_t{Param_t{"Foo", "SET,", helpTestAnyFn}},
                 []Result_t{NIL_ERROR},
                 "Call Any test",
             },

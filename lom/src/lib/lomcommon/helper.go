@@ -1040,11 +1040,16 @@ const EnvMapDefinitionsStr = `{
  * e.g. ENV_lom_conf_location -> "path/to/conf"
  */
 
-func LoadEnvironmentVariables() {
+func LoadEnvironmentVariables(envStr string) {
     var envMapDefinitions map[string]map[string]string
-    if err := json.Unmarshal([]byte(EnvMapDefinitionsStr), &envMapDefinitions); err != nil {
+    if envStr == "" {
+        envStr = EnvMapDefinitionsStr
+    }
+    if err := json.Unmarshal([]byte(envStr), &envMapDefinitions); err != nil {
         return
     }
+    envMap = map[string]string{}
+
     for key, value := range envMapDefinitions {
         envVal, exists := os.LookupEnv(value["env"])
         if !exists {
@@ -1057,9 +1062,14 @@ func LoadEnvironmentVariables() {
     }
 }
 
+func ResetEnvironmentVariables() {
+    envMap = map[string]string{}
+}
+
+
 func GetEnvVarString(envname string) (string, bool) {
     if len(envMap) == 0 {
-        LoadEnvironmentVariables()
+        LoadEnvironmentVariables(EnvMapDefinitionsStr)
     }
     value, exists := envMap[envname]
     return value, exists

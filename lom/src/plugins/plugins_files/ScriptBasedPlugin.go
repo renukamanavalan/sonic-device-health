@@ -25,10 +25,10 @@ import (
     "sync"
     "time"
 
-    cmn     "lom/src/lib/lomcommon"
-    ipc     "lom/src/lib/lomipc"
-    pcmn    "lom/src/plugins/plugins_common"
-    tele    "lom/src/lib/lomtelemetry"
+    cmn "lom/src/lib/lomcommon"
+    ipc "lom/src/lib/lomipc"
+    tele "lom/src/lib/lomtelemetry"
+    pcmn "lom/src/plugins/plugins_common"
 )
 
 type ScriptBasedPlugin struct {
@@ -118,7 +118,7 @@ func (spl *ScriptBasedPlugin) runPlugin(path string, hbchan chan pcmn.PluginHear
         } else if _, op, err := validateOutput(path, string(out)); err != nil {
             cmn.LogError("%s: Failed: Invalid err(%v)", path, err)
         } else {
-            hbchan <- pcmn.PluginHeartBeat { plugin_name, time.Now().Unix() }
+            hbchan <- pcmn.PluginHeartBeat{plugin_name, time.Now().Unix()}
             tele.PublishEvent(op)
         }
 

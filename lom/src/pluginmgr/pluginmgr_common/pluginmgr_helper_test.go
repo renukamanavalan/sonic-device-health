@@ -2662,7 +2662,7 @@ func Test_SetupPluginManager(t *testing.T) {
         os.Unsetenv("LOM_CONF_LOCATION")
         os.Setenv("LOM_CONF_LOCATION", "../../lib/libtest/config/dummy") // invalid path
 
-        lomcommon.LoadEnvironmentVariables()
+        lomcommon.LoadEnvironmentVariables("")
         SetupPluginManager()
         os.Setenv("LOM_CONF_LOCATION", envVarOld)
 

@@ -93,6 +93,10 @@ func GetLoMRunMode() LoMRunMode_t {
     return lomRunMode
 }
 
+func ResetLoMRunMode() {
+    lomRunMode = LoMRunMode_NotSet
+}
+
 /*
  * NOTE: This will be deprecated soon.
  * Guideline: conf should have a value for every entry
