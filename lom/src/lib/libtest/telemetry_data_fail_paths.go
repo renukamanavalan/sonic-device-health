@@ -196,7 +196,7 @@ var scriptAPIValidate = ScriptSuite_t{
             "Empty second arg",
         },
         ScriptEntry_t{
-            ApiIDPublishInit,                   /* COrrect args */
+            ApiIDPublishInit, /* COrrect args */
             []Param_t{
                 Param_t{ANONYMOUS, tele.ChannelProducer_t(0), nil},
                 Param_t{ANONYMOUS, "", nil},
@@ -207,8 +207,8 @@ var scriptAPIValidate = ScriptSuite_t{
             "Successful Init",
         },
         ScriptEntry_t{
-            ApiIDPublishInit,                   /* COrrect args but duplicate */
-            []Param_t{        
+            ApiIDPublishInit, /* COrrect args but duplicate */
+            []Param_t{
                 Param_t{ANONYMOUS, tele.ChannelProducer_t(0), nil},
                 Param_t{ANONYMOUS, "", nil},
             },

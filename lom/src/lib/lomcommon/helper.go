@@ -1066,7 +1066,6 @@ func ResetEnvironmentVariables() {
     envMap = map[string]string{}
 }
 
-
 func GetEnvVarString(envname string) (string, bool) {
     if len(envMap) == 0 {
         LoadEnvironmentVariables(EnvMapDefinitionsStr)

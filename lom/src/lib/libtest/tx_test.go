@@ -30,8 +30,8 @@ import (
     "net/rpc"
     "os"
     "path/filepath"
-    "strconv"
     "sort"
+    "strconv"
     "strings"
     "testing"
     "time"
@@ -1417,27 +1417,26 @@ func TestMisc(t *testing.T) {
     PrintGoroutineInfo("test")
 
     lstCases := []struct {
-        sval    string
-        max     int
-        min     int
-        def     int
-        name    string
-        ret     int
-    } {
-        { "foo", 10, 2, 4, "Invalid sval",  4 },
-        { "11", 10, 2, 4,  "more than max", 4 },
-        { "1", 10, 2, 4,   "less than min", 4 },
-        { "3", 10, 2, 4,   "Valid value",   3 },
+        sval string
+        max  int
+        min  int
+        def  int
+        name string
+        ret  int
+    }{
+        {"foo", 10, 2, 4, "Invalid sval", 4},
+        {"11", 10, 2, 4, "more than max", 4},
+        {"1", 10, 2, 4, "less than min", 4},
+        {"3", 10, 2, 4, "Valid value", 3},
     }
 
     for i, tc := range lstCases {
         if ret := ValidatedVal(tc.sval, tc.max, tc.min, tc.def, tc.name); ret != tc.ret {
             t.Errorf("ValidatedVal: case(%d): (%s) failed exp(%d) != ret(%d)",
-                    i, tc.name, tc.ret, ret)
+                i, tc.name, tc.ret, ret)
         }
     }
 }
-
 
 func touchFile(t *testing.T, s string) error {
     f, err := os.Create(s)
@@ -1457,10 +1456,10 @@ func sortStrSlice(s []string) []string {
 }
 
 func TestListFiles(t *testing.T) {
-    dirs := []string {"test", "foo"}
-    patterns := []string { "_pl_script\\.", "_pl_run" }
+    dirs := []string{"test", "foo"}
+    patterns := []string{"_pl_script\\.", "_pl_run"}
 
-    skip_files := []string {
+    skip_files := []string{
         "foo.py",
         "bar.py",
         "aaa_plscript.sh",
@@ -1470,26 +1469,25 @@ func TestListFiles(t *testing.T) {
         "aaa_pl.script_xx.sh",
         "bb_pl.run_xzz",
     }
-    good_files := sortStrSlice([]string {
-            "aaa_pl_script.sh",
-            "aaa_pl_script.bat.sh",
-            "bb_pl_run_xzz",
-            "cc_pl_run.sh",
-            "_pl_run_hhh.py",
-            "_pl_run",
-            "test/xxx_pl_script.sh",
-            "foo/yyy_pl_script.py",
-            "test/aaa_pl_run_aaa.py",
-            "test/_pl_run_hhh.py",
-            "foo/cc_pl_run.sh",
-        })
+    good_files := sortStrSlice([]string{
+        "aaa_pl_script.sh",
+        "aaa_pl_script.bat.sh",
+        "bb_pl_run_xzz",
+        "cc_pl_run.sh",
+        "_pl_run_hhh.py",
+        "_pl_run",
+        "test/xxx_pl_script.sh",
+        "foo/yyy_pl_script.py",
+        "test/aaa_pl_run_aaa.py",
+        "test/_pl_run_hhh.py",
+        "foo/cc_pl_run.sh",
+    })
 
     testDir, err := os.MkdirTemp("", "LoMTest")
     if err != nil {
         t.Fatalf("Failed to crete temp dir err(%v)", err)
     }
     /* Don't add defer os.RemoveAll(testDir) as we need it for debugging on failure */
-
 
     for _, name := range dirs {
         if err = os.Mkdir(filepath.Join(testDir, name), 0777); err != nil {
@@ -1524,7 +1522,6 @@ func TestListFiles(t *testing.T) {
     os.RemoveAll(testDir)
 }
 
-
 func TestEnvFailPaths(t *testing.T) {
 
     ctValDoPanic := DoPanic
@@ -1544,7 +1541,7 @@ func TestEnvFailPaths(t *testing.T) {
     exitRet := 0
 
     DoPanic = func(m string) { msg = m }
-    OSExit = func(i int) { exitRet = i}
+    OSExit = func(i int) { exitRet = i }
 
     /* test Non existing value. Expect panic but no crash. */
     LoadEnvironmentVariables(`{"Foo": { "env": "foo", "default": ""}}`)
@@ -1553,8 +1550,7 @@ func TestEnvFailPaths(t *testing.T) {
     } else if exitRet == 0 {
         t.Errorf("Expected non zero exit code (%d)", exitRet)
     }
-} 
-
+}
 
 func helpTestPanic(t *testing.T) (ret bool) {
     ret = false
