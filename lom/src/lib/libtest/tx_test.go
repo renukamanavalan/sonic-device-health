@@ -1448,13 +1448,6 @@ func touchFile(t *testing.T, s string) error {
     return err
 }
 
-func sortStrSlice(s []string) []string {
-    sort.Slice(s, func(i, j int) bool {
-        return strings.Compare(s[i], s[j]) < 0
-    })
-    return s
-}
-
 func TestListFiles(t *testing.T) {
     dirs := []string{"test", "foo"}
     patterns := []string{"_pl_script\\.", "_pl_run"}

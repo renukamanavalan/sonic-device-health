@@ -1074,12 +1074,24 @@ func GetEnvVarString(envname string) (string, bool) {
     return value, exists
 }
 
-func ValidatedVal(sval string, max, min, def int, name string) int {
-    val, err := strconv.Atoi(sval)
-
+func ValidatedVal(v any, max, min, def int, name string) int {
+    var err error
+    var val int
+    switch v.(type) {
+    case string:
+        s, _ := v.(string)
+        val, err = strconv.Atoi(s)
+    case int:
+        val, _ = v.(int)
+    case float64:
+        f, _ := v.(float64)
+        val = int(f)
+    default:
+        err = LogError("Value is neither string nor int, but (%T)", v)
+    }
     if (err != nil) || (val > max) || (val < min) {
-        LogWarning("%s failed validation. err(%v) sval(%s) ret(%d) min(%d) max(%d)",
-            name, err, sval, def, min, max)
+        LogWarning("%s failed validation. err(%v) val(%v) ret(%d) min(%d) max(%d)",
+            name, err, v, def, min, max)
         return def
     }
     return val
@@ -1120,6 +1132,30 @@ func ListFiles(dir string, patterns []string) (files []string, err error) {
             }
             return nil
         })
+    }
+    return
+}
+
+/* Sort slice of strings */
+func SortStrSlice(s []string) []string {
+    sort.Slice(s, func(i, j int) bool {
+        return strings.Compare(s[i], s[j]) < 0
+    })
+    return s
+}
+
+
+func CompareSlices(p, q []string) (err error) {
+    if len(p) != len(q) {
+        err = LogError("Slices len vary. (%d) != (%d)", len(p), len(q))
+    } else {
+        SortStrSlice(p)
+        SortStrSlice(q)
+        for i, v := range(p) {
+            if v != q[i] {
+                err = LogError("Val mismatch (%s) != (%s)", v, q[i])
+            }
+        }
     }
     return
 }

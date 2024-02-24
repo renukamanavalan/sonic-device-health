@@ -13,7 +13,7 @@ LOM_CONFIG := $(CONFIG_DIR)/*.json
 VERSION_CONFIG := $(CONFIG_DIR)/LoM-Version.json
 gNMI_SERVER_TARGET := $(GO_BUILD_DIR)/bin/LoMgNMIServer
 gNMI_CLI_TARGET := $(GO_BUILD_DIR)/bin/gnmi_cli
-LOM_PLUGIN_SCRIPTS := lom/src/plugins/plugins_files/ScriptBasedPlugin_scripts/*
+LOM_PLUGIN_SCRIPTS := lom/src/plugins/plugins_files/script/ScriptBasedPlugin_scripts/*
 
 MKDIR := mkdir
 CP := cp
