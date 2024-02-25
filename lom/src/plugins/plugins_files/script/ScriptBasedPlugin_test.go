@@ -127,14 +127,14 @@ func TestInit(t *testing.T) {
             desc:       "Empty scripts path",
         },
         {
-            cfg :       cmn.ActionCfg_t{ HeartbeatInt: 5, ActionKnobs: []byte(`{"ScriptsPath": ""}`) },
-            fail:       true,
-            desc:       "Empty scripts path",
-        },
-        {
             cfg :       cmn.ActionCfg_t{ HeartbeatInt: 5, ActionKnobs: []byte(`{"ScriptsPath": "/zzz"}`) },
             fail:       true,
             desc:       "Non existing scripts path",
+        },
+        {
+            cfg :       cmn.ActionCfg_t{ HeartbeatInt: 5, ActionKnobs: []byte(`{"ScriptsPath": "/etc/ssl/private"}`) },
+            fail:       true,
+            desc:       "Fail to read for permission",
         },
         {
             scrDir:     "/tmp/xxz",
@@ -407,7 +407,7 @@ loop1:
                     cmn.LogInfo("Heartbeat channel closed")
                     break loop1
 
-                } else if hb.PluginName != "ScriptBasedPlugin" {
+                } else if hb.PluginName != plugin_name {
                     cmn.LogError("Heartbeat: Plugin name incorrect (%s) != ScriptBasedPlugin", hb.PluginName)
                 } else if hb.EpochTime <= 0 {
                     cmn.LogError("Heartbeat: hb.EpochTime (%d)", hb.EpochTime)
@@ -456,5 +456,18 @@ loop1:
         t.Fatalf("No heartbeat observed")
     }
     wg.Wait()       /* Ensure heartbeat drain & shutdown routines ended */
+}
+
+func TestMisc(t *testing.T) {
+    spl := ScriptBasedPlugin{}
+
+    id := spl.GetPluginID()
+
+    if id.Name != plugin_name {
+        t.Errorf("spl.GetPluginID name(%s) != exp(%s)", id.Name, plugin_name)
+    }
+    if id.Version == "" {
+        t.Errorf("spl.GetPluginID Expect non empty version")
+    }
 }
 

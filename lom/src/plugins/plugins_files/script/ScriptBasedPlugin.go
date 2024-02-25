@@ -238,7 +238,7 @@ func (spl *ScriptBasedPlugin) Init(cfg *cmn.ActionCfg_t) (err error) {
     return
 }
 
-func (spl *ScriptBasedPlugin) Request(hbchan chan pcmn.PluginHeartBeat, request *ipc.ActionRequestData) *ipc.ActionResponseData {
+func (spl *ScriptBasedPlugin) Request(hbchan chan pcmn.PluginHeartBeat, request *ipc.ActionRequestData) (ret *ipc.ActionResponseData) {
     /* Stay for ever - calling each script periodically with configured periods */
 
     spl.wg = new(sync.WaitGroup)
@@ -252,6 +252,7 @@ func (spl *ScriptBasedPlugin) Request(hbchan chan pcmn.PluginHeartBeat, request 
     }
 
     /* Block here until shutdown with heartbeats */
+loopR:
     for {
         select {
         case s := <-hbLocal:
@@ -265,10 +266,10 @@ func (spl *ScriptBasedPlugin) Request(hbchan chan pcmn.PluginHeartBeat, request 
             activeScripts =  map[string]bool {}
 
         case <-spl.stopSignal:
-            return nil
+            break loopR
         }
     }
-    return nil
+    return
 }
 
 func (spl *ScriptBasedPlugin) Shutdown() error {
