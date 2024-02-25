@@ -13,6 +13,7 @@ import (
     "github.com/agiledragon/gomonkey/v2"
 
     cmn "lom/src/lib/lomcommon"
+    pcmn "lom/src/plugins/plugins_common"
     tele "lom/src/lib/lomtelemetry"
 )
 
@@ -104,7 +105,7 @@ func initTestCase (t *testing.T, index int, tc *testData) {
     }
 }
 
-func xTestInit(t *testing.T) {
+func TestInit(t *testing.T) {
     lstCases := []testData {
         {
             fail:       true,
@@ -229,7 +230,7 @@ func runPluginCase(t *testing.T, tdir string, tcIndex int, data *runTestData) {
 
     path := filepath.Join(tdir, fmt.Sprintf("tc_%d", tcIndex))
     if testF, err := os.Create(path); err != nil {
-        t.Fatalf("Failed to create temp file (%v)", err)
+        t.Fatalf("Failed to create temp file (%s) (%v)", path, err)
     } else {
         testF.Write([]byte(data.script))
         testF.Chmod(0777)
@@ -369,5 +370,91 @@ func TestRunPlugin(t *testing.T) {
 
 
 func TestRequest(t *testing.T) {
-   
+    flName := "/tmp/xxx"
+
+    spl := ScriptBasedPlugin {
+                errConsecutive: 3,
+                scrTimeout: 3,
+                pausePeriod: 1,
+                files: []string{ flName },
+                heartbeatInt: 1,
+            }
+
+    if testF, err := os.Create(flName); err != nil {
+        t.Fatalf("Failed to create file(%s) (%v)", flName, err)
+    } else {
+        testF.Write([]byte(goodScript))
+        testF.Chmod(0777)
+        testF.Close()
+    }
+
+    hbChan := make(chan pcmn.PluginHeartBeat)
+    hbCnt := 0
+
+    chEnd := make(chan int)
+
+    wg := sync.WaitGroup{}
+
+    wg.Add(1)
+    /* Async drain of heartbeat with validation and count */
+    go func() {
+loop1:
+        for {
+            select {
+            case hb, more := <- hbChan:
+                if !more {
+                    /* channel closed */
+                    cmn.LogInfo("Heartbeat channel closed")
+                    break loop1
+
+                } else if hb.PluginName != "ScriptBasedPlugin" {
+                    cmn.LogError("Heartbeat: Plugin name incorrect (%s) != ScriptBasedPlugin", hb.PluginName)
+                } else if hb.EpochTime <= 0 {
+                    cmn.LogError("Heartbeat: hb.EpochTime (%d)", hb.EpochTime)
+                } else {
+                    hbCnt++
+                }
+            case <- chEnd:
+                /* Request returned */
+                cmn.LogInfo("Request complete")
+                break loop1
+            }
+        }
+        wg.Done()
+    }()
+
+    /* call shutdown after N seconds */
+    wg.Add(1)
+    go func() {
+        time.Sleep(time.Duration(spl.heartbeatInt * 5) * time.Second)
+        spl.Shutdown()
+        wg.Done()
+    }()
+
+    /* Run Request method under test.
+     * This expected to return upon shutdown called by above async routine.
+     * The successful return is indicated by close of chEnd
+     */
+    go func() {
+        spl.Request(hbChan, nil)
+        close(hbChan)
+        close(chEnd)
+    }()
+
+    timeout := 30
+
+    /* End the test after Request returns or timeout */
+    select {
+    case <- chEnd:
+        /* Wait for request end */
+
+    case <- time.After(time.Duration(timeout) * time.Second):
+        t.Fatalf("TestRequest is aborted after (%d) seconds", timeout)
+    }
+
+    if hbCnt == 0 {
+        t.Fatalf("No heartbeat observed")
+    }
+    wg.Wait()       /* Ensure heartbeat drain & shutdown routines ended */
 }
+
