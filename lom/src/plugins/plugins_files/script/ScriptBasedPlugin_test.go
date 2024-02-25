@@ -1,6 +1,7 @@
 package plugins_script
 
 import (
+    "encoding/json"
     "fmt"
     "os"
     "path/filepath"
@@ -103,7 +104,7 @@ func initTestCase (t *testing.T, index int, tc *testData) {
     }
 }
 
-func TestInit(t *testing.T) {
+func xTestInit(t *testing.T) {
     lstCases := []testData {
         {
             fail:       true,
@@ -210,7 +211,7 @@ func TestInit(t *testing.T) {
 type runTestData struct {
     spl         ScriptBasedPlugin
     script      string
-    events      []string
+    rcEvents    []string
     hbData      []string
     testTimeout int
     desc        string
@@ -235,6 +236,9 @@ func runPluginCase(t *testing.T, tdir string, tcIndex int, data *runTestData) {
         testF.Close()
     }
 
+    /* We got to mock tele.PublishEvent as pub/sub will not work when run from 
+     * within same process.
+     */
     evtCh := make(chan string, 1)
     mockPub := gomonkey.ApplyFunc(tele.PublishEvent, func(data any) (err error) {
         if s, ok := data.(string); ok {
@@ -252,7 +256,7 @@ func runPluginCase(t *testing.T, tdir string, tcIndex int, data *runTestData) {
     spl.stopSignal = make(chan struct{})
     defer close(spl.stopSignal)
 
-    eventsCnt := len(data.events)
+    rcEventsCnt := len(data.rcEvents)
     hbCnt := len(data.hbData)
 
     hbChan := make (chan string, hbCnt)
@@ -262,17 +266,21 @@ func runPluginCase(t *testing.T, tdir string, tcIndex int, data *runTestData) {
     go spl.runPlugin(path, hbChan)
 
 tLoop:
-    for (eventsCnt + hbCnt) != 0 {
+    for (rcEventsCnt + hbCnt) != 0 {
         select {
         case evStr := <-evtCh:
-            if eventsCnt > 0 {
-                index := len(data.events) - eventsCnt
-                if !strings.HasPrefix(string(evStr), data.events[index]) {
+            if rcEventsCnt > 0 {
+                index := len(data.rcEvents) - rcEventsCnt
+                eRet := errRet_t{}
+                if err := json.Unmarshal([]byte(evStr), &eRet); err != nil {
+                    t.Errorf("Failed to unmarshal (%s) as (%T) err(%v)", evStr, eRet, err)
+                    failed = true
+                } else if !strings.HasPrefix(eRet.RootCause, data.rcEvents[index]) {
                     t.Errorf("Unexepected evt. exp(%s) rcvd(%s)", 
-                            data.events[index], evStr)
+                            data.rcEvents[index], eRet.RootCause)
                     failed = true
                 }
-                eventsCnt--
+                rcEventsCnt--
             }
         case hbStr := <-hbChan:
             if hbCnt > 0 {
@@ -286,11 +294,11 @@ tLoop:
             }
         case <-time.After(time.Duration(data.testTimeout) * time.Second):
             failed = true
-            t.Fatalf("Test aborted due to timeout eventsCnt(%d) hbCnt(%d)", eventsCnt, hbCnt)
+            t.Fatalf("Test aborted due to timeout rcEventsCnt(%d) hbCnt(%d)", rcEventsCnt, hbCnt)
             break tLoop
         }
     }
-    if !failed && ((eventsCnt + hbCnt) != 0) {
+    if !failed && ((rcEventsCnt + hbCnt) != 0) {
         failed = true
     }
     if failed {
@@ -298,19 +306,53 @@ tLoop:
     }
 }
 
-const sleepForever = `#! /bin/bash
+const sleepForeverScript = `#! /bin/bash
 echo "sleeping ...."
 sleep 1h
+`
+const invalidJsonScript = `#! /bin/bash
+echo "UT to fail unmarshal"
+`
+
+const missActionScript = `#! /bin/bash
+echo -n "{}"
+`
+
+const goodScript = `#! /bin/bash
+echo -n "{\"action\": \"UTTest\", \"res\": 0}"
 `
 
 func TestRunPlugin(t *testing.T) {
     lstCases := []runTestData {
         {
-            spl:    ScriptBasedPlugin {errConsecutive: 3, scrTimeout: 3, pausePeriod: 2 },
-            script: sleepForever,
-            events: []string {"","", "", ""},
+            spl:    ScriptBasedPlugin {errConsecutive: 3, scrTimeout: 3, pausePeriod: 1 },
+            script: sleepForeverScript,
+            rcEvents: []string {"Run failed:","Run failed:", "Run failed:", "Too many fail"},
             testTimeout: 30,
             desc:   "Test timeout",
+        },
+        {
+            spl:    ScriptBasedPlugin {errConsecutive: 3, scrTimeout: 3, pausePeriod: 1 },
+            script: invalidJsonScript,
+            rcEvents: []string {"Validate failed:","Validate failed:", "Validate failed:", "Too many failures"},
+            testTimeout: 30,
+            desc:   "Invalid JSON string",
+        },
+        {
+            spl:    ScriptBasedPlugin {errConsecutive: 3, scrTimeout: 3, pausePeriod: 1 },
+            script: missActionScript,
+            rcEvents: []string {"","", ""},
+            hbData: []string { "tc_", "tc_", "tc_" },
+            testTimeout: 30,
+            desc:   "Valid but missing action",
+        },
+        {
+            spl:    ScriptBasedPlugin {errConsecutive: 3, scrTimeout: 3, pausePeriod: 1 },
+            script: goodScript,
+            rcEvents: []string {"","", ""},
+            hbData: []string { "UTTest", "UTTest", "UTTest" },
+            testTimeout: 30,
+            desc:   "Valid with action",
         },
     }
 

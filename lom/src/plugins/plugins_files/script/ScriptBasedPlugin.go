@@ -127,7 +127,7 @@ func validateOutput(path, op string) (action, updOp string, err error) {
             action = filepath.Base(path)
             d["Action"] = action
             data := []byte{}
-            if data, err = json.Marshal(d); err == nil {
+            if data, err = json.Marshal(&d); err == nil {
                 updOp = string(data)
             }
         }
