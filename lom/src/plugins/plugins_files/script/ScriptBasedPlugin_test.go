@@ -1,10 +1,18 @@
 package plugins_script
 
 import (
-    cmn "lom/src/lib/lomcommon"
+    "fmt"
     "os"
     "path/filepath"
+    "strings"
+    "sync"
     "testing"
+    "time"
+
+    "github.com/agiledragon/gomonkey/v2"
+
+    cmn "lom/src/lib/lomcommon"
+    tele "lom/src/lib/lomtelemetry"
 )
 
 type testData struct {
@@ -17,7 +25,7 @@ type testData struct {
     desc    string
 }
 
-func testInitCase (t *testing.T, index int, tc *testData) {
+func initTestCase (t *testing.T, index int, tc *testData) {
     failed := false
     defer func() {
         if failed {
@@ -195,7 +203,129 @@ func TestInit(t *testing.T) {
     
 
     for index, tc := range lstCases {
-        testInitCase(t, index, &tc)
+        initTestCase(t, index, &tc)
     }
 }
 
+type runTestData struct {
+    spl         ScriptBasedPlugin
+    script      string
+    events      []string
+    hbData      []string
+    testTimeout int
+    desc        string
+}
+
+func runPluginCase(t *testing.T, tdir string, tcIndex int, data *runTestData) {
+    failed := false
+    defer func() {
+        if failed {
+            t.Logf("RunPluginCase: (%d): (%s) completed ----- FAILED ------", tcIndex, data.desc)
+        } else {
+            t.Logf("RunPluginCase: (%d): (%s) completed ****** SUCCEEDED ******", tcIndex, data.desc)
+        }
+    }()
+
+    path := filepath.Join(tdir, fmt.Sprintf("tc_%d", tcIndex))
+    if testF, err := os.Create(path); err != nil {
+        t.Fatalf("Failed to create temp file (%v)", err)
+    } else {
+        testF.Write([]byte(data.script))
+        testF.Chmod(0777)
+        testF.Close()
+    }
+
+    evtCh := make(chan string, 1)
+    mockPub := gomonkey.ApplyFunc(tele.PublishEvent, func(data any) (err error) {
+        if s, ok := data.(string); ok {
+            evtCh <- s
+            return nil
+        } else {
+            return cmn.LogError("Published data type (%T) != string", data)
+        }
+    })
+    defer mockPub.Reset()
+        
+
+    spl := data.spl
+    spl.wg =  new(sync.WaitGroup)
+    spl.stopSignal = make(chan struct{})
+    defer close(spl.stopSignal)
+
+    eventsCnt := len(data.events)
+    hbCnt := len(data.hbData)
+
+    hbChan := make (chan string, hbCnt)
+
+    spl.wg.Add(1)
+    /* Start code under test */
+    go spl.runPlugin(path, hbChan)
+
+tLoop:
+    for (eventsCnt + hbCnt) != 0 {
+        select {
+        case evStr := <-evtCh:
+            if eventsCnt > 0 {
+                index := len(data.events) - eventsCnt
+                if !strings.HasPrefix(string(evStr), data.events[index]) {
+                    t.Errorf("Unexepected evt. exp(%s) rcvd(%s)", 
+                            data.events[index], evStr)
+                    failed = true
+                }
+                eventsCnt--
+            }
+        case hbStr := <-hbChan:
+            if hbCnt > 0 {
+                index := len(data.hbData) - hbCnt
+                if !strings.HasPrefix(hbStr, data.hbData[index]) {
+                    t.Errorf("Unexepected hb. exp(%s) rcvd(%s)",
+                            data.hbData[index], hbStr)
+                    failed = true
+                }
+                hbCnt--
+            }
+        case <-time.After(time.Duration(data.testTimeout) * time.Second):
+            failed = true
+            t.Fatalf("Test aborted due to timeout eventsCnt(%d) hbCnt(%d)", eventsCnt, hbCnt)
+            break tLoop
+        }
+    }
+    if !failed && ((eventsCnt + hbCnt) != 0) {
+        failed = true
+    }
+    if failed {
+        t.Fatalf("Test failed: (%s)", data.desc)
+    }
+}
+
+const sleepForever = `#! /bin/bash
+echo "sleeping ...."
+sleep 1h
+`
+
+func TestRunPlugin(t *testing.T) {
+    lstCases := []runTestData {
+        {
+            spl:    ScriptBasedPlugin {errConsecutive: 3, scrTimeout: 3, pausePeriod: 2 },
+            script: sleepForever,
+            events: []string {"","", "", ""},
+            testTimeout: 30,
+            desc:   "Test timeout",
+        },
+    }
+
+    tdir, err := os.MkdirTemp("", "testingRunPlugin")
+    if err != nil {
+        t.Fatalf("Failed to create tempdir (%v)", err)
+    }
+
+    for i, tdata := range lstCases {
+        runPluginCase(t, tdir, i, &tdata)
+    }
+    //os.RemoveAll(tdir)
+}
+
+
+func TestRequest(t *testing.T) {
+   
+}

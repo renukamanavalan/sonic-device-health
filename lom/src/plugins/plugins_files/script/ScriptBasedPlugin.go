@@ -17,12 +17,13 @@
 package plugins_script
 
 import (
-    "context"
     "encoding/json"
+    "fmt"
     "os/exec"
     "path/filepath"
     "reflect"
     "strings"
+    "syscall"
     "sync"
     "time"
 
@@ -76,10 +77,30 @@ func init() {
 }
 
 func runAScript(path string, timeout int) ([]byte, error) {
-    ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
-    defer cancel()
+    cmn.LogInfo("Starting run for (%s) timeout(%d)", path, timeout)
+    cmd := exec.Command(path)
+    cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+    type cmdResult struct {
+        outb []byte
+        err  error
+    }
+    cmdDone := make(chan cmdResult, 1)
+    go func() {
+        outb, err := cmd.CombinedOutput()
+        cmdDone <- cmdResult{outb, err}
+    }()
 
-    return exec.CommandContext(ctx, path).Output()
+    select {
+    case <-time.After(time.Duration(timeout) * time.Second):
+        /* sending a SIGKILL to the process ID negated, from the kill man page
+         * https://man7.org/linux/man-pages/man2/kill.2.html
+         */
+        syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+        return []byte{}, cmn.LogError("Script (%s) killed after (%d) seconds", path, timeout)
+    case ret := <-cmdDone:
+        cmn.LogInfo("finished script( (%s)", path)
+        return ret.outb, ret.err
+    }
 }
 
 func validateOutput(path, op string) (action, updOp string, err error) {
@@ -117,27 +138,40 @@ func validateOutput(path, op string) (action, updOp string, err error) {
 /*
  * Runs the given path periodically.
  */
+
+type errRet_t struct {
+    Path        string
+    Action      string
+    RootCause   string
+}
+
 func (spl *ScriptBasedPlugin) runPlugin(path string, hbchan chan string) {
     defer spl.wg.Done()
-    actionName := ""
     consecutiveErrs := 0
-
+    errRet := errRet_t { Path: path }
+    
     for {
-        if out, err := runAScript(path, spl.scrTimeout); err != nil {
-            cmn.LogError("%s: Failed: err(%v)", path, err)
+        if consecutiveErrs >= spl.errConsecutive {
+            errRet.RootCause = "Too many failures"
+        } else if out, err := runAScript(path, spl.scrTimeout); err != nil {
+            errRet.RootCause = fmt.Sprintf("Run failed: err(%v)", err)
             consecutiveErrs++
         } else if actionName, op, err := validateOutput(path, string(out)); err != nil {
-            cmn.LogError("%s: Failed: Invalid err(%v)", path, err)
+            errRet.RootCause = fmt.Sprintf("Validate failed: Invalid o/p err(%v)", err)
             consecutiveErrs++
         } else {
+            errRet.Action = actionName
             tele.PublishEvent(op)
             hbchan <- actionName
             consecutiveErrs = 0
         }
-        if consecutiveErrs >= spl.errConsecutive {
-            /* Abort the run for too many consecutive errors */
-            cmn.LogError("Aborting script path(%s) actionName(%s)", path, actionName)
-            return
+        if consecutiveErrs != 0 {
+            /* A != 0 implies that this run failed. Report it */
+            if op, err := json.Marshal(errRet); err != nil {
+                cmn.LogPanic("Internal error: err(%v) errRet(%v)", err, errRet)
+            } else {
+                tele.PublishEvent(string(op))
+            }
         }
 
         /* Sleep for pause period or until chClose is closed, whichever earlier */
