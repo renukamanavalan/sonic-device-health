@@ -13,21 +13,21 @@ import (
     "github.com/agiledragon/gomonkey/v2"
 
     cmn "lom/src/lib/lomcommon"
-    pcmn "lom/src/plugins/plugins_common"
     tele "lom/src/lib/lomtelemetry"
+    pcmn "lom/src/plugins/plugins_common"
 )
 
 type testData struct {
-    scrDir  string
-    dirs    []string
-    files   []string
-    cfg     cmn.ActionCfg_t
-    fail    bool
-    spl     ScriptBasedPlugin
-    desc    string
+    scrDir string
+    dirs   []string
+    files  []string
+    cfg    cmn.ActionCfg_t
+    fail   bool
+    spl    ScriptBasedPlugin
+    desc   string
 }
 
-func initTestCase (t *testing.T, index int, tc *testData) {
+func initTestCase(t *testing.T, index int, tc *testData) {
     failed := false
     defer func() {
         if failed {
@@ -58,7 +58,7 @@ func initTestCase (t *testing.T, index int, tc *testData) {
                 t.Errorf("Failed to mkdir dir (%s)", path)
                 failed = true
                 break
-            }   
+            }
         }
     }
     if !failed {
@@ -77,7 +77,7 @@ func initTestCase (t *testing.T, index int, tc *testData) {
         if err := spl.Init(&tc.cfg); tc.fail != (err != nil) {
             t.Errorf("Expect fail(%v) err(%v)", tc.fail, err)
             failed = true
-        } 
+        }
     }
     if !failed && !tc.fail {
         failed = true
@@ -106,103 +106,102 @@ func initTestCase (t *testing.T, index int, tc *testData) {
 }
 
 func TestInit(t *testing.T) {
-    lstCases := []testData {
+    lstCases := []testData{
         {
-            fail:       true,
-            desc:       "Invalid heartbeat. 0",
+            fail: true,
+            desc: "Invalid heartbeat. 0",
         },
         {
-            cfg :       cmn.ActionCfg_t{ HeartbeatInt: 5, ActionKnobs: []byte("foo") },
-            fail:       true,
-            desc:       "Invalid JSON string for knobs",
+            cfg:  cmn.ActionCfg_t{HeartbeatInt: 5, ActionKnobs: []byte("foo")},
+            fail: true,
+            desc: "Invalid JSON string for knobs",
         },
         {
-            cfg :       cmn.ActionCfg_t{ HeartbeatInt: 5, ActionKnobs: []byte{} },
-            fail:       true,
-            desc:       "Empty dir",
+            cfg:  cmn.ActionCfg_t{HeartbeatInt: 5, ActionKnobs: []byte{}},
+            fail: true,
+            desc: "Empty dir",
         },
         {
-            cfg :       cmn.ActionCfg_t{ HeartbeatInt: 5, ActionKnobs: []byte(`{"ScriptsPath": ""}`) },
-            fail:       true,
-            desc:       "Empty scripts path",
+            cfg:  cmn.ActionCfg_t{HeartbeatInt: 5, ActionKnobs: []byte(`{"ScriptsPath": ""}`)},
+            fail: true,
+            desc: "Empty scripts path",
         },
         {
-            cfg :       cmn.ActionCfg_t{ HeartbeatInt: 5, ActionKnobs: []byte(`{"ScriptsPath": "/zzz"}`) },
-            fail:       true,
-            desc:       "Non existing scripts path",
+            cfg:  cmn.ActionCfg_t{HeartbeatInt: 5, ActionKnobs: []byte(`{"ScriptsPath": "/zzz"}`)},
+            fail: true,
+            desc: "Non existing scripts path",
         },
         {
-            cfg :       cmn.ActionCfg_t{ HeartbeatInt: 5, ActionKnobs: []byte(`{"ScriptsPath": "/etc/ssl/private"}`) },
-            fail:       true,
-            desc:       "Fail to read for permission",
+            cfg:  cmn.ActionCfg_t{HeartbeatInt: 5, ActionKnobs: []byte(`{"ScriptsPath": "/etc/ssl/private"}`)},
+            fail: true,
+            desc: "Fail to read for permission",
         },
         {
-            scrDir:     "/tmp/xxz",
-            dirs:       []string {"foo", "foo/bar" },
-            files:      []string {
-                            "fooX.py",
-                            "fooX_pl_script.py",
-                            "foo/foo_pl_script_xx.py",
-                            "foo/bar/_pl_script.",
-                            "foo/x_pl_script_aa.py",
-                            "foo/bar/x_pl.script_aa.py",
-                        },
-            cfg:        cmn.ActionCfg_t{ HeartbeatInt: 5, ActionKnobs: []byte(`{"ScriptsPath": "/tmp/xxz"}`) },
-            fail:       false,
-            spl:        ScriptBasedPlugin {
+            scrDir: "/tmp/xxz",
+            dirs:   []string{"foo", "foo/bar"},
+            files: []string{
+                "fooX.py",
+                "fooX_pl_script.py",
+                "foo/foo_pl_script_xx.py",
+                "foo/bar/_pl_script.",
+                "foo/x_pl_script_aa.py",
+                "foo/bar/x_pl.script_aa.py",
+            },
+            cfg:  cmn.ActionCfg_t{HeartbeatInt: 5, ActionKnobs: []byte(`{"ScriptsPath": "/tmp/xxz"}`)},
+            fail: false,
+            spl: ScriptBasedPlugin{
                 scriptsPath:    "/tmp/xyz",
                 heartbeatInt:   5,
-                files:          [] string { "/tmp/xxz/fooX_pl_script.py", "/tmp/xxz/foo/bar/_pl_script." },
+                files:          []string{"/tmp/xxz/fooX_pl_script.py", "/tmp/xxz/foo/bar/_pl_script."},
                 errConsecutive: SCR_MAX_CONSECUTIVE_ERR_CNT,
                 scrTimeout:     SCR_RUN_TIMEOUT,
                 pausePeriod:    SCR_PAUSE_PERIOD,
             },
-            desc:       "Good case with default knobs.",
+            desc: "Good case with default knobs.",
         },
         {
-            scrDir:     "/tmp/xxz",
-            files:      []string {"fooZ_pl_script.py"},
-            cfg:        cmn.ActionCfg_t { 
-                    HeartbeatInt: 4,
-                    ActionKnobs: []byte(`{
+            scrDir: "/tmp/xxz",
+            files:  []string{"fooZ_pl_script.py"},
+            cfg: cmn.ActionCfg_t{
+                HeartbeatInt: 4,
+                ActionKnobs: []byte(`{
                             "ScriptsPath": "/tmp/xxz", 
                             "ConsecutiveErrCnt": 7,
                             "ScriptTimeout": 240,
-                            "PausePeriod": 120 }`) },
-            fail:       false,
-            spl:        ScriptBasedPlugin {
+                            "PausePeriod": 120 }`)},
+            fail: false,
+            spl: ScriptBasedPlugin{
                 scriptsPath:    "/tmp/xxz",
                 heartbeatInt:   4,
-                files:          [] string {"/tmp/xxz/fooZ_pl_script.py"},
+                files:          []string{"/tmp/xxz/fooZ_pl_script.py"},
                 errConsecutive: 7,
                 scrTimeout:     240,
                 pausePeriod:    120,
             },
-            desc:       "Good case non default knobs.",
+            desc: "Good case non default knobs.",
         },
         {
-            scrDir:     "/tmp/xxz",
-            files:      []string {"fooZ_pl_script.py"},
-            cfg:        cmn.ActionCfg_t { 
-                    HeartbeatInt: 4,
-                    ActionKnobs: []byte(`{
+            scrDir: "/tmp/xxz",
+            files:  []string{"fooZ_pl_script.py"},
+            cfg: cmn.ActionCfg_t{
+                HeartbeatInt: 4,
+                ActionKnobs: []byte(`{
                             "ScriptsPath": "/tmp/xxz", 
                             "ConsecutiveErrCnt": 700,
                             "ScriptTimeout": 0,
-                            "PausePeriod": 0 }`) },
-            fail:       false,
-            spl:        ScriptBasedPlugin {
+                            "PausePeriod": 0 }`)},
+            fail: false,
+            spl: ScriptBasedPlugin{
                 scriptsPath:    "/tmp/xxz",
                 heartbeatInt:   4,
-                files:          [] string {"/tmp/xxz/fooZ_pl_script.py"},
+                files:          []string{"/tmp/xxz/fooZ_pl_script.py"},
                 errConsecutive: 5,
                 scrTimeout:     180,
                 pausePeriod:    300,
             },
-            desc:       "Good case with default path and invalid action knobs, hence default.",
+            desc: "Good case with default path and invalid action knobs, hence default.",
         },
     }
-    
 
     for index, tc := range lstCases {
         initTestCase(t, index, &tc)
@@ -237,7 +236,7 @@ func runPluginCase(t *testing.T, tdir string, tcIndex int, data *runTestData) {
         testF.Close()
     }
 
-    /* We got to mock tele.PublishEvent as pub/sub will not work when run from 
+    /* We got to mock tele.PublishEvent as pub/sub will not work when run from
      * within same process.
      */
     evtCh := make(chan string, 1)
@@ -250,17 +249,16 @@ func runPluginCase(t *testing.T, tdir string, tcIndex int, data *runTestData) {
         }
     })
     defer mockPub.Reset()
-        
 
     spl := data.spl
-    spl.wg =  new(sync.WaitGroup)
+    spl.wg = new(sync.WaitGroup)
     spl.stopSignal = make(chan struct{})
     defer close(spl.stopSignal)
 
     rcEventsCnt := len(data.rcEvents)
     hbCnt := len(data.hbData)
 
-    hbChan := make (chan string, hbCnt)
+    hbChan := make(chan string, hbCnt)
 
     spl.wg.Add(1)
     /* Start code under test */
@@ -277,8 +275,8 @@ tLoop:
                     t.Errorf("Failed to unmarshal (%s) as (%T) err(%v)", evStr, eRet, err)
                     failed = true
                 } else if !strings.HasPrefix(eRet.RootCause, data.rcEvents[index]) {
-                    t.Errorf("Unexepected evt. exp(%s) rcvd(%s)", 
-                            data.rcEvents[index], eRet.RootCause)
+                    t.Errorf("Unexepected evt. exp(%s) rcvd(%s)",
+                        data.rcEvents[index], eRet.RootCause)
                     failed = true
                 }
                 rcEventsCnt--
@@ -288,7 +286,7 @@ tLoop:
                 index := len(data.hbData) - hbCnt
                 if !strings.HasPrefix(hbStr, data.hbData[index]) {
                     t.Errorf("Unexepected hb. exp(%s) rcvd(%s)",
-                            data.hbData[index], hbStr)
+                        data.hbData[index], hbStr)
                     failed = true
                 }
                 hbCnt--
@@ -324,36 +322,36 @@ echo -n "{\"action\": \"UTTest\", \"res\": 0}"
 `
 
 func TestRunPlugin(t *testing.T) {
-    lstCases := []runTestData {
+    lstCases := []runTestData{
         {
-            spl:    ScriptBasedPlugin {errConsecutive: 3, scrTimeout: 3, pausePeriod: 1 },
-            script: sleepForeverScript,
-            rcEvents: []string {"Run failed:","Run failed:", "Run failed:", "Too many fail"},
+            spl:         ScriptBasedPlugin{errConsecutive: 3, scrTimeout: 3, pausePeriod: 1},
+            script:      sleepForeverScript,
+            rcEvents:    []string{"Run failed:", "Run failed:", "Run failed:", "Too many fail"},
             testTimeout: 30,
-            desc:   "Test timeout",
+            desc:        "Test timeout",
         },
         {
-            spl:    ScriptBasedPlugin {errConsecutive: 3, scrTimeout: 3, pausePeriod: 1 },
-            script: invalidJsonScript,
-            rcEvents: []string {"Validate failed:","Validate failed:", "Validate failed:", "Too many failures"},
+            spl:         ScriptBasedPlugin{errConsecutive: 3, scrTimeout: 3, pausePeriod: 1},
+            script:      invalidJsonScript,
+            rcEvents:    []string{"Validate failed:", "Validate failed:", "Validate failed:", "Too many failures"},
             testTimeout: 30,
-            desc:   "Invalid JSON string",
+            desc:        "Invalid JSON string",
         },
         {
-            spl:    ScriptBasedPlugin {errConsecutive: 3, scrTimeout: 3, pausePeriod: 1 },
-            script: missActionScript,
-            rcEvents: []string {"","", ""},
-            hbData: []string { "tc_", "tc_", "tc_" },
+            spl:         ScriptBasedPlugin{errConsecutive: 3, scrTimeout: 3, pausePeriod: 1},
+            script:      missActionScript,
+            rcEvents:    []string{"", "", ""},
+            hbData:      []string{"tc_", "tc_", "tc_"},
             testTimeout: 30,
-            desc:   "Valid but missing action",
+            desc:        "Valid but missing action",
         },
         {
-            spl:    ScriptBasedPlugin {errConsecutive: 3, scrTimeout: 3, pausePeriod: 1 },
-            script: goodScript,
-            rcEvents: []string {"","", ""},
-            hbData: []string { "UTTest", "UTTest", "UTTest" },
+            spl:         ScriptBasedPlugin{errConsecutive: 3, scrTimeout: 3, pausePeriod: 1},
+            script:      goodScript,
+            rcEvents:    []string{"", "", ""},
+            hbData:      []string{"UTTest", "UTTest", "UTTest"},
             testTimeout: 30,
-            desc:   "Valid with action",
+            desc:        "Valid with action",
         },
     }
 
@@ -368,17 +366,16 @@ func TestRunPlugin(t *testing.T) {
     //os.RemoveAll(tdir)
 }
 
-
 func TestRequest(t *testing.T) {
     flName := "/tmp/xxx"
 
-    spl := ScriptBasedPlugin {
-                errConsecutive: 3,
-                scrTimeout: 3,
-                pausePeriod: 1,
-                files: []string{ flName },
-                heartbeatInt: 1,
-            }
+    spl := ScriptBasedPlugin{
+        errConsecutive: 3,
+        scrTimeout:     3,
+        pausePeriod:    1,
+        files:          []string{flName},
+        heartbeatInt:   1,
+    }
 
     if testF, err := os.Create(flName); err != nil {
         t.Fatalf("Failed to create file(%s) (%v)", flName, err)
@@ -398,10 +395,10 @@ func TestRequest(t *testing.T) {
     wg.Add(1)
     /* Async drain of heartbeat with validation and count */
     go func() {
-loop1:
+    loop1:
         for {
             select {
-            case hb, more := <- hbChan:
+            case hb, more := <-hbChan:
                 if !more {
                     /* channel closed */
                     cmn.LogInfo("Heartbeat channel closed")
@@ -414,7 +411,7 @@ loop1:
                 } else {
                     hbCnt++
                 }
-            case <- chEnd:
+            case <-chEnd:
                 /* Request returned */
                 cmn.LogInfo("Request complete")
                 break loop1
@@ -426,7 +423,7 @@ loop1:
     /* call shutdown after N seconds */
     wg.Add(1)
     go func() {
-        time.Sleep(time.Duration(spl.heartbeatInt * 5) * time.Second)
+        time.Sleep(time.Duration(spl.heartbeatInt*5) * time.Second)
         spl.Shutdown()
         wg.Done()
     }()
@@ -445,17 +442,17 @@ loop1:
 
     /* End the test after Request returns or timeout */
     select {
-    case <- chEnd:
+    case <-chEnd:
         /* Wait for request end */
 
-    case <- time.After(time.Duration(timeout) * time.Second):
+    case <-time.After(time.Duration(timeout) * time.Second):
         t.Fatalf("TestRequest is aborted after (%d) seconds", timeout)
     }
 
     if hbCnt == 0 {
         t.Fatalf("No heartbeat observed")
     }
-    wg.Wait()       /* Ensure heartbeat drain & shutdown routines ended */
+    wg.Wait() /* Ensure heartbeat drain & shutdown routines ended */
 }
 
 func TestMisc(t *testing.T) {
@@ -470,4 +467,3 @@ func TestMisc(t *testing.T) {
         t.Errorf("spl.GetPluginID Expect non empty version")
     }
 }
-

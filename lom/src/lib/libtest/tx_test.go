@@ -30,9 +30,7 @@ import (
     "net/rpc"
     "os"
     "path/filepath"
-    "sort"
     "strconv"
-    "strings"
     "testing"
     "time"
 )
@@ -1462,7 +1460,7 @@ func TestListFiles(t *testing.T) {
         "aaa_pl.script_xx.sh",
         "bb_pl.run_xzz",
     }
-    good_files := sortStrSlice([]string{
+    good_files := SortStrSlice([]string{
         "aaa_pl_script.sh",
         "aaa_pl_script.bat.sh",
         "bb_pl_run_xzz",

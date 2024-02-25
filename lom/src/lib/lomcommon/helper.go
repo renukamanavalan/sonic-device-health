@@ -1021,9 +1021,6 @@ func PrintGoroutineInfo(name string) {
  * Read environment variables
  */
 
-func xyz() {
-}
-
 var envMap = map[string]string{}
 
 /* variable name , system env variable name, default value. If default value is empty, then value is mandatory */
@@ -1144,14 +1141,13 @@ func SortStrSlice(s []string) []string {
     return s
 }
 
-
 func CompareSlices(p, q []string) (err error) {
     if len(p) != len(q) {
         err = LogError("Slices len vary. (%d) != (%d)", len(p), len(q))
     } else {
         SortStrSlice(p)
         SortStrSlice(q)
-        for i, v := range(p) {
+        for i, v := range p {
             if v != q[i] {
                 err = LogError("Val mismatch (%s) != (%s)", v, q[i])
             }

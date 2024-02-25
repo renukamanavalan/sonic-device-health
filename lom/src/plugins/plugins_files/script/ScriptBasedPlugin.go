@@ -23,8 +23,8 @@ import (
     "path/filepath"
     "reflect"
     "strings"
-    "syscall"
     "sync"
+    "syscall"
     "time"
 
     cmn "lom/src/lib/lomcommon"
@@ -35,14 +35,14 @@ import (
 
 type ScriptBasedPlugin struct {
     /* ... Internal plugin data */
-    scriptsPath     string
-    heartbeatInt    int
-    files           []string
-    errConsecutive  int
-    scrTimeout      int
-    pausePeriod     int
-    wg              *sync.WaitGroup
-    stopSignal      chan struct{} /* Channel to signal goroutine to stop */
+    scriptsPath    string
+    heartbeatInt   int
+    files          []string
+    errConsecutive int
+    scrTimeout     int
+    pausePeriod    int
+    wg             *sync.WaitGroup
+    stopSignal     chan struct{} /* Channel to signal goroutine to stop */
 }
 
 const SCR_MAX_CONSECUTIVE_ERR_CNT_MAX = 10
@@ -50,7 +50,7 @@ const SCR_MAX_CONSECUTIVE_ERR_CNT_MIN = 3
 const SCR_MAX_CONSECUTIVE_ERR_CNT = 5
 
 /* In seconds */
-const SCR_RUN_TIMEOUT_MIN = (1 * 60)        /* one min */
+const SCR_RUN_TIMEOUT_MIN = (1 * 60) /* one min */
 const SCR_RUN_TIMEOUT_MAX = (5 * 60)
 const SCR_RUN_TIMEOUT = (3 * 60)
 
@@ -140,16 +140,16 @@ func validateOutput(path, op string) (action, updOp string, err error) {
  */
 
 type errRet_t struct {
-    Path        string
-    Action      string
-    RootCause   string
+    Path      string
+    Action    string
+    RootCause string
 }
 
 func (spl *ScriptBasedPlugin) runPlugin(path string, hbchan chan string) {
     defer spl.wg.Done()
     consecutiveErrs := 0
-    errRet := errRet_t { Path: path }
-    
+    errRet := errRet_t{Path: path}
+
     for {
         if consecutiveErrs >= spl.errConsecutive {
             errRet.RootCause = "Too many failures"
@@ -196,9 +196,9 @@ func (spl *ScriptBasedPlugin) Init(cfg *cmn.ActionCfg_t) (err error) {
     spl.heartbeatInt = cfg.HeartbeatInt
 
     if spl.heartbeatInt <= 0 {
-         err = cmn.LogError("Invalid value for heartbeat (%d)", cfg.HeartbeatInt)
-         return
-     }
+        err = cmn.LogError("Invalid value for heartbeat (%d)", cfg.HeartbeatInt)
+        return
+    }
 
     if len(cfg.ActionKnobs) != 0 {
         if err = json.Unmarshal(cfg.ActionKnobs, &knobs); err != nil {
@@ -244,7 +244,7 @@ func (spl *ScriptBasedPlugin) Request(hbchan chan pcmn.PluginHeartBeat, request 
     spl.wg = new(sync.WaitGroup)
     spl.stopSignal = make(chan struct{})
     hbLocal := make(chan string, len(spl.files))
-    activeScripts := map[string]bool {}
+    activeScripts := map[string]bool{}
 
     for _, path := range spl.files {
         spl.wg.Add(1)
@@ -263,7 +263,7 @@ loopR:
             hbchan <- pcmn.PluginHeartBeat{plugin_name, time.Now().Unix()}
             cmn.LogDebug("LoM: ActiveScripts (%v)", reflect.ValueOf(activeScripts).MapKeys())
             /* reset - So only active scripts since last heartbeat gets reported */
-            activeScripts =  map[string]bool {}
+            activeScripts = map[string]bool{}
 
         case <-spl.stopSignal:
             break loopR
