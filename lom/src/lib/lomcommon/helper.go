@@ -5,11 +5,14 @@ import (
     "errors"
     "fmt"
     "io"
+    "io/fs"
     "log/syslog"
     "math"
     "os"
     "os/exec"
+    "path/filepath"
     "reflect"
+    "regexp"
     "runtime"
     "sort"
     "strconv"
@@ -1018,9 +1021,6 @@ func PrintGoroutineInfo(name string) {
  * Read environment variables
  */
 
-func xyz() {
-}
-
 var envMap = map[string]string{}
 
 /* variable name , system env variable name, default value. If default value is empty, then value is mandatory */
@@ -1037,11 +1037,16 @@ const EnvMapDefinitionsStr = `{
  * e.g. ENV_lom_conf_location -> "path/to/conf"
  */
 
-func LoadEnvironmentVariables() {
+func LoadEnvironmentVariables(envStr string) {
     var envMapDefinitions map[string]map[string]string
-    if err := json.Unmarshal([]byte(EnvMapDefinitionsStr), &envMapDefinitions); err != nil {
+    if envStr == "" {
+        envStr = EnvMapDefinitionsStr
+    }
+    if err := json.Unmarshal([]byte(envStr), &envMapDefinitions); err != nil {
         return
     }
+    envMap = map[string]string{}
+
     for key, value := range envMapDefinitions {
         envVal, exists := os.LookupEnv(value["env"])
         if !exists {
@@ -1054,20 +1059,36 @@ func LoadEnvironmentVariables() {
     }
 }
 
+func ResetEnvironmentVariables() {
+    envMap = map[string]string{}
+}
+
 func GetEnvVarString(envname string) (string, bool) {
     if len(envMap) == 0 {
-        LoadEnvironmentVariables()
+        LoadEnvironmentVariables(EnvMapDefinitionsStr)
     }
     value, exists := envMap[envname]
     return value, exists
 }
 
-func ValidatedVal(sval string, max, min, def int, name string) int {
-    val, err := strconv.Atoi(sval)
-
+func ValidatedVal(v any, max, min, def int, name string) int {
+    var err error
+    var val int
+    switch v.(type) {
+    case string:
+        s, _ := v.(string)
+        val, err = strconv.Atoi(s)
+    case int:
+        val, _ = v.(int)
+    case float64:
+        f, _ := v.(float64)
+        val = int(f)
+    default:
+        err = LogError("Value is neither string nor int, but (%T)", v)
+    }
     if (err != nil) || (val > max) || (val < min) {
-        LogWarning("%s failed validation. err(%v) sval(%s) ret(%d) min(%d) max(%d)",
-            name, err, sval, def, min, max)
+        LogWarning("%s failed validation. err(%v) val(%v) ret(%d) min(%d) max(%d)",
+            name, err, v, def, min, max)
         return def
     }
     return val
@@ -1088,3 +1109,49 @@ func ValidatedVal(sval string, max, min, def int, name string) int {
  *}
  *
  */
+
+func ListFiles(dir string, patterns []string) (files []string, err error) {
+    files = []string{}
+
+    if _, e := os.Stat(dir); e == nil {
+        err = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+            if d.IsDir() {
+                return nil
+            }
+
+            for _, s := range patterns {
+                if ok, e := regexp.MatchString(s, path); e != nil {
+                    return e
+                } else if ok {
+                    files = append(files, path)
+                    return nil
+                }
+            }
+            return nil
+        })
+    }
+    return
+}
+
+/* Sort slice of strings */
+func SortStrSlice(s []string) []string {
+    sort.Slice(s, func(i, j int) bool {
+        return strings.Compare(s[i], s[j]) < 0
+    })
+    return s
+}
+
+func CompareSlices(p, q []string) (err error) {
+    if len(p) != len(q) {
+        err = LogError("Slices len vary. (%d) != (%d)", len(p), len(q))
+    } else {
+        SortStrSlice(p)
+        SortStrSlice(q)
+        for i, v := range p {
+            if v != q[i] {
+                err = LogError("Val mismatch (%s) != (%s)", v, q[i])
+            }
+        }
+    }
+    return
+}

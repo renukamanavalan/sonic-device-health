@@ -496,6 +496,10 @@ func TestReadProcsConf(t *testing.T) {
 //------------------------------------------ REad Env variables test(helpers.go) -------------------------------------------------------------//
 
 func TestGetEnvVarString(t *testing.T) {
+    // Reset Env
+    lomcommon.ResetEnvironmentVariables()
+    defer lomcommon.ResetEnvironmentVariables() // clear any test data
+
     // set emnpty path and check if it returns default path
     os.Unsetenv("LOM_CONF_LOCATION")
 
@@ -503,7 +507,6 @@ func TestGetEnvVarString(t *testing.T) {
     if err != nil {
         fmt.Errorf("Error unsetting environment variable: %v", err)
     }
-    lomcommon.LoadEnvironmentVariables()
     value, exists := lomcommon.GetEnvVarString("ENV_lom_conf_location")
 
     // Assert that the value and exists variables are correct

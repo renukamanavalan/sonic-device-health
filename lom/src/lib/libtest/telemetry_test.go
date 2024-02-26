@@ -10,7 +10,7 @@ import (
     tele "lom/src/lib/lomtelemetry"
 )
 
-func testRunOneTeleSuite(t *testing.T, suite *ScriptSuite_t) {
+func helpTestRunOneTeleSuite(t *testing.T, suite *ScriptSuite_t) {
     /* Caches all variables for reference across test entries */
     cache := ResetSuiteCache()
     defer ResetSuiteCache()
@@ -85,10 +85,20 @@ func TestRunTeleSuites(t *testing.T) {
     }()
 
     for _, suite := range testTelemetrySuites {
-        testRunOneTeleSuite(t, suite)
+        helpTestRunOneTeleSuite(t, suite)
         if !tele.IsTelemetryIdle() {
             t.Fatalf(fatalFmt("Telemetry not idle after suite=%s", suite.Id))
             break
         }
+    }
+}
+
+func TestTeleMisc(t *testing.T) {
+    /* Corner case */
+    if _, err := tele.GetProdStr(tele.CHANNEL_PRODUCER_CNT, ""); err == nil {
+        t.Errorf("Failed to fail for tele.CHANNEL_PRODUCER_CNT")
+    }
+    if _, err := tele.GetProdStr(-1, ""); err == nil {
+        t.Errorf("Failed to fail for tele.CHANNEL_PRODUCER_CNT")
     }
 }

@@ -70,6 +70,7 @@ PLUGIN_MANAGER_TEST = $(TEST_DIR)/PluginManagerTested
 SONIC_DBCLIENT_TEST =$(TEST_DIR)/SonicDbClientTested
 PY_TEST = $(TEST_DIR)/pytested
 SONIC_LINK_CRC_TEST = $(TEST_DIR)/SonicLinkCrcTested
+SONIC_SCRIPT_TEST = $(TEST_DIR)/ScriptPluginTested
 PLUGINS_COMMON_TEST = $(TEST_DIR)/PluginsCommonTested
 SONIC_LINK_CRC_MOCKER_TEST = $(TEST_DIR)/linkcrc_mocker
 GNMI_SERVER_TEST = $(TEST_DIR)/gNMIServerTested
@@ -156,7 +157,7 @@ clean-aggregate-file_coverage:
 COMMON_DEPS := format_code add-extract_file_coverage add-aggregate_file_coverage $(CMN_C_LIB) $(ENGINE_BIN) \
 	$(PLUGIN_MANAGER_BIN) $(CLI_BIN) $(LIB_TEST) $(ENGINE_TEST) \
 	$(PLUGIN_MANAGER_TEST) $(SONIC_DBCLIENT_TEST) $(SONIC_LINK_CRC_TEST) $(SONIC_LINK_CRC_MOCKER_TEST) $(PLUGINS_COMMON_TEST) \
-	$(PY_TEST) $(INTEGRATION_TEST_BIN)
+	$(PY_TEST) $(INTEGRATION_TEST_BIN) $(SONIC_SCRIPT_TEST)
 
 GO_DEPS := $(VENDOR_DIR)/.done
 
@@ -278,6 +279,19 @@ $(SONIC_LINK_CRC_TEST): $(SRC_FILES) $(TEST_FILES)
 	fi
 	touch $@
 	@echo -e "Successfully completed sonic link crc Test\n\n"
+	
+$(SONIC_SCRIPT_TEST): $(SRC_FILES) $(TEST_FILES)
+	mkdir -p $(TEST_DIR)
+	${GO} test $(TEST_FLAG) -coverprofile=$(TEST_DIR)/ScriptPluginCoverprofile.out \
+		-coverpkg lom/src/plugins/plugins_files/script \
+		-covermode=atomic $(LIB_TEST_FLAGS) $(LIB_TEST_FLAGS_NOINLINE) \
+		lom/src/plugins/plugins_files/script || (echo "script plugin Test failed $$?"; exit 1)
+	${GO} tool cover -html=$(TEST_DIR)/ScriptPluginCoverprofile.out -o $(TEST_DIR)/ScriptPluginCoverprofile.html
+	@if [ -f "$(TEST_DIR)/ScriptPluginCoverprofile.html" ]; then \
+		$(BUILD_DIR)/extract_file_coverage.sh $(TEST_DIR)/ScriptPluginCoverprofile.html; \
+	fi
+	touch $@
+	@echo -e "Successfully completed script plugin Test\n\n"
 	
 $(PLUGINS_COMMON_TEST): $(SRC_FILES) $(TEST_FILES)
 	mkdir -p $(TEST_DIR)

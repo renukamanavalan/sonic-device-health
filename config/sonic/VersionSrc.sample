@@ -23,6 +23,7 @@ popd
 # Add this LOM_BRANCH for this command to succeed.
 # LOM_BRANCH=Unknown \
 LOM_COMMIT=$(git log --pretty=format:'%h' -n 1) \
+LOM_COMMIT_MSG=$(git log --format=%B -n 1 ${LOM_COMMIT}) \
 LOM_REPO=$(git remote -v | head -n 1 | sed 's/\t/ /g' | tr -s ' ' | cut -f2 -d' ') \
 HOST_VENDOR=sonic HOST_REPO=${HRepo} HOST_COMMIT=${HCmt} \
 j2 -o $2 $1

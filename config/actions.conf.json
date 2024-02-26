@@ -16,5 +16,15 @@
 			"MinOutliersForDetection": 2,
 			"LookBackPeriodInSecs": 125
 		}
+	},
+	"ScriptBasedPlugin": {
+		"Name": "ScriptBasedPlugin",
+		"Type": "Detection",
+		"Timeout": 0,
+		"HeartbeatInt": 30,
+		"Disable": false,
+		"Mimic": false,
+		"ActionKnobs": {
+		}
 	}
 }

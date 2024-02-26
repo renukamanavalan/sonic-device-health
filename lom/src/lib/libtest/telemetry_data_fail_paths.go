@@ -155,7 +155,7 @@ var scriptAPIValidate = ScriptSuite_t{
         ScriptEntry_t{
             ApiIDPublishInit,
             []Param_t{
-                Param_t{ANONYMOUS, 1, nil}, /* Redundant arg */
+                Param_t{ANONYMOUS, 1, nil}, /* insufficient args */
             },
             []Result_t{
                 NON_NIL_ERROR,
@@ -193,27 +193,29 @@ var scriptAPIValidate = ScriptSuite_t{
             []Result_t{
                 NON_NIL_ERROR,
             },
-            "Incorrect second arg",
+            "Empty second arg",
         },
         ScriptEntry_t{
-            ApiIDPublishEvent,
+            ApiIDPublishInit, /* COrrect args */
             []Param_t{
-                Param_t{ANONYMOUS, "{}", nil}, /* good arg */
+                Param_t{ANONYMOUS, tele.ChannelProducer_t(0), nil},
+                Param_t{ANONYMOUS, "", nil},
+            },
+            []Result_t{
+                NIL_ERROR,
+            },
+            "Successful Init",
+        },
+        ScriptEntry_t{
+            ApiIDPublishInit, /* COrrect args but duplicate */
+            []Param_t{
+                Param_t{ANONYMOUS, tele.ChannelProducer_t(0), nil},
+                Param_t{ANONYMOUS, "", nil},
             },
             []Result_t{
                 NON_NIL_ERROR,
             },
-            "Last publish init has left behind incorrect values",
-        },
-        ScriptEntry_t{
-            ApiIDPublishTerminate,
-            []Param_t{
-                Param_t{ANONYMOUS, 1, nil}, /* Redundant arg */
-            },
-            []Result_t{
-                NON_NIL_ERROR,
-            },
-            "Excess args",
+            "Failed as duplicate Init",
         },
         ScriptEntry_t{
             ApiIDPublishEvent,
@@ -642,6 +644,16 @@ var scriptAPIValidate = ScriptSuite_t{
                 NON_NIL_ERROR,
             },
             "Read fails due to closed socket",
+        },
+        ScriptEntry_t{
+            ApiIDPublishTerminate,
+            []Param_t{
+                Param_t{ANONYMOUS, 1, nil}, /* Redundant arg */
+            },
+            []Result_t{
+                NON_NIL_ERROR,
+            },
+            "Excess args",
         },
         TELE_IDLE_CHECK,
     },

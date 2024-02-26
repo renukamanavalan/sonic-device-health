@@ -6,11 +6,13 @@ import (
 
     "lom/src/plugins/plugins_files"
     "lom/src/plugins/plugins_files/sonic/plugin/linkcrc"
+    "lom/src/plugins/plugins_files/script"
 )
 
 // TODO : Goutham : Temporary untill pernmant fix to include plugin files are found
 var t1 = plugins_files.NewGenericPluginDetection
 var t2 = linkcrc.NewLinkCRCDetectionPlugin
+var t3 = plugins_script.NewScriptBasedPlugin
 
 /*
 * Main function for plugin manager

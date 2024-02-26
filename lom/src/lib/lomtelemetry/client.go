@@ -279,13 +279,18 @@ var savedProducerType = CHANNEL_PRODUCER_CNT
 var savedProducerName = ""
 
 func PublishInit(chProducer ChannelProducer_t, producerName string) error {
-    savedProducerType = chProducer
-    savedProducerName = producerName
-    if s, err := GetProdStr(chProducer, producerName); err != nil {
-        return err
+    if savedProducerType == CHANNEL_PRODUCER_CNT {
+        if s, err := GetProdStr(chProducer, producerName); err != nil {
+            return err
+        } else {
+            savedProducerType = chProducer
+            savedProducerName = producerName
+            cmn.LogInfo("PublishInit succeeded for (%s)", s)
+            return nil
+        }
     } else {
-        cmn.LogInfo("PublishInit succeeded for (%s)", s)
-        return nil
+        return cmn.LogError("Duplicate call. Initialized Type (%v) name(%s)",
+            savedProducerType, savedProducerName)
     }
 }
 
@@ -309,6 +314,8 @@ func PublishTerminate() {
         cmn.LogInfo("Closed PUB channel for (%s)", CHANNEL_TYPE_STR[chType])
     }
     openedPubChannels = map[ChannelType_t]chan<- JsonString_t{}
+    savedProducerType = CHANNEL_PRODUCER_CNT
+    savedProducerName = ""
     /*
      * NOTE: Close is asynchronous as the watching workers/minions
      * are running as independent Go routines
