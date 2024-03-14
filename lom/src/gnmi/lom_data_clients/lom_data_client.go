@@ -2,19 +2,20 @@
 package client
 
 import (
-    "encoding/json"
-    "fmt"
-    "strconv"
-    "strings"
-    "sync"
-    "time"
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 
-    "github.com/Workiva/go-datastructures/queue"
-    gnmipb "github.com/openconfig/gnmi/proto/gnmi"
-    lpb "lom/src/gnmi/proto"
+	lpb "lom/src/gnmi/proto"
 
-    cmn "lom/src/lib/lomcommon"
-    tele "lom/src/lib/lomtelemetry"
+	"github.com/Workiva/go-datastructures/queue"
+	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
+
+	cmn "lom/src/lib/lomcommon"
+	tele "lom/src/lib/lomtelemetry"
 )
 
 /* Path parameters - Refer "doc/gNMI_Info.txt" */

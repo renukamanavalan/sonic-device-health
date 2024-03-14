@@ -2,14 +2,19 @@
 package plugins_common
 
 import (
-    "container/list"
-    "context"
-    "lom/src/lib/lomcommon"
-    "lom/src/lib/lomipc"
-    "sync"
-    "sync/atomic"
-    "time"
+	"container/list"
+	"context"
+	"lom/src/lib/lomcommon"
+	"lom/src/lib/lomipc"
+	"sync"
+	"sync/atomic"
+	"time"
 )
+
+/*
+ * Plugin Frequency Rate Limiter util defines a system for limiting the frequency of anomaly reporting from plugins. It includes an interface, structs,
+ * and methods for managing reporting frequency and cache.
+ */
 
 /* Interface for limiting reporting frequency of plugin */
 type PluginReportingFrequencyLimiterInterface interface {
@@ -17,6 +22,9 @@ type PluginReportingFrequencyLimiterInterface interface {
     ResetCache(anomalyKey string)
     Initialize(initialReportingFreqInMins int, subsequentReportingFreqInMins int, initialReportingMaxCount int)
     IsNotWithinFrequency(reportingDetails ReportingDetails) bool
+
+    GetNextExpiry() (string, time.Time) // Returns the anomaly key and time of the next expiry
+    DeleteCache(anomalyKey string)      // Deletes an entry from the cache for a given anomalyKey without checking the expiry
 }
 
 /* Contains when detection was last reported and the count of reports so far */
@@ -31,11 +39,13 @@ const (
     initial_detection_reporting_max_count       = "INITIAL_DETECTION_REPORTING_MAX_COUNT"
 )
 
+// To-Do : Prithvi/Goutham : Use only one frequency in future
+/* PluginReportingFrequencyLimiter struct implements the PluginReportingFrequencyLimiterInterface */
 type PluginReportingFrequencyLimiter struct {
-    cache                         map[string]*ReportingDetails
-    initialReportingFreqInMins    int
-    SubsequentReportingFreqInMins int
-    initialReportingMaxCount      int
+    cache                         map[string]*ReportingDetails // Cache for storing reporting details for each anomaly key
+    initialReportingFreqInMins    int                          // Initial reporting frequency in minutes
+    SubsequentReportingFreqInMins int                          // Subsequent reporting frequency in minutes
+    initialReportingMaxCount      int                          // Maximum count for initial reporting
 }
 
 /* Initializes values with detection frequencies */
@@ -51,11 +61,15 @@ func (pluginReportingFrequencyLimiter *PluginReportingFrequencyLimiter) ShouldRe
     reportingDetails, ok := pluginReportingFrequencyLimiter.cache[anomalyKey]
 
     if !ok {
+// If the anomaly key is not in the cache, add it to the cache and report the anomaly
         reportingDetails := ReportingDetails{lastReported: time.Now(), countOfTimesReported: 1}
         pluginReportingFrequencyLimiter.cache[anomalyKey] = &reportingDetails
         return true
     } else {
+// If the anomaly key is in the cache, check if the current time is not within the frequency limit
         if pluginReportingFrequencyLimiter.IsNotWithinFrequency(*reportingDetails) {
+// If it's not within the frequency limit, increment the count of times reported, update the last reported
+            // time, and report the anomaly
             defer func() {
                 reportingDetails.countOfTimesReported = reportingDetails.countOfTimesReported + 1
                 reportingDetails.lastReported = time.Now()
@@ -71,23 +85,97 @@ func (pluginReportingFrequencyLimiter *PluginReportingFrequencyLimiter) ResetCac
     reportingDetails, ok := pluginReportingFrequencyLimiter.cache[anomalyKey]
 
     if ok {
+// If the anomaly key is in the cache, check if the current time is not within the frequency limit
         if pluginReportingFrequencyLimiter.IsNotWithinFrequency(*reportingDetails) {
             delete(pluginReportingFrequencyLimiter.cache, anomalyKey)
         }
     }
 }
 
+/*
+Note :
+
+    This method is called by ShouldReport() to check if the current time is not within the frequency limit to report an anomaly.
+    It is also called by ResetCache() to check if the current time is not within the frequency limit to delete the cache for an anomaly key.
+
+    Limitation:
+    Assume the current window of reporting is in SubsequentReportingFreqInMins (default 1H). If a previously detected anomaly is cleared,
+    the plugin will call ResetCache() to delete the cache for this anomaly key. However, the cache for that anomaly key will not be deleted.
+    This is because the cache is deleted only when the last detection time (current time) is greater than SubsequentReportingFreqInMins (default 1H).
+    This behavior is expected.
+
+    However, imemdiately if an anomaly is detected freshly, the plugin will call ShouldReport() to see if it can report the anomaly or not.
+    But since we are in the SubsequentReportingFreqInMins (default 1H) time window, it will report the anomaly only after SubsequentReportingFreqInMins.
+    So all the reporting from now on will be delayed by SubsequentReportingFreqInMins.
+
+    One possible solution is to make SubsequentReportingFreqInMins and  initialReportingFreqInMins timers very small.
+    But this may result in more frequent reporting & not suitable expecially for polling window based plugins link linkcrc where anomaly is
+    decided based on the number of times it is reported in a polling window.
+    Other solution is if the anamoly is cleared, instead of calling ResetCache(), new method DeleteCache() can be called. THis will delete the cache
+    immediately and the next detection will be reported immediately. But this will also result in more frequent reporting. This is more suitable for
+    plugins like IPTCRC where anamoly cleared signal mean the anamoly is cleared completly and any next  detection mean a new anamoly.
+*/
 func (pluginReportingFrequencyLimiter *PluginReportingFrequencyLimiter) IsNotWithinFrequency(reportingDetails ReportingDetails) bool {
     if reportingDetails.countOfTimesReported <= pluginReportingFrequencyLimiter.initialReportingMaxCount {
+// If the count of times reported is less than or equal to the initial reporting max count, check against the initial reporting frequency
         if time.Since(reportingDetails.lastReported).Minutes() > float64(pluginReportingFrequencyLimiter.initialReportingFreqInMins) {
             return true
         }
     } else {
+//TO-DO : Prithvi/Goutham : Remove this & do proper code changes at other places
+        // If the count of times reported is greater than the initial reporting max count, check against the subsequent reporting frequency
         if time.Since(reportingDetails.lastReported).Minutes() > float64(pluginReportingFrequencyLimiter.SubsequentReportingFreqInMins) {
             return true
         }
     }
     return false
+}
+
+/* Deletes an entry from the cache for a given anomalyKey */
+func (pluginReportingFrequencyLimiter *PluginReportingFrequencyLimiter) DeleteCache(anomalyKey string) {
+    _, ok := pluginReportingFrequencyLimiter.cache[anomalyKey]
+    if ok {
+        delete(pluginReportingFrequencyLimiter.cache, anomalyKey)
+    }
+}
+
+/*
+GetNextExpiry iterates over the cache of reporting details and calculates the next expiry time.
+It returns the key associated with the next expiry and the time of the next expiry.
+
+If the next expiry time has not been set (i.e., it's the zero value for a time.Time) or the calculated expiry time is before the next expiry
+time, the function updates the next expiry time and the associated key.
+
+Parameters: None
+
+Returns:
+- string: The key associated with the next expiry time.
+- time.Time: The next expiry time.
+*/
+func (pluginReportingFrequencyLimiter *PluginReportingFrequencyLimiter) GetNextExpiry() (string, time.Time) {
+    // Initialize the next expiry to a zero value
+    var nextExpiry time.Time
+    var nextExpiryKey string
+
+    // To-Do : Goutham : Optimize this by maintaining a min heap of expiry times
+    // Iterate over the cache
+    for anomalyKey, reportingDetails := range pluginReportingFrequencyLimiter.cache {
+        // Calculate the expiry time for this reporting detail
+        expiry := reportingDetails.lastReported
+        if reportingDetails.countOfTimesReported <= pluginReportingFrequencyLimiter.initialReportingMaxCount {
+            expiry = expiry.Add(time.Minute * time.Duration(pluginReportingFrequencyLimiter.initialReportingFreqInMins))
+        } else {
+            expiry = expiry.Add(time.Minute * time.Duration(pluginReportingFrequencyLimiter.SubsequentReportingFreqInMins))
+        }
+
+        // If the next expiry is zero or this expiry is before the next expiry, update the next expiry
+        if nextExpiry.IsZero() || expiry.Before(nextExpiry) {
+            nextExpiry = expiry
+            nextExpiryKey = anomalyKey // Update the anomaly key of the next expiry
+        }
+    }
+
+    return nextExpiryKey, nextExpiry // Return the anomaly key and time of the next expiry
 }
 
 /* Factory method to get default detection reporting limiter instance */
@@ -96,6 +184,18 @@ func GetDefaultDetectionFrequencyLimiter() PluginReportingFrequencyLimiterInterf
     detectionFreqLimiter.Initialize(lomcommon.GetConfigMgr().GetGlobalCfgInt(initial_detection_reporting_freq_in_mins), lomcommon.GetConfigMgr().GetGlobalCfgInt(subsequent_detection_reporting_freq_in_mins), lomcommon.GetConfigMgr().GetGlobalCfgInt(initial_detection_reporting_max_count))
     return detectionFreqLimiter
 }
+
+/* Factory method to get custom detection reporting limiter instance */
+func GetDetectionFrequencyLimiter(initialReportingFreqInMins int, subsequentReportingFreqInMins int, initialReportingMaxCount int) PluginReportingFrequencyLimiterInterface {
+    detectionFreqLimiter := &PluginReportingFrequencyLimiter{}
+    detectionFreqLimiter.Initialize(initialReportingFreqInMins, subsequentReportingFreqInMins, initialReportingMaxCount)
+    return detectionFreqLimiter
+}
+
+/*
+ * This util a fixed-size rolling window data structure. It includes methods for initialization, adding elements, and retrieving
+ * all elements in the window.
+ */
 
 /* A generic rolling window data structure with fixed size */
 type FixedSizeRollingWindow[T any] struct {
@@ -131,6 +231,10 @@ func (fxdSizeRollingWindow *FixedSizeRollingWindow[T]) GetElements() *list.List 
     return fxdSizeRollingWindow.orderedDataPoints
 }
 
+/*
+ * Global Constants
+ */
+
 const (
     ResultCodeSuccess int = iota
     ResultCodeInvalidArgument
@@ -148,13 +252,13 @@ const (
 )
 
 /*
-This util can be used by detection plugins which needs to detect anomalies periodically and send heartbeat to plugin manager.
-This util takes care of executing detection logic periodically and shutting down the request when shutdown is invoked on the plugin.
-If detection plugin uses this Util as a field in its struct, Request and Shutdown methods from this util get promoted to the plugin.
-Guidence for requestFunc
-  - Return nil if periodic detection needs to be continued.
-  - Return action response if Request needs to return to the caller.
-  - isExecutionHealthy needs to be marked false when there is any issue in Request method that needs to be reported.
+* This util can be used by detection plugins which needs to detect anomalies periodically and send heartbeat to plugin manager.
+* This util takes care of executing detection logic periodically and shutting down the request when shutdown is invoked on the plugin.
+* If detection plugin uses this Util as a field in its struct, Request and Shutdown methods from this util get promoted to the plugin.
+* Guidence for requestFunc
+  *  - Return nil if periodic detection needs to be continued.
+  *  - Return action response if Request needs to return to the caller.
+  *  - isExecutionHealthy needs to be marked false when there is any issue in Request method that needs to be reported.
 */
 type PeriodicDetectionPluginUtil struct {
     requestFrequencyInSecs  int
@@ -179,6 +283,8 @@ type DetectionRunInfo struct {
 }
 
 /* This method needs to be called to initialize fields present in PeriodicDetectionPluginUtil struct */
+/* To-Do : Prithvi/Goutham : Handle cleanups upon shutdown. When shutdown is initiated, memory created in Init() like buffered channels will remain throughout
+lifetime of plugin manager */
 func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Init(pluginName string, requestFrequencyInSecs int, actionConfig *lomcommon.ActionCfg_t, requestFunction func(*lomipc.ActionRequestData, *bool, context.Context) *lomipc.ActionResponseData, shutDownFunction func() error) error {
     if actionConfig.HeartbeatInt <= 0 {
         // Do not use a default heartbeat interval. Validate and honor the one passed from plugin manager.
@@ -296,6 +402,7 @@ loop:
             /* Perform detection logic periodically */
             response := periodicDetectionPluginUtil.requestFunc(request, &isExecutionHealthy, periodicDetectionPluginUtil.ctx)
             if response != nil {
+                // successful detection
                 periodicDetectionPluginUtil.responseChannel <- response
                 return
             }
@@ -341,6 +448,11 @@ func (periodicDetectionPluginUtil *PeriodicDetectionPluginUtil) Shutdown() error
     lomcommon.LogInfo("Shutdown successful for plugin (%s)", periodicDetectionPluginUtil.PluginName)
     return nil
 }
+
+/*
+ * GetResponse constructs and returns a response object for a given action request. It includes the original request data,
+ * anomaly key, response message, and result details.
+ */
 
 func GetResponse(request *lomipc.ActionRequestData, anomalyKey string, response string, resultCode int, resultString string) *lomipc.ActionResponseData {
     responseData := lomipc.ActionResponseData{Action: request.Action,

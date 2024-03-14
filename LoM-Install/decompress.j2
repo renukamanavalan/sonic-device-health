@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/bin/bash
 
 # The variables below are populated at build time via J2 variable.
 # This helps see version info of the blob w/o installing/extracting.
@@ -6,84 +6,244 @@
 LOM_VERSION_JSON={{ LOM_VERSION_JSON }}
 HOST_OS_VERSION={{ HOST_OS_VERSION }}
 
-function usage()
-{
-    echo -e "\
-        -c - Clean all the backup \n\
-        -i - Does install or upgrade \n\
-        -r - Force a rollback \n\
-        -v - Dump LoM vresion info\n\
-        -h - Usage"
-    exit -1
+# Exit immediately if any command fails
+set -e
+
+EXTRACT_ONLY=false
+OP_INSTALL=false
+OP_CLEAN=false
+OP_ROLLBACK=false
+EXTRACT_DIR=""
+RET=0
+
+print_tree() {
+  local dir="$1"
+  local indent="${2:-}"
+
+  # Extract the basename (directory name)
+  local basename="$(basename "$dir")"
+
+  # Print the directory name with proper indentation
+  echo "${indent}+-- $basename/"
+
+  # Loop through the files and subdirectories in the given directory
+  for file in "$dir"/*; do
+    # Extract the basename (file or directory name)
+    local file_basename="$(basename "$file")"
+
+    # Check if it's a directory
+    if [ -d "$file" ]; then
+      # Recursively call the function for the subdirectory with increased indentation
+      print_tree "$file" "${indent}|   "
+    else
+      # Print the file name with proper indentation
+      echo "${indent}|   +-- $file_basename"
+    fi
+  done
 }
 
-function testArgs()
-{
-    if  [[ $# == 1 && "$1" == "-v" ]]; then
-        echo ${LOM_VERSION_JSON} | jq -r | jq
-        echo "HostVersion = ${HOST_OS_VERSION}"
-        exit 0
-    fi
 
-    if [[ $# -eq 0 ]]; then
-        usage
-    fi
+display_usage() {
+    echo "Usage: $0 [-d|--dir EXTRACT_DIR] [-e|--extract-only] [-i|--op-install | -c|--op-clean | -r|--op-rollback | -v|--version] [-h|--help]"
+    echo "Options:"
+    echo "  -d, --dir EXTRACT_DIR    Specify the directory to extract the archive. It must have permissions for the current user." 
+    echo "                           If not specified, default is created at /tmp/lom-selfextract.XXXXXX. 
+                                  If specified, but does not exist, it will be created."
+    echo "  -e, --extract-only       Only extract the archive and do not install or clean or rollback."
+    echo "  -i, --op-install         Install the extracted archive"
+    echo "  -c, --op-clean           Clean the installed archive"
+    echo "  -r, --op-rollback        Rollback the installed archive"
+    echo "  -v, --version            Dump LoM version info"
+    echo "  -h, --help               Display this help message"
+    echo ""
+    echo "Examples:"
+    echo "  Extract archive to /tmp/ and install:"
+    echo "    $0 --op-install"
+    echo "  Extract archive to /home/user/lom/ and install:"
+    echo "    $0 --dir /home/user/lom/ --op-install"
+    echo "  Extract archive to /tmp/ and clean:"
+    echo "    $0 --op-clean"
+    echo "  Extract archive to /tmp/ and rollback:"
+    echo "    $0 --op-rollback"
+    echo "  Extract archive to /tmp/ and do not install:"
+    echo "    $0 --extract-only"
+    echo "  Display this help message:"
+    echo "    $0 --help"
+    echo "  Dump LoM version info:"
+    echo "    $0 --version"
+    exit 0
+}
 
-    while getopts "hifcr" opt; do
-        case ${opt} in
-            i ) OP_INSTALL=1
+function testArgs() {
+    local v_flag=false
+
+    # Parse arguments
+    while (( "$#" )); do
+        case "$1" in
+            -h|--help)
+                display_usage
                 ;;
-            r ) OP_ROLLBACK=1
+            -v)
+                v_flag=true
+                shift
                 ;;
-            c ) OP_CLEAN=1
+            -d|--dir)
+                EXTRACT_DIR="$2"
+                if [ -z "$EXTRACT_DIR" ]; then
+                    echo "ERROR: -d/--dir requires a directory path."
+                    display_usage
+                fi
+                shift 2
                 ;;
-            h ) usage
+            -e|--extract-only)
+                EXTRACT_ONLY=true
+                shift
                 ;;
-            \? ) usage
+            -i|--op-install)
+                OP_INSTALL=true
+                shift
+                ;;
+            -c|--op-clean)
+                OP_CLEAN=true
+                shift
+                ;;
+            -r|--op-rollback)
+                OP_ROLLBACK=true
+                shift
+                ;;
+            *)
+                echo "ERROR: Unknown option: $1"
+                display_usage
                 ;;
         esac
     done
 
-    shift $((OPTIND -1))
-    if [[ $# -ne 0 ]]; then
-        # Expect only options
-        usage
+    if [[ $v_flag = true ]]; then
+        if [[ $EXTRACT_ONLY = true || $OP_INSTALL = true || $OP_CLEAN = true || $OP_ROLLBACK = true || -n $EXTRACT_DIR ]]; then
+            echo "ERROR: -v should be the only option"
+            display_usage
+        else
+            echo ${LOM_VERSION_JSON} | jq -r | jq
+            echo "HostVersion = ${HOST_OS_VERSION}"
+            exit 0
+        fi
+    fi
+
+    # Check if no valid options were provided
+    if [ "$EXTRACT_ONLY" = false ] && [ "$OP_INSTALL" = false ] && [ "$OP_CLEAN" = false ] && [ "$OP_ROLLBACK" = false ]; then
+        echo "WARNING: No valid arguments provided."
+        display_usage
+    fi
+
+    # Check if multiple operations are specified
+    if [[ "$OP_INSTALL" = true && ("$OP_CLEAN" = true || "$OP_ROLLBACK" = true) ]] || \
+    [[ "$OP_CLEAN" = true && ("$OP_INSTALL" = true || "$OP_ROLLBACK" = true) ]] || \
+    [[ "$OP_ROLLBACK" = true && ("$OP_INSTALL" = true || "$OP_CLEAN" = true) ]]; then
+        echo "ERROR: Only one operation can be specified."
+        exit 1
+    fi
+
+    # Check if extract-only is specified along with any operation
+    if [ "$EXTRACT_ONLY" = true ] && [ "$OP_INSTALL" = true -o "$OP_CLEAN" = true -o "$OP_ROLLBACK" = true ]; then
+        echo "ERROR: --extract-only cannot be combined with other operations."
+        exit 1
     fi
 }
 
-function main()
-{
+function main() {
     echo ""
     echo "==========================="
     echo "Self-extracting LoM archive"
     echo "==========================="
+    echo ""
 
-    export TMPDIR=`mktemp -d /tmp/selfextract.XXXXXX`
-
-    ARCHIVE=`awk '/^__ARCHIVE_BELOW__/ {print NR + 1; exit 0; }' $0`
-
-    tail -n+$ARCHIVE $0 | tar xzv -C $TMPDIR
-
-    CDIR=`pwd`
-    cd $TMPDIR
-
-    ./install/LoM-install.sh $@
-    RET=$?
-
-    cd $CDIR
-
-    if [[ ${RET} == 0 ]]; then
-        #rm -rf $TMPDIR
-        echo "Install succeeded"
+    # Check and create EXTRACT_DIR if needed
+    if [ -z "$EXTRACT_DIR" ]; then
+        EXTRACT_DIR=$(mktemp -d /tmp/lom-selfextract.XXXXXX) || { echo "Failed to create temporary directory."; exit 1; }
+        echo "Created temporary directory '$EXTRACT_DIR'."
     else
-        echo "Install failed with ${RET}"
+        if [ ! -d "$EXTRACT_DIR" ]; then
+            mkdir -p "$EXTRACT_DIR" || { echo "Failed to create extraction directory."; exit 1; }
+            echo "Created directory '$EXTRACT_DIR'."
+            echo ""
+        fi
     fi
-    echo "TMPDIR is $TMPDIR"
+
+    echo "EXTRACT_DIR: $EXTRACT_DIR"
+    echo "EXTRACT_ONLY: $EXTRACT_ONLY"
+    echo "OP_INSTALL: $OP_INSTALL"
+    echo "OP_CLEAN: $OP_CLEAN"
+    echo "OP_ROLLBACK: $OP_ROLLBACK"
+    echo ""
+    echo "Extracting archive..."
+    echo ""
+
+    ARCHIVE=$(awk '/^__ARCHIVE_BELOW__/ {print NR + 1; exit 0; }' $0)
+    tail -n+$ARCHIVE $0 | tar xzv --no-overwrite-dir -C "$EXTRACT_DIR"
+
+    # Check the exit code of tar
+    if [ $? -eq 0 ]; then
+        echo "Extraction completed successfully."
+    else
+        echo "Extraction encountered an error (Exit code: $?)."
+        exit 1
+    fi
+
+    # Print files extracted from the archive
+    echo "SUCCESS: Extracted archive to '$EXTRACT_DIR'."
+    echo "Files extracted:"
+    echo ""
+    print_tree $EXTRACT_DIR ""
+    echo ""
+
+    # Check if the user wants to install, clean or rollback
+    if [ "$EXTRACT_ONLY" = false ]; then
+        if [ "$OP_INSTALL" = true ]; then
+            echo "Installation started at $(date)"
+            CDIR=`pwd`
+            cd $EXTRACT_DIR
+            ./install/LoM-install.sh -i
+            RET=$?
+            cd $CDIR
+            if [[ ${RET} == 0 ]]; then
+                echo "Install succeeded"
+            else
+                echo "Install failed with ${RET}"
+            fi
+        elif [ "$OP_CLEAN" = true ]; then
+            echo "Cleaning started at $(date)"
+            CDIR=`pwd`
+            cd $EXTRACT_DIR
+            ./install/LoM-install.sh -c
+            RET=$?
+            cd $CDIR
+            if [[ ${RET} == 0 ]]; then
+                echo "Clean succeeded"
+            else
+                echo "Clean failed with ${RET}"
+            fi
+        elif [ "$OP_ROLLBACK" = true ]; then
+            echo "Rollback started at $(date)"
+            CDIR=`pwd`
+            cd $EXTRACT_DIR
+            ./install/LoM-install.sh -r
+            RET=$?
+            cd $CDIR
+            if [[ ${RET} == 0 ]]; then
+                echo "Rollback succeeded"
+            else
+                echo "Rollback failed with ${RET}"
+            fi
+        else
+            echo "ERROR: No operation specified."
+            exit 1
+        fi
+    fi
 
     exit ${RET}
 }
 
-testArgs $@
-main $@
+testArgs "$@"
+main "$@"
 
 __ARCHIVE_BELOW__

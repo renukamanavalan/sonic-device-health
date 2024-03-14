@@ -22,7 +22,7 @@ def copy_to_remote_host(remote_host, remote_user, remote_password, remote_path):
         print("sshpass installed successfully.")
     
     # SCP the tar file to the remote host
-    scp_command = f"sshpass -p '{remote_password}' scp ./integration_test_installer.sh {remote_user}@{remote_host}:{remote_path}"
+    scp_command = f"sshpass -p '{remote_password}' scp ../../build/integration_test_installer.sh {remote_user}@{remote_host}:{remote_path}"
     if subprocess.run(scp_command, shell=True).returncode != 0:
         print("Error: Failed to copy integration_test_installer.sh file to remote host")
         exit(1)

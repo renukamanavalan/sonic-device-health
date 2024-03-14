@@ -1,14 +1,15 @@
 package engine
 
 import (
-    "bytes"
-    "flag"
-    . "lom/src/lib/lomcommon"
-    . "lom/src/lib/lomipc"
-    tele "lom/src/lib/lomtelemetry"
-    "os"
-    "os/signal"
-    "syscall"
+	"bytes"
+	"flag"
+	"log/syslog"
+	. "lom/src/lib/lomcommon"
+	. "lom/src/lib/lomipc"
+	tele "lom/src/lib/lomtelemetry"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 type engine_t struct {
@@ -20,6 +21,8 @@ type engine_t struct {
     chClientReq   chan *LoMRequestInt
     chClReadAbort chan interface{}
 }
+
+const APP_NAME_DEAULT = "LOM_ENGINE"
 
 var cfgPath = ""
 var engineInst *engine_t
@@ -196,22 +199,41 @@ func EngineStartup(path string) (*engine_t, error) {
 
 func startUp(progname string, args []string) (*engine_t, error) {
 
-    /* Parse args for path */
+    /* Parse args for path and mode*/
     p := ""
+    mode := ""
+var syslogLevelFlag int
     flags := flag.NewFlagSet(progname, flag.ContinueOnError)
     var buf bytes.Buffer
     flags.SetOutput(&buf)
 
     flags.StringVar(&p, "path", "", "Config files path")
+    flags.StringVar(&mode, "mode", "", "Mode of operation. Choice: PROD, test")
+    flags.IntVar(&syslogLevelFlag, "syslog_level", 6, "Syslog level")
 
     err := flags.Parse(args)
     if err != nil {
         return nil, LogError("Failed to parse (%v); details(%s)", args, buf.String())
     }
+
+    if mode == "PROD" {
+        SetLoMRunMode(LoMRunMode_Prod)
+        InitSyslogWriter(p)
+        LogInfo("Starting LoMEngine in PROD mode")
+    }
+
+    SetLogLevel(syslog.Priority(syslogLevelFlag))
+
     return EngineStartup(p)
 }
 
 func Main() {
+// setup application prefix for logging
+    SetPrefix("core")
+
+    // setup agentname to logging
+    SetAgentName(APP_NAME_DEAULT)
+
     engine, err := startUp(os.Args[0], os.Args[1:])
     if err != nil {
         LogError("Engine aborting ...")

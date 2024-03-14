@@ -1,10 +1,10 @@
 package plugins_common
 
 import (
-    "testing"
-    "time"
+	"testing"
+	"time"
 
-    "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCheckMisbehavingPlugins(t *testing.T) {

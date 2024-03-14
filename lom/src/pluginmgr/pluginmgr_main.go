@@ -1,16 +1,9 @@
 package main
 
 import (
-    "lom/src/lib/lomcommon"
-    "lom/src/pluginmgr/pluginmgr_common"
-
-    "lom/src/plugins/plugins_files"
-    "lom/src/plugins/plugins_files/sonic/plugin/linkcrc"
+	"lom/src/lib/lomcommon"
+	"lom/src/pluginmgr/pluginmgr_common"
 )
-
-// TODO : Goutham : Temporary untill pernmant fix to include plugin files are found
-var t1 = plugins_files.NewGenericPluginDetection
-var t2 = linkcrc.NewLinkCRCDetectionPlugin
 
 /*
 * Main function for plugin manager
@@ -21,9 +14,7 @@ var t2 = linkcrc.NewLinkCRCDetectionPlugin
 * 4. Exit
  */
 func main() {
-    lomcommon.LogInfo("plugin_mgr : Starting Plugin Manager")
-
-    if err := pluginmgr_common.SetupPluginManager(); err != nil {
+        if err := pluginmgr_common.SetupPluginManager(); err != nil {
         lomcommon.LogPanic("plugin_mgr : SetupPluginManager failed") // exits
     }
     if err := pluginmgr_common.StartPluginManager(0); err != nil {

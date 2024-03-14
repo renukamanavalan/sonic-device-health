@@ -1,23 +1,26 @@
 package main
 
 import (
-    "crypto/md5"
-    "crypto/tls"
-    "crypto/x509"
-    "flag"
-    "io/ioutil"
-    "log/syslog"
-    "time"
+	"crypto/md5"
+	"crypto/tls"
+	"crypto/x509"
+	"flag"
+	"io/ioutil"
+	"log/syslog"
+	"strconv"
+	"time"
 
-    "google.golang.org/grpc"
-    "google.golang.org/grpc/credentials"
-    "google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 
-    gnmi "lom/src/gnmi/gnmi_server/server"
-    testcert "lom/src/gnmi/testdata/tls"
+	gnmi "lom/src/gnmi/gnmi_server/server"
+	testcert "lom/src/gnmi/testdata/tls"
 
-    cmn "lom/src/lib/lomcommon"
+	cmn "lom/src/lib/lomcommon"
 )
+
+const APP_NAME_DEAULT = "LOM_GNMI_SERVER"
 
 var (
     userAuth = gnmi.AuthTypes{"password": false, "cert": false, "jwt": false}
@@ -35,13 +38,29 @@ var (
     gnmi_native_write  = flag.Bool("gnmi_native_write", gnmi.ENABLE_NATIVE_WRITE, "Enable gNMI native write")
     threshold          = flag.Int("threshold", 100, "max number of client connections")
     idle_conn_duration = flag.Int("idle_conn_duration", 5, "Seconds before server closes idle connections")
+pathFlag           = flag.String("path", "", "Config files path")
+    modeFlag           = flag.String("mode", "", "Mode of operation. Choice: PROD, test")
+    syslogLevelFlag    = flag.Int("syslog_level", 6, "Syslog level")
 )
 
 func main() {
+// setup application prefix for logging
+    cmn.SetPrefix("core")
+
+    // setup agentname to logging
+    cmn.SetAgentName(APP_NAME_DEAULT)
+
     flag.Var(userAuth, "client_auth", "Client auth mode(s) - none,cert,password")
     flag.Parse()
 
-    cmn.SetLogLevel(syslog.LOG_INFO)
+    if *modeFlag == "PROD" {
+        cmn.SetLoMRunMode(cmn.LoMRunMode_Prod)
+        cmn.InitSyslogWriter(*pathFlag)
+        cmn.LogInfo("Starting LoMgnmiServer in PROD mode")
+    }
+
+    cmn.SetLogLevel(syslog.Priority(cmn.ValidatedVal(strconv.Itoa(*syslogLevelFlag), int(syslog.LOG_DEBUG),
+        int(syslog.LOG_ERR), int(syslog.LOG_INFO), "LogLevel")))
 
     var defUserAuth gnmi.AuthTypes
     if *gnmi_native_write {
@@ -85,12 +104,6 @@ func main() {
     cfg.Threshold = int(*threshold)
     cfg.IdleConnDuration = int(*idle_conn_duration)
     var opts []grpc.ServerOption
-
-    lval := getflag("v")
-    if lval != "" {
-        cmn.SetLogLevel(syslog.Priority(cmn.ValidatedVal(lval, int(syslog.LOG_DEBUG),
-            int(syslog.LOG_ERR), int(syslog.LOG_INFO), "LogLevel")))
-    }
 
     if !*noTLS {
         var certificate tls.Certificate

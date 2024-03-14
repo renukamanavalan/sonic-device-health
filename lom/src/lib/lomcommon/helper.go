@@ -1,21 +1,21 @@
 package lomcommon
 
 import (
-    "encoding/json"
-    "errors"
-    "fmt"
-    "io"
-    "log/syslog"
-    "math"
-    "os"
-    "os/exec"
-    "reflect"
-    "runtime"
-    "sort"
-    "strconv"
-    "strings"
-    "sync"
-    "time"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/syslog"
+	"math"
+	"os"
+	"os/exec"
+	"reflect"
+	"runtime"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 )
 
 /* "go test" must use "-v" option to turn on testmode */
@@ -24,6 +24,7 @@ var logSuffix = ""
 var writers = make(map[syslog.Priority]io.Writer)
 
 var log_level = syslog.LOG_DEBUG
+var vendor = ""
 
 var FmtFprintf = fmt.Fprintf
 var OSExit = os.Exit
@@ -35,15 +36,55 @@ func RunPanic(m string) {
 var DoPanic = RunPanic
 
 func init() {
+    InitSyslogWriter("")
+}
+
+func InitSyslogWriter(path string) {
     isTest := false
     if GetLoMRunMode() == LoMRunMode_Test {
         logSuffix = "\n"
         isTest = true
     }
 
+    /* To-Do : Goutham : Config item "SYSLOG_FACILITY_LEVEL" must be defined in the globals.conf.json. If its not defined, then default
+       to "LOG_LOCAL7". Also, this function must be called at engine & pluginmgr startup time. Come up in a better way to handle this. */
+    level, err := GetSyslogFacilityLevelFromConfig(path)
+    if err != nil {
+        level = "LOG_LOCAL7"
+        fmt.Println("Error getting syslog facility level. Defaulting to LOG_LOCAL7. Err : {}", err)
+    }
+
+    vendor, err = GetVendorFromConfig(path)
+    if err != nil {
+        fmt.Println("Error getting vendor. Defaulting to empty. Err : {}", err)
+    }
+
+    var priority syslog.Priority
+    switch level {
+    case "LOG_LOCAL0":
+        priority = syslog.LOG_LOCAL0
+    case "LOG_LOCAL1":
+        priority = syslog.LOG_LOCAL1
+    case "LOG_LOCAL2":
+        priority = syslog.LOG_LOCAL2
+    case "LOG_LOCAL3":
+        priority = syslog.LOG_LOCAL3
+    case "LOG_LOCAL4":
+        priority = syslog.LOG_LOCAL4
+    case "LOG_LOCAL5":
+        priority = syslog.LOG_LOCAL5
+    case "LOG_LOCAL6":
+        priority = syslog.LOG_LOCAL6
+    case "LOG_LOCAL7":
+        priority = syslog.LOG_LOCAL7
+    default:
+        fmt.Println("Invalid syslog facility level:", level)
+        priority = syslog.LOG_LOCAL7
+    }
+
     for i := syslog.LOG_EMERG; i <= syslog.LOG_DEBUG; i++ {
         if !isTest {
-            if w, err := syslog.Dial("", "", (i | syslog.LOG_LOCAL7), ""); err != nil {
+            if w, err := syslog.Dial("", "", (i | priority), ""); err != nil {
                 fmt.Fprintf(os.Stderr, "Failed to get syslog writer. Exiting ...\n")
                 OSExit(-1)
             } else {
@@ -70,13 +111,29 @@ var apprefix string
 
 func SetPrefix(p string) {
     if len(p) > 0 {
-        apprefix = p + ": "
+        apprefix = p
+        if vendor != "Arista" {
+            apprefix += ": "
+}
     } else {
         apprefix = ""
+    if vendor == "Arista" {
+            apprefix = "lom"
+        }
     }
 }
 
-func getPrefix(skip int) string {
+/* setAgentName is used to set the agent name for all log messages */
+var agentName string
+
+func SetAgentName(a string) {
+    agentName = a
+    if len(a) == 0 {
+        agentName = "lom"
+    }
+}
+
+func getPrefix(skip int, severityLevel string) string {
     caller := ""
     if _, fl, ln, ok := runtime.Caller(skip); ok {
         /*
@@ -99,6 +156,11 @@ func getPrefix(skip int) string {
         /* prefix = caller/t.go, for the example above */
         caller = fmt.Sprintf("%s:%d:", strings.Join(l[c-1:], "/"), ln)
     }
+
+    if vendor == "Arista" {
+        // Example message : LOM_PLUGIN_MGR-5-proc_0: pluginmgr_common/pluginmgr_helper.go:955:plugin_mgr: Starting Plugin Manager in PROD mode
+        return fmt.Sprintf("%s-%s-%s: %s", agentName, severityLevel, apprefix, caller)
+    }
     return apprefix + time.Now().Format("2006-01-02T15:04:05.000") + ": " + caller
 }
 
@@ -117,10 +179,15 @@ func getPrefix(skip int) string {
  */
 func LogMessageWithSkip(skip int, lvl syslog.Priority, s string, a ...interface{}) string {
     ct_lvl := GetLogLevel()
-    m := fmt.Sprintf(getPrefix(skip+2)+s, a...)
+    m := fmt.Sprintf(getPrefix(skip+2, fmt.Sprintf("%d", lvl))+s, a...)
     if lvl <= ct_lvl {
+if vendor == "Arista" {
+            // Example message : %LOM_PLUGIN_MGR-5-proc_0: pluginmgr_common/pluginmgr_helper.go:955:plugin_mgr: Starting Plugin Manager in PROD mode
+            FmtFprintf(writers[lvl], "%%"+m+logSuffix)
+        } else {
         FmtFprintf(writers[lvl], m+logSuffix)
     }
+}
     return m
 }
 
@@ -1023,7 +1090,7 @@ func xyz() {
 
 var envMap = map[string]string{}
 
-/* variable name , system env variable name, default value. If default value is empty, then value is mandatory */
+/* variable name , system env variable name, default value*/
 const EnvMapDefinitionsStr = `{
     "ENV_lom_conf_location": {
         "env": "LOM_CONF_LOCATION",
@@ -1045,9 +1112,6 @@ func LoadEnvironmentVariables() {
     for key, value := range envMapDefinitions {
         envVal, exists := os.LookupEnv(value["env"])
         if !exists {
-            if value["default"] == "" {
-                LogPanic("Environment variable %s is not set", value["env"])
-            }
             envVal = value["default"]
         }
         envMap[key] = envVal

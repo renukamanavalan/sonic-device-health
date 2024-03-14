@@ -1,10 +1,11 @@
 package libtest
 
 import (
-    "fmt"
-    "github.com/stretchr/testify/assert"
-    . "lom/src/lib/lomcommon"
-    "testing"
+	"fmt"
+	. "lom/src/lib/lomcommon"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 /* Validates GetFloatConfigFromMapping for various config keys */
