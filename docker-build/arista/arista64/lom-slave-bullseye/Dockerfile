@@ -34,7 +34,7 @@ RUN apt-get update && \
         curl \
         unzip \
         zip  \
-uuid-dev \
+        uuid-dev \
         uuid-runtime \
         python-all \
         python-dev \

@@ -2,15 +2,15 @@
 package linkcrc
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"lom/src/lib/lomcommon"
-	"lom/src/lib/lomipc"
-	"lom/src/plugins/plugins_common"
-	"lom/src/plugins/vendors/sonic/client/dbclient"
-	"strings"
-	"time"
+    "context"
+    "encoding/json"
+    "fmt"
+    "lom/src/lib/lomcommon"
+    "lom/src/lib/lomipc"
+    "lom/src/plugins/plugins_common"
+    "lom/src/plugins/vendors/sonic/client/dbclient"
+    "strings"
+    "time"
 )
 
 const (
@@ -61,11 +61,11 @@ func NewLinkCRCDetectionPlugin(...interface{}) plugins_common.Plugin {
 func init() {
     // Register the plugin with plugin manager
     plugins_common.RegisterPlugin(link_crc_plugin_name, NewLinkCRCDetectionPlugin)
-    }
+}
 
 /* Inheritied from Plugin */
 func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) Init(actionConfig *lomcommon.ActionCfg_t) error {
-    lomcommon.LogInfo("Started Init() for (%s)", "link_crc_detection")
+    lomcommon.LogInfo("Started Init() for (%s)", link_crc_plugin_name)
     // Get config settings or assign default values.
     var resultMap map[string]interface{}
     jsonErr := json.Unmarshal([]byte(actionConfig.ActionKnobs), &resultMap)
@@ -102,7 +102,7 @@ func (linkCrcDetectionPlugin *LinkCRCDetectionPlugin) Init(actionConfig *lomcomm
         lomcommon.LogError(fmt.Sprintf(link_crc_prefix+"Plugin initialization failed. (%s), err: (%v)", actionConfig.Name, err))
         return err
     }
-    lomcommon.LogInfo("Successfully Init() for (%s)", "link_crc_detection")
+    lomcommon.LogInfo("Successfully Init() for (%s)", link_crc_plugin_name)
     return nil
 }
 

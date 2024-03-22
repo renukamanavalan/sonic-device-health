@@ -6,18 +6,18 @@
 package pluginmgr_common
 
 import (
-	"flag"
-	"fmt"
-	"log/syslog"
-	"lom/src/lib/lomcommon"
-	"lom/src/lib/lomipc"
-	"lom/src/plugins/plugins_common"
-	"os"
-	"os/signal"
-	"sync"
-	"sync/atomic"
-	"syscall"
-	"time"
+    "flag"
+    "fmt"
+    "log/syslog"
+    "lom/src/lib/lomcommon"
+    "lom/src/lib/lomipc"
+    "lom/src/plugins/plugins_common"
+    "os"
+    "os/signal"
+    "sync"
+    "sync/atomic"
+    "syscall"
+    "time"
 )
 
 /*
@@ -950,7 +950,7 @@ func SetupPluginManager() error {
     // setup application prefix for logging
     lomcommon.SetPrefix(ProcID)
 
-// setup agentname to logging
+    // setup agentname to logging
     lomcommon.SetAgentName(APP_NAME_DEAULT)
 
     modeStr := "PROD"

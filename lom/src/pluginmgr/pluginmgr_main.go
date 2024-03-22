@@ -1,8 +1,8 @@
 package main
 
 import (
-	"lom/src/lib/lomcommon"
-	"lom/src/pluginmgr/pluginmgr_common"
+    "lom/src/lib/lomcommon"
+    "lom/src/pluginmgr/pluginmgr_common"
 )
 
 /*
@@ -14,7 +14,7 @@ import (
 * 4. Exit
  */
 func main() {
-        if err := pluginmgr_common.SetupPluginManager(); err != nil {
+    if err := pluginmgr_common.SetupPluginManager(); err != nil {
         lomcommon.LogPanic("plugin_mgr : SetupPluginManager failed") // exits
     }
     if err := pluginmgr_common.StartPluginManager(0); err != nil {

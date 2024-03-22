@@ -1,18 +1,18 @@
 package linkcrc
 
 import (
-	"context"
-	"encoding/json"
-	"errors"
-	"lom/src/lib/lomcommon"
-	"lom/src/lib/lomipc"
-	"lom/src/plugins/plugins_common"
-	"lom/src/plugins/vendors/sonic/client/dbclient"
-	"testing"
-	"time"
+    "context"
+    "encoding/json"
+    "errors"
+    "lom/src/lib/lomcommon"
+    "lom/src/lib/lomipc"
+    "lom/src/plugins/plugins_common"
+    "lom/src/plugins/vendors/sonic/client/dbclient"
+    "testing"
+    "time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/mock"
 )
 
 func init() {

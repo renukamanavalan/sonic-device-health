@@ -1,23 +1,23 @@
 package main
 
 import (
-	"crypto/md5"
-	"crypto/tls"
-	"crypto/x509"
-	"flag"
-	"io/ioutil"
-	"log/syslog"
-	"strconv"
-	"time"
+    "crypto/md5"
+    "crypto/tls"
+    "crypto/x509"
+    "flag"
+    "io/ioutil"
+    "log/syslog"
+    "strconv"
+    "time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/keepalive"
+    "google.golang.org/grpc"
+    "google.golang.org/grpc/credentials"
+    "google.golang.org/grpc/keepalive"
 
-	gnmi "lom/src/gnmi/gnmi_server/server"
-	testcert "lom/src/gnmi/testdata/tls"
+    gnmi "lom/src/gnmi/gnmi_server/server"
+    testcert "lom/src/gnmi/testdata/tls"
 
-	cmn "lom/src/lib/lomcommon"
+    cmn "lom/src/lib/lomcommon"
 )
 
 const APP_NAME_DEAULT = "LOM_GNMI_SERVER"
@@ -38,13 +38,13 @@ var (
     gnmi_native_write  = flag.Bool("gnmi_native_write", gnmi.ENABLE_NATIVE_WRITE, "Enable gNMI native write")
     threshold          = flag.Int("threshold", 100, "max number of client connections")
     idle_conn_duration = flag.Int("idle_conn_duration", 5, "Seconds before server closes idle connections")
-pathFlag           = flag.String("path", "", "Config files path")
+    pathFlag           = flag.String("path", "", "Config files path")
     modeFlag           = flag.String("mode", "", "Mode of operation. Choice: PROD, test")
     syslogLevelFlag    = flag.Int("syslog_level", 6, "Syslog level")
 )
 
 func main() {
-// setup application prefix for logging
+    // setup application prefix for logging
     cmn.SetPrefix("core")
 
     // setup agentname to logging

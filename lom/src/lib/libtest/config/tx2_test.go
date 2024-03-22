@@ -1,32 +1,31 @@
 package libtest
 
 import (
-	"fmt"
-	"lom/src/lib/lomcommon"
-	. "lom/src/lib/lomcommon"
-	"lom/src/lib/lomipc"
+    "fmt"
+    "lom/src/lib/lomcommon"
+    "lom/src/lib/lomipc"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/mock"
 
-	//"lom/src/lib/lomipc"
-	//"lom/src/pluginmgr/pluginmgr_common"
-	//"lom/src/plugins/plugins_common"
-	//"lom/src/plugins/vendors"
-	//"io/ioutil"
-	"log/syslog"
-	"os"
+    //"lom/src/lib/lomipc"
+    //"lom/src/pluginmgr/pluginmgr_common"
+    //"lom/src/plugins/plugins_common"
+    //"lom/src/plugins/vendors"
+    //"io/ioutil"
+    "log/syslog"
+    "os"
 
-	//"path/filepath"
-	"regexp"
-	//"strconv"
-	"sync"
-	"testing"
-	"time"
+    //"path/filepath"
+    "regexp"
+    //"strconv"
+    "sync"
+    "testing"
+    "time"
 
-	//"encoding/json"
-	//"errors"
-	"io/ioutil"
+    //"encoding/json"
+    //"errors"
+    "io/ioutil"
 )
 
 //----------------------------------------- Test GoroutineTracker ---------------------------------------- //

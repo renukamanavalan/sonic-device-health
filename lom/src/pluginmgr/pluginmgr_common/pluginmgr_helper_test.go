@@ -1,32 +1,32 @@
 package pluginmgr_common
 
 import (
-	"lom/src/lib/lomcommon"
-	"lom/src/lib/lomipc"
-	"lom/src/plugins/plugins_common"
+    "lom/src/lib/lomcommon"
+    "lom/src/lib/lomipc"
+    "lom/src/plugins/plugins_common"
 
-	"errors"
+    "errors"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/mock"
 
-	//"os/signal"
-	//"flag"
-	"fmt"
-	//"io/ioutil"
-	"log/syslog"
-	"os"
+    //"os/signal"
+    //"flag"
+    "fmt"
+    //"io/ioutil"
+    "log/syslog"
+    "os"
 
-	//"regexp"
-	"sync"
-	"syscall"
-	"testing"
+    //"regexp"
+    "sync"
+    "syscall"
+    "testing"
 
-	//"time"
-	"flag"
-	"strings"
-	"sync/atomic"
-	"time"
+    //"time"
+    "flag"
+    "strings"
+    "sync/atomic"
+    "time"
 )
 
 // ------------------------------------------ Plugins -------------------------------------------------------------//
@@ -268,7 +268,7 @@ func setup() *myLogger {
     pluginMgr = nil
     ProcID = "proc_0" + fmt.Sprintf("%d", time.Now().UnixNano())
     lomcommon.SetPrefix(ProcID)
-lomcommon.SetAgentName("PluginMgr")
+    lomcommon.SetAgentName("PluginMgr")
     resetMockLogger()
     myLogger := setupMockLogger(ProcID)
     //os.Setenv("LOM_TESTMODE_NAME", "yes")

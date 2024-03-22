@@ -2,13 +2,13 @@
 package plugins_common
 
 import (
-	"container/list"
-	"context"
-	"lom/src/lib/lomcommon"
-	"lom/src/lib/lomipc"
-	"sync"
-	"sync/atomic"
-	"time"
+    "container/list"
+    "context"
+    "lom/src/lib/lomcommon"
+    "lom/src/lib/lomipc"
+    "sync"
+    "sync/atomic"
+    "time"
 )
 
 /*
@@ -61,14 +61,14 @@ func (pluginReportingFrequencyLimiter *PluginReportingFrequencyLimiter) ShouldRe
     reportingDetails, ok := pluginReportingFrequencyLimiter.cache[anomalyKey]
 
     if !ok {
-// If the anomaly key is not in the cache, add it to the cache and report the anomaly
+        // If the anomaly key is not in the cache, add it to the cache and report the anomaly
         reportingDetails := ReportingDetails{lastReported: time.Now(), countOfTimesReported: 1}
         pluginReportingFrequencyLimiter.cache[anomalyKey] = &reportingDetails
         return true
     } else {
-// If the anomaly key is in the cache, check if the current time is not within the frequency limit
+        // If the anomaly key is in the cache, check if the current time is not within the frequency limit
         if pluginReportingFrequencyLimiter.IsNotWithinFrequency(*reportingDetails) {
-// If it's not within the frequency limit, increment the count of times reported, update the last reported
+            // If it's not within the frequency limit, increment the count of times reported, update the last reported
             // time, and report the anomaly
             defer func() {
                 reportingDetails.countOfTimesReported = reportingDetails.countOfTimesReported + 1
@@ -85,7 +85,7 @@ func (pluginReportingFrequencyLimiter *PluginReportingFrequencyLimiter) ResetCac
     reportingDetails, ok := pluginReportingFrequencyLimiter.cache[anomalyKey]
 
     if ok {
-// If the anomaly key is in the cache, check if the current time is not within the frequency limit
+        // If the anomaly key is in the cache, check if the current time is not within the frequency limit
         if pluginReportingFrequencyLimiter.IsNotWithinFrequency(*reportingDetails) {
             delete(pluginReportingFrequencyLimiter.cache, anomalyKey)
         }
@@ -117,12 +117,12 @@ Note :
 */
 func (pluginReportingFrequencyLimiter *PluginReportingFrequencyLimiter) IsNotWithinFrequency(reportingDetails ReportingDetails) bool {
     if reportingDetails.countOfTimesReported <= pluginReportingFrequencyLimiter.initialReportingMaxCount {
-// If the count of times reported is less than or equal to the initial reporting max count, check against the initial reporting frequency
+        // If the count of times reported is less than or equal to the initial reporting max count, check against the initial reporting frequency
         if time.Since(reportingDetails.lastReported).Minutes() > float64(pluginReportingFrequencyLimiter.initialReportingFreqInMins) {
             return true
         }
     } else {
-//TO-DO : Prithvi/Goutham : Remove this & do proper code changes at other places
+        //TO-DO : Prithvi/Goutham : Remove this & do proper code changes at other places
         // If the count of times reported is greater than the initial reporting max count, check against the subsequent reporting frequency
         if time.Since(reportingDetails.lastReported).Minutes() > float64(pluginReportingFrequencyLimiter.SubsequentReportingFreqInMins) {
             return true

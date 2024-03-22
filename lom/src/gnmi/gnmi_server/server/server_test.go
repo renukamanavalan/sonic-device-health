@@ -3,40 +3,40 @@ package gnmi
 // server_test covers gNMI get, subscribe (stream and poll) test
 // Prerequisite: redis-server should be running.
 import (
-	"crypto/tls"
-	"crypto/x509"
-	"errors"
-	"flag"
-	"fmt"
-	"strings"
+    "crypto/tls"
+    "crypto/x509"
+    "errors"
+    "flag"
+    "fmt"
+    "strings"
 
-	"os/user"
-	"testing"
-	"time"
+    "os/user"
+    "testing"
+    "time"
 
-	"github.com/msteinert/pam"
-	"github.com/openconfig/gnmi/client"
-	"github.com/openconfig/ygot/ygot"
+    "github.com/msteinert/pam"
+    "github.com/openconfig/gnmi/client"
+    "github.com/openconfig/ygot/ygot"
 
-	pb "github.com/openconfig/gnmi/proto/gnmi"
+    pb "github.com/openconfig/gnmi/proto/gnmi"
 
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/peer"
+    "golang.org/x/net/context"
+    "google.golang.org/grpc"
+    "google.golang.org/grpc/credentials"
+    "google.golang.org/grpc/metadata"
+    "google.golang.org/grpc/peer"
 
-	"github.com/agiledragon/gomonkey/v2"
+    "github.com/agiledragon/gomonkey/v2"
 
-	jwt "github.com/dgrijalva/jwt-go"
+    jwt "github.com/dgrijalva/jwt-go"
 
-	// Register supported client types.
-	testcert "lom/src/gnmi/testdata/tls"
-	lom_utils "lom/src/gnmi/utils"
-	cmn "lom/src/lib/lomcommon"
-	tele "lom/src/lib/lomtelemetry"
+    // Register supported client types.
+    testcert "lom/src/gnmi/testdata/tls"
+    lom_utils "lom/src/gnmi/utils"
+    cmn "lom/src/lib/lomcommon"
+    tele "lom/src/lib/lomtelemetry"
 
-	gclient "github.com/jipanyang/gnmi/client/gnmi"
+    gclient "github.com/jipanyang/gnmi/client/gnmi"
 )
 
 var clientTypes = []string{gclient.Type}

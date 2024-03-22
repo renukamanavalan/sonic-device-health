@@ -1,21 +1,21 @@
 package lomcommon
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"log/syslog"
-	"math"
-	"os"
-	"os/exec"
-	"reflect"
-	"runtime"
-	"sort"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
+    "encoding/json"
+    "errors"
+    "fmt"
+    "io"
+    "log/syslog"
+    "math"
+    "os"
+    "os/exec"
+    "reflect"
+    "runtime"
+    "sort"
+    "strconv"
+    "strings"
+    "sync"
+    "time"
 )
 
 /* "go test" must use "-v" option to turn on testmode */
@@ -39,6 +39,7 @@ func init() {
     InitSyslogWriter("")
 }
 
+// To-Do : Goutham/Renuka : Make path as global const and load config from init()
 func InitSyslogWriter(path string) {
     isTest := false
     if GetLoMRunMode() == LoMRunMode_Test {
@@ -114,10 +115,10 @@ func SetPrefix(p string) {
         apprefix = p
         if vendor != "Arista" {
             apprefix += ": "
-}
+        }
     } else {
         apprefix = ""
-    if vendor == "Arista" {
+        if vendor == "Arista" {
             apprefix = "lom"
         }
     }
@@ -181,13 +182,13 @@ func LogMessageWithSkip(skip int, lvl syslog.Priority, s string, a ...interface{
     ct_lvl := GetLogLevel()
     m := fmt.Sprintf(getPrefix(skip+2, fmt.Sprintf("%d", lvl))+s, a...)
     if lvl <= ct_lvl {
-if vendor == "Arista" {
+        if vendor == "Arista" {
             // Example message : %LOM_PLUGIN_MGR-5-proc_0: pluginmgr_common/pluginmgr_helper.go:955:plugin_mgr: Starting Plugin Manager in PROD mode
             FmtFprintf(writers[lvl], "%%"+m+logSuffix)
         } else {
-        FmtFprintf(writers[lvl], m+logSuffix)
+            FmtFprintf(writers[lvl], m+logSuffix)
+        }
     }
-}
     return m
 }
 

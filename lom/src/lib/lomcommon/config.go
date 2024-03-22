@@ -1,13 +1,13 @@
 package lomcommon
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"sort"
+    "encoding/json"
+    "fmt"
+    "io"
+    "io/ioutil"
+    "os"
+    "path/filepath"
+    "sort"
 )
 
 const (
