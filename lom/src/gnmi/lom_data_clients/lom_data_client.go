@@ -9,9 +9,10 @@ import (
     "sync"
     "time"
 
+    lpb "lom/src/gnmi/proto"
+
     "github.com/Workiva/go-datastructures/queue"
     gnmipb "github.com/openconfig/gnmi/proto/gnmi"
-    lpb "lom/src/gnmi/proto"
 
     cmn "lom/src/lib/lomcommon"
     tele "lom/src/lib/lomtelemetry"

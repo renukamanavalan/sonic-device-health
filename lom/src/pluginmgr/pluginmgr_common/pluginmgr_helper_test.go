@@ -6,18 +6,22 @@ import (
     "lom/src/plugins/plugins_common"
 
     "errors"
+
     "github.com/stretchr/testify/assert"
     "github.com/stretchr/testify/mock"
+
     //"os/signal"
     //"flag"
     "fmt"
     //"io/ioutil"
     "log/syslog"
     "os"
+
     //"regexp"
     "sync"
     "syscall"
     "testing"
+
     //"time"
     "flag"
     "strings"
@@ -264,6 +268,7 @@ func setup() *myLogger {
     pluginMgr = nil
     ProcID = "proc_0" + fmt.Sprintf("%d", time.Now().UnixNano())
     lomcommon.SetPrefix(ProcID)
+    lomcommon.SetAgentName("PluginMgr")
     resetMockLogger()
     myLogger := setupMockLogger(ProcID)
     //os.Setenv("LOM_TESTMODE_NAME", "yes")
@@ -2390,7 +2395,7 @@ func Test_ParseArguments(t *testing.T) {
         oldArgs := os.Args
         defer func() { os.Args = oldArgs }()
 
-        args := []string{"-proc_id=proc_1", "-syslog_level=3"}
+        args := []string{"-proc_id=proc_1", "-syslog_level=3", "-path=../../lib/libtest/config/"}
         // Set command line arguments for this test case
         os.Args = append([]string{"test_prog"}, args...)
 
@@ -2413,7 +2418,7 @@ func Test_ParseArguments(t *testing.T) {
         oldArgs := os.Args
         defer func() { os.Args = oldArgs }()
 
-        args := []string{"-syslog_level=3"}
+        args := []string{"-syslog_level=3", "-path=../../lib/libtest/config/"}
         // Set command line arguments for this test case
         os.Args = append([]string{"test_prog"}, args...)
 
@@ -2436,7 +2441,7 @@ func Test_ParseArguments(t *testing.T) {
         oldArgs := os.Args
         defer func() { os.Args = oldArgs }()
 
-        args := []string{"-proc_id=proc_1"}
+        args := []string{"-proc_id=proc_1", "-path=../../lib/libtest/config/"}
         // Set command line arguments for this test case
         os.Args = append([]string{"test_prog"}, args...)
 
@@ -2445,7 +2450,7 @@ func Test_ParseArguments(t *testing.T) {
 
         // Check expected results
         assert.Equal(t, "proc_1", ProcID)
-        assert.Equal(t, syslog.Priority(7), lomcommon.GetLogLevel())
+        assert.Equal(t, syslog.Priority(6), lomcommon.GetLogLevel())
 
     })
 }

@@ -8,10 +8,14 @@ The following command line arguments are expected:
 
 - `proc_id`: The process ID of the plugin manager (mandatory).
 - `syslog_level`: The syslog level for logging (optional, default: LOG_DEBUG).
+- `path`: The path to the config files (mandatory). Preference for value passed via command line argument, then environment variable, otherwise
+   program panics.
+- `mode`: The run mode of the plugin manager (optional, default: "test". For production moden value : "PROD").`
 
 Example to start Plugin Manager:
 
-- LOM_CONF_LOCATION="..." LOM_RUN_MODE="PROD" ./LoMpluginMgr -proc_id="proc_0" -syslog_level=5
+- ./LoMpluginMgr -proc_id=proc_0 -syslog_level=7 -path="./" -mode=PROD
+- LOM_CONF_LOCATION="..." LOM_RUN_MODE="PROD" ./LoMpluginMgr -proc_id=proc_0 -syslog_level=5
 
 ## Environment Variables
 

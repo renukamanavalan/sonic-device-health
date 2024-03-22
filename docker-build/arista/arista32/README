@@ -1,0 +1,2 @@
+LOM GNMI server cannot be built on Arista32 bit platform. Seeing issues lom/src/gnmi/utils/shareMem.go. API's not supported for 386.
+So, build cannot be performed on this platform and we don't test LOM here. 

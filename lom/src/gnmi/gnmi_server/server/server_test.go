@@ -31,11 +31,12 @@ import (
     jwt "github.com/dgrijalva/jwt-go"
 
     // Register supported client types.
-    gclient "github.com/jipanyang/gnmi/client/gnmi"
     testcert "lom/src/gnmi/testdata/tls"
     lom_utils "lom/src/gnmi/utils"
     cmn "lom/src/lib/lomcommon"
     tele "lom/src/lib/lomtelemetry"
+
+    gclient "github.com/jipanyang/gnmi/client/gnmi"
 )
 
 var clientTypes = []string{gclient.Type}

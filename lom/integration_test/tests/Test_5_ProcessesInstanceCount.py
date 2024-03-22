@@ -22,8 +22,8 @@ def isEnabled() :
 def run_test():
     # Overwrite config files with test specific data in Docker container
     json_data = {
-        "link_crc": {
-            "Name": "link_crc",
+        "link_crc_detection": {
+            "Name": "link_crc_detection",
             "Type": "Detection",
             "Timeout": 0,
             "HeartbeatInt": 30,
@@ -55,7 +55,7 @@ def run_test():
                 "Priority": 0,
                 "Timeout": 2,
                 "Actions": [{
-                    "name": "link_crc"
+                    "name": "link_crc_detection"
                 }]
             }
         ]
@@ -89,8 +89,8 @@ def run_test():
     json_data = {
         "procs": {
             "proc_0": {
-                "link_crc": {
-                    "name": "link_crc",
+                "link_crc_detection": {
+                    "name": "link_crc_detection",
                     "version": "1.0.0.0",
                     "path": ""
                 }

@@ -16,11 +16,10 @@ function rmFileOrDir() {
 
 
 function clean() {
-    for i in ${TEST_BIN} "integration_test.tar.gz" "integration_test/bin" 
+    for i in ${TEST_BIN} "./build/integration_test.tar.gz" "./build/integration_test" 
     do
         rmFileOrDir ${i}
     done
-
 }
 
 
@@ -33,11 +32,14 @@ if [ "$1" == "build" ]; then
     clean
 
     mkdir -p $(dirname ${TEST_BIN})
-    mkdir -p integration_test/bin
+    mkdir -p build/integration_test/bin
+
+    # copy all content in integration_test to build directory
+    cp -R integration_test/* build/integration_test/
 
     # Copy new files from 'build/bin' to 'integration_test/bin'
-    cp -R build/bin/* integration_test/bin/
-    echo "Copied new files to 'integration_test/bin'."
+    cp -R build/bin/* build/integration_test/bin/
+    echo "Copied new files to 'build/integration_test/bin'."
 
     # Check if linkcrc_mocker binary exists
     if [ ! -f "build/test/linkcrc_mocker" ]; then
@@ -46,11 +48,11 @@ if [ "$1" == "build" ]; then
     fi
 
     # Copy the linkcrc_mocker binary to 'integration_test/bin'
-    cp build/test/linkcrc_mocker integration_test/bin/
-    echo "Copied linkcrc_mocker to 'integration_test/bin'."
+    cp build/test/linkcrc_mocker build/integration_test/bin/
+    echo "Copied linkcrc_mocker to 'build/integration_test/bin'."
 
     # Navigate to utils directory and build
-    pushd integration_test/src/utils
+    pushd build/integration_test/src/utils
     if ! $GO build -o command_listener; then
         echo "Error: Failed to build command_listener."
         popd
@@ -59,27 +61,27 @@ if [ "$1" == "build" ]; then
     popd
 
     # Check if the utils binary exists
-    if [ ! -f "integration_test/src/utils/command_listener" ]; then
-        echo "Error: command_listener binary not found in 'integration_test/src/utils' directory."
+    if [ ! -f "build/integration_test/src/utils/command_listener" ]; then
+        echo "Error: command_listener binary not found in 'build/integration_test/src/utils' directory."
         exit 1
     fi
 
-    # Move the utils binary to 'integration_test/bin'
-    mv integration_test/src/utils/command_listener integration_test/bin/
-    echo "Copied command_listener to 'integration_test/bin'."
+    # Move the utils binary to 'build/integration_test/bin'
+    mv build/integration_test/src/utils/command_listener build/integration_test/bin/
+    echo "Copied command_listener to 'build/integration_test/bin'."
 
-    # Make all binaries in 'integration_test/bin' executable
-    chmod +x integration_test/bin/*
-    echo "Made all binaries in 'integration_test/bin' executable."
+    # Make all binaries in 'build/integration_test/bin' executable
+    chmod +x build/integration_test/bin/*
+    echo "Made all binaries in 'build/integration_test/bin' executable."
 
-    # Create a tar archive of 'integration_test'
-    tar -czvf integration_test.tar.gz integration_test
-    echo "Created tar archive 'integration_test.tar.gz'."
+    # Create a tar archive of 'build/integration_test'
+    tar -czvf build/integration_test.tar.gz build/integration_test
+    echo "Created tar archive 'build/integration_test.tar.gz'."
 
     # create a self extracting installer
     mkdir -p $(dirname ${TEST_BIN})
-    cat integration_test/src/self_extracting_installer.sh integration_test.tar.gz > ${TEST_BIN}
-    echo "Created self extracting installer 'integration_test_installer.sh'."
+    cat build/integration_test/src/self_extracting_installer.sh build/integration_test.tar.gz > ${TEST_BIN}
+    echo "Created self extracting installer 'integration_test_installer.sh' at ${TEST_BIN}."
     chmod +x ${TEST_BIN}
 
 elif [ "$1" == "clean" ]; then

@@ -2,6 +2,7 @@ package lomcommon
 
 import (
     "encoding/json"
+    "fmt"
     "io"
     "io/ioutil"
     "os"
@@ -91,6 +92,10 @@ func GetLoMRunMode() LoMRunMode_t {
         }
     }
     return lomRunMode
+}
+
+func SetLoMRunMode(mode LoMRunMode_t) {
+    lomRunMode = mode
 }
 
 /*
@@ -211,7 +216,7 @@ type ProcPluginConfig_t struct {
 
 /* Action config as read from actions.conf.json */
 type ActionCfg_t struct {
-    Name         string          /* Action name e.g. link_crc*/
+    Name         string          /* Action name e.g. link_crc_detection*/
     Type         string          /* Action type. can be Detection, Mitigation or Safety */
     Timeout      int             /* Timeout recommended for this action */
     HeartbeatInt int             /* Heartbeat interval */
@@ -628,7 +633,7 @@ func InitConfigPath(path string) error {
         exists := false
         path, exists = GetEnvVarString("ENV_lom_conf_location")
         if !exists || len(path) == 0 {
-            return LogError("LOM_CONF_LOCATION environment variable not set")
+            return LogError("LOM_CONF_LOCATION environment variable not set and not provided as argument")
         }
     }
     cfgFiles := &ConfigFiles_t{
@@ -640,6 +645,58 @@ func InitConfigPath(path string) error {
 
     _, err := InitConfigMgr(cfgFiles)
     return err
+}
+
+func GetSyslogFacilityLevelFromConfig(path string) (string, error) {
+    filePath := filepath.Join(path, "/"+GLOBALS_CONF_FILE)
+    jsonFile, err := os.Open(filePath)
+    if err != nil {
+        return "", fmt.Errorf("error opening JSON file: %v", err)
+    }
+    defer jsonFile.Close()
+
+    byteValue, err := ioutil.ReadAll(jsonFile)
+    if err != nil {
+        return "", fmt.Errorf("error reading JSON file: %v", err)
+    }
+
+    var result map[string]interface{}
+    err = json.Unmarshal(byteValue, &result)
+    if err != nil {
+        return "", fmt.Errorf("error parsing JSON: %v", err)
+    }
+
+    if value, ok := result["SYSLOG_FACILITY_LEVEL"]; ok {
+        return value.(string), nil
+    } else {
+        return "", fmt.Errorf("SYSLOG_FACILITY_LEVEL not found")
+    }
+}
+
+func GetVendorFromConfig(path string) (string, error) {
+    filePath := filepath.Join(path, "/"+GLOBALS_CONF_FILE)
+    jsonFile, err := os.Open(filePath)
+    if err != nil {
+        return "", fmt.Errorf("error opening JSON file: %v", err)
+    }
+    defer jsonFile.Close()
+
+    byteValue, err := ioutil.ReadAll(jsonFile)
+    if err != nil {
+        return "", fmt.Errorf("error reading JSON file: %v", err)
+    }
+
+    var result map[string]interface{}
+    err = json.Unmarshal(byteValue, &result)
+    if err != nil {
+        return "", fmt.Errorf("error parsing JSON: %v", err)
+    }
+
+    if value, ok := result["VENDOR"]; ok {
+        return value.(string), nil
+    } else {
+        return "", fmt.Errorf("VENDOR not found")
+    }
 }
 
 /* Gets settings of float64 type from mapping. Else returns defaultValue */
@@ -660,4 +717,52 @@ func GetFloatConfigFromMapping(mapping map[string]interface{}, configurationKey 
         return defaultValue
     }
     return configurationValFloat64
+}
+
+/*
+ * GetConfigFromMapping retrieves a configuration value from a map using a given key.
+ * If the key is not present in the map, it logs an error and returns a default value.
+ * The function supports int, float64, and string types for the configuration value.
+ * If the value in the map is not of the expected type, it logs an error and returns the default value.
+ *
+ * Input:
+ *  mapping - The map from which to retrieve the configuration value
+ *  configurationKey - The key to use to retrieve the configuration value from the map
+ *  defaultValue - The default value to return if the key is not present in the map or if the value is not of the expected type
+ *
+ * Output:
+ *  None
+ *
+ * Return:
+ *  The configuration value if the key is present in the map and the value is of the expected type
+ *  The default value if the key is not present in the map or if the value is not of the expected type
+ */
+func GetConfigFromMapping(mapping map[string]interface{}, configurationKey string, defaultValue interface{}) interface{} {
+    if len(mapping) == 0 {
+        return defaultValue
+    }
+
+    configurationVal, ok := mapping[configurationKey]
+    if !ok {
+        LogError("key %s not present in mapping", configurationKey)
+        return defaultValue
+    }
+
+    switch defaultValue.(type) {
+    case int:
+        if val, ok := configurationVal.(float64); ok {
+            return int(val)
+        }
+    case float64:
+        if val, ok := configurationVal.(float64); ok {
+            return val
+        }
+    case string:
+        if val, ok := configurationVal.(string); ok {
+            return val
+        }
+    }
+
+    LogError("unexpected type %T for key %s in mapping", configurationVal, configurationKey)
+    return defaultValue
 }

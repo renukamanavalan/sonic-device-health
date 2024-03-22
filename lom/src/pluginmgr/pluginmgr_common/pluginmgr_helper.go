@@ -26,8 +26,9 @@ import (
 
 // Plugin Manager global variables
 var (
-    ProcID    string         = ""
-    pluginMgr *PluginManager = nil
+    ProcID     string         = ""
+    pluginMgr  *PluginManager = nil
+    ConfigPath                = ""
 )
 
 // TODO: Goutham : Add this to global_conf.json
@@ -41,7 +42,7 @@ const (
     PLUGIN_LOADING_TIMEOUT_DEFAULT           = 30 * time.Second     // Time to wait for plugin to load
     PLUGIN_SHUTDOWN_TIMEOUT_DEFAULT          = 30 * time.Second     // Time to wait for plugin to shutdown
     GOROUTINE_CLEANUP_TIMEOUT_DEFAULT        = 30 * time.Second     // Time to wait for goroutines to cleanup at systemshutdown
-    APP_NAME_DEAULT                          = "PluginMgr"          // Default name for the application
+    APP_NAME_DEAULT                          = "LOM_PLUGIN_MGR"     // Default name for the application
 )
 
 var LogInfo = lomcommon.LogInfo
@@ -848,21 +849,37 @@ func ParseArguments() string {
     // Declare the command line flags
     var ProcIDFlag string
     var syslogLevelFlag int
+    var pathFlag string
+    var modeFlag string
 
     // Define the command line flags
     fs.StringVar(&ProcIDFlag, "proc_id", "", "Proc ID string")
-    fs.IntVar(&syslogLevelFlag, "syslog_level", 7, "Syslog level")
+    fs.IntVar(&syslogLevelFlag, "syslog_level", 6, "Syslog level")
+    fs.StringVar(&pathFlag, "path", "", "Config path")
+    fs.StringVar(&modeFlag, "mode", "", "Mode of operation")
 
     // Parse the command line arguments
     fs.Parse(os.Args[1:])
+
+    // assign to variables which can be accessed from process
+    ProcID = ProcIDFlag
+    ConfigPath = pathFlag
+
+    if ConfigPath == "" {
+        LogPanic("Exiting : Config path is not provided")
+        return ""
+    }
+
+    if modeFlag == "PROD" {
+        lomcommon.SetLoMRunMode(lomcommon.LoMRunMode_Prod)
+        lomcommon.InitSyslogWriter(ConfigPath)
+    }
 
     if ProcIDFlag == "" {
         LogPanic("Exiting : Proc ID is not provided")
         return ""
     }
 
-    // assign to variables which can be accessed from process
-    ProcID = ProcIDFlag
     lomcommon.SetLogLevel(syslog.Priority(syslogLevelFlag))
 
     msg := fmt.Sprintf("Program Arguments : proc ID : %s, Syslog Level : %d\n", ProcIDFlag, syslogLevelFlag)
@@ -933,6 +950,14 @@ func SetupPluginManager() error {
     // setup application prefix for logging
     lomcommon.SetPrefix(ProcID)
 
+    // setup agentname to logging
+    lomcommon.SetAgentName(APP_NAME_DEAULT)
+
+    modeStr := "PROD"
+    if lomcommon.GetLoMRunMode() == lomcommon.LoMRunMode_Test {
+        modeStr = "test"
+    }
+    lomcommon.LogInfo("plugin_mgr: Starting Plugin Manager in %s mode", modeStr)
     LogInfo(msg)
 
     //syslog level change from UNIX signals
@@ -940,8 +965,7 @@ func SetupPluginManager() error {
     LogInfo("SetupPluginManager : Successfully setup signals")
 
     // Initialize the config manager. This will read ENV config path location and  will read config files for attributes from there
-    val, _ := lomcommon.GetEnvVarString("ENV_lom_conf_location")
-    err := lomcommon.InitConfigPath(val)
+    err := lomcommon.InitConfigPath(ConfigPath)
     if err != nil {
         LogError("SetupPluginManager : Error initializing config manager: %s", err)
     }
